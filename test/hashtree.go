@@ -150,21 +150,20 @@ func compareVal(a, b Val) int{
 	return 100
 }
 
-/*
 func (self *Node)Update(updatekey []byte, updatevalue []byte)(newnode *Node, err error){
     kh := keyhash(updatekey)
     bin := hashbin(kh, self.Level)
 
     fmt.Println("Update ", kh, bin, "key = ",string(self.Key))
     if self.Bin[bin] == nil{
-        return nil
+        return self, nil
     }
 
     if self.Bin[bin].Next{
-        fmt.Println("Update Next ", k, bin, self.Bin[bin].Key)
+        fmt.Println("Update Next ", updatekey, bin, self.Bin[bin].Key)
         return self.Bin[bin].Update(updatekey, updatevalue)
     }else{
-        fmt.Println("Update find ", k, self.Value)
+        fmt.Println("Update find ", updatekey, self.Value)
 		self.Bin[bin].Value = updatevalue
     	return self, nil
         //return self.Bin[bin].Value
@@ -172,7 +171,6 @@ func (self *Node)Update(updatekey []byte, updatevalue []byte)(newnode *Node, err
 	err = fmt.Errorf("couldn't find the key for updating")
    	return self, err
 }
-*/
 
 func (self *Node)Delete(k []byte)(newnode *Node){
     kh := keyhash(k)
@@ -232,16 +230,16 @@ func main(){
 	fmt.Println(root.Get([]byte("bbb")))
 	buf := "teststr"
 	data := "testdata"
-	for i :=0; i <10; i++{
+	for i :=0; i <100; i++{
 		str := buf + strconv.Itoa(i)
 		dstr := data + strconv.Itoa(i)
 fmt.Println("*******",i,"*********", str)
 		root.Add([]byte(str), []byte(dstr))
 fmt.Println("=======",i,"=========", str)
 	}
-	fmt.Printf("%s\n",root.Get([]byte("teststr3")))
-	root.Delete([]byte("teststr8"))
-	    for i :=0; i <10; i++{
+	fmt.Printf("%s\n",root.Get([]byte("teststr50")))
+	root.Update([]byte("teststr50"), []byte("newteststr50"))
+	    for i :=45; i <55; i++{
         str := buf + strconv.Itoa(i)
 		fmt.Printf("*****************%d %s\n",i, root.Get([]byte(str)))
 	}
