@@ -4,6 +4,7 @@ import(
 	"bytes"
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
+	//"reflect"
 	"strconv"
 )
 
@@ -18,6 +19,8 @@ type Node struct{
 	Value	Val
 	Level	int
 	Root	bool
+	Parent	*Node
+	myBinNum	int
 }
 
 func keyhash(k []byte) [32]byte{
@@ -130,10 +133,87 @@ func (self *Node)Get(k []byte) Val{
 		fmt.Println("Get Next ", k, bin, self.Bin[bin].Key)
 		return self.Bin[bin].Get(k)
 	}else{
-		fmt.Println("Get find ", k, self.Value)
-		return self.Bin[bin].Value
+		fmt.Println("Get find ", k, self.Bin[bin].Value)
+		if compareVal(k, self.Bin[bin].Key) == 0{
+			return self.Bin[bin].Value
+		}
 	} 
 	return nil
+}
+
+func compareVal(a, b Val) int{
+	if va, ok := a.([]byte); ok{
+		if vb, ok := b.([]byte); ok{
+			return bytes.Compare(va,vb)
+		}
+	}
+	return 100
+}
+
+/*
+func (self *Node)Update(updatekey []byte, updatevalue []byte)(newnode *Node, err error){
+    kh := keyhash(updatekey)
+    bin := hashbin(kh, self.Level)
+
+    fmt.Println("Update ", kh, bin, "key = ",string(self.Key))
+    if self.Bin[bin] == nil{
+        return nil
+    }
+
+    if self.Bin[bin].Next{
+        fmt.Println("Update Next ", k, bin, self.Bin[bin].Key)
+        return self.Bin[bin].Update(updatekey, updatevalue)
+    }else{
+        fmt.Println("Update find ", k, self.Value)
+		self.Bin[bin].Value = updatevalue
+    	return self, nil
+        //return self.Bin[bin].Value
+    }
+	err = fmt.Errorf("couldn't find the key for updating")
+   	return self, err
+}
+*/
+
+func (self *Node)Delete(k []byte)(newnode *Node){
+    kh := keyhash(k)
+    bin := hashbin(kh, self.Level)
+
+    fmt.Println("Delete ", kh, bin, "key = ",string(self.Key))
+    if self.Bin[bin] == nil{
+        return nil
+    }
+
+    if self.Bin[bin].Next{
+        fmt.Println("Delete Next ", k, bin, self.Bin[bin].Key)
+        self.Bin[bin] = self.Bin[bin].Delete(k)
+        bincount := 0
+        pos := -1
+        for i, b := range self.Bin{
+            if b != nil  {
+                bincount++
+                pos = i
+            }
+        }
+        if bincount == 1 && self.Bin[pos].Next == false{
+            return self.Bin[pos]
+        }
+    }else{
+        fmt.Println("Delete find ", k, self.Value)
+		self.Bin[bin] = nil
+		
+		bincount := 0
+		pos := -1
+		for i, b := range self.Bin{
+			if b != nil {
+				bincount++
+				pos = i
+			}
+		}
+		if bincount == 1{
+			return self.Bin[pos]
+		}
+    }
+	return self
 }
 
 func (self *Node)Print(){
@@ -152,16 +232,19 @@ func main(){
 	fmt.Println(root.Get([]byte("bbb")))
 	buf := "teststr"
 	data := "testdata"
-	for i :=0; i <1000; i++{
+	for i :=0; i <10; i++{
 		str := buf + strconv.Itoa(i)
 		dstr := data + strconv.Itoa(i)
 fmt.Println("*******",i,"*********", str)
 		root.Add([]byte(str), []byte(dstr))
 fmt.Println("=======",i,"=========", str)
 	}
-	fmt.Printf("%s\n",root.Get([]byte("teststr500")))
-	fmt.Printf("%s\n",root.Get([]byte("teststr129")))
-	fmt.Printf("%s\n",root.Get([]byte("teststr50")))
+	fmt.Printf("%s\n",root.Get([]byte("teststr3")))
+	root.Delete([]byte("teststr8"))
+	    for i :=0; i <10; i++{
+        str := buf + strconv.Itoa(i)
+		fmt.Printf("*****************%d %s\n",i, root.Get([]byte(str)))
+	}
 }
 
 
