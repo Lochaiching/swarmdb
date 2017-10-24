@@ -23,6 +23,7 @@ import (
 	"hash"
 	"io"
 	"sync"
+    "github.com/ethereum/go-ethereum/log"
 )
 
 /*
@@ -113,7 +114,7 @@ type hashJob struct {
 	parentWg *sync.WaitGroup
 }
 
-func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, swg, wwg *sync.WaitGroup) (Key, error) {
+func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, swg, wwg *sync.WaitGroup, swarmdb bool) (Key, error) {
 
 	if self.chunkSize <= 0 {
 		panic("chunker must be initialised")
@@ -128,7 +129,7 @@ func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, s
 	if wwg != nil {
 		wwg.Add(1)
 	}
-	go self.hashWorker(jobC, chunkC, errC, quitC, swg, wwg)
+	go self.hashWorker(jobC, chunkC, errC, quitC, swg, wwg, swarmdb)
 
 	depth := 0
 	treeSize := self.chunkSize
@@ -138,12 +139,13 @@ func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, s
 	for ; treeSize < size; treeSize *= self.branches {
 		depth++
 	}
+	log.Trace(fmt.Sprintf("Chunker: %v %v %v %v", treeSize, depth, size, self.hashFunc().Size()))
 
 	key := make([]byte, self.hashFunc().Size())
 	// this waitgroup member is released after the root hash is calculated
 	wg.Add(1)
 	//launch actual recursive function passing the waitgroups
-	go self.split(depth, treeSize/self.branches, key, data, size, jobC, chunkC, errC, quitC, wg, swg, wwg)
+	go self.split(depth, treeSize/self.branches, key, data, size, jobC, chunkC, errC, quitC, wg, swg, wwg, swarmdb)
 
 	// closes internal error channel if all subprocesses in the workgroup finished
 	go func() {
@@ -164,15 +166,24 @@ func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, s
 		}
 		//TODO: add a timeout
 	}
+	log.Trace(fmt.Sprintf("Chunker: %v %v %v %v %v", treeSize, depth, size, self.hashFunc().Size(), key))
 	return key, nil
 }
 
-func (self *TreeChunker) split(depth int, treeSize int64, key Key, data io.Reader, size int64, jobC chan *hashJob, chunkC chan *Chunk, errC chan error, quitC chan bool, parentWg, swg, wwg *sync.WaitGroup) {
+func (self *TreeChunker) split(depth int, treeSize int64, key Key, data io.Reader, size int64, jobC chan *hashJob, chunkC chan *Chunk, errC chan error, quitC chan bool, parentWg, swg, wwg *sync.WaitGroup, swarmdb bool) {
 
+/*
+	buf := make([]byte, 1024)
+	_, _ = io.ReadFull(data, buf)
+
+    log.Trace(fmt.Sprintf("Chunker.split data: %s", buf))
+*/
+    log.Trace(fmt.Sprintf("Chunker.split: %v %v %v %v", treeSize, depth, size, key))
 	for depth > 0 && size < treeSize {
 		treeSize /= self.branches
 		depth--
 	}
+    log.Trace(fmt.Sprintf("Chunker.split: %v %v %v", treeSize, depth, size))
 
 	if depth == 0 {
 		// leaf nodes -> content chunks
@@ -215,7 +226,7 @@ func (self *TreeChunker) split(depth int, treeSize int64, key Key, data io.Reade
 		subTreeKey := chunk[8+i*self.hashSize : 8+(i+1)*self.hashSize]
 
 		childrenWg.Add(1)
-		self.split(depth-1, treeSize/self.branches, subTreeKey, data, secSize, jobC, chunkC, errC, quitC, childrenWg, swg, wwg)
+		self.split(depth-1, treeSize/self.branches, subTreeKey, data, secSize, jobC, chunkC, errC, quitC, childrenWg, swg, wwg, swarmdb)
 
 		i++
 		pos += treeSize
@@ -229,15 +240,16 @@ func (self *TreeChunker) split(depth int, treeSize int64, key Key, data io.Reade
 			wwg.Add(1)
 		}
 		self.workerCount++
-		go self.hashWorker(jobC, chunkC, errC, quitC, swg, wwg)
+		go self.hashWorker(jobC, chunkC, errC, quitC, swg, wwg, swarmdb)
 	}
+    log.Trace(fmt.Sprintf("Chunker.split: %v %v %v %v", treeSize, depth, size, key))
 	select {
 	case jobC <- &hashJob{key, chunk, size, parentWg}:
 	case <-quitC:
 	}
 }
 
-func (self *TreeChunker) hashWorker(jobC chan *hashJob, chunkC chan *Chunk, errC chan error, quitC chan bool, swg, wwg *sync.WaitGroup) {
+func (self *TreeChunker) hashWorker(jobC chan *hashJob, chunkC chan *Chunk, errC chan error, quitC chan bool, swg, wwg *sync.WaitGroup, swarmdb bool) {
 	hasher := self.hashFunc()
 	if wwg != nil {
 		defer wwg.Done()
@@ -251,7 +263,7 @@ func (self *TreeChunker) hashWorker(jobC chan *hashJob, chunkC chan *Chunk, errC
 			}
 			// now we got the hashes in the chunk, then hash the chunks
 			hasher.Reset()
-			self.hashChunk(hasher, job, chunkC, swg)
+			self.hashChunk(hasher, job, chunkC, swg, swarmdb)
 		case <-quitC:
 			return
 		}
@@ -261,14 +273,17 @@ func (self *TreeChunker) hashWorker(jobC chan *hashJob, chunkC chan *Chunk, errC
 // The treeChunkers own Hash hashes together
 // - the size (of the subtree encoded in the Chunk)
 // - the Chunk, ie. the contents read from the input reader
-func (self *TreeChunker) hashChunk(hasher hash.Hash, job *hashJob, chunkC chan *Chunk, swg *sync.WaitGroup) {
+func (self *TreeChunker) hashChunk(hasher hash.Hash, job *hashJob, chunkC chan *Chunk, swg *sync.WaitGroup, swarmdb bool) {
 	hasher.Write(job.chunk)
 	h := hasher.Sum(nil)
+	log.Trace(fmt.Sprintf("hashChunk: %v %s %v", h , job.chunk, job.size))
+
 	newChunk := &Chunk{
 		Key:   h,
 		SData: job.chunk,
 		Size:  job.size,
 		wg:    swg,
+		swarmdb: swarmdb,
 	}
 
 	// report hash of this chunk one level up (keys corresponds to the proper subslice of the parent chunk)

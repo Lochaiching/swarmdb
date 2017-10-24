@@ -246,6 +246,7 @@ as the target. The most proximate bin will be the union of the bins between
 proxLimit and MaxProx.
 */
 func (self *Kademlia) FindClosest(target Address, max int) []Node {
+	fmt.Println("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 	self.lock.Lock()
 	defer self.lock.Unlock()
 

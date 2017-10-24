@@ -51,6 +51,7 @@ var (
 	keyEntryCnt  = []byte{3}
 	keyDataIdx   = []byte{4}
 	keyGCPos     = []byte{5}
+	keyMHash     = []byte{6}
 )
 
 type gcItem struct {
@@ -67,6 +68,7 @@ type DbStore struct {
 
 	gcPos, gcStartPos []byte
 	gcArray           []*gcItem
+	mHash			  []byte
 
 	hashfunc Hasher
 
@@ -99,6 +101,7 @@ func NewDbStore(path string, hash Hasher, capacity uint64, radius int) (s *DbSto
 	if s.gcPos == nil {
 		s.gcPos = s.gcStartPos
 	}
+	s.mHash, _ = s.db.Get(keyMHash)
 	return
 }
 
@@ -126,6 +129,10 @@ func getIndexGCValue(index *dpaDBIndex) uint64 {
 
 func (s *DbStore) updateIndexAccess(index *dpaDBIndex) {
 	index.Access = s.accessCnt
+}
+
+func (s *DbStore) getMHash() string{
+	return string(s.mHash)
 }
 
 func getIndexKey(hash Key) []byte {
