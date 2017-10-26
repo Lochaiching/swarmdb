@@ -36,7 +36,6 @@ import (
 )
 
 func upload(ctx *cli.Context) {
-
 	args := ctx.Args()
 	var (
 		bzzapi       = strings.TrimRight(ctx.GlobalString(SwarmApiFlag.Name), "/")
@@ -82,6 +81,7 @@ func upload(ctx *cli.Context) {
 		}
 		fmt.Println(hash)
 		return
+	} else {
 	}
 
 	stat, err := os.Stat(file)
