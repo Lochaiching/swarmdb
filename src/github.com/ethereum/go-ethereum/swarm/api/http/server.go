@@ -21,9 +21,11 @@ package http
 
 import (
 	"archive/tar"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"golang.org/x/crypto/nacl/box"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -99,12 +101,18 @@ func (s *Server) HandlePostRaw(w http.ResponseWriter, r *Request) {
 		return
 	}
 
-	key, err := s.api.Store(r.Body, r.ContentLength, nil)
+	bodycontent, _ := ioutil.ReadAll(r.Body)	
+	rdrUpdated := ioutil.NopCloser(bytes.NewBuffer(bodycontent))
+        r.ContentLength = int64(bytes.NewBuffer(bodycontent).Len())
+
+	s.logDebug( fmt.Sprintf("%s ==> %+v with lenghth [%v]",bodycontent, bodycontent,r.ContentLength) )
+	key, err := s.api.Store(rdrUpdated, r.ContentLength, nil)
 	if err != nil {
 		s.Error(w, r, err)
 		return
 	}
-	s.logDebug("content for %s stored", key.Log())
+	reader_retrieved := s.api.Retrieve(key)
+	s.logDebug("content for key.Log [%s] [%+v] stored [%+v]", key.Log(), key, reader_retrieved)
 
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
@@ -340,6 +348,10 @@ func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 
 	// check the root chunk exists by retrieving the file's size
 	reader := s.api.Retrieve(key)
+	readerSize,_ := reader.Size(nil)
+	encrypted_reader := make([]byte, readerSize )
+	_,_ = reader.ReadAt(encrypted_reader,0)
+	decrypted_reader := bytes.NewReader(DecryptData(reader_enc))
 	if _, err := reader.Size(nil); err != nil {
 		s.logDebug("key not found %s: %s", key, err)
 		http.NotFound(w, &r.Request)
@@ -354,7 +366,7 @@ func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 	}
 	w.Header().Set("Content-Type", contentType)
 
-	http.ServeContent(w, &r.Request, "", time.Now(), reader)
+	http.ServeContent(w, &r.Request, "", time.Now(), decrypted_reader)
 }
 
 // HandleGetFiles handles a GET request to bzz:/<manifest> with an Accept
@@ -548,14 +560,19 @@ func (s *Server) HandleGetFile(w http.ResponseWriter, r *Request) {
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.logDebug("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
-
 	uri, err := api.Parse(strings.TrimLeft(r.URL.Path, "/"))
 	if err != nil {
 		s.logError("Invalid URI %q: %s", r.URL.Path, err)
 		http.Error(w, fmt.Sprintf("Invalid bzz URI: %s", err), http.StatusBadRequest)
 		return
 	}
+
 	s.logDebug("%s request received for %s", r.Method, uri)
+	bodycontent,_ := ioutil.ReadAll(r.Body)
+	encrypted_bodycontent := EncryptData( bodycontent )
+	encrypted_reader := ioutil.NopCloser(bytes.NewBuffer(encrypted_bodycontent))
+	r.Body = encrypted_reader
+	r.ContentLength = int64(bytes.NewBuffer(encrypted_bodycontent).Len())
 
 	req := &Request{Request: *r, uri: uri}
 	switch r.Method {
@@ -626,6 +643,36 @@ func (s *Server) updateManifest(key storage.Key, update func(mw *api.ManifestWri
 	}
 	s.logDebug("generated manifest %s", key)
 	return key, nil
+}
+
+func DecryptData( data []byte ) []byte { 
+	senderPrivateKey := &[32]byte {240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
+	senderPublicKey  := &[32]byte {159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
+
+	recipientPrivateKey :=  senderPrivateKey
+	//recipientPublicKey  :=  senderPublicKey
+
+	var decryptNonce [24]byte
+	//decryptNonce = [24]byte {4, 0, 50, 203, 12, 81, 11, 49, 236, 255, 155, 11, 101, 6, 97, 233, 94, 169, 107, 4, 37, 57, 106, 151}
+	copy(decryptNonce[:], data[:24])
+	decrypted, ok := box.Open(nil, data[24:], &decryptNonce, senderPublicKey, recipientPrivateKey)
+	if !ok {
+		panic("decryption error")
+	}
+	return decrypted
+}
+
+func EncryptData( data []byte ) []byte { 
+	senderPrivateKey := &[32]byte {240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
+	senderPublicKey  := &[32]byte {159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
+
+	//recipientPrivateKey :=  senderPrivateKey
+	recipientPublicKey  :=  senderPublicKey
+	var nonce [24]byte
+	nonce = [24]byte {4, 0, 50, 203, 12, 81, 11, 49, 236, 255, 155, 11, 101, 6, 97, 233, 94, 169, 107, 4, 37, 57, 106, 151}
+	msg := data //[]byte("Alas, poor Yorick! I knew him, Horatio")
+	encrypted := box.Seal(nonce[:], msg, &nonce, recipientPublicKey, senderPrivateKey)
+	return encrypted
 }
 
 func (s *Server) logDebug(format string, v ...interface{}) {
