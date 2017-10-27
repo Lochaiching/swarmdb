@@ -22,6 +22,8 @@ package http
 import (
 	"archive/tar"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,6 +37,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -49,6 +52,20 @@ import (
 type ServerConfig struct {
 	Addr       string
 	CorsString string
+}
+
+type devicejson struct{
+	DeviceID string `json:"deviceID,omitempty"`
+	Email string `json:"email,omitempty"`
+	Phone string `json:"phone,omitempty"`
+	Email_sha256 string `json:"email_sha256,omitempty"`
+	Phone_sha256 string `json:"phone_sha256,omitempty"`
+}
+
+type tablejson struct{
+ 	TableID string `json:"tableid,omitempty"`
+	ID string `json:"id,omitempty"`
+	Document string `json:"document,omitempty"`
 }
 
 // browser API for registering bzz url scheme handlers:
@@ -119,6 +136,109 @@ func (s *Server) HandlePostRaw(w http.ResponseWriter, r *Request) {
 	fmt.Fprint(w, key)
 }
 
+func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
+    	if r.uri.Path == "" {
+        	s.BadRequest(w, r, "DB POST request should contain a path")
+        	return
+    	}
+
+    	if r.Header.Get("Content-Length") == "" {
+        	s.BadRequest(w, r, "missing Content-Length header in request")
+        	return
+    	}
+
+    	key, err := s.api.Store(r.Body, r.ContentLength, nil)
+    	if err != nil {
+        	s.Error(w, r, err)
+        	return
+    	}
+    	s.logDebug("content for %s stored", key.Log())
+	keys := fmt.Sprintf("%v", key)
+	kv := r.uri.Path+keys
+	kvlen := int64(len(kv))
+    	dbwg := &sync.WaitGroup{}
+    	rdb := strings.NewReader(kv)
+	newkey, err := s.api.StoreDB(rdb, kvlen, dbwg)
+    	s.logDebug("HandlePostDB stored  %v %v %v", string(kv), kvlen, string(newkey))
+
+    	w.Header().Set("Content-Type", "text/plain")
+    	w.WriteHeader(http.StatusOK)
+    	fmt.Fprint(w, key)
+}
+
+// HandlePostRaw handles a POST request to a raw bzzr:/ URI, stores the request
+// body in swarm and returns the resulting storage key as a text/plain response
+func (s *Server) HandlePostRawTest(w http.ResponseWriter, r *Request) {
+    	log.Debug(fmt.Sprintf("In PostTest %v %v" ,r.uri.Path, r.uri.Addr))
+
+    	if r.uri.Path != "" {
+        	s.BadRequest(w, r, "raw POST request cannot contain a path")
+        	return
+    	}
+
+    	if r.Header.Get("Content-Length") == "" {
+        	s.BadRequest(w, r, "missing Content-Length header in request")
+        	return
+    	}
+ 
+     	body, err := ioutil.ReadAll(r.Body)
+ 	var dec devicejson
+ 	json.Unmarshal(body, &dec)
+     	log.Debug(fmt.Sprintf("In PostTest %v %v" ,dec, string(body)))
+     	log.Debug(fmt.Sprintf("In PostTest body %v " ,string(body)))
+ 	var email, phone string
+ 	if len(dec.Email_sha256)>0{
+ 		email = dec.Email_sha256
+ 	}else if len(dec.Email) > 0{
+ 		h256_email := sha256.Sum256([]byte(strings.Trim(dec.Email, " ")))
+ 		email = hex.EncodeToString(h256_email[:])
+ 	}
+ 	if len(dec.Phone_sha256)>0{
+ 		phone = dec.Phone_sha256
+	}else if len(dec.Phone) > 0{
+ 		h256 := sha256.New()
+		h256.Write([]byte(dec.Phone))
+ 		phone = fmt.Sprintf("%x", h256.Sum(nil))
+	}
+    	log.Debug(fmt.Sprintf("In PostTest %v" ,dec))
+    	log.Debug(fmt.Sprintf("In PostTest %v %v %v" ,dec.DeviceID, email, phone))
+    	key, err := s.api.PutTest(string(body), "text/plain; charset=utf-8", dec.DeviceID, email, phone)
+    	if err != nil {
+        	s.Error(w, r, err)
+        	return
+    	}
+	
+    	s.logDebug("content for %s stored", key.Log())
+	//s.api.ldb.Put(dec.DeviceID, key)
+
+    	w.Header().Set("Content-Type", "text/plain")
+    	w.WriteHeader(http.StatusOK)
+    	fmt.Fprint(w, key)
+}
+ 
+func (s *Server) HandlePostRawTable(w http.ResponseWriter, r *Request) {
+    body, err := ioutil.ReadAll(r.Body)
+    var dec tablejson
+    json.Unmarshal(body, &dec)
+
+    log.Debug(fmt.Sprintf("In PostTable body %v %v" , dec, string(body)))
+    log.Debug(fmt.Sprintf("In PostTable id %v tableid %v" , dec.ID, dec.TableID))
+    log.Debug(fmt.Sprintf("In PostTable document %v" , dec.Document))
+
+    key, err := s.api.PutTable(dec.Document, "text/plain; charset=utf-8", dec.ID, dec.TableID)
+    if err != nil {
+        s.Error(w, r, err)
+        return
+    }
+
+    s.logDebug("content for %s stored", key.Log())
+
+    w.Header().Set("Content-Type", "text/plain")
+    w.WriteHeader(http.StatusOK)
+    fmt.Fprint(w, key)
+}
+
+
 // HandlePostFiles handles a POST request (or deprecated PUT request) to
 // bzz:/<hash>/<path> which contains either a single file or multiple files
 // (either a tar archive or multipart form), adds those files either to an
@@ -168,6 +288,8 @@ func (s *Server) HandlePostFiles(w http.ResponseWriter, r *Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, newKey)
 }
+
+
 
 func (s *Server) handleTarUpload(req *Request, mw *api.ManifestWriter) error {
 	tr := tar.NewReader(req.Body)
@@ -298,10 +420,93 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *Request) {
 	fmt.Fprint(w, newKey)
 }
 
+func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
+	manifestroot := s.api.GetManifestRoot()
+	if manifestroot == nil{
+        s.logDebug("GetRawTest Manifest not found ")
+        http.NotFound(w, &r.Request)
+		return
+	}
+	r.uri.Addr = string(manifestroot)
+    	log.Debug("GetRawTest Manifest = ", string(manifestroot))
+    	log.Debug(fmt.Sprintf("In GetRawTest %v %v" ,r.uri.Path, r.uri.Addr))
+	s.HandleGetRaw(w, r)
+}
+
+func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
+    	log.Debug(fmt.Sprintf("In GetRawDB %v %v" ,r.uri.Path, r.uri.Addr))
+	//id, err := s.api.Resolve(r.uri)
+    	keylen := 64 ///////..........
+    	dummy := bytes.Repeat([]byte("Z"), keylen)
+    	newkeybase := r.uri.Path+string(dummy)
+    	chunker := storage.NewTreeChunker(storage.NewChunkerParams())
+    	rd := strings.NewReader(newkeybase)
+    	key, err := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil, false)
+    	log.Debug(fmt.Sprintf("In GetRawDB dummy %v newkeybase %v key %v" ,dummy, newkeybase, key))
+    	reader := s.api.Retrieve(key)
+    	if _, err := reader.Size(nil); err != nil {
+        	s.logDebug("key not found %s: %s", key, err)
+        	http.NotFound(w, &r.Request)
+        	return
+    	}
+    	if err != nil {
+        	s.Error(w, r, err)
+        	return
+    	}
+	
+	buffer := new(bytes.Buffer)
+	buffer.ReadFrom(reader)
+	buf := buffer.Bytes()
+	str := string(buf)
+	//buftest, _ := ioutil.ReadAll(reader)
+    	//log.Debug(fmt.Sprintf("In GetRawDB buf %v str %v strlen %v buftest %s %v" , buf, str, len(str), buftest, len(buftest)))
+    	log.Debug(fmt.Sprintf("In GetRawDB buf %v str %v strlen %v " , buf, str, len(str) ))
+/*
+	reader.ReadAt(newkey, pos)
+	creader := s.api.Retrieve()
+*/
+
+    	// allow the request to overwrite the content type using a query
+    	// parameter
+    	contentType := "application/octet-stream"
+    	if typ := r.URL.Query().Get("content_type"); typ != "" {
+        	contentType = typ
+    	}
+    	w.Header().Set("Content-Type", contentType)
+
+    	http.ServeContent(w, &r.Request, "", time.Now(), reader)
+}
+
+func (s *Server) HandleGetRawTable(w http.ResponseWriter, r *Request) {
+	id := r.URL.Query().Get("id")
+	tableid := r.URL.Query().Get("tableid")
+	key := tableid + "_" + id
+    	//key, _ := s.api.Resolve(r.uri)
+    	log.Debug(fmt.Sprintf("In GetTable %v %v %v" ,id, tableid, key))
+    	reader, contentType, _, err := s.api.GetTest(key)
+    	if err != nil {
+        	s.Error(w, r, err)
+        	return
+    	}
+
+    	// check the root chunk exists by retrieving the file's size
+    	if _, err := reader.Size(nil); err != nil {
+        	s.logDebug("file not found %s: %s", r.uri, err)
+        	http.NotFound(w, &r.Request)
+        	return
+    	}
+
+    	w.Header().Set("Content-Type", contentType)
+
+    	http.ServeContent(w, &r.Request, "", time.Now(), reader)
+    	log.Debug(fmt.Sprintf("GetTable %v, %v" ,r.uri.Path, reader))
+}
+
 // HandleGetRaw handles a GET request to bzzr://<key> and responds with
 // the raw content stored at the given storage key
 func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 	key, err := s.api.Resolve(r.uri)
+	log.Debug(fmt.Sprintf("In GetRaw %v %v %v" ,r.uri.Path, r.uri.Addr, key))
 	if err != nil {
 		s.Error(w, r, fmt.Errorf("error resolving %s: %s", r.uri.Addr, err))
 		return
@@ -351,7 +556,7 @@ func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 	readerSize,_ := reader.Size(nil)
 	encrypted_reader := make([]byte, readerSize )
 	_,_ = reader.ReadAt(encrypted_reader,0)
-	decrypted_reader := bytes.NewReader(DecryptData(reader_enc))
+	decrypted_reader := bytes.NewReader(DecryptData(encrypted_reader))
 	if _, err := reader.Size(nil); err != nil {
 		s.logDebug("key not found %s: %s", key, err)
 		http.NotFound(w, &r.Request)
@@ -379,6 +584,7 @@ func (s *Server) HandleGetFiles(w http.ResponseWriter, r *Request) {
 	}
 
 	key, err := s.api.Resolve(r.uri)
+	log.Debug(fmt.Sprintf("In GetFiles %v %v %v" ,r.uri.Path, r.uri.Addr, key))
 	if err != nil {
 		s.Error(w, r, fmt.Errorf("error resolving %s: %s", r.uri.Addr, err))
 		return
@@ -535,6 +741,7 @@ func (s *Server) HandleGetList(w http.ResponseWriter, r *Request) {
 // with the content of the file at <path> from the given <manifest>
 func (s *Server) HandleGetFile(w http.ResponseWriter, r *Request) {
 	key, err := s.api.Resolve(r.uri)
+	log.Debug(fmt.Sprintf("In GetFile %v %v %v" ,r.uri.Path, r.uri.Addr, key))
 	if err != nil {
 		s.Error(w, r, fmt.Errorf("error resolving %s: %s", r.uri.Addr, err))
 		return
@@ -577,6 +784,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req := &Request{Request: *r, uri: uri}
 	switch r.Method {
 	case "POST":
+		s.logDebug("server POST %s %s", uri, req.uri.Addr)
+		if req.uri.Addr == "demo" || r.URL.Query().Get("posttest") == "true"{
+			s.HandlePostRawTest(w, req)
+			return
+		}
+		if req.uri.Addr == "table" {
+            		s.HandlePostRawTable(w, req)
+            		return
+		}
+		if req.uri.Addr == "db" {
+            		s.HandlePostDB(w, req)
+            		return
+		}
 		if uri.Raw() {
 			s.HandlePostRaw(w, req)
 		} else {
@@ -604,6 +824,20 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.HandleDelete(w, req)
 
 	case "GET":
+		s.logDebug("server GET %s %s", uri, r.URL.Query())
+		if req.uri.Addr == "demo" || r.URL.Query().Get("gettest") == "true"{
+			s.HandleGetRawTest(w, req)
+			return
+		}
+		if req.uri.Addr == "db" {
+			s.HandleGetDB(w, req)
+			return
+		}
+		if req.uri.Addr == "table" {
+			s.HandleGetRawTable(w, req)
+			return
+		}
+		
 		if uri.Raw() {
 			s.HandleGetRaw(w, req)
 			return

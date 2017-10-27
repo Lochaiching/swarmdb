@@ -60,6 +60,7 @@ type ManifestList struct {
 func (a *Api) NewManifest() (storage.Key, error) {
 	var manifest Manifest
 	data, err := json.Marshal(&manifest)
+	log.Trace(fmt.Sprintf("new manifest: %v ", data))
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +92,12 @@ func (m *ManifestWriter) AddEntry(data io.Reader, e *ManifestEntry) (storage.Key
 	entry.Hash = key.String()
 	m.trie.addEntry(entry, m.quitC)
 	return key, nil
+}
+
+func (m *ManifestWriter) AddPath(e *ManifestEntry) (error) {
+    entry := newManifestTrieEntry(e, nil)
+    m.trie.addEntry(entry, m.quitC)
+    return nil
 }
 
 // RemoveEntry removes the given path from the manifest
