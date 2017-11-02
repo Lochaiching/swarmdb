@@ -148,18 +148,26 @@ func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
     	}
 
     	key, err := s.api.Store(r.Body, r.ContentLength, nil)
+	s.logDebug("Main body content for key.Log [%s] [%+v]", key.Log(), key)
     	if err != nil {
         	s.Error(w, r, err)
         	return
     	}
-    	s.logDebug("content for %s stored", key.Log())
-	keys := fmt.Sprintf("%v", key)
-	kv := r.uri.Path+keys
+	key_string := fmt.Sprintf("%s", key)
+	kv := r.uri.Path+key_string
 	kvlen := int64(len(kv))
     	dbwg := &sync.WaitGroup{}
     	rdb := strings.NewReader(kv)
-	newkey, err := s.api.StoreDB(rdb, kvlen, dbwg)
-    	s.logDebug("HandlePostDB stored  %v %v %v", string(kv), kvlen, string(newkey))
+
+	//Take the Hash returned for the stored 'Main' content and store it
+	raw_indexkey, err := s.api.StoreDB(rdb, kvlen, dbwg)
+    	if err != nil {
+        	s.Error(w, r, err)
+        	return
+    	}
+	s.logDebug("Index content stored (kv=[%v]) for raw_indexkey.Log [%s] [%+v] (size of [%+v])", string(kv), raw_indexkey.Log(), raw_indexkey, kvlen)
+	indxreader_retrieved := s.api.Retrieve(raw_indexkey)
+	s.logDebug("Test Retrieval of saved index key[%+v] val(%s)[%+v]", raw_indexkey, indxreader_retrieved, indxreader_retrieved)
 
     	w.Header().Set("Content-Type", "text/plain")
     	w.WriteHeader(http.StatusOK)
@@ -434,18 +442,18 @@ func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
 }
 
 func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
-    	log.Debug(fmt.Sprintf("In GetRawDB %v %v" ,r.uri.Path, r.uri.Addr))
-	//id, err := s.api.Resolve(r.uri)
+    	log.Debug(fmt.Sprintf("In HandleGetDB r.uri(%v) r.uri.Path(%v) r.uri.Addr(%v)" ,r.uri.Path, r.uri.Addr))
     	keylen := 64 ///////..........
     	dummy := bytes.Repeat([]byte("Z"), keylen)
     	newkeybase := r.uri.Path+string(dummy)
     	chunker := storage.NewTreeChunker(storage.NewChunkerParams())
     	rd := strings.NewReader(newkeybase)
-    	key, err := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil, false)
-    	log.Debug(fmt.Sprintf("In GetRawDB dummy %v newkeybase %v key %v" ,dummy, newkeybase, key))
-    	reader := s.api.Retrieve(key)
-    	if _, err := reader.Size(nil); err != nil {
-        	s.logDebug("key not found %s: %s", key, err)
+    	index_key, err := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil, false)
+    	log.Debug(fmt.Sprintf("In HandleGetDB dummy %v newkeybase %v index_key %v" ,dummy, newkeybase, index_key))
+
+    	mainhashkey_reader := s.api.Retrieve(index_key)
+    	if _, err := mainhashkey_reader.Size(nil); err != nil {
+        	s.logDebug("key not found %s: %s", index_key, err)
         	http.NotFound(w, &r.Request)
         	return
     	}
@@ -454,17 +462,34 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
         	return
     	}
 	
-	buffer := new(bytes.Buffer)
-	buffer.ReadFrom(reader)
-	buf := buffer.Bytes()
-	str := string(buf)
-	//buftest, _ := ioutil.ReadAll(reader)
-    	//log.Debug(fmt.Sprintf("In GetRawDB buf %v str %v strlen %v buftest %s %v" , buf, str, len(str), buftest, len(buftest)))
-    	log.Debug(fmt.Sprintf("In GetRawDB buf %v str %v strlen %v " , buf, str, len(str) ))
-/*
-	reader.ReadAt(newkey, pos)
-	creader := s.api.Retrieve()
-*/
+	mainhashkey_readerSize,_ := mainhashkey_reader.Size(nil)
+	mainhashkeyBytes := make( []byte, mainhashkey_readerSize )
+ 	_,_ = mainhashkey_reader.ReadAt( mainhashkeyBytes, 0 )
+	
+	realhash := mainhashkeyBytes[len(r.uri.Path):]
+    	log.Debug(fmt.Sprintf("In HandleGetDB mainhashkeyBytes (%s) retrieved using key (%s) the real key is [%s]",mainhashkeyBytes, index_key, realhash))
+	mainURI, err := api.Parse(`bzzr:/`+string(realhash))
+
+	mainkey,_ := s.api.Resolve(mainURI)
+	s.logDebug("HandleGetDB Key from new uri is %v", mainkey)
+
+	maincontent := s.api.Retrieve(mainkey)
+    	if _, err := maincontent.Size(nil); err != nil {
+        	s.logDebug("key not found %s: %s", mainkey, err)
+        	http.NotFound(w, &r.Request)
+        	return
+    	}
+    	if err != nil {
+        	s.Error(w, r, err)
+        	return
+    	}
+	maincontent_Size,_ := maincontent.Size(nil);
+        encryptedcontent_reader := make([]byte, maincontent_Size)
+        _,_ = maincontent.ReadAt(encryptedcontent_reader,0)
+    	log.Debug(fmt.Sprintf("In HandledGetDB Retrieved 'mainhash' v[%v] s[%s] ", encryptedcontent_reader, encryptedcontent_reader))
+
+        decrypted_reader := bytes.NewReader(DecryptData(encryptedcontent_reader))
+    	log.Debug(fmt.Sprintf("In HandledGetDB got back the 'reader' v[%v] s[%s] ", decrypted_reader, decrypted_reader))
 
     	// allow the request to overwrite the content type using a query
     	// parameter
@@ -473,8 +498,7 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
         	contentType = typ
     	}
     	w.Header().Set("Content-Type", contentType)
-
-    	http.ServeContent(w, &r.Request, "", time.Now(), reader)
+    	http.ServeContent(w, &r.Request, "", time.Now(), decrypted_reader)
 }
 
 func (s *Server) HandleGetRawTable(w http.ResponseWriter, r *Request) {
@@ -506,7 +530,7 @@ func (s *Server) HandleGetRawTable(w http.ResponseWriter, r *Request) {
 // the raw content stored at the given storage key
 func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 	key, err := s.api.Resolve(r.uri)
-	log.Debug(fmt.Sprintf("In GetRaw %v %v %v" ,r.uri.Path, r.uri.Addr, key))
+	log.Debug(fmt.Sprintf("In GetRaw %v %v %v %v",r.uri ,r.uri.Path, r.uri.Addr, key))
 	if err != nil {
 		s.Error(w, r, fmt.Errorf("error resolving %s: %s", r.uri.Addr, err))
 		return
@@ -556,6 +580,7 @@ func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 	readerSize,_ := reader.Size(nil)
 	encrypted_reader := make([]byte, readerSize )
 	_,_ = reader.ReadAt(encrypted_reader,0)
+	s.logDebug("Retrieve Raw encrypted data of [%+v] ==> [%s] using key [%+v]", encrypted_reader, encrypted_reader, key)
 	decrypted_reader := bytes.NewReader(DecryptData(encrypted_reader))
 	if _, err := reader.Size(nil); err != nil {
 		s.logDebug("key not found %s: %s", key, err)
@@ -793,7 +818,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             		s.HandlePostRawTable(w, req)
             		return
 		}
-		if req.uri.Addr == "db" {
+		if uri.Swarmdb() == true {
             		s.HandlePostDB(w, req)
             		return
 		}
@@ -824,13 +849,13 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.HandleDelete(w, req)
 
 	case "GET":
-		s.logDebug("server GET %s %s", uri, r.URL.Query())
-		if req.uri.Addr == "demo" || r.URL.Query().Get("gettest") == "true"{
-			s.HandleGetRawTest(w, req)
+		s.logDebug("server GET %s %s [%s]", uri, r.URL.Query(), uri.Swarmdb())
+		if uri.Swarmdb() == true {
+			s.HandleGetDB(w, req)
 			return
 		}
-		if req.uri.Addr == "db" {
-			s.HandleGetDB(w, req)
+		if req.uri.Addr == "demo" || r.URL.Query().Get("gettest") == "true"{
+			s.HandleGetRawTest(w, req)
 			return
 		}
 		if req.uri.Addr == "table" {
