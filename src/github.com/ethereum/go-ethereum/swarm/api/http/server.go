@@ -136,7 +136,24 @@ func (s *Server) HandlePostRaw(w http.ResponseWriter, r *Request) {
 	fmt.Fprint(w, key)
 }
 
+func BuildSwarmdbPrefix(owner string, table string, id string) string {
+	//hashType := "SHA3"
+	//hashType := SHA256"
+
+	//Should add checks for valid type / length for building
+	prepString := owner + table + id
+	h256 := sha256.New()
+        h256.Write([]byte(prepString))
+        prefix := fmt.Sprintf("%x", h256.Sum(nil))
+	return prefix
+}
+
 func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
+    	log.Debug(fmt.Sprintf("In HandlePostDB r.uri(%v) r.uri.Path(%v) r.uri.Addr(%v)" ,r.uri, r.uri.Path, r.uri.Addr))
+
+	//r.uri.Addr == Owner
+	//r.uri.Path == table/id
+
     	if r.uri.Path == "" {
         	s.BadRequest(w, r, "DB POST request should contain a path")
         	return
@@ -154,7 +171,14 @@ func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
         	return
     	}
 	key_string := fmt.Sprintf("%s", key)
-	kv := r.uri.Path+key_string
+	
+	owner := r.uri.Addr
+	table_id_parts := strings.Split(r.uri.Path, "/")
+	table := table_id_parts[0]
+	id := table_id_parts[1]
+	contentPrefix := BuildSwarmdbPrefix(owner, table, id)	
+
+	kv := contentPrefix+key_string
 	kvlen := int64(len(kv))
     	dbwg := &sync.WaitGroup{}
     	rdb := strings.NewReader(kv)
@@ -442,10 +466,21 @@ func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
 }
 
 func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
-    	log.Debug(fmt.Sprintf("In HandleGetDB r.uri(%v) r.uri.Path(%v) r.uri.Addr(%v)" ,r.uri.Path, r.uri.Addr))
+    	log.Debug(fmt.Sprintf("In HandleGetDB r.uri(%v) r.uri.Path(%v) r.uri.Addr(%v)" , r.uri, r.uri.Path, r.uri.Addr))
+
+	//r.uri.Addr == Owner
+	//r.uri.Path == table/id
+
     	keylen := 64 ///////..........
     	dummy := bytes.Repeat([]byte("Z"), keylen)
-    	newkeybase := r.uri.Path+string(dummy)
+
+	owner := r.uri.Addr
+	table_id_parts := strings.Split(r.uri.Path, "/")
+	table := table_id_parts[0]
+	id := table_id_parts[1]
+	contentPrefix := BuildSwarmdbPrefix(owner, table, id)	
+
+    	newkeybase := contentPrefix+string(dummy)
     	chunker := storage.NewTreeChunker(storage.NewChunkerParams())
     	rd := strings.NewReader(newkeybase)
     	index_key, err := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil, false)
@@ -466,12 +501,12 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
 	mainhashkeyBytes := make( []byte, mainhashkey_readerSize )
  	_,_ = mainhashkey_reader.ReadAt( mainhashkeyBytes, 0 )
 	
-	realhash := mainhashkeyBytes[len(r.uri.Path):]
+	realhash := mainhashkeyBytes[len(contentPrefix):]
     	log.Debug(fmt.Sprintf("In HandleGetDB mainhashkeyBytes (%s) retrieved using key (%s) the real key is [%s]",mainhashkeyBytes, index_key, realhash))
 	mainURI, err := api.Parse(`bzzr:/`+string(realhash))
 
 	mainkey,_ := s.api.Resolve(mainURI)
-	s.logDebug("HandleGetDB Key from new uri is %v", mainkey)
+	s.logDebug("HandleGetDB Key from new uri (%+v) is %v", mainURI, mainkey)
 
 	maincontent := s.api.Retrieve(mainkey)
     	if _, err := maincontent.Size(nil); err != nil {
