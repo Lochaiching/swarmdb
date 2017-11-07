@@ -45,6 +45,9 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/rs/cors"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+    "github.com/ethereum/go-ethereum/accounts"
+    "github.com/ethereum/go-ethereum/crypto"	
 )
 
 // ServerConfig is the basic configuration needed for the HTTP server and also
@@ -85,17 +88,80 @@ func StartHttpServer(api *api.Api, config *ServerConfig) {
 		MaxAge:         600,
 		AllowedHeaders: []string{"*"},
 	})
-	hdlr := c.Handler(NewServer(api))
+	sk, pk := GetKeys()
+	hdlr := c.Handler(NewServer(api, sk, pk))
 
 	go http.ListenAndServe(config.Addr, hdlr)
 }
 
-func NewServer(api *api.Api) *Server {
-	return &Server{api}
+func GetKeys() (sk [32]byte, pk [32]byte) {
+	ks := keystore.NewKeyStore("/var/www/vhosts/data/keystore", keystore.StandardScryptN, keystore.StandardScryptP) 
+	var ks_accounts []accounts.Account      //     type Account struct    in->   keystore/keystore.go
+	ks_accounts = ks.Accounts()   
+	acc_url := ks_accounts[0].URL   
+	acc_url_string := fmt.Sprintf("%s", acc_url)
+	filename := acc_url_string[11:]  // /var/www/vhosts/data/keystore/UTC--2017-10-13T23-15-16.214744640Z--dc8a520a69157a7087f0b575644b8e454f462159
+            
+    // Open the key file
+    //keyJson, readErr := ioutil.ReadFile("/var/www/vhosts/data/keystore/UTC--2017-10-13T23-15-16.214744640Z--dc8a520a69157a7087f0b575644b8e454f462159")
+    keyJson, readErr := ioutil.ReadFile(filename)    
+    if readErr != nil {
+        //s.logDebug("SWARM server.go ReadFile of keystore file error: %s ", readErr)
+        log.Debug(fmt.Sprintf("[BZZ] HTTP: "+"SWARM server.go ReadFile of keystore file error: %s ", readErr))
+        
+        // if ReadFile fail use default keys
+        sk = [32]byte{240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
+		pk = [32]byte{159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
+		return sk, pk        
+    }
+	
+    keyWrapper, keyErr := keystore.DecryptKey([]byte(keyJson), "mdotm")
+    if keyErr != nil {
+        //s.logDebug("SWARM server.go DecryptKey error: %s ", keyErr)
+        log.Debug(fmt.Sprintf("[BZZ] HTTP: "+"SWARM server.go DecryptKey error: %s ", keyErr))
+        
+        // if we don't know the pass use default keys
+        sk = [32]byte{240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
+		pk = [32]byte{159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
+		return sk, pk
+    }
+    
+    acc_sk := crypto.FromECDSA(keyWrapper.PrivateKey)
+    
+    acc_pk :=   crypto.FromECDSAPub(&keyWrapper.PrivateKey.PublicKey)
+    // fun call elliptic.Marshal   add  ret[0] = 4 // uncompressed point 
+    // pk:[]byte{0x4, 0x8d, 0x9b,
+    // need to remove the "ret[0] = 4" to get the pk
+    acc_pk = append(pk[:0], pk[1:]...)
+    
+    //secretkey := [32]byte{}
+    for i := range acc_sk {
+          sk[i] = acc_sk[i]
+          if i == 31 {break}  
+    }
+    
+    // crypto/nacl  box.Seal()  box.Open()   PublicKey is  type *[32]byte  so cut the account PublicKey from [64]byte to [32]byte
+    //publickey := [64]byte{}
+    //publickey := [32]byte{}
+    for i := range acc_pk {
+          pk[i] = acc_pk[i]
+          if i == 31 {break} 
+    }    
+    	
+//	sk = [32]byte{240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
+//	pk = [32]byte{159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
+	
+	return sk, pk
+}
+
+func NewServer(api *api.Api, sk [32]byte, pk [32]byte) *Server {
+	return &Server{api, sk, pk}
 }
 
 type Server struct {
 	api *api.Api
+	sk [32]byte
+	pk [32]byte
 }
 
 // Request wraps http.Request and also includes the parsed bzz URI
@@ -523,7 +589,7 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
         _,_ = maincontent.ReadAt(encryptedcontent_reader,0)
     	log.Debug(fmt.Sprintf("In HandledGetDB Retrieved 'mainhash' v[%v] s[%s] ", encryptedcontent_reader, encryptedcontent_reader))
 
-        decrypted_reader := bytes.NewReader(DecryptData(encryptedcontent_reader))
+        decrypted_reader := bytes.NewReader(s.DecryptData(encryptedcontent_reader))
     	log.Debug(fmt.Sprintf("In HandledGetDB got back the 'reader' v[%v] s[%s] ", decrypted_reader, decrypted_reader))
 
     	// allow the request to overwrite the content type using a query
@@ -616,7 +682,7 @@ func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 	encrypted_reader := make([]byte, readerSize )
 	_,_ = reader.ReadAt(encrypted_reader,0)
 	s.logDebug("Retrieve Raw encrypted data of [%+v] ==> [%s] using key [%+v]", encrypted_reader, encrypted_reader, key)
-	decrypted_reader := bytes.NewReader(DecryptData(encrypted_reader))
+	decrypted_reader := bytes.NewReader(s.DecryptData(encrypted_reader))
 	if _, err := reader.Size(nil); err != nil {
 		s.logDebug("key not found %s: %s", key, err)
 		http.NotFound(w, &r.Request)
@@ -836,7 +902,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	s.logDebug("%s request received for %s", r.Method, uri)
 	bodycontent,_ := ioutil.ReadAll(r.Body)
-	encrypted_bodycontent := EncryptData( bodycontent )
+	encrypted_bodycontent := s.EncryptData( bodycontent )
 	encrypted_reader := ioutil.NopCloser(bytes.NewBuffer(encrypted_bodycontent))
 	r.Body = encrypted_reader
 	r.ContentLength = int64(bytes.NewBuffer(encrypted_bodycontent).Len())
@@ -939,33 +1005,22 @@ func (s *Server) updateManifest(key storage.Key, update func(mw *api.ManifestWri
 	return key, nil
 }
 
-func DecryptData( data []byte ) []byte { 
-	senderPrivateKey := &[32]byte {240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
-	senderPublicKey  := &[32]byte {159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
-
-	recipientPrivateKey :=  senderPrivateKey
-	//recipientPublicKey  :=  senderPublicKey
-
+func (s *Server) DecryptData( data []byte ) []byte { 
 	var decryptNonce [24]byte
 	//decryptNonce = [24]byte {4, 0, 50, 203, 12, 81, 11, 49, 236, 255, 155, 11, 101, 6, 97, 233, 94, 169, 107, 4, 37, 57, 106, 151}
 	copy(decryptNonce[:], data[:24])
-	decrypted, ok := box.Open(nil, data[24:], &decryptNonce, senderPublicKey, recipientPrivateKey)
+	decrypted, ok := box.Open(nil, data[24:], &decryptNonce, &s.pk, &s.sk)
 	if !ok {
 		panic("decryption error")
 	}
 	return decrypted
 }
 
-func EncryptData( data []byte ) []byte { 
-	senderPrivateKey := &[32]byte {240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
-	senderPublicKey  := &[32]byte {159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
-
-	//recipientPrivateKey :=  senderPrivateKey
-	recipientPublicKey  :=  senderPublicKey
+func (s *Server) EncryptData( data []byte ) []byte { 
 	var nonce [24]byte
 	nonce = [24]byte {4, 0, 50, 203, 12, 81, 11, 49, 236, 255, 155, 11, 101, 6, 97, 233, 94, 169, 107, 4, 37, 57, 106, 151}
 	msg := data //[]byte("Alas, poor Yorick! I knew him, Horatio")
-	encrypted := box.Seal(nonce[:], msg, &nonce, recipientPublicKey, senderPrivateKey)
+	encrypted := box.Seal(nonce[:], msg, &nonce, &s.pk, &s.sk)
 	return encrypted
 }
 
