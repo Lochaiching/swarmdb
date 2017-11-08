@@ -904,8 +904,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	encrypted_reader := ioutil.NopCloser(bytes.NewBuffer(encrypted_bodycontent))
 	r.Body = encrypted_reader
 	r.ContentLength = int64(bytes.NewBuffer(encrypted_bodycontent).Len())
-	if( r.ContentLength > 4096 ) {
-		http.Error(w, "ContentLength "+r.ContentLength+" is longer than 4096 limit.", http.StatusBadRequest)
+	if( r.ContentLength > int64(4096) ) {
+		http.Error(w, "ContentLength "+strconv.Itoa(int(r.ContentLength))+" is longer than 4096 limit.", http.StatusBadRequest)
 	}
 
 	req := &Request{Request: *r, uri: uri}
