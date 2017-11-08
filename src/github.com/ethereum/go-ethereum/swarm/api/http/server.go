@@ -256,8 +256,6 @@ func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
         	return
     	}
 	s.logDebug("Index content stored (kv=[%v]) for raw_indexkey.Log [%s] [%+v] (size of [%+v])", string(kv), raw_indexkey.Log(), raw_indexkey, kvlen)
-	indxreader_retrieved := s.api.Retrieve(raw_indexkey)
-	s.logDebug("Test Retrieval of saved index key[%+v] val(%s)[%+v]", raw_indexkey, indxreader_retrieved, indxreader_retrieved)
 
     	w.Header().Set("Content-Type", "text/plain")
     	w.WriteHeader(http.StatusOK)
@@ -906,6 +904,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	encrypted_reader := ioutil.NopCloser(bytes.NewBuffer(encrypted_bodycontent))
 	r.Body = encrypted_reader
 	r.ContentLength = int64(bytes.NewBuffer(encrypted_bodycontent).Len())
+	if( r.ContentLength > 4096 ) {
+		http.Error(w, "ContentLength "+r.ContentLength+" is longer than 4096 limit.", http.StatusBadRequest)
+	}
 
 	req := &Request{Request: *r, uri: uri}
 	switch r.Method {
