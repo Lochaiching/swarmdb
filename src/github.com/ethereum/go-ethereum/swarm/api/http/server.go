@@ -897,7 +897,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Invalid bzz URI: %s", err), http.StatusBadRequest)
 		return
 	}
-
+	
+	//Need to determine how to collect the following and attach to chunk 
+	path_parts := strings.Split(r.uri.Path, "/")
+	owner := path_parts[0] + bytes.Repeat([]byte("Z"), 64-len(path_parts[0]))
+	//writerPublicKey := ""
+	//columnName := ""
+	//columnType := ""
+	timestamp := time.Now().UnixNano().String()
+	timestamp = timestamp + bytes.Repeat([]byte("Z"), 32-len(timestamp))
+	//blockSig := ""
+	//End of metadata chunk append	
+	
 	s.logDebug("%s request received for %s", r.Method, uri)
 	bodycontent,_ := ioutil.ReadAll(r.Body)
 	encrypted_bodycontent := s.EncryptData( bodycontent )
@@ -905,7 +916,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Body = encrypted_reader
 	r.ContentLength = int64(bytes.NewBuffer(encrypted_bodycontent).Len())
 	if( r.ContentLength > 4096 ) {
-		http.Error(w, "ContentLength "+r.ContentLength+" is longer than 4096 limit.", http.StatusBadRequest)
+		//http.Error(w, "ContentLength "+r.ContentLength+" is longer than 4096 limit.", http.StatusBadRequest)
 	}
 
 	req := &Request{Request: *r, uri: uri}
