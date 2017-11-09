@@ -46,8 +46,8 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/rs/cors"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
-    "github.com/ethereum/go-ethereum/accounts"
-    "github.com/ethereum/go-ethereum/crypto"	
+    	"github.com/ethereum/go-ethereum/accounts"
+    	"github.com/ethereum/go-ethereum/crypto"	
 )
 
 // ServerConfig is the basic configuration needed for the HTTP server and also
@@ -211,6 +211,7 @@ func BuildSwarmdbPrefix(owner string, table string, id string) string {
 	h256 := sha256.New()
         h256.Write([]byte(prepString))
         prefix := fmt.Sprintf("%x", h256.Sum(nil))
+    	log.Debug(fmt.Sprintf("In BuildSwarmdbPrefix prepstring[%s] and prefix[%s]" , prepString, prefix))
 	return prefix
 }
 
@@ -230,21 +231,16 @@ func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
         	return
     	}
 
-    	key, err := s.api.Store(r.Body, r.ContentLength, nil)
-	s.logDebug("Main body content for key.Log [%s] [%+v]", key.Log(), key)
-    	if err != nil {
-        	s.Error(w, r, err)
-        	return
-    	}
-	key_string := fmt.Sprintf("%s", key)
-	
 	owner := r.uri.Addr
 	table_id_parts := strings.Split(r.uri.Path, "/")
 	table := table_id_parts[0]
 	id := table_id_parts[1]
 	contentPrefix := BuildSwarmdbPrefix(owner, table, id)	
 
-	kv := contentPrefix+key_string
+	rdrBody,_ := ioutil.ReadAll(r.Body)
+	kv := contentPrefix + string(rdrBody)
+	s.logDebug("In HandlePostDB contentPrefix (%v) ", string(contentPrefix))
+	s.logDebug("In HandlePostDB kv PRESTORE (%v) ", kv)
 	kvlen := int64(len(kv))
     	dbwg := &sync.WaitGroup{}
     	rdb := strings.NewReader(kv)
@@ -259,7 +255,7 @@ func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
 
     	w.Header().Set("Content-Type", "text/plain")
     	w.WriteHeader(http.StatusOK)
-    	fmt.Fprint(w, key)
+    	fmt.Fprint(w, r.uri.Path)
 }
 
 // HandlePostRaw handles a POST request to a raw bzzr:/ URI, stores the request
@@ -547,12 +543,12 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
     	newkeybase := contentPrefix+string(dummy)
     	chunker := storage.NewTreeChunker(storage.NewChunkerParams())
     	rd := strings.NewReader(newkeybase)
-    	index_key, err := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil, false)
-    	log.Debug(fmt.Sprintf("In HandleGetDB dummy %v newkeybase %v index_key %v" ,dummy, newkeybase, index_key))
+    	key, err := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil, false)
+    	log.Debug(fmt.Sprintf("In HandleGetDB prefix [%v] dummy %v newkeybase %v key %v", contentPrefix, dummy, newkeybase, key))
 
-    	mainhashkey_reader := s.api.Retrieve(index_key)
-    	if _, err := mainhashkey_reader.Size(nil); err != nil {
-        	s.logDebug("key not found %s: %s", index_key, err)
+    	contentReader := s.api.Retrieve(key)
+    	if _, err := contentReader.Size(nil); err != nil {
+        	s.logDebug("key not found %s: %s", key, err)
         	http.NotFound(w, &r.Request)
         	return
     	}
@@ -561,33 +557,14 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
         	return
     	}
 	
-	mainhashkey_readerSize,_ := mainhashkey_reader.Size(nil)
-	mainhashkeyBytes := make( []byte, mainhashkey_readerSize )
- 	_,_ = mainhashkey_reader.ReadAt( mainhashkeyBytes, 0 )
+	contentReaderSize,_ := contentReader.Size(nil)
+	contentBytes := make( []byte, contentReaderSize )
+ 	_,_ = contentReader.ReadAt( contentBytes, 0 )
 	
-	realhash := mainhashkeyBytes[len(contentPrefix):]
-    	log.Debug(fmt.Sprintf("In HandleGetDB mainhashkeyBytes (%s) retrieved using key (%s) the real key is [%s]",mainhashkeyBytes, index_key, realhash))
-	mainURI, err := api.Parse(`bzzr:/`+string(realhash))
+	encryptedContentBytes := contentBytes[len(contentPrefix):]
+    	log.Debug(fmt.Sprintf("In HandledGetDB Retrieved 'mainhash' v[%v] s[%s] ", encryptedContentBytes, encryptedContentBytes))
 
-	mainkey,_ := s.api.Resolve(mainURI)
-	s.logDebug("HandleGetDB Key from new uri (%+v) is %v", mainURI, mainkey)
-
-	maincontent := s.api.Retrieve(mainkey)
-    	if _, err := maincontent.Size(nil); err != nil {
-        	s.logDebug("key not found %s: %s", mainkey, err)
-        	http.NotFound(w, &r.Request)
-        	return
-    	}
-    	if err != nil {
-        	s.Error(w, r, err)
-        	return
-    	}
-	maincontent_Size,_ := maincontent.Size(nil);
-        encryptedcontent_reader := make([]byte, maincontent_Size)
-        _,_ = maincontent.ReadAt(encryptedcontent_reader,0)
-    	log.Debug(fmt.Sprintf("In HandledGetDB Retrieved 'mainhash' v[%v] s[%s] ", encryptedcontent_reader, encryptedcontent_reader))
-
-        decrypted_reader := bytes.NewReader(s.DecryptData(encryptedcontent_reader))
+        decrypted_reader := bytes.NewReader(s.DecryptData(encryptedContentBytes))
     	log.Debug(fmt.Sprintf("In HandledGetDB got back the 'reader' v[%v] s[%s] ", decrypted_reader, decrypted_reader))
 
     	// allow the request to overwrite the content type using a query
@@ -596,8 +573,12 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
     	if typ := r.URL.Query().Get("content_type"); typ != "" {
         	contentType = typ
     	}
+	decryptedReaderSize := decrypted_reader.Size()
+	queryResponse := make( []byte, decryptedReaderSize-416 ) //TODO: match to sizes in metadata content
+	_,_ = decrypted_reader.ReadAt( queryResponse, 416 )  //TODO: match to sizes in metadata content
+	queryResponseReader := bytes.NewReader( queryResponse )
     	w.Header().Set("Content-Type", contentType)
-    	http.ServeContent(w, &r.Request, "", time.Now(), decrypted_reader)
+    	http.ServeContent(w, &r.Request, "", time.Now(), queryResponseReader)
 }
 
 func (s *Server) HandleGetRawTable(w http.ResponseWriter, r *Request) {
@@ -899,19 +880,25 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	//Need to determine how to collect the following and attach to chunk 
-	path_parts := strings.Split(r.uri.Path, "/")
-	owner := path_parts[0] + bytes.Repeat([]byte("Z"), 64-len(path_parts[0]))
-	//writerPublicKey := ""
+	ownerAddress := []byte(strings.ToLower(uri.Addr))
+	ownerAddress = []byte(string(ownerAddress) + string(bytes.Repeat([]byte("Z"), 64-bytes.NewBuffer(ownerAddress).Len())))
+	writerPublicKey := []byte("") 
+	writerPublicKey = []byte(string(writerPublicKey) + string(bytes.Repeat([]byte("Z"), 64-bytes.NewBuffer(writerPublicKey).Len()))) 
 	//columnName := ""
 	//columnType := ""
-	timestamp := time.Now().UnixNano().String()
-	timestamp = timestamp + bytes.Repeat([]byte("Z"), 32-len(timestamp))
-	//blockSig := ""
+	timestamp := []byte(strconv.FormatInt(time.Now().Unix(),10))
+	timestamp = []byte(string(timestamp) + string(bytes.Repeat([]byte("Z"), 32-bytes.NewBuffer(timestamp).Len()))) 
+	blockSig := []byte("")
+	blockSig = []byte(string(blockSig) + string(bytes.Repeat([]byte("Z"), 256-bytes.NewBuffer(blockSig).Len()))) 
+
+	metadataBody := []byte(string(ownerAddress) + string(writerPublicKey) + string(timestamp) + string(blockSig))
+	s.logDebug("SERVERHTTP: metadataBody[%s][%v]", metadataBody, metadataBody)
 	//End of metadata chunk append	
 	
 	s.logDebug("%s request received for %s", r.Method, uri)
 	bodycontent,_ := ioutil.ReadAll(r.Body)
-	encrypted_bodycontent := s.EncryptData( bodycontent )
+	modifiedBodyBytes := []byte(string(metadataBody) + string(bodycontent))
+	encrypted_bodycontent := s.EncryptData( modifiedBodyBytes )
 	encrypted_reader := ioutil.NopCloser(bytes.NewBuffer(encrypted_bodycontent))
 	r.Body = encrypted_reader
 	r.ContentLength = int64(bytes.NewBuffer(encrypted_bodycontent).Len())
