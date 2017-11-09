@@ -878,32 +878,29 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf("Invalid bzz URI: %s", err), http.StatusBadRequest)
 		return
 	}
-	
-	//Need to determine how to collect the following and attach to chunk 
-	ownerAddress := []byte(strings.ToLower(uri.Addr))
-	ownerAddress = []byte(string(ownerAddress) + string(bytes.Repeat([]byte("Z"), 64-bytes.NewBuffer(ownerAddress).Len())))
-	writerPublicKey := []byte("") 
-	writerPublicKey = []byte(string(writerPublicKey) + string(bytes.Repeat([]byte("Z"), 64-bytes.NewBuffer(writerPublicKey).Len()))) 
-	//columnName := ""
-	//columnType := ""
-	timestamp := []byte(strconv.FormatInt(time.Now().Unix(),10))
-	timestamp = []byte(string(timestamp) + string(bytes.Repeat([]byte("Z"), 32-bytes.NewBuffer(timestamp).Len()))) 
-	blockSig := []byte("")
-	blockSig = []byte(string(blockSig) + string(bytes.Repeat([]byte("Z"), 256-bytes.NewBuffer(blockSig).Len()))) 
 
-	metadataBody := []byte(string(ownerAddress) + string(writerPublicKey) + string(timestamp) + string(blockSig))
-	s.logDebug("SERVERHTTP: metadataBody[%s][%v]", metadataBody, metadataBody)
-	//End of metadata chunk append	
-	
-	s.logDebug("%s request received for %s", r.Method, uri)
-	bodycontent,_ := ioutil.ReadAll(r.Body)
-	modifiedBodyBytes := []byte(string(metadataBody) + string(bodycontent))
-	encrypted_bodycontent := s.EncryptData( modifiedBodyBytes )
-	encrypted_reader := ioutil.NopCloser(bytes.NewBuffer(encrypted_bodycontent))
-	r.Body = encrypted_reader
-	r.ContentLength = int64(bytes.NewBuffer(encrypted_bodycontent).Len())
-	if( r.ContentLength > int64(4096) ) {
-		http.Error(w, "ContentLength "+strconv.Itoa(int(r.ContentLength))+" is longer than 4096 limit.", http.StatusBadRequest)
+	if uri.Swarmdb() == true {	
+		bodycontent,_ := ioutil.ReadAll(r.Body)
+		//Need to determine how to collect the following and attach to chunk 
+		ownerAddress := []byte(strings.ToLower(uri.Addr))
+		ownerAddress = []byte(string(ownerAddress) + string(bytes.Repeat([]byte("Z"), 64-bytes.NewBuffer(ownerAddress).Len())))
+		writerPublicKey := []byte("") 
+		writerPublicKey = []byte(string(writerPublicKey) + string(bytes.Repeat([]byte("Z"), 64-bytes.NewBuffer(writerPublicKey).Len()))) 
+		timestamp := []byte(strconv.FormatInt(time.Now().Unix(),10))
+		timestamp = []byte(string(timestamp) + string(bytes.Repeat([]byte("Z"), 32-bytes.NewBuffer(timestamp).Len()))) 
+		blockSig := []byte("")
+		blockSig = []byte(string(blockSig) + string(bytes.Repeat([]byte("Z"), 256-bytes.NewBuffer(blockSig).Len()))) 
+
+		metadataBody := []byte(string(ownerAddress) + string(writerPublicKey) + string(timestamp) + string(blockSig))
+		//End of metadata chunk append	
+		bodycontent = []byte(string(metadataBody) + string(bodycontent))
+		encrypted_bodycontent := s.EncryptData( bodycontent )
+		encrypted_reader := ioutil.NopCloser(bytes.NewBuffer(encrypted_bodycontent))
+		r.Body = encrypted_reader
+		r.ContentLength = int64(bytes.NewBuffer(encrypted_bodycontent).Len())
+		if( r.ContentLength > int64(4096) && uri.Swarmdb() == true ) {
+			http.Error(w, "ContentLength "+strconv.Itoa(int(r.ContentLength))+" is longer than 4096 limit.", http.StatusBadRequest)
+		}
 	}
 
 	req := &Request{Request: *r, uri: uri}
