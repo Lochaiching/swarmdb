@@ -159,6 +159,22 @@ func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
     fmt.Fprint(w, key)
 }
 
+func (s *Server) HandlePostHashDB(w http.ResponseWriter, r *Request) {
+    k := r.uri.Path
+
+    key, err := s.api.StoreHashDB([]byte(k), r.Body, r.ContentLength, nil)
+    if err != nil {
+        s.Error(w, r, err)
+        return
+    }
+    s.logDebug("content for %s stored", key.Log())
+
+    w.Header().Set("Content-Type", "text/plain")
+    w.WriteHeader(http.StatusOK)
+    fmt.Fprint(w, key)
+}
+
+
 // HandlePostRaw handles a POST request to a raw bzzr:/ URI, stores the request
 // body in swarm and returns the resulting storage key as a text/plain response
 func (s *Server) HandlePostRawTest(w http.ResponseWriter, r *Request) {
@@ -448,6 +464,15 @@ func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
     log.Debug("GetRawTest Manifest = ", string(manifestroot))
     log.Debug(fmt.Sprintf("In GetRawTest %v %v" ,r.uri.Path, r.uri.Addr))
 	s.HandleGetRaw(w, r)
+}
+func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
+	log.Debug(fmt.Sprintf("HandleGetHashDB %v" ,r.uri.Path))
+	value := s.api.GetHashDB(r.uri.Path)
+	log.Debug(fmt.Sprintf("HandleGetHashDB res %v %v" ,r.uri.Path))
+
+    w.Header().Set("Content-Type", "text/plain")
+    w.WriteHeader(http.StatusOK)
+    fmt.Fprint(w, value)
 }
 
 func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
@@ -791,6 +816,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.logDebug("%s request received for %s", r.Method, uri)
 
 	req := &Request{Request: *r, uri: uri}
+	s.logDebug("ServerHTTP hashdb test Method: %s Addr %s\n", r.Method, req.uri.Addr)
 	switch r.Method {
 	case "POST":
 		s.logDebug("server POST %s %s", uri, req.uri.Addr)
@@ -804,6 +830,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.uri.Addr == "db" {
             s.HandlePostDB(w, req)
+            return
+		}
+		if req.uri.Addr == "hashdb" {
+            s.HandlePostHashDB(w, req)
             return
 		}
 		if uri.Raw() {
@@ -844,6 +874,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.uri.Addr == "table" {
 			s.HandleGetRawTable(w, req)
+			return
+		}
+		if req.uri.Addr == "hashdb" {
+			s.HandleGetHashDB(w, req)
 			return
 		}
 		

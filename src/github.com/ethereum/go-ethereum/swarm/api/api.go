@@ -61,7 +61,7 @@ it is the public interface of the dpa which is included in the ethereum stack
 type Api struct {
 	dpa *storage.DPA
 	dns Resolver
-	//tr  *trie
+	hashdbroot  *Node
 	ldb  *storage.LDBDatabase 
 	manifestroot []byte
 	trie *manifestTrie
@@ -69,23 +69,24 @@ type Api struct {
 
 //the api constructor initialises
 func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
-	//trdb, _ := ethdb.NewMemDatabase()
-	//tr, _ := trie.New(common.Hash{}, trdb)
+	hr := NewRootNode([]byte("dummy"), "dummydata")
 	self = &Api{
 		dpa: dpa,
 		dns: dns,
-	//	tr:  tr,
+		hashdbroot:  hr,
 	}
 	return
 }
 
 //the api constructor initialises
 func NewApiTest(dpa *storage.DPA, dns Resolver, ldb *storage.LDBDatabase) (self *Api) {
+	hr := NewRootNode([]byte("dummy"), "dummydata")
     self = &Api{
         dpa: dpa,
         dns: dns,
         ldb:  ldb,
 		trie: nil,
+		hashdbroot:  hr,
     }
     return
 }
@@ -108,6 +109,17 @@ func (self *Api) Store(data io.Reader, size int64, wg *sync.WaitGroup) (key stor
 
 func (self *Api) StoreDB(data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
 	return self.dpa.StoreDB(data, size, wg, nil)
+}
+
+func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
+	key, err = self.dpa.Store(data, size, wg, nil)
+	self.HashDBAdd([]byte(tkey), key, wg)
+	return 
+}
+
+func (self *Api)HashDBAdd(k []byte, v Val, wg *sync.WaitGroup){
+	log.Debug(fmt.Sprintf("HashDBAdd %v \n", self.hashdbroot))
+    self.hashdbroot.Add(k, v, self, wg)
 }
 
 type ErrResolve error
@@ -277,6 +289,26 @@ func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionRe
 		log.Warn(fmt.Sprintf("%v", err))
 	}
 	return
+}
+
+func (self *Api) GetHashDB(path string) (value storage.Key) {
+	v := self.hashdbroot.Get([]byte(path))
+	value = cv(v)
+    log.Trace(fmt.Sprintf("GetHashDB: %v '%v' %v", path, value))
+	return
+}
+
+func cv(a Val)[]byte{
+    log.Trace(fmt.Sprintf("convertToByte cv: %v %v ", a, reflect.TypeOf(a)))
+    if va, ok := a.([]byte); ok{
+        log.Trace(fmt.Sprintf("convertToByte cv: %v '%v' %s", a, va, string(va)))
+        return []byte(va)
+    }
+    if va, ok := a.(storage.Key); ok{
+        log.Trace(fmt.Sprintf("convertToByte cv key: %v '%v' %s", a, va, string(va)))
+        return []byte(va)
+    }
+    return nil
 }
 
 func (self *Api) GetManifestRoot()(storage.Key) {
