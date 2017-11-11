@@ -884,20 +884,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//Need to determine how to collect the following and attach to chunk 
 		ownerAddress := []byte(strings.ToLower(uri.Addr))
 		ownerAddress = []byte(string(ownerAddress) + string(bytes.Repeat([]byte("Z"), 64-bytes.NewBuffer(ownerAddress).Len())))
-		writerPublicKey := []byte("") 
-		writerPublicKey = []byte(string(writerPublicKey) + string(bytes.Repeat([]byte("Z"), 64-bytes.NewBuffer(writerPublicKey).Len()))) 
+		buyAt := []byte("") //Need to research how to grab 
+		buyAt = []byte(string(buyAt) + string(bytes.Repeat([]byte("Z"), 64-bytes.NewBuffer(buyAt).Len()))) 
 		timestamp := []byte(strconv.FormatInt(time.Now().Unix(),10))
 		timestamp = []byte(string(timestamp) + string(bytes.Repeat([]byte("Z"), 32-bytes.NewBuffer(timestamp).Len()))) 
-		blockSig := []byte("")
-		blockSig = []byte(string(blockSig) + string(bytes.Repeat([]byte("Z"), 256-bytes.NewBuffer(blockSig).Len()))) 
+		blockNumber := []byte("")
+		blockNumber = []byte(string(blockNumber) + string(bytes.Repeat([]byte("Z"), 256-bytes.NewBuffer(blockNumber).Len()))) 
+		blockMaturityInterval := []byte("")
+		blockMaturityInterval = []byte(string(blockMaturityInterval) + string(bytes.Repeat([]byte("Z"), 256-bytes.NewBuffer(blockMaturityInterval).Len()))) 
 
-		metadataBody := []byte(string(ownerAddress) + string(writerPublicKey) + string(timestamp) + string(blockSig))
+		metadataBody := []byte(string(ownerAddress) + string(buyAt) + string(timestamp) + string(blockNumber) + string(blockMaturityInterval))
 		//End of metadata chunk append	
-		bodycontent = []byte(string(metadataBody) + string(bodycontent))
-		encrypted_bodycontent := s.EncryptData( bodycontent )
-		encrypted_reader := ioutil.NopCloser(bytes.NewBuffer(encrypted_bodycontent))
-		r.Body = encrypted_reader
-		r.ContentLength = int64(bytes.NewBuffer(encrypted_bodycontent).Len())
+		encryptedBodycontent := s.EncryptData( bodycontent )
+		mergedBodycontent := []byte(string(metadataBody) + string(encryptedBodycontent))
+		mergedBodyContentReader := ioutil.NopCloser(bytes.NewBuffer(mergedBodycontent))
+		r.Body = mergedBodyContentReader
+		r.ContentLength = int64(bytes.NewBuffer(mergedBodycontent).Len())
 		if( r.ContentLength > int64(4096) && uri.Swarmdb() == true ) {
 			http.Error(w, "ContentLength "+strconv.Itoa(int(r.ContentLength))+" is longer than 4096 limit.", http.StatusBadRequest)
 		}
