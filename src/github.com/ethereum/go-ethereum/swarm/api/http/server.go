@@ -45,6 +45,9 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/rs/cors"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
+    	"github.com/ethereum/go-ethereum/accounts"
+    	"github.com/ethereum/go-ethereum/crypto"	
 )
 
 // ServerConfig is the basic configuration needed for the HTTP server and also
@@ -85,17 +88,80 @@ func StartHttpServer(api *api.Api, config *ServerConfig) {
 		MaxAge:         600,
 		AllowedHeaders: []string{"*"},
 	})
-	hdlr := c.Handler(NewServer(api))
+	sk, pk := GetKeys()
+	hdlr := c.Handler(NewServer(api, sk, pk))
 
 	go http.ListenAndServe(config.Addr, hdlr)
 }
 
-func NewServer(api *api.Api) *Server {
-	return &Server{api}
+func GetKeys() (sk [32]byte, pk [32]byte) {
+	ks := keystore.NewKeyStore("/var/www/vhosts/data/keystore", keystore.StandardScryptN, keystore.StandardScryptP) 
+	var ks_accounts []accounts.Account      //     type Account struct    in->   keystore/keystore.go
+	ks_accounts = ks.Accounts()   
+	acc_url := ks_accounts[0].URL   
+	acc_url_string := fmt.Sprintf("%s", acc_url)
+	filename := acc_url_string[11:]  // /var/www/vhosts/data/keystore/UTC--2017-10-13T23-15-16.214744640Z--dc8a520a69157a7087f0b575644b8e454f462159
+            
+    // Open the key file
+    //keyJson, readErr := ioutil.ReadFile("/var/www/vhosts/data/keystore/UTC--2017-10-13T23-15-16.214744640Z--dc8a520a69157a7087f0b575644b8e454f462159")
+    keyJson, readErr := ioutil.ReadFile(filename)    
+    if readErr != nil {
+        //s.logDebug("SWARM server.go ReadFile of keystore file error: %s ", readErr)
+        log.Debug(fmt.Sprintf("[BZZ] HTTP: "+"SWARM server.go ReadFile of keystore file error: %s ", readErr))
+        
+        // if ReadFile fail use default keys
+        sk = [32]byte{240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
+		pk = [32]byte{159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
+		return sk, pk        
+    }
+	
+    keyWrapper, keyErr := keystore.DecryptKey([]byte(keyJson), "mdotm")
+    if keyErr != nil {
+        //s.logDebug("SWARM server.go DecryptKey error: %s ", keyErr)
+        log.Debug(fmt.Sprintf("[BZZ] HTTP: "+"SWARM server.go DecryptKey error: %s ", keyErr))
+        
+        // if we don't know the pass use default keys
+        sk = [32]byte{240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
+		pk = [32]byte{159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
+		return sk, pk
+    }
+    
+    acc_sk := crypto.FromECDSA(keyWrapper.PrivateKey)
+    
+    acc_pk :=   crypto.FromECDSAPub(&keyWrapper.PrivateKey.PublicKey)
+    // fun call elliptic.Marshal   add  ret[0] = 4 // uncompressed point 
+    // pk:[]byte{0x4, 0x8d, 0x9b,
+    // need to remove the "ret[0] = 4" to get the pk
+    acc_pk = append(pk[:0], pk[1:]...)
+    
+    //secretkey := [32]byte{}
+    for i := range acc_sk {
+          sk[i] = acc_sk[i]
+          if i == 31 {break}  
+    }
+    
+    // crypto/nacl  box.Seal()  box.Open()   PublicKey is  type *[32]byte  so cut the account PublicKey from [64]byte to [32]byte
+    //publickey := [64]byte{}
+    //publickey := [32]byte{}
+    for i := range acc_pk {
+          pk[i] = acc_pk[i]
+          if i == 31 {break} 
+    }    
+    	
+//	sk = [32]byte{240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
+//	pk = [32]byte{159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
+	
+	return sk, pk
+}
+
+func NewServer(api *api.Api, sk [32]byte, pk [32]byte) *Server {
+	return &Server{api, sk, pk}
 }
 
 type Server struct {
 	api *api.Api
+	sk [32]byte
+	pk [32]byte
 }
 
 // Request wraps http.Request and also includes the parsed bzz URI
@@ -136,7 +202,25 @@ func (s *Server) HandlePostRaw(w http.ResponseWriter, r *Request) {
 	fmt.Fprint(w, key)
 }
 
+func BuildSwarmdbPrefix(owner string, table string, id string) string {
+	//hashType := "SHA3"
+	//hashType := SHA256"
+
+	//Should add checks for valid type / length for building
+	prepString := strings.ToLower(owner) + strings.ToLower(table) + strings.ToLower(id)
+	h256 := sha256.New()
+        h256.Write([]byte(prepString))
+        prefix := fmt.Sprintf("%x", h256.Sum(nil))
+    	log.Debug(fmt.Sprintf("In BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]" , prepString, prefix, []byte(prefix), len([]byte(prefix)) ) )
+	return prefix
+}
+
 func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
+    	log.Debug(fmt.Sprintf("In HandlePostDB r.uri(%v) r.uri.Path(%v) r.uri.Addr(%v)" ,r.uri, r.uri.Path, r.uri.Addr))
+
+	//r.uri.Addr == Owner
+	//r.uri.Path == table/id
+
     	if r.uri.Path == "" {
         	s.BadRequest(w, r, "DB POST request should contain a path")
         	return
@@ -147,23 +231,39 @@ func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
         	return
     	}
 
-    	key, err := s.api.Store(r.Body, r.ContentLength, nil)
+	rdrBody,_ := ioutil.ReadAll(r.Body)
+	kv := string(rdrBody)
+	s.logDebug("In HandlePostDB kv PRESTORE (%v) ", kv)
+	kvlen := int64(len(kv))
+    	dbwg := &sync.WaitGroup{}
+    	rdb := strings.NewReader(kv)
+
+	//Take the Hash returned for the stored 'Main' content and store it
+	raw_indexkey, err := s.api.StoreDB(rdb, kvlen, dbwg)
     	if err != nil {
         	s.Error(w, r, err)
         	return
     	}
-    	s.logDebug("content for %s stored", key.Log())
-	keys := fmt.Sprintf("%v", key)
-	kv := r.uri.Path+keys
-	kvlen := int64(len(kv))
-    	dbwg := &sync.WaitGroup{}
-    	rdb := strings.NewReader(kv)
-	newkey, err := s.api.StoreDB(rdb, kvlen, dbwg)
-    	s.logDebug("HandlePostDB stored  %v %v %v", string(kv), kvlen, string(newkey))
+	s.logDebug("Index content stored (kv=[%v]) for raw_indexkey.Log [%s] [%+v] (size of [%+v])", string(kv), raw_indexkey.Log(), raw_indexkey, kvlen)
 
     	w.Header().Set("Content-Type", "text/plain")
     	w.WriteHeader(http.StatusOK)
-    	fmt.Fprint(w, key)
+    	fmt.Fprint(w, r.uri.Path)
+}
+
+func (s *Server) HandlePostHashDB(w http.ResponseWriter, r *Request) {
+	k := r.uri.Path
+
+	key, err := s.api.StoreHashDB([]byte(k), r.Body, r.ContentLength, nil)
+	if err != nil {
+		s.Error(w, r, err)
+		return
+	}
+	s.logDebug("content for %s stored", key.Log())
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, key)
 }
 
 // HandlePostRaw handles a POST request to a raw bzzr:/ URI, stores the request
@@ -420,6 +520,15 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *Request) {
 	fmt.Fprint(w, newKey)
 }
 
+func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
+	value := s.api.GetHashDB(r.uri.Path)
+    log.Debug(fmt.Sprintf("HandleGetHashDB res %v %v" ,r.uri.Path, value))
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, value)
+}
+
 func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
 	manifestroot := s.api.GetManifestRoot()
 	if manifestroot == nil{
@@ -434,17 +543,28 @@ func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
 }
 
 func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
-    	log.Debug(fmt.Sprintf("In GetRawDB %v %v" ,r.uri.Path, r.uri.Addr))
-	//id, err := s.api.Resolve(r.uri)
+    	log.Debug(fmt.Sprintf("In HandleGetDB r.uri(%v) r.uri.Path(%v) r.uri.Addr(%v)" , r.uri, r.uri.Path, r.uri.Addr))
+
+	//r.uri.Addr == Owner
+	//r.uri.Path == table/id
+
     	keylen := 64 ///////..........
     	dummy := bytes.Repeat([]byte("Z"), keylen)
-    	newkeybase := r.uri.Path+string(dummy)
+
+	owner := r.uri.Addr
+	table_id_parts := strings.Split(r.uri.Path, "/")
+	table := table_id_parts[0]
+	id := table_id_parts[1]
+	contentPrefix := BuildSwarmdbPrefix(owner, table, id)	
+
+    	newkeybase := contentPrefix+string(dummy)
     	chunker := storage.NewTreeChunker(storage.NewChunkerParams())
     	rd := strings.NewReader(newkeybase)
     	key, err := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil, false)
-    	log.Debug(fmt.Sprintf("In GetRawDB dummy %v newkeybase %v key %v" ,dummy, newkeybase, key))
-    	reader := s.api.Retrieve(key)
-    	if _, err := reader.Size(nil); err != nil {
+    	log.Debug(fmt.Sprintf("In HandleGetDB prefix [%v] dummy %v newkeybase %v key %v", contentPrefix, dummy, newkeybase, key))
+
+    	contentReader := s.api.Retrieve(key)
+    	if _, err := contentReader.Size(nil); err != nil {
         	s.logDebug("key not found %s: %s", key, err)
         	http.NotFound(w, &r.Request)
         	return
@@ -454,17 +574,15 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
         	return
     	}
 	
-	buffer := new(bytes.Buffer)
-	buffer.ReadFrom(reader)
-	buf := buffer.Bytes()
-	str := string(buf)
-	//buftest, _ := ioutil.ReadAll(reader)
-    	//log.Debug(fmt.Sprintf("In GetRawDB buf %v str %v strlen %v buftest %s %v" , buf, str, len(str), buftest, len(buftest)))
-    	log.Debug(fmt.Sprintf("In GetRawDB buf %v str %v strlen %v " , buf, str, len(str) ))
-/*
-	reader.ReadAt(newkey, pos)
-	creader := s.api.Retrieve()
-*/
+	contentReaderSize,_ := contentReader.Size(nil)
+	contentBytes := make( []byte, contentReaderSize )
+ 	_,_ = contentReader.ReadAt( contentBytes, 0 )
+	
+	encryptedContentBytes := contentBytes[len(contentPrefix):]
+    	log.Debug(fmt.Sprintf("In HandledGetDB Retrieved 'mainhash' v[%v] s[%s] ", encryptedContentBytes, encryptedContentBytes))
+
+        decrypted_reader := bytes.NewReader(s.DecryptData(encryptedContentBytes))
+    	log.Debug(fmt.Sprintf("In HandledGetDB got back the 'reader' v[%v] s[%s] ", decrypted_reader, decrypted_reader))
 
     	// allow the request to overwrite the content type using a query
     	// parameter
@@ -472,9 +590,12 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
     	if typ := r.URL.Query().Get("content_type"); typ != "" {
         	contentType = typ
     	}
+	decryptedReaderSize := decrypted_reader.Size()
+	queryResponse := make( []byte, decryptedReaderSize-416 ) //TODO: match to sizes in metadata content
+	_,_ = decrypted_reader.ReadAt( queryResponse, 416 )  //TODO: match to sizes in metadata content
+	queryResponseReader := bytes.NewReader( queryResponse )
     	w.Header().Set("Content-Type", contentType)
-
-    	http.ServeContent(w, &r.Request, "", time.Now(), reader)
+    	http.ServeContent(w, &r.Request, "", time.Now(), queryResponseReader)
 }
 
 func (s *Server) HandleGetRawTable(w http.ResponseWriter, r *Request) {
@@ -506,7 +627,7 @@ func (s *Server) HandleGetRawTable(w http.ResponseWriter, r *Request) {
 // the raw content stored at the given storage key
 func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 	key, err := s.api.Resolve(r.uri)
-	log.Debug(fmt.Sprintf("In GetRaw %v %v %v" ,r.uri.Path, r.uri.Addr, key))
+	log.Debug(fmt.Sprintf("In GetRaw %v %v %v %v",r.uri ,r.uri.Path, r.uri.Addr, key))
 	if err != nil {
 		s.Error(w, r, fmt.Errorf("error resolving %s: %s", r.uri.Addr, err))
 		return
@@ -556,7 +677,8 @@ func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 	readerSize,_ := reader.Size(nil)
 	encrypted_reader := make([]byte, readerSize )
 	_,_ = reader.ReadAt(encrypted_reader,0)
-	decrypted_reader := bytes.NewReader(DecryptData(encrypted_reader))
+	s.logDebug("Retrieve Raw encrypted data of [%+v] ==> [%s] using key [%+v]", encrypted_reader, encrypted_reader, key)
+	decrypted_reader := bytes.NewReader(s.DecryptData(encrypted_reader))
 	if _, err := reader.Size(nil); err != nil {
 		s.logDebug("key not found %s: %s", key, err)
 		http.NotFound(w, &r.Request)
@@ -774,12 +896,40 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.logDebug("%s request received for %s", r.Method, uri)
-	bodycontent,_ := ioutil.ReadAll(r.Body)
-	encrypted_bodycontent := EncryptData( bodycontent )
-	encrypted_reader := ioutil.NopCloser(bytes.NewBuffer(encrypted_bodycontent))
-	r.Body = encrypted_reader
-	r.ContentLength = int64(bytes.NewBuffer(encrypted_bodycontent).Len())
+	if uri.Swarmdb() == true {	
+		bodycontent,_ := ioutil.ReadAll(r.Body)
+		//Need to determine how to collect the following and attach to chunk 
+		ownerAddress := []byte(strings.ToLower(uri.Addr))
+		buyAt := []byte("4096000000000000") //Need to research how to grab 
+		timestamp := []byte(strconv.FormatInt(time.Now().Unix(),10))
+		blockNumber := []byte("100")
+
+	        path_parts := strings.Split(uri.Path, "/")
+        	table := strings.ToLower(path_parts[0])
+        	id := strings.ToLower(path_parts[1])
+        	contentPrefix := BuildSwarmdbPrefix(string(ownerAddress), table, id)
+
+		var metadataBody []byte
+		copy(metadataBody[0:41], ownerAddress)
+		copy(metadataBody[42:59], buyAt)
+		copy(metadataBody[60:91], blockNumber)
+		copy(metadataBody[92:107], timestamp)
+		//metadataBody := []byte(string(ownerAddress) + string(buyAt) + string(timestamp) + string(blockNumber)) 
+		//End of metadata chunk append	
+		encryptedBodycontent := s.EncryptData( bodycontent )
+		var mergedBodycontent []byte
+		//mergedBodycontent := []byte(string(metadataBody) + string(encryptedBodycontent))
+		copy(mergedBodycontent[:], metadataBody) 
+		copy(mergedBodycontent[512:576], contentPrefix)
+		copy(mergedBodycontent[577:], encryptedBodycontent)
+
+		mergedBodyContentReader := ioutil.NopCloser(bytes.NewBuffer(mergedBodycontent))
+		r.Body = mergedBodyContentReader
+		r.ContentLength = int64(bytes.NewBuffer(mergedBodycontent).Len())
+		if( r.ContentLength > int64(4096) && uri.Swarmdb() == true ) {
+			http.Error(w, "ContentLength "+strconv.Itoa(int(r.ContentLength))+" is longer than 4096 limit.", http.StatusBadRequest)
+		}
+	}
 
 	req := &Request{Request: *r, uri: uri}
 	switch r.Method {
@@ -793,7 +943,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             		s.HandlePostRawTable(w, req)
             		return
 		}
-		if req.uri.Addr == "db" {
+		if req.uri.Addr == "hashdb" {
+			s.HandlePostHashDB(w, req)
+			return
+		}
+		if uri.Swarmdb() == true {
             		s.HandlePostDB(w, req)
             		return
 		}
@@ -817,6 +971,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 	case "DELETE":
+		if req.uri.Addr == "hashdb" {
+			//will come later
+			//s.HandleDeleteHashDB(w, req)
+			return
+		}
 		if uri.Raw() {
 			http.Error(w, fmt.Sprintf("No DELETE to %s allowed.", uri), http.StatusBadRequest)
 			return
@@ -824,20 +983,23 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.HandleDelete(w, req)
 
 	case "GET":
-		s.logDebug("server GET %s %s", uri, r.URL.Query())
-		if req.uri.Addr == "demo" || r.URL.Query().Get("gettest") == "true"{
-			s.HandleGetRawTest(w, req)
+		s.logDebug("server GET %s %s [%s]", uri, r.URL.Query(), uri.Swarmdb())
+		if uri.Swarmdb() == true {
+			s.HandleGetDB(w, req)
 			return
 		}
-		if req.uri.Addr == "db" {
-			s.HandleGetDB(w, req)
+		if req.uri.Addr == "demo" || r.URL.Query().Get("gettest") == "true"{
+			s.HandleGetRawTest(w, req)
 			return
 		}
 		if req.uri.Addr == "table" {
 			s.HandleGetRawTable(w, req)
 			return
 		}
-		
+		if req.uri.Addr == "hashdb" {
+			s.HandleGetHashDB(w, req)
+			return
+		}
 		if uri.Raw() {
 			s.HandleGetRaw(w, req)
 			return
@@ -879,33 +1041,22 @@ func (s *Server) updateManifest(key storage.Key, update func(mw *api.ManifestWri
 	return key, nil
 }
 
-func DecryptData( data []byte ) []byte { 
-	senderPrivateKey := &[32]byte {240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
-	senderPublicKey  := &[32]byte {159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
-
-	recipientPrivateKey :=  senderPrivateKey
-	//recipientPublicKey  :=  senderPublicKey
-
+func (s *Server) DecryptData( data []byte ) []byte { 
 	var decryptNonce [24]byte
 	//decryptNonce = [24]byte {4, 0, 50, 203, 12, 81, 11, 49, 236, 255, 155, 11, 101, 6, 97, 233, 94, 169, 107, 4, 37, 57, 106, 151}
 	copy(decryptNonce[:], data[:24])
-	decrypted, ok := box.Open(nil, data[24:], &decryptNonce, senderPublicKey, recipientPrivateKey)
+	decrypted, ok := box.Open(nil, data[24:], &decryptNonce, &s.pk, &s.sk)
 	if !ok {
 		panic("decryption error")
 	}
 	return decrypted
 }
 
-func EncryptData( data []byte ) []byte { 
-	senderPrivateKey := &[32]byte {240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
-	senderPublicKey  := &[32]byte {159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
-
-	//recipientPrivateKey :=  senderPrivateKey
-	recipientPublicKey  :=  senderPublicKey
+func (s *Server) EncryptData( data []byte ) []byte { 
 	var nonce [24]byte
 	nonce = [24]byte {4, 0, 50, 203, 12, 81, 11, 49, 236, 255, 155, 11, 101, 6, 97, 233, 94, 169, 107, 4, 37, 57, 106, 151}
 	msg := data //[]byte("Alas, poor Yorick! I knew him, Horatio")
-	encrypted := box.Seal(nonce[:], msg, &nonce, recipientPublicKey, senderPrivateKey)
+	encrypted := box.Seal(nonce[:], msg, &nonce, &s.pk, &s.sk)
 	return encrypted
 }
 
