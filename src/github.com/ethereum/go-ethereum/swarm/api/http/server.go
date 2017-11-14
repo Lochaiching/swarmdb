@@ -251,6 +251,21 @@ func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
     	fmt.Fprint(w, r.uri.Path)
 }
 
+func (s *Server) HandlePostHashDB(w http.ResponseWriter, r *Request) {
+	k := r.uri.Path
+
+	key, err := s.api.StoreHashDB([]byte(k), r.Body, r.ContentLength, nil)
+	if err != nil {
+		s.Error(w, r, err)
+		return
+	}
+	s.logDebug("content for %s stored", key.Log())
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, key)
+}
+
 // HandlePostRaw handles a POST request to a raw bzzr:/ URI, stores the request
 // body in swarm and returns the resulting storage key as a text/plain response
 func (s *Server) HandlePostRawTest(w http.ResponseWriter, r *Request) {
@@ -503,6 +518,15 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, newKey)
+}
+
+func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
+	value := s.api.GetHashDB(r.uri.Path)
+    log.Debug(fmt.Sprintf("HandleGetHashDB res %v %v" ,r.uri.Path, value))
+
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, value)
 }
 
 func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
@@ -925,6 +949,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
             		s.HandlePostRawTable(w, req)
             		return
 		}
+		if req.uri.Addr == "hashdb" {
+			s.HandlePostHashDB(w, req)
+			return
+		}
 		if uri.Swarmdb() == true {
             		s.HandlePostDB(w, req)
             		return
@@ -949,6 +977,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 	case "DELETE":
+		if req.uri.Addr == "hashdb" {
+			//will come later
+			//s.HandleDeleteHashDB(w, req)
+			return
+		}
 		if uri.Raw() {
 			http.Error(w, fmt.Sprintf("No DELETE to %s allowed.", uri), http.StatusBadRequest)
 			return
@@ -969,7 +1002,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s.HandleGetRawTable(w, req)
 			return
 		}
-		
+		if req.uri.Addr == "hashdb" {
+			s.HandleGetHashDB(w, req)
+			return
+		}
 		if uri.Raw() {
 			s.HandleGetRaw(w, req)
 			return

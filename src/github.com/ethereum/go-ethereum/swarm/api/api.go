@@ -56,7 +56,7 @@ it is the public interface of the dpa which is included in the ethereum stack
 type Api struct {
 	dpa *storage.DPA
 	dns Resolver
-	//tr  *trie
+	hashdbroot  *Node
  	ldb  *storage.LDBDatabase 
  	manifestroot []byte
  	trie *manifestTrie
@@ -72,11 +72,17 @@ func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
 }
 
 func NewApiTest(dpa *storage.DPA, dns Resolver, ldb *storage.LDBDatabase) (self *Api) {
+	rn, err := ldb.Get([]byte("RootNode"))
+	hr := NewRootNode([]byte("RootNode"), nil)
+	if err == nil{
+		hr.NodeHash = rn
+	}
     self = &Api{
-        dpa: dpa,
-        dns: dns,
-        ldb:  ldb,
+		dpa: dpa,
+		dns: dns,
+		ldb:  ldb,
 		trie: nil,
+		hashdbroot:  hr,
     }
     return
 }
@@ -92,6 +98,17 @@ func (self *Api) StoreDB(data io.Reader, size int64, wg *sync.WaitGroup) (key st
 	return self.dpa.StoreDB(data, size, wg, nil)
 }
 
+func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
+	key, err = self.dpa.Store(data, size, wg, nil)
+	self.HashDBAdd([]byte(tkey), key, wg)
+	return 
+}
+
+func (self *Api)HashDBAdd(k []byte, v Val, wg *sync.WaitGroup){
+	log.Debug(fmt.Sprintf("HashDBAdd %v \n", self.hashdbroot))
+    self.hashdbroot.Add(k, v, self, wg)
+}
+
 // DPA reader API
 func (self *Api) Retrieve(key storage.Key) storage.LazySectionReader {
 	return self.dpa.Retrieve(key)
@@ -100,6 +117,7 @@ func (self *Api) Retrieve(key storage.Key) storage.LazySectionReader {
 func (self *Api) Store(data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
 	return self.dpa.Store(data, size, wg, nil)
 }
+
 
 type ErrResolve error
 
@@ -269,6 +287,28 @@ func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionRe
 		log.Warn(fmt.Sprintf("%v", err))
 	}
 	return
+}
+
+func (self *Api) GetHashDB(path string) (value storage.Key) {
+	log.Trace(fmt.Sprintf("GetHashDB start: %v %v", path, self.hashdbroot))
+	v := self.hashdbroot.Get([]byte(path), self)
+	value = cv(v)
+	log.Trace(fmt.Sprintf("GetHashDB res: %v '%v' %v", path, value))
+	return
+}
+
+// will move it to hashdb.go
+func cv(a Val)[]byte{
+	log.Trace(fmt.Sprintf("convertToByte cv: %v %v ", a, reflect.TypeOf(a)))
+	if va, ok := a.([]byte); ok{
+		log.Trace(fmt.Sprintf("convertToByte cv: %v '%v' %s", a, va, string(va)))
+		return []byte(va)
+	}
+	if va, ok := a.(storage.Key); ok{
+		log.Trace(fmt.Sprintf("convertToByte cv key: %v '%v' %s", a, va, string(va)))
+		return []byte(va)
+	}
+	return nil
 }
 
 func (self *Api) GetManifestRoot()(storage.Key) {
