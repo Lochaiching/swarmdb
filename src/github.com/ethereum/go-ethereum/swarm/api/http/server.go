@@ -886,6 +886,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
         	contentPrefix := BuildSwarmdbPrefix(string(ownerAddress), table, id)
 
 		var metadataBody []byte
+		metadataBody = make([]byte, 108)
 		copy(metadataBody[0:41], ownerAddress)
 		copy(metadataBody[42:59], buyAt)
 		copy(metadataBody[60:91], blockNumber)
@@ -894,10 +895,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//End of metadata chunk append	
 		encryptedBodycontent := s.EncryptData( bodycontent )
 		var mergedBodycontent []byte
+		mergedBodycontent = make([]byte, 4096)
 		//mergedBodycontent := []byte(string(metadataBody) + string(encryptedBodycontent))
 		copy(mergedBodycontent[:], metadataBody) 
 		copy(mergedBodycontent[512:576], contentPrefix)
 		copy(mergedBodycontent[577:], encryptedBodycontent)
+
+		s.logDebug("MetadataBody: [%v][%s]", metadataBody, string(metadataBody))
+		s.logDebug("ContentPrefix: [%s]", string(contentPrefix))
+		s.logDebug("RAW Content vs encryptedContent: [%v][%s]", bodycontent, string(encryptedBodycontent))
 
 		mergedBodyContentReader := ioutil.NopCloser(bytes.NewBuffer(mergedBodycontent))
 		r.Body = mergedBodyContentReader
