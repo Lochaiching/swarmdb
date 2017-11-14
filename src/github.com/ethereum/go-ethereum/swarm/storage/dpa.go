@@ -241,13 +241,16 @@ func (self *dpaChunkStore) Put(entry *Chunk) {
 		dummy := bytes.Repeat([]byte("Z"), keylen)
 		idx := make([]byte, len(chunk.SData)-8)
  		copy(idx, chunk.SData[8:])
- 		newkeybase := string(chunk.SData[8:keylen+8])+string(dummy)
- 		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB length of this extracted chunk data is [%s] and keylen is %v diff should be 64", len(chunk.SData),keylen))
+		contentPrefixStart := 512+8
+		contentPrefixEnd := 576+8
+		newkeybase_bytes := chunk.SData[contentPrefixStart:contentPrefixEnd]
+ 		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB keybase bytes: [%+v][%s]", newkeybase_bytes, string(newkeybase_bytes)))
+ 		newkeybase := string(newkeybase_bytes)+string(dummy)
+ 		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB keybase used: [%+v][%s]", newkeybase, string(newkeybase)))
  	    	chunker := NewTreeChunker(NewChunkerParams())
  		r := strings.NewReader(newkeybase)
  		chunk.Key, err = chunker.Split(r, int64(len(newkeybase)), nil, nil, nil, false)
  		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB new Chunk.Key [%s][%v]", entry.Key, entry.Key))
- 		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB keybase used: [%s][%v]", newkeybase, newkeybase))
  		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB basekey = %v: key = %v sdata = %v(%s) chunkKey=[%v][%s]", newkeybase, entry.Key, chunk.SData, chunk.SData, chunk.Key, chunk.Key))
  	} else if err != nil {
 		log.Debug(fmt.Sprintf("DPA.Put: %v new chunk. call netStore.Put Entry Details %+v", entry.Key.Log(), entry))
