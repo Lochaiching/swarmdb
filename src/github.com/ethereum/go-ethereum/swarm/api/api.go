@@ -298,7 +298,7 @@ func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionRe
 func (self *Api) GetHashDB(path string) (value storage.Key) {
 	v := self.hashdbroot.Get([]byte(path), self)
 	value = cv(v)
-    log.Trace(fmt.Sprintf("GetHashDB: %v '%v' %v", path, value))
+    log.Trace(fmt.Sprintf("GetHashDB res: %v '%v' %v", path, value))
 	return
 }
 
