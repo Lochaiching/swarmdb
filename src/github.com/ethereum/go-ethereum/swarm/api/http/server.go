@@ -207,11 +207,11 @@ func BuildSwarmdbPrefix(owner string, table string, id string) string {
 	//hashType := SHA256"
 
 	//Should add checks for valid type / length for building
-	prepString := owner + table + id
+	prepString := strings.ToLower(owner) + strings.ToLower(table) + strings.ToLower(id)
 	h256 := sha256.New()
         h256.Write([]byte(prepString))
         prefix := fmt.Sprintf("%x", h256.Sum(nil))
-    	log.Debug(fmt.Sprintf("In BuildSwarmdbPrefix prepstring[%s] and prefix[%s]" , prepString, prefix))
+    	log.Debug(fmt.Sprintf("In BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]" , prepString, prefix, []byte(prefix), len([]byte(prefix)) ) )
 	return prefix
 }
 
@@ -231,15 +231,8 @@ func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
         	return
     	}
 
-	owner := r.uri.Addr
-	table_id_parts := strings.Split(r.uri.Path, "/")
-	table := table_id_parts[0]
-	id := table_id_parts[1]
-	contentPrefix := BuildSwarmdbPrefix(owner, table, id)	
-
 	rdrBody,_ := ioutil.ReadAll(r.Body)
-	kv := contentPrefix + string(rdrBody)
-	s.logDebug("In HandlePostDB contentPrefix (%v) ", string(contentPrefix))
+	kv := string(rdrBody)
 	s.logDebug("In HandlePostDB kv PRESTORE (%v) ", kv)
 	kvlen := int64(len(kv))
     	dbwg := &sync.WaitGroup{}
@@ -883,20 +876,29 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		bodycontent,_ := ioutil.ReadAll(r.Body)
 		//Need to determine how to collect the following and attach to chunk 
 		ownerAddress := []byte(strings.ToLower(uri.Addr))
-		ownerAddress = []byte(string(ownerAddress) + string(bytes.Repeat([]byte("Z"), 64-bytes.NewBuffer(ownerAddress).Len())))
-		buyAt := []byte("") //Need to research how to grab 
-		buyAt = []byte(string(buyAt) + string(bytes.Repeat([]byte("Z"), 64-bytes.NewBuffer(buyAt).Len()))) 
+		buyAt := []byte("4096000000000000") //Need to research how to grab 
 		timestamp := []byte(strconv.FormatInt(time.Now().Unix(),10))
-		timestamp = []byte(string(timestamp) + string(bytes.Repeat([]byte("Z"), 32-bytes.NewBuffer(timestamp).Len()))) 
-		blockNumber := []byte("")
-		blockNumber = []byte(string(blockNumber) + string(bytes.Repeat([]byte("Z"), 256-bytes.NewBuffer(blockNumber).Len()))) 
-		blockMaturityInterval := []byte("")
-		blockMaturityInterval = []byte(string(blockMaturityInterval) + string(bytes.Repeat([]byte("Z"), 256-bytes.NewBuffer(blockMaturityInterval).Len()))) 
+		blockNumber := []byte("100")
 
-		metadataBody := []byte(string(ownerAddress) + string(buyAt) + string(timestamp) + string(blockNumber) + string(blockMaturityInterval))
+	        path_parts := strings.Split(uri.Path, "/")
+        	table := strings.ToLower(path_parts[0])
+        	id := strings.ToLower(path_parts[1])
+        	contentPrefix := BuildSwarmdbPrefix(string(ownerAddress), table, id)
+
+		var metadataBody []byte
+		copy(metadataBody[0:41], ownerAddress)
+		copy(metadataBody[42:59], buyAt)
+		copy(metadataBody[60:91], blockNumber)
+		copy(metadataBody[92:107], timestamp)
+		//metadataBody := []byte(string(ownerAddress) + string(buyAt) + string(timestamp) + string(blockNumber)) 
 		//End of metadata chunk append	
 		encryptedBodycontent := s.EncryptData( bodycontent )
-		mergedBodycontent := []byte(string(metadataBody) + string(encryptedBodycontent))
+		var mergedBodycontent []byte
+		//mergedBodycontent := []byte(string(metadataBody) + string(encryptedBodycontent))
+		copy(mergedBodycontent[:], metadataBody) 
+		copy(mergedBodycontent[512:576], contentPrefix)
+		copy(mergedBodycontent[577:], encryptedBodycontent)
+
 		mergedBodyContentReader := ioutil.NopCloser(bytes.NewBuffer(mergedBodycontent))
 		r.Body = mergedBodyContentReader
 		r.ContentLength = int64(bytes.NewBuffer(mergedBodycontent).Len())
