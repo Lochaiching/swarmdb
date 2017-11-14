@@ -69,7 +69,7 @@ type Api struct {
 
 //the api constructor initialises
 func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
-	hr := NewRootNode([]byte("dummy"), "dummydata")
+	hr := NewRootNode([]byte("RootNode"), nil)
 	self = &Api{
 		dpa: dpa,
 		dns: dns,
@@ -80,11 +80,16 @@ func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
 
 //the api constructor initialises
 func NewApiTest(dpa *storage.DPA, dns Resolver, ldb *storage.LDBDatabase) (self *Api) {
-	hr := NewRootNode([]byte("dummy"), "dummydata")
+	rn, err := ldb.Get([]byte("RootNode"))
+	hr := NewRootNode([]byte("RootNode"), nil)
+	if err == nil{
+		hr.NodeHash = rn
+	}
+	hr.Root = true
     self = &Api{
-        dpa: dpa,
-        dns: dns,
-        ldb:  ldb,
+		dpa: dpa,
+		dns: dns,
+		ldb:  ldb,
 		trie: nil,
 		hashdbroot:  hr,
     }
@@ -118,7 +123,6 @@ func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, wg *sync.W
 }
 
 func (self *Api)HashDBAdd(k []byte, v Val, wg *sync.WaitGroup){
-	log.Debug(fmt.Sprintf("HashDBAdd %v \n", self.hashdbroot))
     self.hashdbroot.Add(k, v, self, wg)
 }
 
@@ -292,7 +296,7 @@ func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionRe
 }
 
 func (self *Api) GetHashDB(path string) (value storage.Key) {
-	v := self.hashdbroot.Get([]byte(path))
+	v := self.hashdbroot.Get([]byte(path), self)
 	value = cv(v)
     log.Trace(fmt.Sprintf("GetHashDB: %v '%v' %v", path, value))
 	return
@@ -301,11 +305,9 @@ func (self *Api) GetHashDB(path string) (value storage.Key) {
 func cv(a Val)[]byte{
     log.Trace(fmt.Sprintf("convertToByte cv: %v %v ", a, reflect.TypeOf(a)))
     if va, ok := a.([]byte); ok{
-        log.Trace(fmt.Sprintf("convertToByte cv: %v '%v' %s", a, va, string(va)))
         return []byte(va)
     }
     if va, ok := a.(storage.Key); ok{
-        log.Trace(fmt.Sprintf("convertToByte cv key: %v '%v' %s", a, va, string(va)))
         return []byte(va)
     }
     return nil
