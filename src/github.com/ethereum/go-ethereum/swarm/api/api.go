@@ -69,18 +69,23 @@ type Api struct {
 
 //the api constructor initialises
 func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
-	hr := NewRootNode([]byte("dummy"), "dummydata")
 	self = &Api{
 		dpa: dpa,
 		dns: dns,
-		hashdbroot:  hr,
 	}
 	return
 }
 
 //the api constructor initialises
 func NewApiTest(dpa *storage.DPA, dns Resolver, ldb *storage.LDBDatabase) (self *Api) {
-	hr := NewRootNode([]byte("dummy"), "dummydata")
+	a, err := ldb.Get([]byte("RootNode"))
+	hr := NewRootNode([]byte("RootNode"), nil)
+	if err == nil{
+		hr.NodeHash = a
+	}
+	log.Trace(fmt.Sprintf("NewApiTest : %v", hr))
+    log.Debug(fmt.Sprintf("NewApiTest %v", hr))
+
     self = &Api{
         dpa: dpa,
         dns: dns,
@@ -292,9 +297,10 @@ func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionRe
 }
 
 func (self *Api) GetHashDB(path string) (value storage.Key) {
-	v := self.hashdbroot.Get([]byte(path))
+    log.Trace(fmt.Sprintf("GetHashDB start: %v %v", path, self.hashdbroot))
+	v := self.hashdbroot.Get([]byte(path), self)
 	value = cv(v)
-    log.Trace(fmt.Sprintf("GetHashDB: %v '%v' %v", path, value))
+    log.Trace(fmt.Sprintf("GetHashDB res: %v '%v' %v", path, value))
 	return
 }
 

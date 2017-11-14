@@ -134,50 +134,27 @@ func (self *Node)add(addnode *Node, version int, nodekey []byte, api *Api, wg *s
                     }
                 }
             }
-            //db.Put([]byte(self.NodeKey), []byte(str))
         }else{
             addnode.Level = self.Level+1
             addnode.NodeKey = []byte(string(self.NodeKey)+"|"+strconv.Itoa(bin))
-            //nk := string(addnode.Key)+":"+strconv.Itoa(addnode.Version) // will be swarm hash of the bin data. Currently dummy data "bin number:version"
-            //rd := bytes.NewReader(convertToByte(addnode.Value))
-            //chunker := storage.NewTreeChunker(storage.NewChunkerParams())
-            //hash, _ := chunker.Split(rd, int64(len(convertToByte(addnode.Value))), nil, nil, nil)
-            //ahash, err := client.UploadRaw(rd, int64(len(convertToByte(addnode.Value))))
-            //ahash, err := client.UploadRaw(bytes.NewReader(convertToByte(addnode.Value)), int64(len(convertToByte(addnode.Value))))
-            //fmt.Println("upload to swarm ", ahash, hash, err, len(ahash), len(hash))
             sdata := make([]byte, 32*4)
-            //copy(sdata[64:], hash)
             copy(sdata[64:], convertToByte(addnode.Value))
             copy(sdata[96:], addnode.Key)
             fmt.Println("sdata = ", sdata)
             rd := bytes.NewReader(convertToByte(sdata))
     		dhash, _ := api.dpa.Store(rd, int64(len(convertToByte(sdata))), wg, nil)
-            //dhash, _ := chunker.Split(rd, int64(len(convertToByte(sdata))), nil, nil, nil)
-            //rd = bytes.NewReader(convertToByte(sdata))
-            //adhash, err := client.UploadRaw(rd, int64(len(sdata)))
-////////////
-
             addnode.NodeHash = dhash
-            //fmt.Println("leaf hash = ", hash, dhash, adhash)
-            //dd := fmt.Sprintf("%s", hash)
             self.Bin[bin] = addnode
-            api.ldb.Put([]byte(addnode.NodeKey), dhash)
-            api.ldb.Put(addnode.Key, convertToByte(addnode.Value))
-            //api.ldb.Put(addnode.Key, hash)
-            //db.Put([]byte(hash), convertToByte(dhash))
-            //api.ldb.Put([]byte(dd), convertToByte(addnode.Value))
         }
     }else{
         if bytes.Compare(self.Key, addnode.Key) == 0{
             return self
         }
         n := newRootNode(self.Key, self.Value, self.Level, version, self.NodeKey)
-        fmt.Printf("add split %s level %d bin %d\n", addnode.Key, addnode.Level, bin)
         n.Next = true
         n.Root = self.Root
         n.add(addnode, version, self.NodeKey, api, wg)
         n.NodeHash = self.storeBinToNetwork(api, wg)
-        fmt.Printf("\nadd split %s %s\n",n.NodeKey , n.NodeHash)
         api.ldb.Put([]byte(n.NodeKey), n.NodeHash)
         if n.Root {
             api.ldb.Put([]byte("RootNode"), n.NodeHash)
@@ -192,8 +169,6 @@ func (self *Node)add(addnode *Node, version int, nodekey []byte, api *Api, wg *s
         }
     }
     self.NodeHash = self.storeBinToNetwork(api, wg)
-    //db.Put([]byte(self.NodeKey), []byte(svalue))
-    api.ldb.Put([]byte(self.NodeKey), []byte(self.NodeHash))
     if self.Root {
         api.ldb.Put([]byte("RootNode"), self.NodeHash)
     }
@@ -253,18 +228,42 @@ func (self *Node)storeBinToNetwork(api *Api, wg *sync.WaitGroup) []byte{
     //return hash
 }
 
-func (self *Node)Get(k []byte) Val{
+func (self *Node)Get(k []byte, api *Api) Val{
     kh := keyhash(k)
     bin := hashbin(kh, self.Level)
+   	log.Trace(fmt.Sprintf("hashdb Node Get: %d '%v %v'", bin, k, kh))
+
+	if self.Loaded == false{
+		reader := api.dpa.Retrieve(self.NodeHash)
+		buf := make([]byte, 4096)
+		offset, err := reader.Read(buf)	
+    	log.Trace(fmt.Sprintf("hashdb Node Get: %d '%v %v'", offset, buf, err))
+		lf :=  int64(binary.LittleEndian.Uint64(buf[0:8]))
+		if lf == 1{
+			for i := 0; i < 64; i++{
+				binnode := NewNode(nil, nil)
+				binnode.NodeHash = make([]byte, 32)
+				binnode.NodeHash = buf[64+32*i:64+32*(i+1)]
+				binnode.Loaded = false
+				self.Bin[i] = binnode
+			}
+			self.Next = true
+		}else{
+			self.Key = buf[94:]
+			self.Value = buf[64:94]
+			self.Next = false
+		}
+		self.Loaded = true
+	}
 
     if self.Bin[bin] == nil{
         return nil
     }
-
-    if self.Bin[bin].Next{
-        return self.Bin[bin].Get(k)
-    }else if self.Bin[bin].Loaded == false {
-        //read from Disk
+    if self.Bin[bin].Loaded == false {
+        self.Bin[bin].load(api)
+	}
+    if self.Bin[bin].Next {
+        return self.Bin[bin].Get(k, api)
     }else{
         if compareVal(k, self.Bin[bin].Key) == 0{
             return self.Bin[bin].Value
@@ -272,6 +271,29 @@ func (self *Node)Get(k []byte) Val{
     }
     return nil
 }
+
+func (self *Node)load(api *Api){
+        reader := api.dpa.Retrieve(self.NodeHash)
+        buf := make([]byte, 4096)
+        offset, err := reader.Read(buf)
+        lf :=  int64(binary.LittleEndian.Uint64(buf[0:8]))
+    	log.Trace(fmt.Sprintf("hashdb Node Get: %d '%v %v'", offset, buf, err))
+        if lf == 1{
+            for i := 0; i < 64; i++{
+                binnode := NewNode(nil, nil)
+                binnode.NodeHash = make([]byte, 32)
+                binnode.NodeHash = buf[64+32*i:64+32*(i+1)]
+                binnode.Loaded = false
+                self.Bin[i] = binnode
+            }   
+            self.Next = true
+        }else{
+            self.Key = buf[94:]
+            self.Value = buf[64:94]
+            self.Next = false
+        }   
+        self.Loaded = true
+}	
 
 func (self *Node)Delete(k []byte)(newnode *Node){
     kh := keyhash(k)
