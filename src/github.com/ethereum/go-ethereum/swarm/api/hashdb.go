@@ -9,6 +9,9 @@ import(
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/common"
 	"sync"
+	"strings"
+	"reflect"
+    "github.com/ethereum/go-ethereum/swarm/storage"
 )
 
 const binnum = 64
@@ -150,20 +153,23 @@ func (self *Node)add(addnode *Node, version int, nodekey []byte, api *Api, wg *s
 			log.Debug(fmt.Sprintf("hashdb add bin nil %d", bin)) 
 			addnode.Level = self.Level+1
 			addnode.NodeKey = []byte(string(self.NodeKey)+"|"+strconv.Itoa(bin))
-			sdata := make([]byte, 32*4)
+			sdata := make([]byte, 64*4)
+			a := convertToByte(addnode.Value)
 			copy(sdata[64:], convertToByte(addnode.Value))
+			log.Debug(fmt.Sprintf("hashdb add bin leaf Value %v %s %s %v a = %s a = %v", sdata, addnode.Key, addnode.Value, addnode.Value, a, a)) 
 			copy(sdata[96:], addnode.Key)
-			rd := bytes.NewReader(convertToByte(sdata))
-			dhash, _ := api.dpa.Store(rd, int64(len(convertToByte(sdata))), wg, nil)
+			log.Debug(fmt.Sprintf("hashdb add bin leaf Key %v %s %s %v", sdata, addnode.Key, addnode.Value, addnode.Key)) 
+			rd := bytes.NewReader(sdata)
+			dhash, _ := api.dpa.Store(rd, int64(len(sdata)), wg, nil)
 			addnode.NodeHash = dhash
 			log.Debug(fmt.Sprintf("hashdb add bin leaf %d %v", bin, dhash)) 
 			self.Bin[bin] = addnode
 		}
 	}else{
-		if bytes.Compare(self.Key, addnode.Key) == 0{
+		log.Debug(fmt.Sprintf("hashdb add node not next %d '%s' '%v' '%s' '%v' %v", bin, self.Key, self.Key, addnode.Key, addnode.Key, strings.Compare(string(self.Key), string(addnode.Key)))) 
+		if strings.Compare(string(self.Key), string(addnode.Key)) == 0{
 			return self
 		}
-		log.Debug(fmt.Sprintf("hashdb add node not next %d %v", bin, self.Key)) 
 		n := newRootNode(self.Key, self.Value, self.Level, version, self.NodeKey)
 		n.Next = true
 		n.Root = self.Root
@@ -202,8 +208,13 @@ func compareVal(a, b Val) int{
 }
 
 func convertToByte(a Val)[]byte{
+	log.Trace(fmt.Sprintf("convertToByte type: %v '%v'", a, reflect.TypeOf(a)))
 	if va, ok := a.([]byte); ok{
-		log.Trace(fmt.Sprintf("convertToByte: %v '%v' %s", a, va, string(va)))
+		log.Trace(fmt.Sprintf("convertToByte []byte: %v '%v' %s", a, va, string(va)))
+		return []byte(va)
+	}
+	if va, ok := a.(storage.Key); ok{
+		log.Trace(fmt.Sprintf("convertToByte storage.Key: %v '%v' %s", a, va, string(va)))
 		return []byte(va)
 	} else if va, ok := a.(string); ok{
 		return []byte(va)
@@ -267,8 +278,8 @@ func (self *Node)Get(k []byte, api *Api) Val{
 			}
 			self.Next = true
 		}else{
-			self.Key = buf[94:]
-			self.Value = buf[64:94]
+			self.Key = buf[96:]
+			self.Value = buf[64:96]
 			log.Trace(fmt.Sprintf("hashdb Node Get not Loaded leaf: %v '%v'", self.Key, self.Value))
 			self.Next = false
 		}
@@ -302,6 +313,10 @@ func (self *Node)load(api *Api){
 		offset, err := reader.Read(buf)
 		lf :=  int64(binary.LittleEndian.Uint64(buf[0:8]))
 		log.Trace(fmt.Sprintf("hashdb Node Get load: %d '%v %v'", offset, buf, err))
+		if err != nil{
+			self.Loaded = false
+			self.Next = false
+		}
 		emptybyte := make([]byte, 32)
 		if lf == 1{
 			for i := 0; i < 64; i++{
@@ -310,22 +325,40 @@ func (self *Node)load(api *Api){
 				binnode.NodeHash = buf[64+32*i:64+32*(i+1)]
 				binnode.Loaded = false
 				if binnode.NodeHash == nil || bytes.Compare(binnode.NodeHash, emptybyte) == 0{
+					log.Trace(fmt.Sprintf("hashdb Node Get load nil: %d '%v'", i, binnode.NodeHash))
 					self.Bin[i] = nil
 				}else{
+					log.Trace(fmt.Sprintf("hashdb Node Get load true: %d '%v'", i, binnode.NodeHash))
 					self.Bin[i] = binnode
 				}
 			}   
 			self.Next = true
 		}else{
-			self.Key = buf[94:]
-			self.Value = buf[64:94]
+			var pos int
+			
+			eb := make([]byte, 1)
+			log.Trace(fmt.Sprintf("hashdb Node Get load index: %d", bytes.Index(buf, eb)))
+			for pos = 96; pos < len(buf); pos++{
+				if buf[pos] == 0{
+					break
+				}
+			}	
+			log.Trace(fmt.Sprintf("hashdb Node Get load index: %d pos = %d", bytes.Index(buf[96:], eb), pos))
+			self.Key = buf[96:pos]
+			self.Value = buf[64:96]
 			self.Next = false
+			log.Trace(fmt.Sprintf("hashdb Node Get load leaf: %s '%s'", self.Key, self.Value))
 		}   
 		self.Loaded = true
 		log.Trace(fmt.Sprintf("hashdb Node Get load self: %v'", self))
 }	
 
 func (self *Node)Delete(k []byte)(newnode *Node){
+/*
+	if self.Get(k) == nil{
+		return self
+	}
+*/
 	kh := keyhash(k)
 	bin := hashbin(kh, self.Level)
 
