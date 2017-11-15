@@ -235,12 +235,12 @@ func (self *dpaChunkStore) Put(entry *Chunk) {
 		
 		keylen := len(ekey)
 		dummy := bytes.Repeat([]byte("Z"), keylen)
-    	idx := make([]byte, len(chunk.SData)-8)
+    		idx := make([]byte, len(chunk.SData)-8)
 		copy(idx, chunk.SData[8:])
 		log.Trace(fmt.Sprintf("DPA.PutDB %v: %v len(sdata) = %v, keylen = %v key = %v", chunk.SData, idx, len(chunk.SData), keylen, entry.Key))
 		newkeybase := string(chunk.SData[8:len(chunk.SData)-keylen])+string(dummy)
-	    chunker := NewTreeChunker(NewChunkerParams())
-    	r := strings.NewReader(newkeybase)
+	    	chunker := NewTreeChunker(NewChunkerParams())
+    		r := strings.NewReader(newkeybase)
     	chunk.Key, err = chunker.Split(r, int64(len(newkeybase)), nil, nil, nil, false)
 		log.Trace(fmt.Sprintf("DPA.PutDB basekey = %v: key = %v sdata = %v", newkeybase, entry.Key, chunk.SData))
 	}else if err != nil {

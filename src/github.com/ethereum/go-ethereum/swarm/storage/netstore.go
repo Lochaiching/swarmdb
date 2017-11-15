@@ -21,10 +21,10 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
-	"bytes"
+	//"bytes"
 	//"strings"
 
-	"github.com/ethereum/go-ethereum/common"
+	//"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -99,22 +99,6 @@ var (
 func (self *NetStore) Put(entry *Chunk) {
 	self.localStore.Put(entry)
 	log.Trace(fmt.Sprintf("NetStore.Put: entry %v %v %s", entry, entry.Key, string(entry.SData)))
-//*********
-	if bytes.Equal(entry.Key ,common.Hex2Bytes("f143b45d7828cda20bceee2109b74f8389bf8f4134d72663f2d6a4d71fccf4dc")){
-		log.Trace(fmt.Sprintf("========================== NetStore.Put ===============: %s, %v", string(entry.SData), entry.Key))
-		entry.SData = bytes.Replace(entry.SData, []byte("deviceID"), []byte("DEVICEID"), -1) 
-		log.Trace(fmt.Sprintf("========================== NetStore.Put ===============: %s, %v", string(entry.SData), entry.Key))
-	}
-	//if bytes.Equal(entry.Key ,common.Hex2Bytes("630fb25b413d7e296ee6a4f331f9fd51296595a3a3d24a983021d3629ff6f41a")){
-	if bytes.Contains(entry.SData, []byte("mod_time")) || bytes.Contains(entry.SData, []byte("testid")){
-		entry.SData = bytes.Replace(entry.SData, []byte("mod_time"), []byte("MOD_TIME"), -1) 
-		entry.SData = bytes.Replace(entry.SData, []byte("testid"), []byte("TESTid"), -1) 
-		log.Trace(fmt.Sprintf("NetStore.Put ===============: %s", string(entry.SData)))
-		//entry.Key = common.Hex2Bytes("30f1276cb9baa5fe2cd6e9f1749b2b42e3fbd9b6776b9c26a208cb55db37c368")
-		//go self.cloud.Deliver(entry)
-		//go self.cloud.Store(entry)
-	}
-//*********/
 	// handle deliveries
 	if entry.Req != nil {
 		log.Trace(fmt.Sprintf("NetStore.Put: localStore.Put %v hit existing request...delivering", entry.Key.Log()))

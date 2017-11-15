@@ -11,6 +11,7 @@ import(
 	"sync"
 	"strings"
 	"reflect"
+	"io"
     "github.com/ethereum/go-ethereum/swarm/storage"
 )
 
@@ -170,6 +171,21 @@ func (self *Node)add(addnode *Node, version int, nodekey []byte, api *Api, wg *s
 		if strings.Compare(string(self.Key), string(addnode.Key)) == 0{
 			return self
 		}
+		if len(self.Key) == 0{
+                        sdata := make([]byte, 64*4)
+                        a := convertToByte(addnode.Value)
+                        copy(sdata[64:], convertToByte(addnode.Value))
+                        log.Debug(fmt.Sprintf("hashdb add bin leaf Value %v %s %s %v a = %s a = %v", sdata, addnode.Key, addnode.Value, addnode.Value, a, a))
+                        copy(sdata[96:], addnode.Key)
+                        log.Debug(fmt.Sprintf("hashdb add bin leaf Key %v %s %s %v", sdata, addnode.Key, addnode.Value, addnode.Key))
+                        rd := bytes.NewReader(sdata)
+                        dhash, _ := api.dpa.Store(rd, int64(len(sdata)), wg, nil)
+                        addnode.NodeHash = dhash
+			addnode.Next = false
+			addnode.Loaded = true
+			self = addnode
+			return self
+		}
 		n := newRootNode(self.Key, self.Value, self.Level, version, self.NodeKey)
 		n.Next = true
 		n.Root = self.Root
@@ -301,7 +317,7 @@ func (self *Node)Get(k []byte, api *Api) Val{
 		log.Trace(fmt.Sprintf("hashdb Node Get next: %v'", bin))
 		return self.Bin[bin].Get(k, api)
 	}else{
-		log.Trace(fmt.Sprintf("hashdb Node Get fin: %v %v %v'", k, self.Bin[bin].Value, self.Bin[bin].Value))
+		log.Trace(fmt.Sprintf("hashdb Node Get fin: %v %s %v %v'", k, k, self.Bin[bin].Value, self.Bin[bin].Value))
 		if compareVal(k, self.Bin[bin].Key) == 0{
 			return self.Bin[bin].Value
 		}
@@ -316,13 +332,15 @@ func (self *Node)load(api *Api){
 		offset, err := reader.Read(buf)
 		lf :=  int64(binary.LittleEndian.Uint64(buf[0:8]))
 		log.Trace(fmt.Sprintf("hashdb Node Get load: %d '%v %v'", offset, buf, err))
-		if err != nil{
+		if err != nil && err != io.EOF{
+			log.Trace(fmt.Sprintf("hashdb load Node Get err: %d  %v'", lf, err))
 			self.Loaded = false
 			self.Next = false
 			return
 		}
 		emptybyte := make([]byte, 32)
 		if lf == 1{
+			log.Trace(fmt.Sprintf("hashdb load Node Get bins: %d  %v'", lf, self.NodeHash))
 			for i := 0; i < 64; i++{
 				binnode := NewNode(nil, nil)
 				binnode.NodeHash = make([]byte, 32)
@@ -338,6 +356,7 @@ func (self *Node)load(api *Api){
 			}   
 			self.Next = true
 		}else{
+			log.Trace(fmt.Sprintf("hashdb load Node Get leaf: %d  %v'", lf, self.NodeHash))
 			var pos int
 			
 			eb := make([]byte, 1)

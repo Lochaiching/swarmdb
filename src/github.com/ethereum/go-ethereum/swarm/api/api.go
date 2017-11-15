@@ -297,20 +297,9 @@ func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionRe
 
 func (self *Api) GetHashDB(path string) (value storage.Key) {
 	v := self.hashdbroot.Get([]byte(path), self)
-	value = cv(v)
+	value = convertToByte(v)
     log.Trace(fmt.Sprintf("GetHashDB res: %v '%v' %v", path, value))
 	return
-}
-
-func cv(a Val)[]byte{
-    log.Trace(fmt.Sprintf("convertToByte cv: %v %v ", a, reflect.TypeOf(a)))
-    if va, ok := a.([]byte); ok{
-        return []byte(va)
-    }
-    if va, ok := a.(storage.Key); ok{
-        return []byte(va)
-    }
-    return nil
 }
 
 func (self *Api) GetManifestRoot()(storage.Key) {
