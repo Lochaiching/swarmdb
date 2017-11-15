@@ -142,7 +142,7 @@ func (self *NetStore) Get(key Key) (*Chunk, error) {
 			log.Trace(fmt.Sprintf("NetStore.Get: %v hit on an existing request", key))
 			// no need to launch again
 		}
-	//	return chunk, err
+		return chunk, err
 	}
 	// no data and no request status
 	log.Trace(fmt.Sprintf("NetStore.Get: %v not found locally. open new request", key))
