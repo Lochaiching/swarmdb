@@ -39,9 +39,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/robertkrimen/otto"
+	otto "github.com/robertkrimen/otto"
 	"github.com/robertkrimen/otto/repl"
 	"github.com/xwb1989/sqlparser"
+	//"github.com/ethereum/go-ethereum/swarm/api"
+	"github.com/ethereum/go-ethereum/swarmdb"
 	// "io"
 	"os"
 	//"strings"
@@ -112,7 +114,7 @@ func main() {
 	vm.Set("add", func(call otto.FunctionCall) otto.Value {
 		tbl_name := call.Argument(0).String()
 		rec := call.Argument(1).Object()
-		succ := SWARMDB_add(tbl_name, rec)
+		succ := swarmdb.SWARMDB_add(tbl_name, rec)
 		res, _ := vm.ToValue(succ)
 		return res;
 	})
