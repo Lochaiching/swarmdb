@@ -262,6 +262,8 @@ func (self *Node)Get(k []byte, api *Api) Val{
 
 	if self.Loaded == false{
 		log.Trace(fmt.Sprintf("hashdb Node Get NodeHash: %v", self.NodeHash))
+		self.load(api)
+/*
 		reader := api.dpa.Retrieve(self.NodeHash)
 		buf := make([]byte, 4096)
 		offset, err := reader.Read(buf)	
@@ -283,6 +285,7 @@ func (self *Node)Get(k []byte, api *Api) Val{
 			log.Trace(fmt.Sprintf("hashdb Node Get not Loaded leaf: %v '%v'", self.Key, self.Value))
 			self.Next = false
 		}
+*/
 		self.Loaded = true
 	}
 
@@ -316,6 +319,7 @@ func (self *Node)load(api *Api){
 		if err != nil{
 			self.Loaded = false
 			self.Next = false
+			return
 		}
 		emptybyte := make([]byte, 32)
 		if lf == 1{
