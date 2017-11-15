@@ -545,16 +545,13 @@ func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
 func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
     	log.Debug(fmt.Sprintf("In HandleGetDB r.uri(%v) r.uri.Path(%v) r.uri.Addr(%v)" , r.uri, r.uri.Path, r.uri.Addr))
 
-	//r.uri.Addr == Owner
-	//r.uri.Path == table/id
-
     	keylen := 64 ///////..........
     	dummy := bytes.Repeat([]byte("Z"), keylen)
 
-	owner := r.uri.Addr
-	table_id_parts := strings.Split(r.uri.Path, "/")
-	table := table_id_parts[0]
-	id := table_id_parts[1]
+	owner := strings.ToLower(r.uri.Addr)
+	path_parts := strings.Split(r.uri.Path, "/")
+	table := strings.ToLower(path_parts[0])
+	id := strings.ToLower(path_parts[1])
 	contentPrefix := BuildSwarmdbPrefix(owner, table, id)	
 
     	newkeybase := contentPrefix+string(dummy)
@@ -578,7 +575,8 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
 	contentBytes := make( []byte, contentReaderSize )
  	_,_ = contentReader.ReadAt( contentBytes, 0 )
 	
-	encryptedContentBytes := contentBytes[len(contentPrefix):]
+	encryptedContentBytes := bytes.TrimRight(contentBytes[577:],"\x00")
+	//encryptedContentBytes := contentBytes[len(contentPrefix):]
     	log.Debug(fmt.Sprintf("In HandledGetDB Retrieved 'mainhash' v[%v] s[%s] ", encryptedContentBytes, encryptedContentBytes))
 
         decrypted_reader := bytes.NewReader(s.DecryptData(encryptedContentBytes))
@@ -590,9 +588,8 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
     	if typ := r.URL.Query().Get("content_type"); typ != "" {
         	contentType = typ
     	}
-	decryptedReaderSize := decrypted_reader.Size()
-	queryResponse := make( []byte, decryptedReaderSize-416 ) //TODO: match to sizes in metadata content
-	_,_ = decrypted_reader.ReadAt( queryResponse, 416 )  //TODO: match to sizes in metadata content
+	queryResponse := make( []byte, 4096 ) //TODO: match to sizes in metadata content
+	_,_ = decrypted_reader.ReadAt( queryResponse, 0 )  //TODO: match to sizes in metadata content
 	queryResponseReader := bytes.NewReader( queryResponse )
     	w.Header().Set("Content-Type", contentType)
     	http.ServeContent(w, &r.Request, "", time.Now(), queryResponseReader)
@@ -897,31 +894,37 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if uri.Swarmdb() == true {	
-		bodycontent,_ := ioutil.ReadAll(r.Body)
-		//Need to determine how to collect the following and attach to chunk 
 		ownerAddress := []byte(strings.ToLower(uri.Addr))
 		buyAt := []byte("4096000000000000") //Need to research how to grab 
 		timestamp := []byte(strconv.FormatInt(time.Now().Unix(),10))
 		blockNumber := []byte("100")
+
+		var metadataBody []byte
+		metadataBody = make([]byte, 108)
+		copy(metadataBody[0:41], ownerAddress)
+		copy(metadataBody[42:59], buyAt)
+		copy(metadataBody[60:91], blockNumber)
+		copy(metadataBody[92:107], timestamp)
+		s.logDebug("Metadata is [%+v]", metadataBody)
 
 	        path_parts := strings.Split(uri.Path, "/")
         	table := strings.ToLower(path_parts[0])
         	id := strings.ToLower(path_parts[1])
         	contentPrefix := BuildSwarmdbPrefix(string(ownerAddress), table, id)
 
-		var metadataBody []byte
-		copy(metadataBody[0:41], ownerAddress)
-		copy(metadataBody[42:59], buyAt)
-		copy(metadataBody[60:91], blockNumber)
-		copy(metadataBody[92:107], timestamp)
-		//metadataBody := []byte(string(ownerAddress) + string(buyAt) + string(timestamp) + string(blockNumber)) 
-		//End of metadata chunk append	
+		bodycontent,_ := ioutil.ReadAll(r.Body)
 		encryptedBodycontent := s.EncryptData( bodycontent )
+		s.logDebug("Encrypted is [%+v]", encryptedBodycontent)
+
 		var mergedBodycontent []byte
-		//mergedBodycontent := []byte(string(metadataBody) + string(encryptedBodycontent))
+		mergedBodycontent = make([]byte, 4088)
 		copy(mergedBodycontent[:], metadataBody) 
 		copy(mergedBodycontent[512:576], contentPrefix)
 		copy(mergedBodycontent[577:], encryptedBodycontent)
+
+		s.logDebug("ContentPrefix: [%+v]", string(contentPrefix))
+		s.logDebug("Content: [%+v][%+v]", bodycontent, encryptedBodycontent)
+		s.logDebug("Merged Body Content: [%v]", mergedBodycontent)
 
 		mergedBodyContentReader := ioutil.NopCloser(bytes.NewBuffer(mergedBodycontent))
 		r.Body = mergedBodyContentReader

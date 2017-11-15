@@ -40,10 +40,10 @@ package main
 import (
 	"fmt"
 	otto "github.com/robertkrimen/otto"
-	"github.com/robertkrimen/otto/repl"
+	repl "github.com/robertkrimen/otto/repl"
 	"github.com/xwb1989/sqlparser"
 	//"github.com/ethereum/go-ethereum/swarm/api"
-	"github.com/ethereum/go-ethereum/swarmdb"
+	"github.com/ethereum/go-ethereum/swarmdb/packages"
 	// "io"
 	"os"
 	//"strings"
