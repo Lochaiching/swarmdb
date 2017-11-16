@@ -66,11 +66,14 @@ type Item interface {
 		Less(than Item) bool
 
 	// returns the raw string
+	Key() string
 	Val() string
 }
 
 const (
 	DefaultFreeListSize = 32
+	ENS_DIR = "ens"
+	CHUNK_DIR = "chunk"
 )
 
 var (
@@ -120,23 +123,32 @@ func (f *FreeList) freeNode(n *node) {
 // associated Ascend* function will immediately return.
 type ItemIterator func(i Item) bool
 
-// New creates a new B-Tree with the given degree.
+// Open creates a new B-Tree with the given degree.
 //
-// New(2), for example, will create a 2-3-4 tree (each node contains 1-3 items
+// degree 4 for example, will create a 2-3-4 tree (each node contains 1-3 items
 // and 2-4 children).
-func New(degree int) *BTree {
-	return NewWithFreeList(degree, NewFreeList(DefaultFreeListSize))
-}
-
-// NewWithFreeList creates a new B-Tree that uses the given node free list.
-func NewWithFreeList(degree int, f *FreeList) *BTree {
-	if degree <= 1 {
-		panic("bad degree")
-	}
-	return &BTree{
+func Open(tableName string) *BTree {
+	// degree = flag.Int("degree", 4, "degree of btree")
+	degree := 4
+	// NewWithFreeList creates a new B-Tree that uses the given node free list.
+	f := NewFreeList(DefaultFreeListSize)
+	t :=  &BTree{
 		degree: degree,
 		cow:    &copyOnWriteContext{freelist: f},
 	}
+		
+	if t.root == nil {
+		t.root = t.cow.newNode()
+	}
+	hashid, err := getTableENS(tableName)
+	if err != nil {
+	} else {
+		fmt.Printf("Open %s => hashid %s\n", tableName, t.root.hashid);
+		t.root.hashid = hashid
+		t.root.SWARMGet()
+	}
+	t.root.notloaded = true // this is lazy evaluation 
+	return t
 }
 
 // items stores items in a node.
@@ -283,133 +295,154 @@ func (n *node) maybeSplitChild(i, maxItems int) bool {
 
 func (n *node) SWARMGet() (success bool) {
 	// do a read from local file system, filling in: (a) hashid and (b) items
-	path := fmt.Sprintf("data/%s", n.hashid)
+	path := fmt.Sprintf("%s/%s", CHUNK_DIR, n.hashid)
 	file, err := os.Open(path)
 	if err != nil {
+		fmt.Printf("SWARMGet FAIL: [%s]\n", path);
 		return false
 	}
 	defer file.Close()
-	
 	var line string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line = scanner.Text()
 		sa := strings.Split(line, "|")
-		if ( sa[0] == "C" ) {
+		if ( sa[0] == "I" ) {
 			// load into items
 			i, err := strconv.Atoi(sa[1])
 			if err != nil {
 			} else {
 				var v DBIndex
 				v.ikey = sa[2];
-				fmt.Printf(" LOAD-C|%d|%s\n", i, v.ikey);
+				v.ival = sa[3];
+				fmt.Printf(" LOAD-I|%d|%s\n", i, v.ikey);
 				n.items = append(n.items, v)
 			}
-		} else if ( sa[0] == "H" ) {
+		} else if ( sa[0] == "C" ) {
 			// load children
 			i, err := strconv.Atoi(sa[1])
 			if err != nil {
 			} else {
-				fmt.Printf(" LOAD-H|%d|%s\n", i, sa[2])
+				fmt.Printf(" LOAD-C|%d|%s\n", i, sa[2])
 				c := n.cow.newNode()
 				c.hashid = sa[2]
 				c.notloaded = true
+				n.children = append(n.children, c)
 			}
 		}
-		fmt.Printf("%s: %s\n", path, line)
 	}
+	fmt.Printf("SWARMGet SUCC: [%s]\n", n.hashid)
 	n.notloaded = false
 	return true
 }
 
+func print_spaces(nspaces int) {
+	for i := 0; i < nspaces; i++ {
+		fmt.Printf("  ")
+	}
+}
+
 func (n *node) print(level int) {
-	fmt.Printf("LEVEL %d [%v]\n", level, n.dirty)
+	print_spaces(level)
+	fmt.Printf("Node %s (LEVEL %d) [dirty=%v|notloaded=%v]\n", n.hashid, level, n.dirty, n.notloaded)
 	for j, c := range n.items {
-		for i := 0; i < level; i++ {
-			fmt.Printf("  ")
-		}
-		fmt.Printf("ITEM %d|%v\n", j, c.Val())
+		print_spaces(1);
+		print_spaces(level);
+		fmt.Printf("Item %d|%v|%v\n", j, c.Key(), c.Val())
 		// c.print(level+1);
 	}
 	for j, c := range n.children {
-		for i := 0; i < level; i++ {
-			fmt.Printf("  ")
-		}
-		fmt.Printf("CHILD: %d|%v\n", j, c.hashid)
-		c.print(level)
+		print_spaces(level+1);
+		fmt.Printf("Child %d (L%d)|%v\n", j, level+1, c.hashid)
+		c.print(level+1)
 	}
 
 	
 }
 
-func (n *node) SWARMPut() (res string) {
+func (n *node) SWARMPut() (changed bool) {
 
-	// recursively walk down the children
+	old_hashid := n.hashid 
+
+	// recursively walk down the children 
 	for _, c := range n.children {
 		if c.dirty {
-			c.SWARMPut()
+			c.SWARMPut() // this may result in a new hash
 		}
 	}
 
-	// compute the new hash id for node and all its children
+	// compute the NEW node hashid based on its children and the items
 	h := sha256.New()
 	for j, c := range n.children {
 		h.Write([]byte(c.hashid));
-		fmt.Printf("H|%d|%v\n", j, c.hashid)
+		fmt.Printf("C|%d|%v\n", j, c.hashid)
 	}
 
 	for j, c := range n.items {
-		fmt.Printf("C|%d|%v\n", j, c.Val())
+		fmt.Printf("I|%d|%v|%v\n", j, c.Key(), c.Val())
+		h.Write([]byte(c.Key()));
 		h.Write([]byte(c.Val()));
 	}
 	
 	n.hashid = fmt.Sprintf("%x", h.Sum(nil))
-	fn := fmt.Sprintf("data/%s", n.hashid)
-	fmt.Printf("WROTE: %s\n", fn)
-	// do a write to local file system with all the items and the children
-	f, err := os.Create(fn)
-	if err != nil {
-		panic(err)
+	if ( n.hashid == old_hashid || len(old_hashid) < 1 ) {
+		fn := fmt.Sprintf("%s/%s", CHUNK_DIR, n.hashid)
+		fmt.Printf("CHANGED %s\n", fn)
+		// do a write to local file system with all the items and the children
+		f, err := os.Create(fn)
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close();
+		
+		// write the children with "C"
+		for j, c := range n.children {
+			s := fmt.Sprintf("C|%d|%s\n", j, c.hashid)
+			fmt.Printf(s)
+			f.WriteString(s)
+		}
+		
+		// write the ITEM with "I"
+		for j, c := range n.items {
+			s := fmt.Sprintf("I|%d|%v|%v\n", j, c.Key(), c.Val())
+			fmt.Printf(s)
+			f.WriteString(s)
+		}
+		f.Sync();
+		return true
+	} else {
+		fmt.Printf("NO CHANGE [%s == %s]\n", n.hashid, old_hashid)
+		return false
 	}
-	defer f.Close();
 
-
-	for j, c := range n.children {
-		s := fmt.Sprintf("H|%d|%s\n", j, c.hashid)
-		// fmt.Printf(s)
-		f.WriteString(s)
-	}
-
-	for j, c := range n.items {
-		s := fmt.Sprintf("C|%d|%v\n", j, c.Val())
-		// fmt.Printf(s)
-		f.WriteString(s)
-	}
-
-	f.Sync();
-	return n.hashid
 }
 
 // insert inserts an item into the subtree rooted at this node, making sure
 // no nodes in the subtree exceed maxItems items.  Should an equivalent item be
 // be found/replaced by insert, it will be returned.
-func (n *node) insert(item Item, maxItems int) Item {
-	i, found := n.items.find(item)
-	if found {
-		out := n.items[i]
-		n.items[i] = item
-		return out
-	}
-
+func (n *node) insert(item Item, maxItems int) (Item, bool) {
 	if n.notloaded {
 		fmt.Printf("LOAD IT DYNAMICALLY: %s\n", n.hashid)
 		n.SWARMGet()
 		n.notloaded = false
 	}
+	i, found := n.items.find(item)
+	// fmt.Printf("Looking for item %v at node hash %s --> i=%d for items %v\n", item, n.hashid, i, n.items)
+	if found {
+		n.dirty = true
+		out := n.items[i]
+		n.items[i] = item
+		fmt.Printf(" found\n");
+		return out, true
+	} else {
+		fmt.Printf(" not found\n");
+		
+	}
 	if len(n.children) == 0 {
+		fmt.Printf("NO CHILDREN!\n");
 		n.dirty = true
 		n.items.insertAt(i, item)
-		return nil
+		return nil, true 
 	}
 	if n.maybeSplitChild(i, maxItems) {
 		inTree := n.items[i]
@@ -421,11 +454,12 @@ func (n *node) insert(item Item, maxItems int) Item {
 		default:
 			out := n.items[i]
 			n.items[i] = item
-			return out
+			return out, true
 		}
 	} 
-	n.dirty = true
-	return n.children[i].insert(item, maxItems)
+	item, b := n.children[i].insert(item, maxItems)
+	n.dirty = b
+	return item, b
 }
 
 // get finds the given key in the subtree and returns it.
@@ -721,17 +755,56 @@ func (c *copyOnWriteContext) freeNode(n *node) {
 	}
 }
 
-func (t *BTree) Save() (hashid string) {
-	return t.root.SWARMPut()
+func (t *BTree) Flush(tableName string) (bool) {
+
+	if t.root.SWARMPut() {
+		fmt.Printf("---> [%s]\n", t.root.hashid)
+		putTableENS(tableName, t.root.hashid)
+		return true
+	} else {
+		fmt.Printf("no change\n")
+	}
+
+	return false
 }
 
-func (t *BTree) Load(hashid string) bool {
-	if t.root == nil {
-		t.root = t.cow.newNode()
+// from table's ENS
+func putTableENS(tableName string, hashid string) (succ bool, err error) {
+	path := fmt.Sprintf("%s/%s", ENS_DIR, tableName)
+	// do a write to local file system with all the items and the children
+	f, err := os.Create(path)
+	if err != nil {
+		panic(err)
 	}
-	t.root.hashid = hashid
-	return t.root.SWARMGet()
+	defer f.Close();
+	
+	fmt.Printf(" --- [%s]\n", hashid)
+	f.WriteString(hashid)
+	f.Sync();
+	return true, nil
 }
+
+// from table's ENS
+func getTableENS(tableName string) (hashid string, err error) {
+	path := fmt.Sprintf("%s/%s", ENS_DIR, tableName)
+	file, err := os.Open(path)
+	if err != nil {
+		fmt.Print("SWARMGet FAIL: [%s]\n", path);
+		return hashid, fmt.Errorf("SWARMGet Fail")
+	}
+	defer file.Close()
+
+	var line string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line = scanner.Text()
+		if len(line) > 32 {
+			return line, nil
+		}
+	}
+	return hashid, fmt.Errorf("No ENS found")
+}
+
 
 func (t *BTree) Print() {
 	if t.root == nil {
@@ -745,7 +818,7 @@ func (t *BTree) Print() {
 // Otherwise, nil is returned.
 //
 // nil cannot be added to the tree (will panic).
-func (t *BTree) ReplaceOrInsert(hashid string, item Item) Item {
+func (t *BTree) ReplaceOrInsert(item Item) Item {
 
 	if item == nil {
 		panic("nil item being added to BTree")
@@ -768,8 +841,8 @@ func (t *BTree) ReplaceOrInsert(hashid string, item Item) Item {
 			t.root.children = append(t.root.children, oldroot, second)
 		}
 	}
-	out := t.root.insert(item, t.maxItems())
-	t.root.dirty = true
+	out, dirty := t.root.insert(item, t.maxItems())
+	t.root.dirty = dirty
 	if out == nil {
 		t.length++
 	}
@@ -915,6 +988,7 @@ func (t *BTree) Len() int {
 // DBIndex implements the Item interface 
 type DBIndex  struct {
 	ikey   string
+	ival   string
 }
 
 // Less returns true if int(a) < int(b).
@@ -923,36 +997,55 @@ func (a DBIndex) Less(b Item) bool {
 }
 
 // Less returns true if int(a) < int(b).
-func (a DBIndex) Val() string {
+func (a DBIndex) Key() string {
 	return a.ikey
 }
 
-var (
-	size   = flag.Int("size", 1200, "size of the tree to build")
-	degree = flag.Int("degree", 4, "degree of btree")
-)
-
-// from table's ENS
-func getTableENS(tableName string) (hashid string) {
-	return "ad0d31172ad16d6f2b259bfdd06a0c96803b1a717fcc4679fef9154a0028eb53" // 4dbcf295284a706d6b26f2aae2fb5c9eee42149db7f05cb37fa9fd3cbd402361"
+func (a DBIndex) Val() string {
+	return a.ival
 }
 
-func main() {
-	
-	flag.Parse()
-	vals := rand.Perm(*size)
-	tableName := "contacts"
-	hashid := getTableENS(tableName)
-	start := time.Now()
-	tr := New(*degree)
-	tr.Load(hashid)
-	tr.Print()
 
+func main() {
+
+	// open table [only gets the root node]
+	tableName := "contacts"
+	tr := Open(tableName)
+ 
+	// write 1200 values into B-tree (only kept in memory)
+	size := 1200
+	vals := rand.Perm(*size)
 	for _, i := range vals {
 		var v DBIndex
 		v.ikey = fmt.Sprintf("%06x", i)
-		tr.ReplaceOrInsert(hashid, DBIndex(v))
+		v.ival = "whateverwewant"
+		tr.ReplaceOrInsert(DBIndex(v))
 	}
 	fmt.Printf("%v inserts in %v ...\n", *size, time.Since(start))
-	fmt.Printf("SAVED %s %s\n", tableName, tr.Save())
+
+	// this writes B-tree to disk [SWARM]
+	tr.Flush(tableName)
+
+	// Show the memory representation of the B-tree
+	tr.Print()
+
+	// write new value like -1 or 1300
+	i := 1300  
+	var v DBIndex
+	v.ikey = fmt.Sprintf("%06x", i)
+	v.ival = "newval"
+	fmt.Printf("\nInserting %v...\n", v.ikey, v.ival);
+	tr.ReplaceOrInsert(DBIndex(v))
+
+	// Show the memory representation again 
+	tr.Print()
+
+	// this writes to disk [SWARM]
+	changed := tr.Flush(tableName);
+	if ( changed ) {
+		fmt.Printf("SAVED %s => New ROOT HASH %s \n", tableName, tr.root.hashid)
+	} else {
+		fmt.Printf("DONE\n");
+	}
+
 }
