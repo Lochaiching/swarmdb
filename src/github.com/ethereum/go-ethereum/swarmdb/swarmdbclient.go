@@ -44,6 +44,7 @@ import (
 	"github.com/xwb1989/sqlparser"
 	//"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarmdb/packages"
+	"github.com/ethereum/go-ethereum/swarmdb/client"
 	// "io"
 	"os"
 	//"strings"
@@ -51,10 +52,13 @@ import (
 )
 
 func SWARMDB_createTable(tbl_name string, column string, primary bool, index string) (succ bool) {
-	fmt.Printf("SWARMDB_createTable(%v, column: %v primary: %v index: %v)\n", tbl_name, column, primary, index)
-	// RODNEY/MAYUMI: CONNECT TO dispatch.go -- create table descriptor (in LocalDB + ENS), ...
-	return true
+        fmt.Printf("SWARMDB_createTable(%v, column: %v primary: %v index: %v)\n", tbl_name, column, primary, index)
+        ret := client.CreateTable(tbl_name, column, index, primary)
+        // RODNEY/MAYUMI: CONNECT TO dispatch.go -- create table descriptor (in LocalDB + ENS), ...
+        fmt.Println(ret)
+        return true
 }
+
 
 func SWARMDB_add(tbl_name string, rec *otto.Object) (succ bool) {
 	// RODNEY/MAYUMI: CONNECT TO dispatch.go -- get table descriptor, get primary key's index type, ...
