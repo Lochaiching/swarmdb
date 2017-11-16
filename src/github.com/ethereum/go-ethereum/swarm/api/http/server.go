@@ -529,6 +529,23 @@ func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
 	fmt.Fprint(w, value)
 }
 
+func (s *Server) HandlePostTableData(w http.ResponseWriter, r *Request) {
+	rootkey,_ := ioutil.ReadAll(r.Body)
+    	log.Debug(fmt.Sprintf("HandlePostTableData res %v %v" ,r.uri.Path, rootkey))
+	s.api.StoreTableData(r.uri.Path, rootkey)
+        w.Header().Set("Content-Type", "text/plain")
+        w.WriteHeader(http.StatusOK)
+        fmt.Fprint(w, rootkey)
+}
+func (s *Server) HandleGetTableData(w http.ResponseWriter, r *Request) {
+        value := s.api.GetTableData(r.uri.Path)
+    	log.Debug(fmt.Sprintf("HandleGetTableData res %v %v" ,r.uri.Path, value))
+
+        w.Header().Set("Content-Type", "text/plain")
+        w.WriteHeader(http.StatusOK)
+        fmt.Fprint(w, value)
+}
+
 func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
 	manifestroot := s.api.GetManifestRoot()
 	if manifestroot == nil{
@@ -624,7 +641,7 @@ func (s *Server) HandleGetRawTable(w http.ResponseWriter, r *Request) {
 // the raw content stored at the given storage key
 func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 	key, err := s.api.Resolve(r.uri)
-	log.Debug(fmt.Sprintf("In GetRaw %v %v %v %v",r.uri ,r.uri.Path, r.uri.Addr, key))
+    log.Debug(fmt.Sprintf("In GetRaw %v %v %v" ,r.uri.Path, r.uri.Addr, key))
 	if err != nil {
 		s.Error(w, r, fmt.Errorf("error resolving %s: %s", r.uri.Addr, err))
 		return
@@ -671,11 +688,6 @@ func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 
 	// check the root chunk exists by retrieving the file's size
 	reader := s.api.Retrieve(key)
-	readerSize,_ := reader.Size(nil)
-	encrypted_reader := make([]byte, readerSize )
-	_,_ = reader.ReadAt(encrypted_reader,0)
-	s.logDebug("Retrieve Raw encrypted data of [%+v] ==> [%s] using key [%+v]", encrypted_reader, encrypted_reader, key)
-	decrypted_reader := bytes.NewReader(s.DecryptData(encrypted_reader))
 	if _, err := reader.Size(nil); err != nil {
 		s.logDebug("key not found %s: %s", key, err)
 		http.NotFound(w, &r.Request)
@@ -690,7 +702,7 @@ func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 	}
 	w.Header().Set("Content-Type", contentType)
 
-	http.ServeContent(w, &r.Request, "", time.Now(), decrypted_reader)
+	http.ServeContent(w, &r.Request, "", time.Now(), reader)
 }
 
 // HandleGetFiles handles a GET request to bzz:/<manifest> with an Accept
@@ -937,7 +949,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req := &Request{Request: *r, uri: uri}
 	switch r.Method {
 	case "POST":
-		s.logDebug("server POST %s %s", uri, req.uri.Addr)
+		bodycontent, _ := ioutil.ReadAll(r.Body)
+		s.logDebug("server POST %s %s %s", uri, req.uri.Addr, bodycontent)
 		if req.uri.Addr == "demo" || r.URL.Query().Get("posttest") == "true"{
 			s.HandlePostRawTest(w, req)
 			return
@@ -948,6 +961,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.uri.Addr == "hashdb" {
 			s.HandlePostHashDB(w, req)
+			return
+		}
+		if req.uri.Addr == "tabledata" {
+			s.HandlePostTableData(w, req)
 			return
 		}
 		if uri.Swarmdb() == true {
@@ -1001,6 +1018,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.uri.Addr == "hashdb" {
 			s.HandleGetHashDB(w, req)
+			return
+		}
+		if req.uri.Addr == "tabledata" {
+			s.HandleGetTableData(w, req)
 			return
 		}
 		if uri.Raw() {

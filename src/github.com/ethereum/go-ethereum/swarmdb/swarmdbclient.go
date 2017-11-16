@@ -44,24 +44,21 @@ import (
 	"github.com/xwb1989/sqlparser"
 	//"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarmdb/packages"
+	"github.com/ethereum/go-ethereum/swarmdb/client"
 	// "io"
 	"os"
 	//"strings"
 	//"encoding/json"
 )
 
-type Table struct {
-	Table   string `json:"table"`
-	Column  string `json:"column"`
-	Primary bool   `json:"primary"`
-	Index   string `json:"index"`
+func SWARMDB_createTable(tbl_name string, column string, primary bool, index string) (succ bool) {
+        fmt.Printf("SWARMDB_createTable(%v, column: %v primary: %v index: %v)\n", tbl_name, column, primary, index)
+        ret := client.CreateTable(tbl_name, column, index, primary)
+        // RODNEY/MAYUMI: CONNECT TO dispatch.go -- create table descriptor (in LocalDB + ENS), ...
+        fmt.Println(ret)
+        return true
 }
 
-func SWARMDB_createTable(tbl_name string, column string, primary bool, index string) (succ bool) {
-	fmt.Printf("SWARMDB_createTable(%v, column: %v primary: %v index: %v)\n", tbl_name, column, primary, index)
-	// RODNEY/MAYUMI: CONNECT TO dispatch.go -- create table descriptor (in LocalDB + ENS), ...
-	return true
-}
 
 func SWARMDB_add(tbl_name string, rec *otto.Object) (succ bool) {
 	// RODNEY/MAYUMI: CONNECT TO dispatch.go -- get table descriptor, get primary key's index type, ...
@@ -74,30 +71,26 @@ func SWARMDB_add(tbl_name string, rec *otto.Object) (succ bool) {
 	return true
 }
 
-//func SWARMDB_get(tbl_name string, id string) (rec *otto.Object) {
-func SWARMDB_get(tbl_name string, id string) (json string) {
-	// ALINA: FIGURE OUT HOW A JSON OBJECT SHOULD BE RETURNED
+func SWARMDB_get(tbl_name string, id string) (json string, err error) {
 
 	// RODNEY/MAYUMI: CONNECT TO dispatch.go
 	// get table descriptor, and based on the primary key's index, call dispatch.go
 	fmt.Printf("SWARMDB_get(%s, %s)\n", tbl_name, id)
 
-	//let's say this is the answer out of the swarmdb: (tbl_name: contacts, id: rodeny@wolk.com)
+	//pretending this is the solution to the get.. using (tbl_name: contacts, id: rodeny@wolk.com)
 	json = `{ "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }`
 
 	//return rec
-	return json
+	return json, nil
 
 }
 
-//func SWARMDB_query(sql string) (rec otto.Value) {
 func SWARMDB_query(sql string) (jsonarray []string, err error) {
-	// ALINA: FIGURE OUT HOW AN *** ARRAY ***  of JSON OBJECTS SHOULD BE RETURNED
+
 	// fmt.Printf("sql is: %s\n", sql)
 	stmt, err := sqlparser.Parse(sql)
 	if err != nil {
 		fmt.Printf("sqlparser.Parse err: %v\n", err)
-		//return otto.Value{}
 		return jsonarray, err
 	}
 	fmt.Printf("SWARMDB_query(%s, ", sqlparser.String(stmt.(*sqlparser.Select).From))
@@ -106,7 +99,6 @@ func SWARMDB_query(sql string) (jsonarray []string, err error) {
 		fmt.Printf(" field %d: %+v", i, sqlparser.String(e)) // stmt.(*sqlparser.Select).SelectExprs)
 	}
 	fmt.Printf(")\n")
-	//return otto.Value{}
 
 	//pretending this is the solution to whatever the query puts out...
 	jsonarray = append(jsonarray, `{ "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }`)
@@ -140,34 +132,34 @@ func main() {
 		res, _ := vm.ToValue(succ)
 		return res
 	})
+
 	// swarmdb> get("contacts", "rodney@wolk.com")
 	// { "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }
 	vm.Set("get", func(call otto.FunctionCall) otto.Value {
 		tbl_name := call.Argument(0).String() // e.g. "contacts"
 		id := call.Argument(1).String()       // e.g. "id"
-		// ALINA: FIGURE OUT HOW A JSON OBJECT SHOULD BE RETURNED
-		json := SWARMDB_get(tbl_name, id)
-		//res, _ := vm.ToValue(`JSON.parse(json)`)
-		//res, _ := vm.ToValue(rec)
+		json, err := SWARMDB_get(tbl_name, id)
+		if err != nil {
+			res, _ := vm.ToValue(err.Error())
+			return res
+		}
 		res, _ := vm.ToValue(json)
 		return res
 	})
+
 	// swarmdb> query("select name, age from contacts where email = 'rodney@wolk.com'")
 	// records should come back with in an array
 	// [ {"name":"Sourabh Niyogi", "age":45 }, {"name":"Francesca Niyogi", "age":49} ...]
 	vm.Set("query", func(call otto.FunctionCall) otto.Value {
 		sql := call.Argument(0).String()
-		// ALINA: FIGURE OUT HOW AN ARRAY of JSON OBJECT SHOULD BE RETURNED
-		jsonarray, _ := SWARMDB_query(sql)
-		/*
-			if err != nil {
-				fmt.Printf("query err... %v\n", err)
-				return
-			}
-		*/
-		// res, _ := vm.ToValue(records)
+		jsonarray, err := SWARMDB_query(sql)
+		if err != nil {
+			res, _ := vm.ToValue(err.Error())
+			return res
+		}
 		res, _ := vm.ToValue(jsonarray)
 		return res
+
 	})
 
 	vm.Set("quit", func(call otto.FunctionCall) otto.Value {
@@ -181,6 +173,7 @@ func main() {
 	vm.Run(`get("contacts", "rodney@wolk.com")`)
 	vm.Run(`query("select name, age from contacts where age >= 38");`)
 
+	//run swarmdb prompt
 	if err := repl.RunWithPrompt(vm, "swarmdb> "); err != nil {
 		panic(err)
 	}
