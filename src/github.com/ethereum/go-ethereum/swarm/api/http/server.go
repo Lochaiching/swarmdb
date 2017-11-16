@@ -529,8 +529,17 @@ func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
 	fmt.Fprint(w, value)
 }
 
+func (s *Server) HandlePostTableData(w http.ResponseWriter, r *Request) {
+	rootkey,_ := ioutil.ReadAll(r.Body)
+    	log.Debug(fmt.Sprintf("HandlePostTableData res %v %v" ,r.uri.Path, rootkey))
+	s.api.StoreTableData(r.uri.Path, rootkey)
+        w.Header().Set("Content-Type", "text/plain")
+        w.WriteHeader(http.StatusOK)
+        fmt.Fprint(w, rootkey)
+}
 func (s *Server) HandleGetTableData(w http.ResponseWriter, r *Request) {
         value := s.api.GetTableData(r.uri.Path)
+    	log.Debug(fmt.Sprintf("HandleGetTableData res %v %v" ,r.uri.Path, value))
 
         w.Header().Set("Content-Type", "text/plain")
         w.WriteHeader(http.StatusOK)
@@ -940,7 +949,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req := &Request{Request: *r, uri: uri}
 	switch r.Method {
 	case "POST":
-		s.logDebug("server POST %s %s", uri, req.uri.Addr)
+		bodycontent, _ := ioutil.ReadAll(r.Body)
+		s.logDebug("server POST %s %s %s", uri, req.uri.Addr, bodycontent)
 		if req.uri.Addr == "demo" || r.URL.Query().Get("posttest") == "true"{
 			s.HandlePostRawTest(w, req)
 			return
@@ -951,6 +961,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.uri.Addr == "hashdb" {
 			s.HandlePostHashDB(w, req)
+			return
+		}
+		if req.uri.Addr == "tabledata" {
+			s.HandlePostTableData(w, req)
 			return
 		}
 		if uri.Swarmdb() == true {
