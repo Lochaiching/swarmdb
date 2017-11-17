@@ -44,6 +44,7 @@ import (
 	//"github.com/xwb1989/sqlparser"
 	//"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarmdb/packages"
+	//"github.com/ethereum/go-ethereum/swarmdb/client"
 	// "io"
 	"os"
 	//"strings"
@@ -79,38 +80,38 @@ func main() {
 	vm.Set("add", func(call otto.FunctionCall) otto.Value {
 		tbl_name := call.Argument(0).String()
 		rec := call.Argument(1).Object()
-		succ := swarmdb.SWARMDB_add(tbl_name, rec)
+		succ, _ := swarmdb.SWARMDB_add(tbl_name, rec)
 		res, _ := vm.ToValue(succ)
 		return res
 	})
+
 	// swarmdb> get("contacts", "rodney@wolk.com")
 	// { "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }
 	vm.Set("get", func(call otto.FunctionCall) otto.Value {
 		tbl_name := call.Argument(0).String() // e.g. "contacts"
 		id := call.Argument(1).String()       // e.g. "id"
-		// ALINA: FIGURE OUT HOW A JSON OBJECT SHOULD BE RETURNED
-		json := swarmdb.SWARMDB_get(tbl_name, id)
-		//res, _ := vm.ToValue(`JSON.parse(json)`)
-		//res, _ := vm.ToValue(rec)
+		json, err := swarmdb.SWARMDB_get(tbl_name, id)
+		if err != nil {
+			res, _ := vm.ToValue(err.Error())
+			return res
+		}
 		res, _ := vm.ToValue(json)
 		return res
 	})
+
 	// swarmdb> query("select name, age from contacts where email = 'rodney@wolk.com'")
 	// records should come back with in an array
 	// [ {"name":"Sourabh Niyogi", "age":45 }, {"name":"Francesca Niyogi", "age":49} ...]
 	vm.Set("query", func(call otto.FunctionCall) otto.Value {
 		sql := call.Argument(0).String()
-		// ALINA: FIGURE OUT HOW AN ARRAY of JSON OBJECT SHOULD BE RETURNED
-		jsonarray, _ := swarmdb.SWARMDB_query(sql)
-		/*
-			if err != nil {
-				fmt.Printf("query err... %v\n", err)
-				return
-			}
-		*/
-		// res, _ := vm.ToValue(records)
+		jsonarray, err := swarmdb.SWARMDB_query(sql)
+		if err != nil {
+			res, _ := vm.ToValue(err.Error())
+			return res
+		}
 		res, _ := vm.ToValue(jsonarray)
 		return res
+
 	})
 
 	vm.Set("quit", func(call otto.FunctionCall) otto.Value {
@@ -125,6 +126,7 @@ func main() {
 	vm.Run(`get("email", "r256hashZZ7")`)
 	//vm.Run(`query("select name, age from contacts where age >= 38");`)
 
+	//run swarmdb prompt
 	if err := repl.RunWithPrompt(vm, "swarmdb> "); err != nil {
 		panic(err)
 	}

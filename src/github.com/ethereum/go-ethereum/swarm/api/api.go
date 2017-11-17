@@ -311,6 +311,19 @@ func cv(a Val)[]byte{
 	return nil
 }
 
+func (self *Api) GetTableData(table string)([]byte) {
+	log.Debug(fmt.Sprintf("api GetTableData: ", table))
+	key, err := self.ldb.Get([]byte(table))
+	if err != nil {
+		return nil
+	}
+	return key 
+}
+func (self *Api) StoreTableData(table string, rootkey []byte)([]byte) {
+	self.ldb.Put([]byte(table), []byte(rootkey))
+	return  rootkey
+}
+
 func (self *Api) GetManifestRoot()(storage.Key) {
     	key, _ := self.ldb.Get([]byte("manifestroot"))
 	return key

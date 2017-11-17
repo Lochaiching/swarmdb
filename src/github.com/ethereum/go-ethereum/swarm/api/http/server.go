@@ -523,11 +523,28 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *Request) {
 
 func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
 	value := s.api.GetHashDB(r.uri.Path)
-	log.Debug(fmt.Sprintf("HandleGetHashDB res %v %v", r.uri.Path, value))
-
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, value)
+}
+
+func (s *Server) HandlePostTableData(w http.ResponseWriter, r *Request) {
+	rootkey,_ := ioutil.ReadAll(r.Body)
+	a := fmt.Sprintf("%s", rootkey)
+	s.api.StoreTableData(r.uri.Path, rootkey)
+        w.Header().Set("Content-Type", "text/plain")
+        w.WriteHeader(http.StatusOK)
+        fmt.Fprint(w, a)
+}
+
+func (s *Server) HandleGetTableData(w http.ResponseWriter, r *Request) {
+        value := s.api.GetTableData(r.uri.Path)
+    	log.Debug(fmt.Sprintf("HandleGetTableData res %v %v" ,r.uri.Path, value))
+	v := fmt.Sprintf("%s", value)
+
+        w.Header().Set("Content-Type", "text/plain")
+        w.WriteHeader(http.StatusOK)
+        fmt.Fprint(w, v)
 }
 
 func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
@@ -705,11 +722,6 @@ func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 
 	// check the root chunk exists by retrieving the file's size
 	reader := s.api.Retrieve(key)
-	readerSize, _ := reader.Size(nil)
-	encrypted_reader := make([]byte, readerSize)
-	_, _ = reader.ReadAt(encrypted_reader, 0)
-	s.logDebug("Retrieve Raw encrypted data of [%+v] ==> [%s] using key [%+v]", encrypted_reader, encrypted_reader, key)
-	decrypted_reader := bytes.NewReader(s.DecryptData(encrypted_reader))
 	if _, err := reader.Size(nil); err != nil {
 		s.logDebug("key not found %s: %s", key, err)
 		http.NotFound(w, &r.Request)
@@ -724,7 +736,7 @@ func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 	}
 	w.Header().Set("Content-Type", contentType)
 
-	http.ServeContent(w, &r.Request, "", time.Now(), decrypted_reader)
+	http.ServeContent(w, &r.Request, "", time.Now(), reader)
 }
 
 // HandleGetFiles handles a GET request to bzz:/<manifest> with an Accept
@@ -928,7 +940,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//if uri.Swarmdb() == true && r.Method == "POST" {
-	if uri.Swarmdb() == true {
+	if uri.Swarmdb() == true {	
+		s.logDebug("in SWARMDB")
 		ownerAddress := []byte(strings.ToLower(uri.Addr))
 		buyAt := []byte("4096000000000000") //Need to research how to grab
 		timestamp := []byte(strconv.FormatInt(time.Now().Unix(), 10))
@@ -975,6 +988,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req := &Request{Request: *r, uri: uri}
 	switch r.Method {
 	case "POST":
+		//bodycontent, _ := ioutil.ReadAll(r.Body)
+		//s.logDebug("server POST %s %s %s", uri, req.uri.Addr, bodycontent)
 		s.logDebug("server POST %s %s", uri, req.uri.Addr)
 		if req.uri.Addr == "demo" || r.URL.Query().Get("posttest") == "true" {
 			s.HandlePostRawTest(w, req)
@@ -986,6 +1001,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.uri.Addr == "hashdb" {
 			s.HandlePostHashDB(w, req)
+			return
+		}
+		if req.uri.Addr == "tabledata" {
+			s.HandlePostTableData(w, req)
 			return
 		}
 		if uri.Swarmdb() == true {
@@ -1038,6 +1057,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if req.uri.Addr == "hashdb" {
 			s.HandleGetHashDB(w, req)
+			return
+		}
+		if req.uri.Addr == "tabledata" {
+			s.HandleGetTableData(w, req)
 			return
 		}
 		if uri.Raw() {
