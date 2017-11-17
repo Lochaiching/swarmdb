@@ -530,7 +530,7 @@ func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
 func (s *Server) HandlePostTableData(w http.ResponseWriter, r *Request) {
 	rootkey,_ := ioutil.ReadAll(r.Body)
 	a := fmt.Sprintf("%s", rootkey)
-	k := s.api.StoreTableData(r.uri.Path, rootkey)
+	s.api.StoreTableData(r.uri.Path, rootkey)
         w.Header().Set("Content-Type", "text/plain")
         w.WriteHeader(http.StatusOK)
         fmt.Fprint(w, a)
