@@ -38,10 +38,10 @@ swarmdb> quit();
 package main
 
 import (
-	"fmt"
+	//"fmt"
 	otto "github.com/robertkrimen/otto"
 	repl "github.com/robertkrimen/otto/repl"
-	"github.com/xwb1989/sqlparser"
+	//"github.com/xwb1989/sqlparser"
 	//"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarmdb/packages"
 	// "io"
@@ -57,63 +57,6 @@ type Table struct {
 	Index   string `json:"index"`
 }
 
-func SWARMDB_createTable(tbl_name string, column string, primary bool, index string) (succ bool) {
-	fmt.Printf("SWARMDB_createTable(%v, column: %v primary: %v index: %v)\n", tbl_name, column, primary, index)
-	// RODNEY/MAYUMI: CONNECT TO dispatch.go -- create table descriptor (in LocalDB + ENS), ...
-	return true
-}
-
-func SWARMDB_add(tbl_name string, rec *otto.Object) (succ bool) {
-	// RODNEY/MAYUMI: CONNECT TO dispatch.go -- get table descriptor, get primary key's index type, ...
-	fmt.Printf("SWARMDB_add(%s, ", tbl_name)
-	for _, k := range rec.Keys() {
-		v, _ := rec.Get(k)
-		fmt.Printf(" key: %s value: %s", k, v)
-	}
-	fmt.Printf(")\n")
-	return true
-}
-
-//func SWARMDB_get(tbl_name string, id string) (rec *otto.Object) {
-func SWARMDB_get(tbl_name string, id string) (json string) {
-	// ALINA: FIGURE OUT HOW A JSON OBJECT SHOULD BE RETURNED
-
-	// RODNEY/MAYUMI: CONNECT TO dispatch.go
-	// get table descriptor, and based on the primary key's index, call dispatch.go
-	fmt.Printf("SWARMDB_get(%s, %s)\n", tbl_name, id)
-
-	//let's say this is the answer out of the swarmdb: (tbl_name: contacts, id: rodeny@wolk.com)
-	json = `{ "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }`
-
-	//return rec
-	return json
-
-}
-
-//func SWARMDB_query(sql string) (rec otto.Value) {
-func SWARMDB_query(sql string) (jsonarray []string, err error) {
-	// ALINA: FIGURE OUT HOW AN *** ARRAY ***  of JSON OBJECTS SHOULD BE RETURNED
-	// fmt.Printf("sql is: %s\n", sql)
-	stmt, err := sqlparser.Parse(sql)
-	if err != nil {
-		fmt.Printf("sqlparser.Parse err: %v\n", err)
-		//return otto.Value{}
-		return jsonarray, err
-	}
-	fmt.Printf("SWARMDB_query(%s, ", sqlparser.String(stmt.(*sqlparser.Select).From))
-
-	for i, e := range stmt.(*sqlparser.Select).SelectExprs {
-		fmt.Printf(" field %d: %+v", i, sqlparser.String(e)) // stmt.(*sqlparser.Select).SelectExprs)
-	}
-	fmt.Printf(")\n")
-	//return otto.Value{}
-
-	//pretending this is the solution to whatever the query puts out...
-	jsonarray = append(jsonarray, `{ "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }`)
-	jsonarray = append(jsonarray, `{ "email": "alina@wolk.com", "name": "Alina", "age": 35 }`)
-	return jsonarray, nil
-}
-
 func main() {
 	vm := otto.New()
 	// swarmdb> createTable("contacts", {"column": "email", "type": "string", "primary": true, "index": "hash" })
@@ -126,7 +69,7 @@ func main() {
 		primary_bool, _ := primary.ToBoolean()
 		index, _ := tbl_descriptor.Get("index")
 		index_string, _ := index.ToString()
-		succ := SWARMDB_createTable(tbl_name, column_string, primary_bool, index_string)
+		succ := swarmdb.SWARMDB_createTable(tbl_name, column_string, primary_bool, index_string)
 		res, _ := vm.ToValue(succ)
 		return res
 	})
@@ -146,7 +89,7 @@ func main() {
 		tbl_name := call.Argument(0).String() // e.g. "contacts"
 		id := call.Argument(1).String()       // e.g. "id"
 		// ALINA: FIGURE OUT HOW A JSON OBJECT SHOULD BE RETURNED
-		json := SWARMDB_get(tbl_name, id)
+		json := swarmdb.SWARMDB_get(tbl_name, id)
 		//res, _ := vm.ToValue(`JSON.parse(json)`)
 		//res, _ := vm.ToValue(rec)
 		res, _ := vm.ToValue(json)
@@ -158,7 +101,7 @@ func main() {
 	vm.Set("query", func(call otto.FunctionCall) otto.Value {
 		sql := call.Argument(0).String()
 		// ALINA: FIGURE OUT HOW AN ARRAY of JSON OBJECT SHOULD BE RETURNED
-		jsonarray, _ := SWARMDB_query(sql)
+		jsonarray, _ := swarmdb.SWARMDB_query(sql)
 		/*
 			if err != nil {
 				fmt.Printf("query err... %v\n", err)
@@ -176,10 +119,11 @@ func main() {
 	})
 
 	// VERY BASIC TEST CASES
-	vm.Run(`createTable("contacts", {"column": "email", "type": "string", "primary": true, "index": "hash" })`)
-	vm.Run(`add("contacts", { "email": "rodney@wolk.com", "name": "Rodney", "age": 38 })`)
-	vm.Run(`get("contacts", "rodney@wolk.com")`)
-	vm.Run(`query("select name, age from contacts where age >= 38");`)
+	//vm.Run(`createTable("contacts", {"column": "email", "type": "string", "primary": true, "index": "hash" })`)
+	//vm.Run(`add("contacts", { "email": "rodney@wolk.com", "name": "Rodney", "age": 38 })`)
+	//vm.Run(`get("contacts", "rodney@wolk.com")`)
+	vm.Run(`get("email", "r256hashZZ7")`)
+	//vm.Run(`query("select name, age from contacts where age >= 38");`)
 
 	if err := repl.RunWithPrompt(vm, "swarmdb> "); err != nil {
 		panic(err)
