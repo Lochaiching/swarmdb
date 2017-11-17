@@ -311,20 +311,17 @@ func cv(a Val)[]byte{
 	return nil
 }
 
-func (self *Api) GetTableData(table string)(storage.Key) {
+func (self *Api) GetTableData(table string)([]byte) {
 	log.Debug(fmt.Sprintf("api GetTableData: ", table))
 	key, err := self.ldb.Get([]byte(table))
-	log.Debug(fmt.Sprintf("api GetTableData: %s %s", table,key))
-	//strkey := fmt.Sprintf("%s", key)
 	if err != nil {
 		return nil
 	}
 	return key 
 }
-func (self *Api) StoreTableData(table string, rootkey []byte)() {
-	log.Debug(fmt.Sprintf("api StoreTableData: %s %s", table,rootkey))
+func (self *Api) StoreTableData(table string, rootkey []byte)([]byte) {
 	self.ldb.Put([]byte(table), []byte(rootkey))
-	return 
+	return  rootkey
 }
 
 func (self *Api) GetManifestRoot()(storage.Key) {

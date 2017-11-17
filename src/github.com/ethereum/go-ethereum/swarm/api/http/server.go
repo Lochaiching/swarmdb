@@ -522,8 +522,6 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *Request) {
 
 func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
 	value := s.api.GetHashDB(r.uri.Path)
-    log.Debug(fmt.Sprintf("HandleGetHashDB res %v %v" ,r.uri.Path, value))
-
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, value)
@@ -531,19 +529,21 @@ func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
 
 func (s *Server) HandlePostTableData(w http.ResponseWriter, r *Request) {
 	rootkey,_ := ioutil.ReadAll(r.Body)
-    	log.Debug(fmt.Sprintf("HandlePostTableData res %v %v" ,r.uri.Path, rootkey))
+	a := fmt.Sprintf("%s", rootkey)
 	s.api.StoreTableData(r.uri.Path, rootkey)
         w.Header().Set("Content-Type", "text/plain")
         w.WriteHeader(http.StatusOK)
-        fmt.Fprint(w, rootkey)
+        fmt.Fprint(w, a)
 }
+
 func (s *Server) HandleGetTableData(w http.ResponseWriter, r *Request) {
         value := s.api.GetTableData(r.uri.Path)
     	log.Debug(fmt.Sprintf("HandleGetTableData res %v %v" ,r.uri.Path, value))
+	v := fmt.Sprintf("%s", value)
 
         w.Header().Set("Content-Type", "text/plain")
         w.WriteHeader(http.StatusOK)
-        fmt.Fprint(w, value)
+        fmt.Fprint(w, v)
 }
 
 func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
@@ -906,6 +906,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if uri.Swarmdb() == true {	
+	s.logDebug("in SWARMDB")
 		ownerAddress := []byte(strings.ToLower(uri.Addr))
 		buyAt := []byte("4096000000000000") //Need to research how to grab 
 		timestamp := []byte(strconv.FormatInt(time.Now().Unix(),10))
@@ -949,8 +950,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	req := &Request{Request: *r, uri: uri}
 	switch r.Method {
 	case "POST":
-		bodycontent, _ := ioutil.ReadAll(r.Body)
-		s.logDebug("server POST %s %s %s", uri, req.uri.Addr, bodycontent)
+		//bodycontent, _ := ioutil.ReadAll(r.Body)
+		//s.logDebug("server POST %s %s %s", uri, req.uri.Addr, bodycontent)
+		s.logDebug("server POST %s %s", uri, req.uri.Addr)
 		if req.uri.Addr == "demo" || r.URL.Query().Get("posttest") == "true"{
 			s.HandlePostRawTest(w, req)
 			return
@@ -968,6 +970,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if uri.Swarmdb() == true {
+		//s.logDebug("server POST SWARMDB %s %s %s", uri, req.uri.Addr, bodycontent)
             		s.HandlePostDB(w, req)
             		return
 		}
