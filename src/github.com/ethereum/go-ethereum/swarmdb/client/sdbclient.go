@@ -55,7 +55,7 @@ func (c *Client)createTable(tbl_name, column, indextype string, primary bool)(er
 	uri := c.Gateway + "/bzzr:/tabledata/" + tbl_name
 	res, err := http.DefaultClient.Get(uri)
 	fmt.Println(uri)
-	data1, err := ioutil.ReadAll(res.Body)
+	_, err = ioutil.ReadAll(res.Body)
 	if err != nil {
 		return err
 	}
@@ -92,7 +92,7 @@ func (c *Client)createTable(tbl_name, column, indextype string, primary bool)(er
 	fmt.Printf("a, b = %s\n", b)
         req2, err := http.NewRequest("POST", c.Gateway+"/bzzr:/tabledata/"+tbl_name, bytes.NewReader([]byte(data)))
 	res2, err := http.DefaultClient.Do(req2)
-	data2, err := ioutil.ReadAll(res2.Body)
+	_, err = ioutil.ReadAll(res2.Body)
         if res2.StatusCode != http.StatusOK {
                 res.Body.Close()
                 return fmt.Errorf("unexpected HTTP status: %s", res2.Status)
