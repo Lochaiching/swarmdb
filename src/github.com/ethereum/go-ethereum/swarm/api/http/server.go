@@ -523,6 +523,10 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *Request) {
 
 func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
 	value := s.api.GetHashDB(r.uri.Path)
+	if value == nil {
+		http.NotFound(w, &r.Request)
+		return
+	}
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, value)

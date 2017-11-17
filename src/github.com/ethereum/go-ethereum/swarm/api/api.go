@@ -106,7 +106,7 @@ func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, wg *sync.W
 
 func (self *Api)HashDBAdd(k []byte, v Val, wg *sync.WaitGroup){
 	log.Debug(fmt.Sprintf("HashDBAdd %v \n", self.hashdbroot))
-    self.hashdbroot.Add(k, v, self, wg)
+	self.hashdbroot.Add(k, v, self)
 }
 
 // DPA reader API
@@ -292,6 +292,9 @@ func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionRe
 func (self *Api) GetHashDB(path string) (value storage.Key) {
 	log.Trace(fmt.Sprintf("GetHashDB start: %v %v", path, self.hashdbroot))
 	v := self.hashdbroot.Get([]byte(path), self)
+	if v == nil {
+		return nil
+	}
 	value = convertToByte(v)
 	log.Trace(fmt.Sprintf("GetHashDB res: %v '%v' %v", path, value))
 	return

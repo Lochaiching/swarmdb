@@ -8,11 +8,13 @@ type Database interface{
 	Get(key []byte)([]byte, error)
 	Delete(key []byte) error
 	Close()
-	NewBatch() Batch
+//	NewBatch() Batch
 }
 
+/*
 type Batch interface{
 	Put(key []byte, value []byte) error
 // same as flush
 	Execute()error
 }
+*/
