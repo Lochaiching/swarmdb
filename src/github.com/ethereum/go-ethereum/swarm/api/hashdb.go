@@ -12,7 +12,7 @@ import(
 	"strings"
 	"reflect"
 	"io"
-    "github.com/ethereum/go-ethereum/swarm/storage"
+	"github.com/ethereum/go-ethereum/swarm/storage"
 )
 
 const binnum = 64
@@ -20,6 +20,12 @@ const binnum = 64
 type Val interface{}
 
 type hashNode Node
+
+type HashDB struct{
+	rootnode *Node
+	api *Api
+	mutex sync.Mutex
+}
 
 type Node struct{
 	Key []byte
@@ -32,6 +38,16 @@ type Node struct{
 	NodeKey []byte  //for disk/(net?)DB. Currently, it's bin data but it will be the hash
 	NodeHash	[]byte  //for disk/(net?)DB. Currently, it's bin data but it will be the hash
 	Loaded	bool
+}
+
+
+func NewHashDB(rootnode []byte, api *Api) (*HashDB, error){
+	hd := new(HashDB)
+	n := NewNode(nil, nil)
+	n.NodeHash = rootnode
+	hd.rootnode = n
+	hd.api = api
+	return hd, nil	
 }
 
 
@@ -105,21 +121,25 @@ func newRootNode(k []byte, val Val, l int, version int, NodeKey []byte) *Node{
 	}
 	return rootnode
 }
-/*
-func (self *Api)HashDBAdd(k []byte, v Val, wg *sync.WaitGroup){
-	self.hashdbroot.Add(k, v, self, wg)
-}
-*/
 
-func (self *Node)Add(k []byte, v Val, api *Api, wg *sync.WaitGroup){
+func (self *HashDB)Put(k, v[]byte) (error){
+	self.rootnode.Add(k, v, self.api)
+	return nil
+}
+
+func (self *HashDB)GetRootNode() []byte{
+	return self.rootnode.NodeHash
+}
+
+func (self *Node)Add(k []byte, v Val, api *Api){
 	log.Debug(fmt.Sprintf("HashDB Add ", self))
 	self.Version++
 	self.NodeKey = []byte("0")
-	self.add(NewNode(k, v), self.Version, self.NodeKey, api, wg)
+	self.add(NewNode(k, v), self.Version, self.NodeKey, api)
 	return
 }
 
-func (self *Node)add(addnode *Node, version int, nodekey []byte, api *Api, wg *sync.WaitGroup) (newnode *Node){
+func (self *Node)add(addnode *Node, version int, nodekey []byte, api *Api) (newnode *Node){
 	kh := keyhash(addnode.Key)
 	bin := hashbin(kh, self.Level)
 	log.Debug(fmt.Sprintf("hashdb add ", string(addnode.Key), bin, self.Version, string(self.NodeKey)))
@@ -139,7 +159,7 @@ func (self *Node)add(addnode *Node, version int, nodekey []byte, api *Api, wg *s
 			if self.Bin[bin].Loaded == false{
 				self.Bin[bin].load(api)
 			}
-			self.Bin[bin] = self.Bin[bin].add(addnode, version, []byte(newnodekey), api, wg)
+			self.Bin[bin] = self.Bin[bin].add(addnode, version, []byte(newnodekey), api)
 			var str string
 			for i, b := range self.Bin{
 				if b != nil{
@@ -161,7 +181,9 @@ func (self *Node)add(addnode *Node, version int, nodekey []byte, api *Api, wg *s
 			copy(sdata[96:], addnode.Key)
 			log.Debug(fmt.Sprintf("hashdb add bin leaf Key %v %s %s %v", sdata, addnode.Key, addnode.Value, addnode.Key)) 
 			rd := bytes.NewReader(sdata)
+			wg := &sync.WaitGroup{}
 			dhash, _ := api.dpa.Store(rd, int64(len(sdata)), wg, nil)
+			wg.Wait()
 			addnode.NodeHash = dhash
 			log.Debug(fmt.Sprintf("hashdb add bin leaf %d %v", bin, dhash)) 
 			self.Bin[bin] = addnode
@@ -179,7 +201,9 @@ func (self *Node)add(addnode *Node, version int, nodekey []byte, api *Api, wg *s
                         copy(sdata[96:], addnode.Key)
                         log.Debug(fmt.Sprintf("hashdb add bin leaf Key %v %s %s %v", sdata, addnode.Key, addnode.Value, addnode.Key))
                         rd := bytes.NewReader(sdata)
+			wg := &sync.WaitGroup{}
                         dhash, _ := api.dpa.Store(rd, int64(len(sdata)), wg, nil)
+			wg.Done()
                         addnode.NodeHash = dhash
 			addnode.Next = false
 			addnode.Loaded = true
@@ -189,8 +213,8 @@ func (self *Node)add(addnode *Node, version int, nodekey []byte, api *Api, wg *s
 		n := newRootNode(self.Key, self.Value, self.Level, version, self.NodeKey)
 		n.Next = true
 		n.Root = self.Root
-		n.add(addnode, version, self.NodeKey, api, wg)
-		n.NodeHash = self.storeBinToNetwork(api, wg)
+		n.add(addnode, version, self.NodeKey, api)
+		n.NodeHash = self.storeBinToNetwork(api)
 		//api.ldb.Put([]byte(n.NodeKey), n.NodeHash)
 		if n.Root {
 			api.ldb.Put([]byte("RootNode"), n.NodeHash)
@@ -205,7 +229,7 @@ func (self *Node)add(addnode *Node, version int, nodekey []byte, api *Api, wg *s
 			svalue = svalue+"|"+strconv.Itoa(i)
 		}
 	}
-	self.NodeHash = self.storeBinToNetwork(api, wg)
+	self.NodeHash = self.storeBinToNetwork(api)
 	if self.Root {
 		api.ldb.Put([]byte("RootNode"), self.NodeHash)
 	}
@@ -238,7 +262,7 @@ func convertToByte(a Val)[]byte{
 	return nil
 }
  
-func (self *Node)storeBinToNetwork(api *Api, wg *sync.WaitGroup) []byte{
+func (self *Node)storeBinToNetwork(api *Api) []byte{
 	storedata := make([]byte, 66*64)
 
 	if self.Next || self.Root{
@@ -260,8 +284,16 @@ func (self *Node)storeBinToNetwork(api *Api, wg *sync.WaitGroup) []byte{
 		}
 	}
 	rd := bytes.NewReader(storedata)
+	wg := &sync.WaitGroup{}
 	adhash, _ := api.dpa.Store(rd, int64(len(storedata)), wg, nil)
+	wg.Wait()
 	return adhash
+}
+
+func (self *HashDB)Get(k []byte)([]byte, error){
+	ret := self.rootnode.Get(k, self.api) 
+	value := convertToByte(ret)
+	return value, nil
 }
 
 func (self *Node)Get(k []byte, api *Api) Val{
@@ -272,29 +304,6 @@ func (self *Node)Get(k []byte, api *Api) Val{
 	if self.Loaded == false{
 		log.Trace(fmt.Sprintf("hashdb Node Get NodeHash: %v", self.NodeHash))
 		self.load(api)
-/*
-		reader := api.dpa.Retrieve(self.NodeHash)
-		buf := make([]byte, 4096)
-		offset, err := reader.Read(buf)	
-		log.Trace(fmt.Sprintf("hashdb Node Get not Loaded: %d '%v %v'", offset, buf, err))
-		lf :=  int64(binary.LittleEndian.Uint64(buf[0:8]))
-		if lf == 1{
-			for i := 0; i < 64; i++{
-				binnode := NewNode(nil, nil)
-				binnode.NodeHash = make([]byte, 32)
-				binnode.NodeHash = buf[64+32*i:64+32*(i+1)]
-				binnode.Loaded = false
-				log.Trace(fmt.Sprintf("hashdb Node Get not Loaded node: %d '%v'", i, binnode.NodeHash))
-				self.Bin[i] = binnode
-			}
-			self.Next = true
-		}else{
-			self.Key = buf[96:]
-			self.Value = buf[64:96]
-			log.Trace(fmt.Sprintf("hashdb Node Get not Loaded leaf: %v '%v'", self.Key, self.Value))
-			self.Next = false
-		}
-*/
 		self.Loaded = true
 	}
 
@@ -369,6 +378,21 @@ func (self *Node)load(api *Api){
 		log.Trace(fmt.Sprintf("hashdb Node Get load self: %v'", self))
 }	
 
+func (self *HashDB)Insert(k, v []byte) error{
+	res, _ := self.Get(k)
+	if res != nil {
+		err := fmt.Errorf("%s is already in Database", string(k))
+		return err
+	}
+	err := self.Put(k, v)
+	return err
+}
+
+func (self *HashDB)Delete(k []byte) error{
+	self.rootnode.Delete(k)
+	return nil
+}
+
 func (self *Node)Delete(k []byte)(newnode *Node){
 /*
 	if self.Get(k) == nil{
@@ -438,4 +462,7 @@ func (self *Node)Update(updatekey []byte, updatevalue []byte)(newnode *Node, err
 	return self, err
 }
 
+func (self *HashDB)Close(){
+	return
+}
 
