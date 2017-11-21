@@ -106,7 +106,7 @@ func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, wg *sync.W
 
 func (self *Api)HashDBAdd(k []byte, v Val, wg *sync.WaitGroup){
 	log.Debug(fmt.Sprintf("HashDBAdd %v \n", self.hashdbroot))
-    self.hashdbroot.Add(k, v, self, wg)
+	self.hashdbroot.Add(k, v, self)
 }
 
 // DPA reader API
@@ -292,6 +292,9 @@ func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionRe
 func (self *Api) GetHashDB(path string) (value storage.Key) {
 	log.Trace(fmt.Sprintf("GetHashDB start: %v %v", path, self.hashdbroot))
 	v := self.hashdbroot.Get([]byte(path), self)
+	if v == nil {
+		return nil
+	}
 	value = convertToByte(v)
 	log.Trace(fmt.Sprintf("GetHashDB res: %v '%v' %v", path, value))
 	return
@@ -311,20 +314,17 @@ func cv(a Val)[]byte{
 	return nil
 }
 
-func (self *Api) GetTableData(table string)(storage.Key) {
+func (self *Api) GetTableData(table string)([]byte) {
 	log.Debug(fmt.Sprintf("api GetTableData: ", table))
 	key, err := self.ldb.Get([]byte(table))
-	log.Debug(fmt.Sprintf("api GetTableData: %s %s", table,key))
-	//strkey := fmt.Sprintf("%s", key)
 	if err != nil {
 		return nil
 	}
 	return key 
 }
-func (self *Api) StoreTableData(table string, rootkey []byte)() {
-	log.Debug(fmt.Sprintf("api StoreTableData: %s %s", table,rootkey))
+func (self *Api) StoreTableData(table string, rootkey []byte)([]byte) {
 	self.ldb.Put([]byte(table), []byte(rootkey))
-	return 
+	return  rootkey
 }
 
 func (self *Api) GetManifestRoot()(storage.Key) {

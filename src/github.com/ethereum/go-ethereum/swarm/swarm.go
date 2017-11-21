@@ -22,6 +22,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"net"
+	"path/filepath"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -39,6 +40,9 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/fuse"
 	"github.com/ethereum/go-ethereum/swarm/network"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+
+	//"github.com/syndtr/goleveldb/leveldb"
+	"reflect"
 )
 
 // the swarm stack
@@ -58,6 +62,7 @@ type Swarm struct {
 	swapEnabled bool
 	lstore      *storage.LocalStore // local store, needs to store for releasing resources after node stopped
 	sfs         *fuse.SwarmFS       // need this to cleanup all the active mounts on node exit
+	ldb			*storage.LDBDatabase
 }
 
 type SwarmAPI struct {
@@ -124,6 +129,8 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 
 	// set up Depo (storage handler = cloud storage access layer for incoming remote requests)
 	self.depo = network.NewDepo(hash, self.lstore, self.storage)
+	self.ldb, _ = storage.NewLDBDatabase(filepath.Join(self.config.Path, "ldb"))
+	//self.depo = network.NewDepoTest(hash, self.lstore, self.storage, self.ldb)
 	log.Debug(fmt.Sprintf("-> REmote Access to CHunks"))
 
 	// set up DPA, the cloud storage local access layer
@@ -136,6 +143,7 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	// set up high level api
 	transactOpts := bind.NewKeyedTransactor(self.privateKey)
 
+	log.Debug(fmt.Sprintf("ENS: %v %v %v", transactOpts, config.EnsRoot, ensClient))
 	if ensClient == nil {
 		log.Warn("No ENS, please specify non-empty --ens-api to use domain name resolution")
 	} else {
@@ -144,9 +152,14 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 			return nil, err
 		}
 	}
+	enstest, enserr := ens.NewENS(transactOpts, config.EnsRoot, ensClient)
+	log.Debug(fmt.Sprintf("type of dns = %s", reflect.TypeOf(self.dns)))
+	log.Debug(fmt.Sprintf("type of ens = %s %v", reflect.TypeOf(enstest), enserr))
 	log.Debug(fmt.Sprintf("-> Swarm Domain Name Registrar @ address %v", config.EnsRoot.Hex()))
 
-	self.api = api.NewApi(self.dpa, self.dns)
+
+	//self.api = api.NewApi(self.dpa, self.dns, self.lstore.DbStore.getMHash())
+	self.api = api.NewApiTest(self.dpa, self.dns, self.ldb)
 	// Manifests for Smart Hosting
 	log.Debug(fmt.Sprintf("-> Web3 virtual server API"))
 

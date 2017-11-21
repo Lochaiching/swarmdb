@@ -37,12 +37,16 @@ type Client struct {
 func CreateTable(tbl_name, column, index string, primary bool)(error){
 	client := NewClient(DefaultGateway)
 	indextype := "KD"
-	if index == "hash"{
-		indextype = "HD"
+	switch index{
+	case "hash": indextype = "HD"
+	case "btree": indextype = "BT"
+	case "kad": indextype = "KD"
+	default: indextype = "KD"
 	}
 	err := client.createTable(tbl_name, column, indextype, primary)
 	return err
 }
+
 func (c *Client)createTable(tbl_name, column, indextype string, primary bool)(error){
 	pri := "0"
 	if primary{
@@ -51,6 +55,7 @@ func (c *Client)createTable(tbl_name, column, indextype string, primary bool)(er
 	uri := c.Gateway + "/bzzr:/tabledata/" + tbl_name
 	res, err := http.DefaultClient.Get(uri)
 	fmt.Println(uri)
+	_, err = ioutil.ReadAll(res.Body)
 	if err != nil {
 		return err
 	}
@@ -63,7 +68,7 @@ func (c *Client)createTable(tbl_name, column, indextype string, primary bool)(er
 	for i := 0; i < 1; i++{
 		copy(buf[i*64+2048:], column)
 		copy(buf[i*64+2048+28:], pri)
-		copy(buf[i*642048+28+1:], indextype)
+		copy(buf[i*64+2048+28+1:], indextype)
 	}
 	req, err := http.NewRequest("POST", c.Gateway+"/bzzr:/", bytes.NewReader(buf))
         if err != nil {
@@ -80,10 +85,6 @@ func (c *Client)createTable(tbl_name, column, indextype string, primary bool)(er
 	if err != nil {
 		return err
 	}
-/*
-    	tabledata := map[string]string{"tablename": table, "key": string(data)}
-    	tablejson, _ := json.Marshal(tabledata)
-*/
 	
 	fmt.Printf("data = %s %d\n",data, len(data))
 	a :=  bytes.NewReader(data)
@@ -91,12 +92,11 @@ func (c *Client)createTable(tbl_name, column, indextype string, primary bool)(er
 	fmt.Printf("a, b = %s\n", b)
         req2, err := http.NewRequest("POST", c.Gateway+"/bzzr:/tabledata/"+tbl_name, bytes.NewReader([]byte(data)))
 	res2, err := http.DefaultClient.Do(req2)
+	_, err = ioutil.ReadAll(res2.Body)
         if res2.StatusCode != http.StatusOK {
                 res.Body.Close()
                 return fmt.Errorf("unexpected HTTP status: %s", res2.Status)
         }
-
-
 	return nil
 }
 
