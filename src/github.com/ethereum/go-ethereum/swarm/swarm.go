@@ -17,9 +17,11 @@
 package swarm
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"encoding/gob"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -62,7 +64,7 @@ type Swarm struct {
 	swapEnabled bool
 	lstore      *storage.LocalStore // local store, needs to store for releasing resources after node stopped
 	sfs         *fuse.SwarmFS       // need this to cleanup all the active mounts on node exit
-	ldb			*storage.LDBDatabase
+	ldb         *storage.LDBDatabase
 }
 
 type SwarmAPI struct {
@@ -157,7 +159,6 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	log.Debug(fmt.Sprintf("type of ens = %s %v", reflect.TypeOf(enstest), enserr))
 	log.Debug(fmt.Sprintf("-> Swarm Domain Name Registrar @ address %v", config.EnsRoot.Hex()))
 
-
 	//self.api = api.NewApi(self.dpa, self.dns, self.lstore.DbStore.getMHash())
 	self.api = api.NewApiTest(self.dpa, self.dns, self.ldb)
 	// Manifests for Smart Hosting
@@ -167,6 +168,10 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	log.Debug("-> Initializing Fuse file system")
 
 	return self, nil
+}
+
+func TcpipDispatch(args map[string]interface{}) {
+	log.Debug(fmt.Sprintf("Printing Args from TCPIP_Printer: \n%#v\n", args))
 }
 
 /*
@@ -226,7 +231,57 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 		}
 	}
 
-	return nil
+	/* start of tcp/ip server code */
+
+	type HandleFunc func(map[string]interface{})
+
+	var handlerArray map[string]HandleFunc
+	handlerArray = make(map[string]HandleFunc)
+	handlerArray["TcpipDispatch"] = TcpipDispatch
+
+	type funcCall struct {
+		FuncName string
+		Args     map[string]interface{}
+	}
+
+	psock, err := net.Listen("tcp", ":5000")
+	if err != nil {
+		return nil
+	}
+
+	conn, err := psock.Accept()
+	if err != nil {
+		log.Debug(fmt.Sprintf("TCPIP: Error connecting"))
+		return nil
+	}
+	for {
+		tcpipReader := bufio.NewReader(conn)
+		message, _ := tcpipReader.ReadString('\n')
+		// output message received
+		conn.Write([]byte("GOB received\n"))
+		log.Debug("[TCPIP] Message Received: [%s]", string(message))
+		log.Debug("[TCPIP] READER: [%+v]", tcpipReader)
+		var data funcCall
+		dec := gob.NewDecoder(tcpipReader)
+		log.Debug(fmt.Sprintf("[TCPIP] GOB Decoder: [%v]", dec))
+		err = dec.Decode(&data)
+		log.Debug(fmt.Sprintf("[TCPIP] GOB Data: [%v]", data))
+		if err != nil {
+			log.Debug(fmt.Sprintf("[TCPIP] Error decoding GOB data:", err))
+			return nil
+		}
+		log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.FuncName))
+		log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.Args))
+		handlerArray[data.FuncName](data.Args)
+		conn.Write([]byte("Request processed successfully\n"))
+		//return nil
+		/*
+			channel := make(chan string)
+			go request_handler(conn, channel)
+			go send_data(conn, channel)
+		*/
+	}
+	//end of tcp/ip server code
 }
 
 // implements the node.Service interface
