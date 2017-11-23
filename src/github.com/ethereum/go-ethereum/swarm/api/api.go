@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+//	"github.com/ethereum/go-ethereum/swarmdb/database"
 )
 
 var (
@@ -97,6 +98,15 @@ func (self *Api) Upload(uploadDir, index string) (hash string, err error) {
 func (self *Api) StoreDB(data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
 	return self.dpa.StoreDB(data, size, wg, nil)
 }
+
+/*
+func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, table, index string){
+	key, err = self.dpa.Store(data, size, wg, nil)
+	self.swarmdb.Open(table)
+	db := self.swarmdb.OpenIndex(database, index)
+	db.Put(tkey, key)
+}
+*/
 
 func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
 	key, err = self.dpa.Store(data, size, wg, nil)
