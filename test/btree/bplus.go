@@ -5,12 +5,51 @@ import (
 	"io"
 	"sync"
 	"strings"
+	"bytes"
 	"math/rand"
 	"crypto/sha256"
 	"strconv"
 	"os"
 	"bufio"
 )
+
+type Database interface {
+	
+	// reads in root hash from ENS
+	Open(tableName string) (error) 
+
+	// Insert only [ duplicate key will 
+	Insert(key []byte, value []byte) error
+
+	// Insert + Update
+	Put(key []byte, value []byte) error
+
+	Get(key []byte)([]byte, error)
+
+	Delete(key []byte) error
+
+	// any memory updates will be flushed to SWARM
+	Execute() error
+
+	Close()
+
+	// prints what is in memory
+	Print() 
+}
+
+type DatabaseCursor interface{
+	Database
+	Seek(k []byte /*K*/) (e *Enumerator, ok bool)
+	First() (k []byte /*K*/, v []byte /*V*/)
+	Last() (k []byte /*K*/, v []byte /*V*/) 
+}
+
+// How does this work?
+type Batch interface {
+	Put(key []byte, value []byte) error
+	// same as flush
+	Execute()error
+}
 
 const (
 	kx        = 3 
@@ -73,8 +112,8 @@ var (
 	btXPool = sync.Pool{New: func() interface{} { return &x{} }}
 )
 
-type Key string
-type Val string
+type Key []byte
+type Val []byte
 
 type btTpool struct{ sync.Pool }
 
@@ -86,7 +125,7 @@ func (p *btTpool) get(cmp Cmp) *Tree {
 
 type btEpool struct{ sync.Pool }
 
-func (p *btEpool) get(err error, hit bool, i int, k interface{} /*K*/, q *d, t *Tree, ver int64) *Enumerator {
+func (p *btEpool) get(err error, hit bool, i int, k []byte /*K*/, q *d, t *Tree, ver int64) *Enumerator {
 	x := p.Get().(*Enumerator)
 	x.err, x.hit, x.i, x.k, x.q, x.t, x.ver = err, hit, i, k, q, t, ver
 	return x
@@ -99,7 +138,7 @@ type (
 	//	  0 if a == b
 	//	> 0 if a >  b
 	//
-	Cmp func(a, b interface{} /*K*/) int
+	Cmp func(a, b []byte /*K*/) int
 
 	d struct { // data page
 		c int
@@ -118,8 +157,8 @@ type (
 	}
 
 	de struct { // d element
-		k string // interface{} /*K*/
-		v string // interface{} /*V*/
+		k []byte // interface{} /*K*/
+		v []byte // interface{} /*V*/
 	}
 
 	// Enumerator captures the state of enumerating a tree. It is returned
@@ -134,7 +173,7 @@ type (
 		err error
 		hit bool
 		i   int
-		k   interface{} /*K*/
+		k   []byte /*K*/
 		q   *d
 		t   *Tree
 		ver int64
@@ -148,12 +187,14 @@ type (
 		last  *d
 		r     interface{}
 		ver   int64
+
+		tableName string
 		hashid string  // computed at the end
 	}
 
 	xe struct { // x element
 		ch interface{}
-		k  string // interface{} /*K*/
+		k  []byte // interface{} /*K*/
 	}
 
 	x struct { // index page
@@ -171,7 +212,7 @@ var ( // R/O zero values
 	zd  d
 	zde de
 	ze  Enumerator
-	zk  string // interface{} /*K*/
+	zk  []byte // interface{} /*K*/
 	zt  Tree
 	zx  x
 	zxe xe
@@ -209,7 +250,7 @@ func (q *x) extract(i int) {
 	}
 }
 
-func (q *x) insert(i int, k string /*K*/, ch interface{}) *x {
+func (q *x) insert(i int, k []byte /*K*/, ch interface{}) *x {
 	c := q.c
 	if i < c {
 		q.x[c+1].ch = q.x[c].ch
@@ -256,26 +297,33 @@ func (l *d) mvR(r *d, c int) {
 
 // TreeNew returns a newly created, empty Tree. The compare function is used
 // for key collation.
-func TreeNew(cmp Cmp, tableName string) *Tree {
+
+func TreeNew() *Tree { 
 	t := btTPool.get(cmp)
-	hashid, err := getTableENS(tableName)
+	return t
+}
+
+func (t *Tree) Open(tableName string) (err error) {
+	t.tableName = tableName
+	hashid, err := getTableENS(t.tableName)
 	if err != nil {
+		return err
 	} else {
 		t.hashid = hashid
 		fmt.Printf("Open %s => hashid %s\n", tableName, hashid)
 		t.SWARMGet()
 	}
 	
-	return t
+	return nil
 }
 
-func (t *Tree) Flush(tableName string) bool {
+func (t *Tree) Execute() (err error) {
 
 	if t.SWARMPut() {
-		putTableENS(tableName, t.hashid)
-		return true
+		putTableENS(t.tableName, t.hashid)
+		return nil
 	}
-	return false
+	return nil
 }
 
 func (t *Tree) SWARMGet() (success bool) {
@@ -302,7 +350,7 @@ func (t *Tree) SWARMGet() (success bool) {
 			}
 			i, _ := strconv.Atoi(sa[1])
 			hashid := sa[2]
-			k := sa[3]
+			k := []byte(sa[3])
 			// X|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
 			switch z := t.r.(type) {
 			case (*x):
@@ -310,7 +358,7 @@ func (t *Tree) SWARMGet() (success bool) {
 				x := btXPool.Get().(*x)
 				z.x[i].ch = x
 				if err != nil {
-					z.x[i].k = "ZZZZZ"
+					z.x[i].k = zk // "ZZZZZ"
 				} else {
 					z.x[i].k = k
 				}
@@ -327,8 +375,8 @@ func (t *Tree) SWARMGet() (success bool) {
 			}
 			i, _ := strconv.Atoi(sa[1])
 			hashid := sa[2]
-			k := sa[3]
-			v := sa[3]
+			k := []byte(sa[3])
+			v := []byte(sa[3])
 			// D|0|50379fa9432e99a614f63433ae3ac731a389bd520ad39104509c218703a95b86|6
 			switch z := t.r.(type) {
 			case (*x):
@@ -371,7 +419,7 @@ func (q *x) SWARMGet() (changed bool) {
 			// q.c++
 			i, _ := strconv.Atoi(sa[1])
 			hashid := sa[2]
-			k := sa[3]
+			k := []byte(sa[3])
 			// X|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
 			x := btXPool.Get().(*x)
 			q.x[i].ch = x
@@ -389,7 +437,7 @@ func (q *x) SWARMGet() (changed bool) {
 			// D|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
 			x := btDPool.Get().(*d)
 			q.x[i].ch = x
-			q.x[i].k = k
+			q.x[i].k = []byte(k)
 			x.notloaded = true
 			x.hashid = hashid
 			fmt.Printf(" LOAD-D1|%d|%s\n", i, x.hashid)
@@ -419,12 +467,10 @@ func (q *d) SWARMGet() (changed bool) {
 			q.c++
 			// s := fmt.Sprintf("C|%d|%v|%v\n", i, q.d[i].k, q.d[i].v)
 			i, _ := strconv.Atoi(sa[1])
-			k := sa[2]
-			v := sa[3]
 			
 			//x := btDPool.Get().(*d)
-			q.d[i].k = k
-			q.d[i].v = v
+			q.d[i].k = []byte(sa[2])
+			q.d[i].v = []byte(sa[3])
 			q.notloaded = false
 			//fmt.Printf(" LOAD-C|%d|%v|%v\n", i, k, v)
 		}
@@ -574,7 +620,7 @@ func (q *d) SWARMPut() (changed bool) {
 		
 		// write the children with "C"
 		for i := 0; i < q.c ; i++ {
-			s := fmt.Sprintf("C|%d|%v|%v\n", i, q.d[i].k, q.d[i].v)
+			s := fmt.Sprintf("C|%d|%v|%v\n", i, string(q.d[i].k), string(q.d[i].v))
 			fmt.Printf(s)
 			f.WriteString(s)
 		}
@@ -612,6 +658,8 @@ func (t *Tree) Clear() {
 // Close performs Clear and recycles t to a pool for possible later reuse. No
 // references to t should exist or such references must not be used afterwards.
 func (t *Tree) Close() {
+	// should Execute
+
 	t.Clear()
 	*t = zt
 	btTPool.Put(t)
@@ -681,14 +729,14 @@ func (t *Tree) catX(p, q, r *x, pi int) {
 
 // Delete removes the k's KV pair, if it exists, in which case Delete returns
 // true.
-func (t *Tree) Delete(k interface{} /*K*/) (ok bool) {
+func (t *Tree) Delete(k []byte /*K*/) (err error) {
 	pi := -1
 	var p *x
 	q := t.r
 	if q == nil {
-		return false
+		return fmt.Errorf("nothing to delete")
 	}
-
+	ok := false
 	for {
 		checkload(q)
 		var i int
@@ -707,7 +755,7 @@ func (t *Tree) Delete(k interface{} /*K*/) (ok bool) {
 			case *d:
 				t.extract(x, i)
 				if x.c >= kd {
-					return true
+					return nil
 				}
 
 				if q != t.r {
@@ -716,7 +764,7 @@ func (t *Tree) Delete(k interface{} /*K*/) (ok bool) {
 					t.Clear()
 				}
 				x.dirty = true // we found the key and  actually deleted it!
-				return true
+				return nil
 			}
 		}
 
@@ -730,7 +778,7 @@ func (t *Tree) Delete(k interface{} /*K*/) (ok bool) {
 			q = x.x[i].ch
 			x.dirty = true // optimization: this should really be if something is *actually* deleted
 		case *d:
-			return false  // we got to the bottom and key was not found
+			return nil  // we got to the bottom and key was not found
 		}
 	}
 }
@@ -747,8 +795,8 @@ func (t *Tree) extract(q *d, i int) { // (r interface{} /*V*/) {
 	return
 }
 
-func (t *Tree) find(q interface{}, k interface{} /*K*/) (i int, ok bool) {
-	var mk interface{} /*K*/
+func (t *Tree) find(q interface{}, k []byte /*K*/) (i int, ok bool) {
+	var mk []byte /*K*/
 	l := 0
 	switch x := q.(type) {
 	case *x:
@@ -785,7 +833,7 @@ func (t *Tree) find(q interface{}, k interface{} /*K*/) (i int, ok bool) {
 
 // First returns the first item of the tree in the key collating order, or
 // (zero-value, zero-value) if the tree is empty.
-func (t *Tree) First() (k interface{} /*K*/, v interface{} /*V*/) {
+func (t *Tree) First() (k []byte /*K*/, v []byte /*V*/) {
 	if q := t.first; q != nil {
 		q := &q.d[0]
 		k, v = q.k, q.v
@@ -808,12 +856,13 @@ func checkload(q interface{}) {
 
 // Get returns the value associated with k and true if it exists. Otherwise Get
 // returns (zero-value, false).
-func (t *Tree) Get(k interface{} /*K*/) (v interface{} /*V*/, ok bool) {
+func (t *Tree) Get(k []byte /*K*/) (v []byte /*V*/, err error) {
 	q := t.r
 	if q == nil {
 		return
 	}
 
+	ok := false
 	for {
 		checkload(q)
 
@@ -826,7 +875,7 @@ func (t *Tree) Get(k interface{} /*K*/) (v interface{} /*V*/, ok bool) {
 				q = x.x[i+1].ch
 				continue
 			case *d: // data node -- EXACT match 
-				return x.d[i].v, true
+				return x.d[i].v, nil
 			}
 		}
 		// descend down the tree using the binary search
@@ -834,13 +883,13 @@ func (t *Tree) Get(k interface{} /*K*/) (v interface{} /*V*/, ok bool) {
 		case *x:
 			q = x.x[i].ch
 		default:
-			return
+			return zk, nil
 		}
 	}
 }
 
 
-func (t *Tree) insert(q *d, i int, k string /*K*/, v string /*V*/) *d {
+func (t *Tree) insert(q *d, i int, k []byte /*K*/, v []byte /*V*/) *d {
 	t.ver++
 	c := q.c
 	if i < c {
@@ -857,7 +906,7 @@ func (t *Tree) insert(q *d, i int, k string /*K*/, v string /*V*/) *d {
 
 // Last returns the last item of the tree in the key collating order, or
 // (zero-value, zero-value) if the tree is empty.
-func (t *Tree) Last() (k interface{} /*K*/, v interface{} /*V*/) {
+func (t *Tree) Last() (k []byte /*K*/, v []byte /*V*/) {
 	if q := t.last; q != nil {
 		q := &q.d[q.c-1]
 		k, v = q.k, q.v
@@ -900,7 +949,7 @@ func (q *x) print(level int) {
 	fmt.Printf("XNode [c=%d] %s (LEVEL %d) [dirty=%v|notloaded=%v]\n", q.c, q.hashid, level, q.dirty, q.notloaded)
 	for i := 0; i <= q.c ; i++ {
 		print_spaces(level+1);
-		fmt.Printf("Child %d|%v KEY = %v\n", i, level+1, q.x[i].k)
+		fmt.Printf("Child %d|%v KEY = %v\n", i, level+1, string(q.x[i].k))
 		switch z := q.x[i].ch.(type)  {
 		case *x: 
 			z.print(level+1)
@@ -915,12 +964,12 @@ func (q *d) print(level int) {
 	fmt.Printf("DNode [c=%s] (LEVEL %d) [dirty=%v|notloaded=%v|prev=%s|next=%s]\n", q.c, level, q.dirty, q.notloaded,  q.prevhashid, q.nexthashid)
 	for i := 0; i < q.c ; i++ {
 		print_spaces(level+1);
-		fmt.Printf("DATA %d (L%d)|%v|%v\n", i, level+1, q.d[i].k, q.d[i].v)
+		fmt.Printf("DATA %d (L%d)|%v|%v\n", i, level+1, string(q.d[i].k), string(q.d[i].v))
 	}
 }
 
 // TODO
-func (t *Tree) overflow(p *x, q *d, pi, i int, k string  /*K*/, v string /*V*/) {
+func (t *Tree) overflow(p *x, q *d, pi, i int, k []byte  /*K*/, v []byte /*V*/) {
 	t.ver++
 	l, r := p.siblings(pi)
 
@@ -951,7 +1000,7 @@ func (t *Tree) overflow(p *x, q *d, pi, i int, k string  /*K*/, v string /*V*/) 
 // ok reports if k == item.key The Enumerator's position is possibly after the
 // last item in the tree.
 // TODO: TEST THIS
-func (t *Tree) Seek(k interface{} /*K*/) (e *Enumerator, ok bool) {
+func (t *Tree) Seek(k []byte /*K*/) (e *Enumerator, ok bool) {
 	q := t.r
 /*
     Enumerator struct {
@@ -1013,8 +1062,7 @@ func (t *Tree) SeekLast() (e *Enumerator, err error) {
 	return btEPool.get(nil, true, q.c-1, q.d[q.c-1].k, q, t, t.ver), nil
 }
 */
-// Set sets the value associated with k.
-func (t *Tree) Set(k string /*K*/, v string /*V*/) {
+func (t *Tree) Put(k []byte /*K*/, v []byte /*V*/) (err error) {
 	//dbg("--- PRE Set(%v, %v)\n%s", k, v, t.dump())
 	//defer func() {
 	//	dbg("--- POST\n%s\n====\n", t.dump())
@@ -1076,7 +1124,12 @@ func (t *Tree) Set(k string /*K*/, v string /*V*/) {
 	}
 }
 
-func (t *Tree) split(p *x, q *d, pi, i int, k string /*K*/, v string /*V*/) {
+func (t *Tree) Insert(k []byte /*K*/, v []byte /*V*/) (err error) {
+	// TODO: Insert and Put are different in that Insert should return an error on presence of k
+	return t.Put(k, v)
+}
+
+func (t *Tree) split(p *x, q *d, pi, i int, k []byte /*K*/, v []byte /*V*/) {
 	fmt.Printf("SPLIT!\n")
 	t.ver++
 	r := btDPool.Get().(*d)
@@ -1231,7 +1284,7 @@ func (e *Enumerator) Close() {
 // Next returns the currently enumerated item, if it exists and moves to the
 // next item in the key collation order. If there is no item to return, err ==
 // io.EOF is returned.
-func (e *Enumerator) Next() (k string /*K*/, v string /*V*/, err error) {
+func (e *Enumerator) Next() (k []byte /*K*/, v []byte /*V*/, err error) {
 	if err = e.err; err != nil {
 		fmt.Printf("1 err %v\n", err);
 		return
@@ -1296,7 +1349,7 @@ func (e *Enumerator) next() error {
 // Prev returns the currently enumerated item, if it exists and moves to the
 // previous item in the key collation order. If there is no item to return, err
 // == io.EOF is returned.
-func (e *Enumerator) Prev() (k interface{} /*K*/, v interface{} /*V*/, err error) {
+func (e *Enumerator) Prev() (k []byte /*K*/, v interface{} /*V*/, err error) {
 	if err = e.err; err != nil {
 		return
 	}
@@ -1352,14 +1405,10 @@ func (e *Enumerator) prev() error {
 }
 
 
-func cmp(a, b interface{}) int {
-	if a.(string) < b.(string) {
-	return(-1)
-	} else if a.(string) > b.(string) {
-		return(1)
-	} else {
-		return(0)
-	}
+func cmp(a, b []byte) int {
+	// Compare returns an integer comparing two byte slices lexicographically. 
+	// The result will be 0 if a==b, -1 if a < b, and +1 if a > b. A nil argument is equivalent to an empty slice.
+	return bytes.Compare(a,b) 
 }
 
 /*
@@ -1410,35 +1459,42 @@ func cmp(a, b interface{}) int {
  K: 000013 V: valueof000013
 1 err EOF
 */
-func main() {
+
+func testTable(tableName string, r DatabaseCursor) {
 	// open table [only gets the root node]
-	tableName := "testtable"
-	r := TreeNew(cmp, tableName)
 	vals := rand.Perm(20)
 	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
-		k := fmt.Sprintf("%06x", i)
-		v := fmt.Sprintf("valueof%06x", i)
-		fmt.Printf("Insert %d %v %v\n", i, k, v)
-		r.Set(k, v)
+		k := []byte(fmt.Sprintf("%06x", i))
+		v := []byte(fmt.Sprintf("valueof%06x", i))
+		fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
+		r.Put(k, v)
 	}
 	// this writes B+tree to disk [SWARM]
-	r.Flush(tableName)
+	r.Execute() // tableName
 	r.Print()
 
-
-	r.Set("000004", "Sammy2")
-	r.Set("000009", "Happy2")
-	r.Set("00000e", "Leroy2")
-	g, _ := r.Get("00000d")
+	r.Put([]byte("000004"), []byte("Sammy2"))
+	r.Put([]byte("000009"), []byte("Happy2"))
+	r.Put([]byte("00000e"), []byte("Leroy2"))
+	g, _ := r.Get([]byte("00000d"))
 	fmt.Printf("GET: %v\n", g)
-	r.Flush(tableName)
+	r.Execute()
 
 	r.Print()
 
 	// ENUMERATOR!
-	res, _ := r.Seek("000004")
+	res, _ := r.Seek([]byte("000004"))
 	for k, v, err := res.Next(); err == nil;  k, v, err = res.Next() {
-		fmt.Printf(" K: %v V: %v\n", k, v)
+		fmt.Printf(" K: %v V: %v\n", string(k), string(v))
 	} 
+
+
+}
+
+func main() {
+	tableName := "testtable"
+	r := TreeNew()
+	r.Open(tableName)
+	testTable(tableName, r)
 }
