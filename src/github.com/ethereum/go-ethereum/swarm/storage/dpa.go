@@ -104,8 +104,8 @@ func (self *DPA) Store(data io.Reader, size int64, swg *sync.WaitGroup, wwg *syn
 }
 
 func (self *DPA) StoreDB(data io.Reader, size int64, swg *sync.WaitGroup, wwg *sync.WaitGroup) (key Key, err error) {
-////////////////
-	return self.Chunker.Split(data, size, self.storeC, swg, wwg, true)
+ 	////////////////
+ 	return self.Chunker.Split(data, size, self.storeC, swg, wwg, true)
 }
 
 func (self *DPA) Start() {
@@ -228,36 +228,45 @@ func (self *dpaChunkStore) Get(key Key) (chunk *Chunk, err error) {
 
 // Put is the entrypoint for local store requests coming from storeLoop
 func (self *dpaChunkStore) Put(entry *Chunk) {
+	if( entry.swarmdb == true ) {
+		log.Debug(fmt.Sprintf("SwarmDB (TRUE) Debugging: Entry is [%+v] with Key [%+v]",entry, entry.Key))
+	} else {
+		log.Debug(fmt.Sprintf("SwarmDB (FALSE) Debugging: Entry is [%+v] with Key [%+v]",entry, entry.Key))
+	}
 	chunk, err := self.localStore.Get(entry.Key)
-	if entry.swarmdb{
+	if entry.swarmdb {
 		chunk = entry
 		ekey := fmt.Sprintf("%v", entry.Key)
-		
-		keylen := len(ekey)
+ 		keylen := len(ekey)
 		dummy := bytes.Repeat([]byte("Z"), keylen)
-    		idx := make([]byte, len(chunk.SData)-8)
-		copy(idx, chunk.SData[8:])
-		log.Trace(fmt.Sprintf("DPA.PutDB %v: %v len(sdata) = %v, keylen = %v key = %v", chunk.SData, idx, len(chunk.SData), keylen, entry.Key))
-		newkeybase := string(chunk.SData[8:len(chunk.SData)-keylen])+string(dummy)
-	    	chunker := NewTreeChunker(NewChunkerParams())
-    		r := strings.NewReader(newkeybase)
-    	chunk.Key, err = chunker.Split(r, int64(len(newkeybase)), nil, nil, nil, false)
-		log.Trace(fmt.Sprintf("DPA.PutDB basekey = %v: key = %v sdata = %v", newkeybase, entry.Key, chunk.SData))
-	}else if err != nil {
-		log.Trace(fmt.Sprintf("DPA.Put: %v new chunk. call netStore.Put", entry.Key.Log()))
+		idx := make([]byte, len(chunk.SData)-8)
+ 		copy(idx, chunk.SData[8:])
+		contentPrefixStart := 512+8
+		contentPrefixEnd := 576+8
+		newkeybase_bytes := chunk.SData[contentPrefixStart:contentPrefixEnd]
+ 		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB keybase bytes: [%+v][%s]", newkeybase_bytes, string(newkeybase_bytes)))
+ 		newkeybase := string(newkeybase_bytes)+string(dummy)
+ 		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB keybase used: [%+v][%s]", newkeybase, string(newkeybase)))
+ 	    	chunker := NewTreeChunker(NewChunkerParams())
+ 		r := strings.NewReader(newkeybase)
+ 		chunk.Key, err = chunker.Split(r, int64(len(newkeybase)), nil, nil, nil, false)
+ 		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB new Chunk.Key [%s][%v]", entry.Key, entry.Key))
+ 		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB basekey = %v: key = %v sdata = %v(%s) chunkKey=[%v][%s]", newkeybase, entry.Key, chunk.SData, chunk.SData, chunk.Key, chunk.Key))
+ 	} else if err != nil {
+		log.Debug(fmt.Sprintf("DPA.Put: %v new chunk. call netStore.Put Entry Details %+v", entry.Key.Log(), entry))
 		chunk = entry
 	} else if chunk.SData == nil {
-		log.Trace(fmt.Sprintf("DPA.Put: %v request entry found", entry.Key.Log()))
+		log.Debug(fmt.Sprintf("DPA.Put: %v request entry found. Entry Details: [%v]", entry.Key.Log(), entry))
 		chunk.SData = entry.SData
 		chunk.Size = entry.Size
 	} else {
 		log.Trace(fmt.Sprintf("DPA.Put: %v chunk already known", entry.Key.Log()))
-		if !entry.swarmdb{
+		if !entry.swarmdb { 
 			return
 		}
 	}
 	// from this point on the storage logic is the same with network storage requests
-	log.Trace(fmt.Sprintf("DPA.Put %v: %v", self.n, chunk.Key.Log()))
+	log.Debug(fmt.Sprintf("DPA.Put %v: %v", self.n, chunk.Key.Log()))
 	self.n++
 	self.netStore.Put(chunk)
 }

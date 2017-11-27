@@ -23,7 +23,7 @@ import (
 	"hash"
 	"io"
 	"sync"
-    "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 /*
@@ -172,18 +172,12 @@ func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, s
 
 func (self *TreeChunker) split(depth int, treeSize int64, key Key, data io.Reader, size int64, jobC chan *hashJob, chunkC chan *Chunk, errC chan error, quitC chan bool, parentWg, swg, wwg *sync.WaitGroup, swarmdb bool) {
 
-/*
-	buf := make([]byte, 1024)
-	_, _ = io.ReadFull(data, buf)
-
-    log.Trace(fmt.Sprintf("Chunker.split data: %s", buf))
-*/
-    log.Trace(fmt.Sprintf("Chunker.split: %v %v %v %v", treeSize, depth, size, key))
+	log.Trace(fmt.Sprintf("Chunker.split: %v %v %v %v", treeSize, depth, size, key))
 	for depth > 0 && size < treeSize {
 		treeSize /= self.branches
 		depth--
 	}
-    log.Trace(fmt.Sprintf("Chunker.split: %v %v %v", treeSize, depth, size))
+	log.Trace(fmt.Sprintf("Chunker.split: %v %v %v", treeSize, depth, size))
 
 	if depth == 0 {
 		// leaf nodes -> content chunks
@@ -242,7 +236,7 @@ func (self *TreeChunker) split(depth int, treeSize int64, key Key, data io.Reade
 		self.workerCount++
 		go self.hashWorker(jobC, chunkC, errC, quitC, swg, wwg, swarmdb)
 	}
-    log.Trace(fmt.Sprintf("Chunker.split: %v %v %v %v", treeSize, depth, size, key))
+	log.Trace(fmt.Sprintf("Chunker.split: %v %v %v %v", treeSize, depth, size, key))
 	select {
 	case jobC <- &hashJob{key, chunk, size, parentWg}:
 	case <-quitC:
@@ -277,7 +271,6 @@ func (self *TreeChunker) hashChunk(hasher hash.Hash, job *hashJob, chunkC chan *
 	hasher.Write(job.chunk)
 	h := hasher.Sum(nil)
 	log.Trace(fmt.Sprintf("hashChunk: %v %s %v", h , job.chunk, job.size))
-
 	newChunk := &Chunk{
 		Key:   h,
 		SData: job.chunk,

@@ -32,6 +32,7 @@ type URI struct {
 	// * bzzr - raw swarm content
 	// * bzzi - immutable URI of an entry in a swarm manifest
 	//          (address is not resolved)
+	// * swarmdb - an entry for raw swarmdb content
 	Scheme string
 
 	// Addr is either a hexadecimal storage key or it an address which
@@ -52,7 +53,7 @@ type URI struct {
 // * <scheme>://<addr>
 // * <scheme>://<addr>/<path>
 //
-// with scheme one of bzz, bzzr or bzzi
+// with scheme one of swarmdb, bzz, bzzr or bzzi
 func Parse(rawuri string) (*URI, error) {
 	u, err := url.Parse(rawuri)
 	if err != nil {
@@ -62,7 +63,7 @@ func Parse(rawuri string) (*URI, error) {
 
 	// check the scheme is valid
 	switch uri.Scheme {
-	case "bzz", "bzzi", "bzzr":
+	case "bzz", "bzzi", "bzzr", "swarmdb":
 	default:
 		return nil, fmt.Errorf("unknown scheme %q", u.Scheme)
 	}
@@ -84,6 +85,10 @@ func Parse(rawuri string) (*URI, error) {
 		uri.Path = parts[1]
 	}
 	return uri, nil
+}
+
+func (u *URI) Swarmdb() bool {
+	return u.Scheme == "swarmdb"
 }
 
 func (u *URI) Raw() bool {

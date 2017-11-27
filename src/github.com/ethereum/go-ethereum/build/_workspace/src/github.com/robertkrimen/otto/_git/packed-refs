@@ -1,0 +1,4 @@
+# pack-refs with: peeled fully-peeled 
+87e059e861de648c010cbe250391d4b537887128 refs/remotes/origin/github
+68a29f5e29b18d7367e686c43cf74eba1900f548 refs/remotes/origin/master
+6c010e87afad6043ad954d0539c88f6555e6ff4f refs/remotes/origin/mongolian

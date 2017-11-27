@@ -17,17 +17,19 @@
 package testutil
 
 import (
-	"io/ioutil"
+	//"io/ioutil"
 	"net/http/httptest"
 	"os"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/swarm/api"
-	httpapi "github.com/ethereum/go-ethereum/swarm/api/http"
+	//"github.com/ethereum/go-ethereum/swarm/api"
+	//httpapi "github.com/ethereum/go-ethereum/swarm/api/http"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 )
 
-func NewTestSwarmServer(t *testing.T) *TestSwarmServer {
+//func NewTestSwarmServer(t *testing.T) *TestSwarmServer {
+func NewTestSwarmServer(t *testing.T) {
+/*
 	dir, err := ioutil.TempDir("", "swarm-storage-test")
 	if err != nil {
 		t.Fatal(err)
@@ -48,6 +50,7 @@ func NewTestSwarmServer(t *testing.T) *TestSwarmServer {
 		Chunker:    chunker,
 		ChunkStore: localStore,
 	}
+
 	dpa.Start()
 	a := api.NewApi(dpa, nil)
 	srv := httptest.NewServer(httpapi.NewServer(a))
@@ -56,6 +59,7 @@ func NewTestSwarmServer(t *testing.T) *TestSwarmServer {
 		Dpa:    dpa,
 		dir:    dir,
 	}
+*/
 }
 
 type TestSwarmServer struct {
