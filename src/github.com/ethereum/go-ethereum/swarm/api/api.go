@@ -17,7 +17,6 @@
 package api
 
 import (
-    //"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,23 +30,12 @@ import (
 	"path/filepath"
 	"reflect"
 	"time"
-    "reflect"
 
 	"github.com/ethereum/go-ethereum/common"
-<<<<<<< HEAD
-	//"github.com/ethereum/go-ethereum/contracts/ens"
-	"github.com/ethereum/go-ethereum/core/types"
-    //"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/swarm/storage"
-	//"github.com/ethereum/go-ethereum/trie"
-	//"github.com/syndtr/goleveldb/leveldb"
-=======
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 //	"github.com/ethereum/go-ethereum/swarmdb/database"
->>>>>>> upstream/master
 )
 
 var (
@@ -70,42 +58,26 @@ type Api struct {
 	dpa *storage.DPA
 	dns Resolver
 	hashdbroot  *Node
-<<<<<<< HEAD
-	ldb  *storage.LDBDatabase 
-	manifestroot []byte
-	trie *manifestTrie
-=======
  	ldb  *storage.LDBDatabase 
  	manifestroot []byte
  	trie *manifestTrie
->>>>>>> upstream/master
 }
 
 //the api constructor initialises
 func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
-	hr := NewRootNode([]byte("RootNode"), nil)
 	self = &Api{
 		dpa: dpa,
 		dns: dns,
-		hashdbroot:  hr,
 	}
 	return
 }
 
-<<<<<<< HEAD
-//the api constructor initialises
-=======
->>>>>>> upstream/master
 func NewApiTest(dpa *storage.DPA, dns Resolver, ldb *storage.LDBDatabase) (self *Api) {
 	rn, err := ldb.Get([]byte("RootNode"))
 	hr := NewRootNode([]byte("RootNode"), nil)
 	if err == nil{
 		hr.NodeHash = rn
 	}
-<<<<<<< HEAD
-	hr.Root = true
-=======
->>>>>>> upstream/master
     self = &Api{
 		dpa: dpa,
 		dns: dns,
@@ -156,22 +128,6 @@ func (self *Api) Store(data io.Reader, size int64, wg *sync.WaitGroup) (key stor
 	return self.dpa.Store(data, size, wg, nil)
 }
 
-<<<<<<< HEAD
-func (self *Api) StoreDB(data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
-	return self.dpa.StoreDB(data, size, wg, nil)
-}
-
-func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
-	key, err = self.dpa.Store(data, size, wg, nil)
-	self.HashDBAdd([]byte(tkey), key, wg)
-	return 
-}
-
-func (self *Api)HashDBAdd(k []byte, v Val, wg *sync.WaitGroup){
-    self.hashdbroot.Add(k, v, self, wg)
-}
-=======
->>>>>>> upstream/master
 
 type ErrResolve error
 
@@ -234,23 +190,6 @@ func (self *Api) PutTest(content, contentType, deviceid, email, phone string) (s
 	email = strings.TrimSpace(email)
 	phone = strings.TrimSpace(phone)
 	log.Debug(fmt.Sprintf("api PutTest1:-%s-%s-%s-", deviceid, email, phone))
-<<<<<<< HEAD
-    r := strings.NewReader(content)
-    wg := &sync.WaitGroup{}
-    key, err := self.dpa.Store(r, int64(len(content)), wg, nil)
-    if err != nil {
-        return nil, err
-    }
-	keys := fmt.Sprintf("%v", key)
-    dbwg := &sync.WaitGroup{}
-	dbcontent := deviceid+keys
-	rdb := strings.NewReader(dbcontent)
-	dbkey, dberr := self.dpa.StoreDB(rdb, int64(len(dbcontent)), dbwg, nil)
-    if dberr != nil {
-        return nil, err
-    }
-    log.Debug(fmt.Sprintf("api PutTest StoreDB: %s %s %s", deviceid, key, dbkey))
-=======
     	r := strings.NewReader(content)
     	wg := &sync.WaitGroup{}
     	key, err := self.dpa.Store(r, int64(len(content)), wg, nil)
@@ -266,7 +205,6 @@ func (self *Api) PutTest(content, contentType, deviceid, email, phone string) (s
         	return nil, err
     	}
     	log.Debug(fmt.Sprintf("api PutTest StoreDB: %s %s %s", deviceid, key, dbkey))
->>>>>>> upstream/master
 /*
     entry := &ManifestEntry{
 		Hash: key,
@@ -288,19 +226,6 @@ func (self *Api) PutTest(content, contentType, deviceid, email, phone string) (s
 */
 	if len(deviceid) > 0 {
 		log.Debug(fmt.Sprintf("api PutTest PUT: %s %s %s", deviceid, key, string(key)))
-<<<<<<< HEAD
-    	self.ldb.Put([]byte(deviceid), []byte(keys))
-	}
-	if len(email) > 0 {
-		log.Debug(fmt.Sprintf("api PutTest PUT: %s %s %s", email, key, string(key)))
-    	self.ldb.Put([]byte(email), []byte(keys))
-	}
-	if len(phone) > 0 {
-		log.Debug(fmt.Sprintf("api PutTest PUT: %s %s %s", phone, key, string(key)))
-    	self.ldb.Put([]byte(phone), []byte(keys))
-	}
-    //self.ldb.Put([]byte(deviceid), []byte("testtest"))
-=======
     		self.ldb.Put([]byte(deviceid), []byte(keys))
 	}
 	if len(email) > 0 {
@@ -312,7 +237,6 @@ func (self *Api) PutTest(content, contentType, deviceid, email, phone string) (s
     		self.ldb.Put([]byte(phone), []byte(keys))
 	}
     	//self.ldb.Put([]byte(deviceid), []byte("testtest"))
->>>>>>> upstream/master
 	log.Debug(fmt.Sprintf("api PutTest2: %s %s %s", deviceid, key, string(key)))
 	log.Debug(fmt.Sprintf("ldb type %v %v ", reflect.TypeOf(deviceid), reflect.TypeOf(key)))
 
@@ -320,26 +244,12 @@ func (self *Api) PutTest(content, contentType, deviceid, email, phone string) (s
 	self.SubmitManifest()
 	log.Debug(fmt.Sprintf("finish Api.SubmitManifest"))
 
-<<<<<<< HEAD
-    wg.Wait()
-    return key, nil
-=======
     	wg.Wait()
     	return key, nil
->>>>>>> upstream/master
 }
 
 func (self *Api) PutTable(content, contentType, id, tableid string) (storage.Key, error) {
 	uid := tableid + "_" + id
-<<<<<<< HEAD
-    r := strings.NewReader(content)
-    wg := &sync.WaitGroup{}
-    key, err := self.dpa.Store(r, int64(len(content)), wg, nil)
-	log.Debug(fmt.Sprintf("api PutTable: %s %s %s", id, tableid, uid, string(key)))
-	if err != nil {
-        return nil, err
-    }
-=======
     	r := strings.NewReader(content)
     	wg := &sync.WaitGroup{}
     	key, err := self.dpa.Store(r, int64(len(content)), wg, nil)
@@ -347,7 +257,6 @@ func (self *Api) PutTable(content, contentType, id, tableid string) (storage.Key
 	if err != nil {
  	       return nil, err
     	}
->>>>>>> upstream/master
 	keys := fmt.Sprintf("%v", key)
    	self.ldb.Put([]byte(uid), []byte(keys))
 	log.Debug(fmt.Sprintf("api PutTest2: %s %s", uid, string(key)))
@@ -355,13 +264,8 @@ func (self *Api) PutTable(content, contentType, id, tableid string) (storage.Key
 	self.SubmitManifest()
 	log.Debug(fmt.Sprintf("finish Api.SubmitManifest"))
 
-<<<<<<< HEAD
-    wg.Wait()
-    return key, nil
-=======
     	wg.Wait()
     	return key, nil
->>>>>>> upstream/master
 }
 
 // Get uses iterative manifest retrieval and prefix matching
@@ -378,20 +282,13 @@ func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionRe
 	log.Trace(fmt.Sprintf("getEntry(%s)", path))
 
 	entry, _ := trie.getEntry(path)
-<<<<<<< HEAD
-    log.Trace(fmt.Sprintf("getmain entry 1: %v '%v'", entry, path))
-=======
 	log.Trace(fmt.Sprintf("getmain entry 1: %v '%v'", entry, path))
->>>>>>> upstream/master
 
 	if entry != nil {
 		key = common.Hex2Bytes(entry.Hash)
 		status = entry.Status
 		mimeType = entry.ContentType
-<<<<<<< HEAD
-=======
 		log.Trace(fmt.Sprintf("content lookup key: '%v' (%v)", key, mimeType))
->>>>>>> upstream/master
 		log.Trace(fmt.Sprintf("content lookup key: %v '%v' (%v)", entry.Hash, key, mimeType))
 		reader = self.dpa.Retrieve(key)
 	} else {
@@ -403,16 +300,6 @@ func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionRe
 }
 
 func (self *Api) GetHashDB(path string) (value storage.Key) {
-<<<<<<< HEAD
-	v := self.hashdbroot.Get([]byte(path), self)
-	value = convertToByte(v)
-    log.Trace(fmt.Sprintf("GetHashDB res: %v '%v' %v", path, value))
-	return
-}
-
-func (self *Api) GetManifestRoot()(storage.Key) {
-    key, _ := self.ldb.Get([]byte("manifestroot"))
-=======
 	log.Trace(fmt.Sprintf("GetHashDB start: %v %v", path, self.hashdbroot))
 	v := self.hashdbroot.Get([]byte(path), self)
 	if v == nil {
@@ -452,7 +339,6 @@ func (self *Api) StoreTableData(table string, rootkey []byte)([]byte) {
 
 func (self *Api) GetManifestRoot()(storage.Key) {
     	key, _ := self.ldb.Get([]byte("manifestroot"))
->>>>>>> upstream/master
 	return key
 }
 
@@ -478,21 +364,12 @@ func (self *Api) GetTest(path string) (reader storage.LazySectionReader, mimeTyp
 	trie := self.trie
 	log.Debug(fmt.Sprintf("api GetTest self.manifestroot: ",self.manifestroot))
 
-<<<<<<< HEAD
-    log.Trace(fmt.Sprintf("getEntry(%s)", path))
-
-    entry, _ := trie.getEntry(path)
-	var ldbkey []byte
-
-    log.Trace(fmt.Sprintf("gettest entry 1: %v '%v'", entry, path))
-=======
     	log.Trace(fmt.Sprintf("getEntry(%s)", path))
 
     	entry, _ := trie.getEntry(path)
 	var ldbkey []byte
 
 	log.Trace(fmt.Sprintf("gettest entry 1: %v '%v'", entry, path))
->>>>>>> upstream/master
 	if entry == nil {
 		ldbkey, _ =self.ldb.Get([]byte(path))
     	log.Trace(fmt.Sprintf("gettest entry 1.5: %v '%v'", entry, path))
@@ -513,22 +390,6 @@ func (self *Api) GetTest(path string) (reader storage.LazySectionReader, mimeTyp
 	    log.Warn(fmt.Sprintf("entry null key ldb %v", ldbkey))
 	}
 
-<<<<<<< HEAD
-    if entry != nil {
-        key = common.Hex2Bytes(entry.Hash)
-        status = entry.Status
-        mimeType = entry.ContentType
-        log.Trace(fmt.Sprintf("content lookup key: %v '%v' (%v)", entry.Hash, key, mimeType))
-        reader = self.dpa.Retrieve(key)
-    } else if ldbkey != nil{
-		
-	} else {
-        status = http.StatusNotFound
-        err = fmt.Errorf("manifest entry for '%s' not found", path)
-        log.Warn(fmt.Sprintf("%v", err))
-    }
-    return
-=======
     	if entry != nil {
         	key = common.Hex2Bytes(entry.Hash)
 	        status = entry.Status
@@ -543,7 +404,6 @@ func (self *Api) GetTest(path string) (reader storage.LazySectionReader, mimeTyp
         	log.Warn(fmt.Sprintf("%v", err))
     	}
     	return
->>>>>>> upstream/master
 }
 
 
@@ -649,13 +509,8 @@ func (self *Api) RemoveFile(mhash, path, fname string, nameresolver bool) (strin
 
 func (self *Api) SubmitManifest(){
 	log.Debug(fmt.Sprintf("Api.SubmitManifest start: "))
-<<<<<<< HEAD
-    mkey, err := self.ldb.Get([]byte("manifestroot"))
-    testkey, err := self.ldb.Get([]byte("nooooooooooo"))
-=======
     	mkey, err := self.ldb.Get([]byte("manifestroot"))
     	testkey, err := self.ldb.Get([]byte("nooooooooooo"))
->>>>>>> upstream/master
 	log.Debug(fmt.Sprintf("Api.SubmitManifest mkey: %v %s %v", mkey, string(mkey), testkey))
 	mkey = nil
 	if mkey == nil{
@@ -707,11 +562,7 @@ func (self *Api) SubmitManifest(){
 	log.Debug(fmt.Sprintf("Api.SubmitManifest[%v]: ", trie.hash))
 */
 	
-<<<<<<< HEAD
-    mw, err := self.NewManifestWriter(mkey, nil)
-=======
     	mw, err := self.NewManifestWriter(mkey, nil)
->>>>>>> upstream/master
 	if err != nil {
 		log.Debug(fmt.Sprintf("SubmitManifest NewManifestWriter error %v", err))
 	}
@@ -722,21 +573,6 @@ func (self *Api) SubmitManifest(){
 	for iter.Next(){
 		ikey := iter.Key()
 		ivalue := iter.Value()
-<<<<<<< HEAD
-        entry := &ManifestEntry{
-            Path:       string(ikey),  
-            ContentType: contentType,
-			ModTime:     time.Now(),
-        }
-        entry.Hash = string(ivalue)
-    	err := mw.AddPath(entry)
-		log.Debug(fmt.Sprintf("AddPath error %v", err))
-    }
-
-	newkey, err := mw.Store()
-	keys := fmt.Sprintf("%v", newkey)
-    self.ldb.Put([]byte("manifestroot"), []byte(keys))
-=======
         	entry := &ManifestEntry{
             		Path:       string(ikey),  
             		ContentType: contentType,
@@ -750,7 +586,6 @@ func (self *Api) SubmitManifest(){
 	newkey, err := mw.Store()
 	keys := fmt.Sprintf("%v", newkey)
     	self.ldb.Put([]byte("manifestroot"), []byte(keys))
->>>>>>> upstream/master
 	log.Debug(fmt.Sprintf("dns type = %s %v", reflect.TypeOf(self.dns), self.dns))
 	//ens := (*ens.ENS)(self.dns)
 	self.dns.Register("wolktable.eth")
@@ -759,10 +594,7 @@ func (self *Api) SubmitManifest(){
 	//log.Debug(fmt.Sprintf("Api.SubmitManifest[%s]%s: ", fkey, string(newkey)))
 }
 
-<<<<<<< HEAD
-=======
 
->>>>>>> upstream/master
 func (self *Api) AppendFile(mhash, path, fname string, existingSize int64, content []byte, oldKey storage.Key, offset int64, addSize int64, nameresolver bool) (storage.Key, string, error) {
 
 	buffSize := offset + addSize
