@@ -459,6 +459,18 @@ func (self *Node) Update(updatekey []byte, updatevalue []byte) (newnode *Node, e
 	return self, err
 }
 
-func (self *HashDB) Close() {
+func (self *HashDB) Close()(bool, error) {
+	return true, nil
+}
+
+func (self *HashDB)StartBuffer()(bool, error){
+	return true, nil
+}
+
+func(self *HashDB)FlushBuffer()(bool, error){
+	return true, nil
+}
+
+func Print(){
 	return
 }
