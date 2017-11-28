@@ -30,24 +30,28 @@ func NewKademliaDB(api *Api) (*KademliaDB, error) {
 	return kd, nil
 }
 
-func (self *KademliaDB) Open(tableName []byte, column []byte) (err error) {
+func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte) (bool, error) {
+	self.owner = owner
 	self.tableName = tableName
 	self.column = column
 
-	return nil
+	return true, nil
 }
 
-func (self *KademliaDB) Insert(k, v []byte) error {
-	res, _ := self.Get(k)
+func (self *KademliaDB) Insert(k, v []byte) (bool, error) {
+	res, _, _ := self.Get(k)
 	if res != nil {
 		err := fmt.Errorf("%s is already in Database", string(k))
-		return err
+		return false, err
 	}
-	err := self.Put(k, v)
-	return err
+	_, err := self.Put(k, v)
+	if err != nil {
+		return false, nil
+	}
+	return true, err
 }
 
-func (self *KademliaDB) Put(k, v []byte) error {
+func (self *KademliaDB) Put(k, v []byte) (bool, error) {
 	//log.Debug(fmt.Sprintf("In Kademlia r.uri(%v) r.uri.Path(%v) r.uri.Addr(%v)", r.uri, r.uri.Path, r.uri.Addr))
 
 	postData := string(v)
@@ -60,14 +64,14 @@ func (self *KademliaDB) Put(k, v []byte) error {
 	raw_indexkey, err := self.api.StoreDB(rdb, postDataLen, dbwg)
 	if err != nil {
 		//s.Error(w, r, err)
-		return nil
+		return false, err
 	}
 	log.Debug("Index content stored (postData=[%v]) for raw_indexkey.Log [%s] [%+v] (size of [%+v])", string(postData), raw_indexkey.Log(), raw_indexkey, postDataLen)
 	log.Debug(fmt.Sprintf("KademliaDB Add ", self))
-	return nil
+	return true, nil
 }
 
-func (self *KademliaDB) Get(k []byte) ([]byte, error) {
+func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
 	keylen := 64 ///////..........
 	dummy := bytes.Repeat([]byte("Z"), keylen)
 
@@ -87,7 +91,7 @@ func (self *KademliaDB) Get(k []byte) ([]byte, error) {
 	//reader := self.api.dpa.Retrieve(self.NodeHash)
 	if _, err := contentReader.Size(nil); err != nil {
 		log.Debug("key not found %s: %s", key, err)
-		return nil, fmt.Errorf("key not found: %s", err)
+		return nil, false, fmt.Errorf("key not found: %s", err)
 	}
 
 	contentReaderSize, _ := contentReader.Size(nil)
@@ -100,17 +104,17 @@ func (self *KademliaDB) Get(k []byte) ([]byte, error) {
 	response_reader := bytes.NewReader(encryptedContentBytes)
 	/* Current Plan is for Decryption to happen at SwarmDBManager Layer (so commenting out) */
 	/*
-	        decryptedContentBytes := s.DecryptData(encryptedContentBytes)
-	        decrypted_reader := bytes.NewReader(decryptedContentBytes)
-	        log.Debug(fmt.Sprintf("In HandledGetDB got back the 'reader' v[%v] s[%s] ", decrypted_reader, decrypted_reader))
-		response_reader := decrypted_reader
+		        decryptedContentBytes := s.DecryptData(encryptedContentBytes)
+		        decrypted_reader := bytes.NewReader(decryptedContentBytes)
+		        log.Debug(fmt.Sprintf("In HandledGetDB got back the 'reader' v[%v] s[%s] ", decrypted_reader, decrypted_reader))
+			response_reader := decrypted_reader
 	*/
 
 	queryResponse := make([]byte, 4096)             //TODO: match to sizes in metadata content
 	_, _ = response_reader.ReadAt(queryResponse, 0) //TODO: match to sizes in metadata content
 
 	//queryResponseReader := bytes.NewReader(queryResponse)
-	return queryResponse, nil
+	return queryResponse, true, nil
 }
 
 func BuildSwarmdbPrefix(owner string, table string, id string) string {
@@ -126,12 +130,27 @@ func BuildSwarmdbPrefix(owner string, table string, id string) string {
 	return prefix
 }
 
-func (self *KademliaDB) Delete(k []byte) error {
-	err := self.Put(k, nil)
-	return err
+func (self *KademliaDB) Delete(k []byte) (bool, error) {
+	_, err := self.Put(k, nil)
+	if err != nil {
+		return false, err
+	}
+	return true, err
 }
 
-func (self *KademliaDB) Close() {
+func (self *KademliaDB) Close() (bool, error) {
+	return true, nil
+}
+
+func (self *KademliaDB) FlushBuffer() (bool, error) {
+	return true, nil
+}
+
+func (self *KademliaDB) StartBuffer() (bool, error) {
+	return true, nil
+}
+
+func (self *KademliaDB) Print() {
 	return
 }
 
