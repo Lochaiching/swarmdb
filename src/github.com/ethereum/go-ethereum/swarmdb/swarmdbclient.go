@@ -38,7 +38,7 @@ swarmdb> quit();
 package main
 
 import (
-	//"fmt"
+	"fmt"
 	otto "github.com/robertkrimen/otto"
 	repl "github.com/robertkrimen/otto/repl"
 	//"github.com/xwb1989/sqlparser"
@@ -48,7 +48,7 @@ import (
 	// "io"
 	"os"
 	//"strings"
-	//"encoding/json"
+	"encoding/json"
 )
 
 type Table struct {
@@ -78,11 +78,17 @@ func main() {
 	// swarmdb> add("contacts", { "email": "rodney@wolk.com", "name": "Rodney", "age": 38 })
 	// true
 	vm.Set("add", func(call otto.FunctionCall) otto.Value {
-		tbl_name := call.Argument(0).String()
-		rec := call.Argument(1).Object()
-		succ, _ := swarmdb.SWARMDB_add(tbl_name, rec)
-		res, _ := vm.ToValue(succ)
-		return res
+		tablename := call.Argument(0).String()
+		jsonrecord := call.Argument(1).String()
+		record := make(map[string]interface{})
+		if err := json.Unmarshal([]byte(jsonrecord), &record); err != nil {
+			fmt.Printf(err.Error() + ". Please try again\n")
+			result, _ := vm.ToValue(false)
+			return result
+		}
+		success, _ := swarmdb.SWARMDB_add(tablename, record)
+		result, _ := vm.ToValue(success)
+		return result
 	})
 
 	// swarmdb> get("contacts", "rodney@wolk.com")
@@ -90,12 +96,12 @@ func main() {
 	vm.Set("get", func(call otto.FunctionCall) otto.Value {
 		tbl_name := call.Argument(0).String() // e.g. "contacts"
 		id := call.Argument(1).String()       // e.g. "id"
-		json, err := swarmdb.SWARMDB_get(tbl_name, id)
+		jsonrecord, err := swarmdb.SWARMDB_get(tbl_name, id)
 		if err != nil {
 			res, _ := vm.ToValue(err.Error())
 			return res
 		}
-		res, _ := vm.ToValue(json)
+		res, _ := vm.ToValue(jsonrecord)
 		return res
 	})
 
