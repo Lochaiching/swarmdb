@@ -1,48 +1,47 @@
 package tcpip
 
 import (
-	"io"
 	"bufio"
-//	"encoding/go"
+	"io"
+	//	"encoding/go"
 	"fmt"
-//	"log"
+	//	"log"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/swarmdb/database"
 	"net"
 	"strings"
 	"sync"
-        "github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/swarmdb/database"
 )
 
-type Ownerinfo struct{
-	name	string
-	passwd	string
+type Ownerinfo struct {
+	name   string
+	passwd string
 }
 
-type Client struct{
-	conn     net.Conn
-	incoming chan string
-	outgoing chan string
-	reader   *bufio.Reader
-	writer   *bufio.Writer
-	owner	Ownerinfo
-	databases	map[string]map[string]*swarmdb.Database
+type Client struct {
+	conn      net.Conn
+	incoming  chan string
+	outgoing  chan string
+	reader    *bufio.Reader
+	writer    *bufio.Writer
+	owner     Ownerinfo
+	databases map[string]map[string]*swarmdb.Database
 }
 
-type ClientInfo struct{
-	owner	Ownerinfo
-	databases	map[string]map[string]*swarmdb.Database
+type ClientInfo struct {
+	owner     Ownerinfo
+	databases map[string]map[string]*swarmdb.Database
 }
-
 
 func newClient(connection net.Conn) *Client {
 	writer := bufio.NewWriter(connection)
 	reader := bufio.NewReader(connection)
 	client := &Client{
-		conn:     connection,
-		incoming: make(chan string),
-		outgoing: make(chan string),
-		reader:   reader,
-		writer:   writer,
+		conn:      connection,
+		incoming:  make(chan string),
+		outgoing:  make(chan string),
+		reader:    reader,
+		writer:    writer,
 		databases: make(map[string]map[string]*swarmdb.Database),
 	}
 	go client.read()
@@ -72,35 +71,35 @@ func (client *Client) write() {
 	}
 }
 
-
-type Server struct{
-	swarmdb *swarmdb.SwarmDB
+type Server struct {
+	swarmdb  *swarmdb.SwarmDB
 	listener net.Listener
-	clients	[]*Client
-	conn 	chan net.Conn
-	//connections map[string]string	
+	clients  []*Client
+	conn     chan net.Conn
+	//connections map[string]string
 	//conns 	[]net.Conn
-	lock    sync.Mutex
-	incoming	chan string
-	outgoing	chan string
-	owners	map[string]map[string]map[string]*swarmdb.Database
-	clientInfos	map[string]*ClientInfo
+	lock        sync.Mutex
+	incoming    chan string
+	outgoing    chan string
+	owners      map[string]map[string]map[string]*swarmdb.Database
+	clientInfos map[string]*ClientInfo
 }
 
-type ServerConfig struct{
-	Addr	string
-	Port	string
+type ServerConfig struct {
+	Addr string
+	Port string
 }
 
 type HandlerFunc func(map[string]interface{})
 
 type funcCall struct {
-                FuncName string
-                Args     map[string]interface{}
+	FuncName string
+	Args     map[string]interface{}
 }
+
 var registeredHandlers map[string]HandlerFunc
 
-func NewServer(db *swarmdb.SwarmDB, l  net.Listener)(*Server){
+func NewServer(db *swarmdb.SwarmDB, l net.Listener) *Server {
 	sv := new(Server)
 	sv.swarmdb = db
 	sv.listener = l
@@ -115,77 +114,75 @@ func NewServer(db *swarmdb.SwarmDB, l  net.Listener)(*Server){
 }
 
 func StartTCPServer(swarmdb *swarmdb.SwarmDB, config *ServerConfig) {
-        log.Debug(fmt.Sprintf("tcp StartTCPServer"))
+	log.Debug(fmt.Sprintf("tcp StartTCPServer"))
 
 	//listen, err := net.Listen("tcp", config.Port)
-        l, err := net.Listen("tcp", ":2000")
-        log.Debug(fmt.Sprintf("tcp StartTCPServer with 2000"))
-        
+	l, err := net.Listen("tcp", ":2000")
+	log.Debug(fmt.Sprintf("tcp StartTCPServer with 2000"))
+
 	svr := NewServer(swarmdb, l)
 	if err != nil {
 		//log.Fatal(err)
-        	log.Debug(fmt.Sprintf("err"))
+		log.Debug(fmt.Sprintf("err"))
 	}
 	//defer svr.listener.Close()
 
-        registeredHandlers = make(map[string]HandlerFunc)
-        registeredHandlers["TcpipDispatch"] = TcpipDispatch
-
+	registeredHandlers = make(map[string]HandlerFunc)
+	registeredHandlers["TcpipDispatch"] = TcpipDispatch
 
 	svr.listen()
-	for{
+	for {
 		conn, err := svr.listener.Accept()
-		if err != nil{
+		if err != nil {
 		}
 		svr.conn <- conn
 	}
-		if err != nil {
-        		log.Debug(fmt.Sprintf("err"))
-		}
-/*
-	//defer svr.listener.Close()
-    		tcpipReader := bufio.NewReader(conn)
-		message, _ := tcpipReader.ReadString('\n')
-		newmessage := strings.ToUpper(message)
-    		conn.Write([]byte(newmessage + "\n"))
-                var data funcCall
-                dec := gob.NewDecoder(tcpipReader)
-                err = dec.Decode(&data)
-                log.Debug(fmt.Sprintf("[TCPIP] GOB Data: [%v]", data))
-                if err != nil {
-                        log.Debug(fmt.Sprintf("[TCPIP] Error decoding GOB data:", err))
-                        return 
-                }
-                log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.FuncName))
-                log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.Args))
-                registeredHandlers[data.FuncName](data.Args)
-*/
+	if err != nil {
+		log.Debug(fmt.Sprintf("err"))
+	}
+	/*
+	   	//defer svr.listener.Close()
+	       		tcpipReader := bufio.NewReader(conn)
+	   		message, _ := tcpipReader.ReadString('\n')
+	   		newmessage := strings.ToUpper(message)
+	       		conn.Write([]byte(newmessage + "\n"))
+	                   var data funcCall
+	                   dec := gob.NewDecoder(tcpipReader)
+	                   err = dec.Decode(&data)
+	                   log.Debug(fmt.Sprintf("[TCPIP] GOB Data: [%v]", data))
+	                   if err != nil {
+	                           log.Debug(fmt.Sprintf("[TCPIP] Error decoding GOB data:", err))
+	                           return
+	                   }
+	                   log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.FuncName))
+	                   log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.Args))
+	                   registeredHandlers[data.FuncName](data.Args)
+	*/
 }
 
 func TcpipDispatch(args map[string]interface{}) {
-        log.Debug(fmt.Sprintf("Printing Args from TCPIP_Printer: \n%#v\n", args))
+	log.Debug(fmt.Sprintf("Printing Args from TCPIP_Printer: \n%#v\n", args))
 }
 
-func (svr *Server) listen(){
-	go func(){
-		for{
-			select{
+func (svr *Server) listen() {
+	go func() {
+		for {
+			select {
 			case conn := <-svr.conn:
 				svr.addClient(conn)
-			case data := <- svr.incoming:
+			case data := <-svr.incoming:
 				svr.selectHandler(data)
 			}
 		}
 	}()
 }
 
-type fd struct{
-	handler	string
-	jsonstr	[]byte
+type fd struct {
+	handler string
+	jsonstr []byte
 }
-	
 
-func parseData(data string)(*fd){
+func parseData(data string) *fd {
 	d := strings.Split(data, " ")
 	r := new(fd)
 	r.handler = d[0]
@@ -193,10 +190,10 @@ func parseData(data string)(*fd){
 	return r
 }
 
-func (svr *Server) selectHandler(data string){
+func (svr *Server) selectHandler(data string) {
 	d := parseData(data)
-	switch d.handler{
-	case "NewClient": 
+	switch d.handler {
+	case "NewClient":
 		//svr.setClientInfo(d.jsonstr)
 	case "OpenDatabase":
 		//svr.HandleOpenDatabase()
@@ -222,15 +219,14 @@ func (svr *Server)setClientInfo(jsonstr []byte)(){
 	svr.clientInfos[conn.RemoteAddr()] = cl
 }
 */
-	
 
-func (svr *Server)addClient(conn net.Conn){
+func (svr *Server) addClient(conn net.Conn) {
 	client := newClient(conn)
 	svr.clients = append(svr.clients, client)
-	go func(){
-		for{
-			svr.incoming <- <- client.incoming
-			client.outgoing <- <- svr.outgoing
+	go func() {
+		for {
+			svr.incoming <- <-client.incoming
+			client.outgoing <- <-svr.outgoing
 		}
 	}()
 }
@@ -245,7 +241,7 @@ func (svr *Server) HandleNewConnection(username, password string)(string, error)
 	}
 /// dummy
 	svr.lock.Lock()
-	sessionid := username 
+	sessionid := username
 	if _, ok := svr.connections[sessionid]; ok {
 	}
 	svr.connections[sessionid] = username
