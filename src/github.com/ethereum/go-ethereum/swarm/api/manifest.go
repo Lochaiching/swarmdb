@@ -188,16 +188,18 @@ type manifestTrieEntry struct {
 
 func loadManifest(dpa *storage.DPA, hash storage.Key, quitC chan bool) (trie *manifestTrie, err error) { // non-recursive, subtrees are downloaded on-demand
 
-	log.Trace(fmt.Sprintf("manifest lookup key: '%v'.", hash.Log()))
+	log.Trace(fmt.Sprintf("manifest lookup key: %v '%v'.", string(hash), hash.Log()))
 	// retrieve manifest via DPA
 	manifestReader := dpa.Retrieve(hash)
 	return readManifest(manifestReader, hash, dpa, quitC)
 }
 
 func readManifest(manifestReader storage.LazySectionReader, hash storage.Key, dpa *storage.DPA, quitC chan bool) (trie *manifestTrie, err error) { // non-recursive, subtrees are downloaded on-demand
+	log.Trace(fmt.Sprintf("read Manifest: '%v'.", hash))
 
 	// TODO check size for oversized manifests
 	size, err := manifestReader.Size(quitC)
+	log.Trace(fmt.Sprintf("read Manifest size: '%v'.", size))
 	if err != nil { // size == 0
 		// can't determine size means we don't have the root chunk
 		err = fmt.Errorf("Manifest not Found")
@@ -218,6 +220,8 @@ func readManifest(manifestReader storage.LazySectionReader, hash storage.Key, dp
 		Entries []*manifestTrieEntry `json:"entries"`
 	}
 	err = json.Unmarshal(manifestData, &man)
+	log.Trace(fmt.Sprintf("manifest unmarshal %v", man))
+	
 	if err != nil {
 		err = fmt.Errorf("Manifest %v is malformed: %v", hash.Log(), err)
 		log.Trace(fmt.Sprintf("%v", err))
@@ -226,6 +230,7 @@ func readManifest(manifestReader storage.LazySectionReader, hash storage.Key, dp
 
 	log.Trace(fmt.Sprintf("Manifest %v has %d entries.", hash.Log(), len(man.Entries)))
 
+	log.Trace(fmt.Sprintf("manifest read trie %v", man))
 	trie = &manifestTrie{
 		dpa: dpa,
 	}
@@ -237,6 +242,7 @@ func readManifest(manifestReader storage.LazySectionReader, hash storage.Key, dp
 
 func (self *manifestTrie) addEntry(entry *manifestTrieEntry, quitC chan bool) {
 	self.hash = nil // trie modified, hash needs to be re-calculated on demand
+	log.Trace(fmt.Sprintf("addEntry %s ", entry.Path))
 
 	if len(entry.Path) == 0 {
 		self.entries[256] = entry
@@ -358,6 +364,7 @@ func (self *manifestTrie) recalcAndStore() error {
 	sr := bytes.NewReader(manifest)
 	wg := &sync.WaitGroup{}
 	key, err2 := self.dpa.Store(sr, int64(len(manifest)), wg, nil)
+    log.Trace(fmt.Sprintf("recalcAndStore manifest = %s key = %v %s", manifest, key, string(key)))
 	wg.Wait()
 	self.hash = key
 	return err2

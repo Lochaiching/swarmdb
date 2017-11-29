@@ -17,11 +17,9 @@
 package swarm
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/ecdsa"
-	"encoding/gob"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -39,10 +37,11 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/swarm/api"
 	httpapi "github.com/ethereum/go-ethereum/swarm/api/http"
-	//tcpip "github.com/ethereum/go-ethereum/swarm/api/tcpip"
+	tcpapi "github.com/ethereum/go-ethereum/swarm/api/tcpip"
 	"github.com/ethereum/go-ethereum/swarm/fuse"
 	"github.com/ethereum/go-ethereum/swarm/network"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+	"github.com/ethereum/go-ethereum/swarmdb/database"
 
 	//"github.com/syndtr/goleveldb/leveldb"
 	"reflect"
@@ -65,7 +64,8 @@ type Swarm struct {
 	swapEnabled bool
 	lstore      *storage.LocalStore // local store, needs to store for releasing resources after node stopped
 	sfs         *fuse.SwarmFS       // need this to cleanup all the active mounts on node exit
-	ldb         *storage.LDBDatabase
+	ldb			*storage.LDBDatabase
+	swarmdb	    *swarmdb.SwarmDB
 }
 
 type SwarmAPI struct {
@@ -160,19 +160,18 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	log.Debug(fmt.Sprintf("type of ens = %s %v", reflect.TypeOf(enstest), enserr))
 	log.Debug(fmt.Sprintf("-> Swarm Domain Name Registrar @ address %v", config.EnsRoot.Hex()))
 
+
+	self.swarmdb = swarmdb.NewSwarmDB(self.api, self.ldb)
 	//self.api = api.NewApi(self.dpa, self.dns, self.lstore.DbStore.getMHash())
 	self.api = api.NewApiTest(self.dpa, self.dns, self.ldb)
 	// Manifests for Smart Hosting
 	log.Debug(fmt.Sprintf("-> Web3 virtual server API"))
 
+
 	self.sfs = fuse.NewSwarmFS(self.api)
 	log.Debug("-> Initializing Fuse file system")
 
 	return self, nil
-}
-
-func TcpipDispatch(args map[string]interface{}) {
-	log.Debug(fmt.Sprintf("Printing Args from TCPIP_Printer: \n%#v\n", args))
 }
 
 /*
@@ -231,11 +230,18 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 			log.Debug(fmt.Sprintf("Swarm http proxy started with corsdomain: %v", self.corsString))
 		}
 	}
-
+	if true{
+		tcpaddr := net.JoinHostPort("127.0.0.1", "8503")
+		go tcpapi.StartTCPServer(self.swarmdb, &tcpapi.ServerConfig{
+			Addr: tcpaddr,
+			Port: "23456",
+		})
+	}
 	/* start of mayumi tcp/ip server call */
 	//tcpip.StartTCPServer(self)
 
 	/* start of tcp/ip server code */
+/*
 	type HandleFunc func(map[string]interface{})
 
 	var handlerArray map[string]HandleFunc
@@ -278,13 +284,12 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 		handlerArray[data.FuncName](data.Args)
 		conn.Write([]byte("Request processed successfully\n"))
 		//return nil
-		/*
-			channel := make(chan string)
-			go request_handler(conn, channel)
-			go send_data(conn, channel)
-		*/
+	//		channel := make(chan string)
+	//		go request_handler(conn, channel)
+	//		go send_data(conn, channel)
 	}
-	//end of tcp/ip server code
+*/
+	return nil
 }
 
 // implements the node.Service interface
