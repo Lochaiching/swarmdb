@@ -64,8 +64,8 @@ type Swarm struct {
 	swapEnabled bool
 	lstore      *storage.LocalStore // local store, needs to store for releasing resources after node stopped
 	sfs         *fuse.SwarmFS       // need this to cleanup all the active mounts on node exit
-	ldb			*storage.LDBDatabase
-	swarmdb	    *swarmdb.SwarmDB
+	ldb         *storage.LDBDatabase
+	swarmdb     *swarmdb.SwarmDB
 }
 
 type SwarmAPI struct {
@@ -160,13 +160,11 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	log.Debug(fmt.Sprintf("type of ens = %s %v", reflect.TypeOf(enstest), enserr))
 	log.Debug(fmt.Sprintf("-> Swarm Domain Name Registrar @ address %v", config.EnsRoot.Hex()))
 
-
 	self.swarmdb = swarmdb.NewSwarmDB(self.api, self.ldb)
 	//self.api = api.NewApi(self.dpa, self.dns, self.lstore.DbStore.getMHash())
 	self.api = api.NewApiTest(self.dpa, self.dns, self.ldb)
 	// Manifests for Smart Hosting
 	log.Debug(fmt.Sprintf("-> Web3 virtual server API"))
-
 
 	self.sfs = fuse.NewSwarmFS(self.api)
 	log.Debug("-> Initializing Fuse file system")
@@ -230,7 +228,7 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 			log.Debug(fmt.Sprintf("Swarm http proxy started with corsdomain: %v", self.corsString))
 		}
 	}
-	if true{
+	if true {
 		tcpaddr := net.JoinHostPort("127.0.0.1", "8503")
 		go tcpapi.StartTCPServer(self.swarmdb, &tcpapi.ServerConfig{
 			Addr: tcpaddr,
@@ -241,54 +239,54 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 	//tcpip.StartTCPServer(self)
 
 	/* start of tcp/ip server code */
-/*
-	type HandleFunc func(map[string]interface{})
+	/*
+		type HandleFunc func(map[string]interface{})
 
-	var handlerArray map[string]HandleFunc
-	handlerArray = make(map[string]HandleFunc)
-	handlerArray["TcpipDispatch"] = TcpipDispatch
+		var handlerArray map[string]HandleFunc
+		handlerArray = make(map[string]HandleFunc)
+		handlerArray["TcpipDispatch"] = TcpipDispatch
 
-	type funcCall struct {
-		FuncName string
-		Args     map[string]interface{}
-	}
+		type funcCall struct {
+			FuncName string
+			Args     map[string]interface{}
+		}
 
-	psock, err := net.Listen("tcp", ":5000")
-	if err != nil {
-		return nil
-	}
-
-	conn, err := psock.Accept()
-	if err != nil {
-		log.Debug(fmt.Sprintf("TCPIP: Error connecting"))
-		return nil
-	}
-	for {
-		tcpipReader := bufio.NewReader(conn)
-		message, _ := tcpipReader.ReadString('\n')
-		// output message received
-		conn.Write([]byte("GOB received\n"))
-		log.Debug("[TCPIP] Message Received: [%s]", string(message))
-		log.Debug("[TCPIP] READER: [%+v]", tcpipReader)
-		var data funcCall
-		dec := gob.NewDecoder(tcpipReader)
-		log.Debug(fmt.Sprintf("[TCPIP] GOB Decoder: [%v]", dec))
-		err = dec.Decode(&data)
-		log.Debug(fmt.Sprintf("[TCPIP] GOB Data: [%v]", data))
+		psock, err := net.Listen("tcp", ":5000")
 		if err != nil {
-			log.Debug(fmt.Sprintf("[TCPIP] Error decoding GOB data:", err))
 			return nil
 		}
-		log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.FuncName))
-		log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.Args))
-		handlerArray[data.FuncName](data.Args)
-		conn.Write([]byte("Request processed successfully\n"))
-		//return nil
-	//		channel := make(chan string)
-	//		go request_handler(conn, channel)
-	//		go send_data(conn, channel)
-	}
-*/
+
+		conn, err := psock.Accept()
+		if err != nil {
+			log.Debug(fmt.Sprintf("TCPIP: Error connecting"))
+			return nil
+		}
+		for {
+			tcpipReader := bufio.NewReader(conn)
+			message, _ := tcpipReader.ReadString('\n')
+			// output message received
+			conn.Write([]byte("GOB received\n"))
+			log.Debug("[TCPIP] Message Received: [%s]", string(message))
+			log.Debug("[TCPIP] READER: [%+v]", tcpipReader)
+			var data funcCall
+			dec := gob.NewDecoder(tcpipReader)
+			log.Debug(fmt.Sprintf("[TCPIP] GOB Decoder: [%v]", dec))
+			err = dec.Decode(&data)
+			log.Debug(fmt.Sprintf("[TCPIP] GOB Data: [%v]", data))
+			if err != nil {
+				log.Debug(fmt.Sprintf("[TCPIP] Error decoding GOB data:", err))
+				return nil
+			}
+			log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.FuncName))
+			log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.Args))
+			handlerArray[data.FuncName](data.Args)
+			conn.Write([]byte("Request processed successfully\n"))
+			//return nil
+		//		channel := make(chan string)
+		//		go request_handler(conn, channel)
+		//		go send_data(conn, channel)
+		}
+	*/
 	return nil
 }
 
