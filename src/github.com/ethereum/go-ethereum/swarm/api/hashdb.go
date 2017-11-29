@@ -44,7 +44,11 @@ type Node struct{
 func NewHashDB(rootnode []byte, api *Api) (*HashDB, error){
 	hd := new(HashDB)
 	n := NewNode(nil, nil)
-	n.NodeHash = rootnode
+	if rootnode == nil{
+		n.Root = true
+	}else{
+		n.NodeHash = rootnode
+	}
 	hd.rootnode = n
 	hd.api = api
 	return hd, nil	
@@ -122,9 +126,9 @@ func newRootNode(k []byte, val Val, l int, version int, NodeKey []byte) *Node{
 	return rootnode
 }
 
-func (self *HashDB)Put(k, v[]byte) (error){
+func (self *HashDB)Put(k, v[]byte) (bool, error){
 	self.rootnode.Add(k, v, self.api)
-	return nil
+	return true, nil
 }
 
 func (self *HashDB)GetRootNode() []byte{
@@ -290,10 +294,14 @@ func (self *Node)storeBinToNetwork(api *Api) []byte{
 	return adhash
 }
 
-func (self *HashDB)Get(k []byte)([]byte, error){
+func (self *HashDB)Get(k []byte)([]byte, bool, error){
 	ret := self.rootnode.Get(k, self.api) 
+	b := true
+	if ret == nil{
+		b = false
+	}
 	value := convertToByte(ret)
-	return value, nil
+	return value, b, nil
 }
 
 func (self *Node)Get(k []byte, api *Api) Val{
@@ -379,12 +387,12 @@ func (self *Node)load(api *Api){
 }	
 
 func (self *HashDB)Insert(k, v []byte) error{
-	res, _ := self.Get(k)
-	if res != nil {
+	res, b, _ := self.Get(k)
+	if res != nil || b{
 		err := fmt.Errorf("%s is already in Database", string(k))
 		return err
 	}
-	err := self.Put(k, v)
+	_, err := self.Put(k, v)
 	return err
 }
 
