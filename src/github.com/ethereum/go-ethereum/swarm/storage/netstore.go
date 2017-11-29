@@ -21,7 +21,10 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+	//"bytes"
+	//"strings"
 
+	//"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -95,7 +98,7 @@ var (
 // caller needs to make sure if that is wanted
 func (self *NetStore) Put(entry *Chunk) {
 	self.localStore.Put(entry)
-
+	log.Trace(fmt.Sprintf("NetStore.Put: entry %v %v %s", entry, entry.Key, string(entry.SData)))
 	// handle deliveries
 	if entry.Req != nil {
 		log.Trace(fmt.Sprintf("NetStore.Put: localStore.Put %v hit existing request...delivering", entry.Key.Log()))
@@ -130,6 +133,7 @@ func (self *NetStore) Get(key Key) (*Chunk, error) {
 	chunk = NewChunk(key, newRequestStatus(key))
 	self.localStore.memStore.Put(chunk)
 	go self.cloud.Retrieve(chunk)
+	log.Trace(fmt.Sprintf("NetStore.Get From Net: %v %v", key, string(chunk.SData)))
 	return chunk, nil
 }
 

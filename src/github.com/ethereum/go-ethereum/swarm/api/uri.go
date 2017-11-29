@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+    "github.com/ethereum/go-ethereum/log"
+
 )
 
 // URI is a reference to content stored in swarm.
@@ -68,6 +70,7 @@ func Parse(rawuri string) (*URI, error) {
 
 	// handle URIs like bzz://<addr>/<path> where the addr and path
 	// have already been split by url.Parse
+	log.Debug(fmt.Sprintf("URI : %v : %v : %v: ", u.Path, u.Host, uri.Scheme))
 	if u.Host != "" {
 		uri.Addr = u.Host
 		uri.Path = strings.TrimLeft(u.Path, "/")

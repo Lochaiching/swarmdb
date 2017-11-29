@@ -607,7 +607,7 @@ func (self *syncer) syncDeliveries() {
 				log.Warn(fmt.Sprintf("syncer[%v]: failed to deliver %v: %v", self.key.Log(), req, err))
 			} else {
 				success++
-				log.Trace(fmt.Sprintf("syncer[%v]: %v successfully delivered", self.key.Log(), req))
+				log.Trace(fmt.Sprintf("syncer[%v]: %v %v successfully delivered", self.key.Log(), req, self.key))
 			}
 		}
 		if total%self.SyncBatchSize == 0 {
@@ -722,6 +722,7 @@ func (self *syncer) replay() func(req interface{}, quit chan bool) bool {
 func (self *syncer) newStoreRequestMsgData(req interface{}) (*storeRequestMsgData, error) {
 
 	key, id, chunk, sreq, err := parseRequest(req)
+	log.Trace(fmt.Sprintf("syncer newStoreRequestMsgData key = %v id = %v sreq = %v", key, id, sreq))
 	if err != nil {
 		return nil, err
 	}
@@ -741,6 +742,7 @@ func (self *syncer) newStoreRequestMsgData(req interface{}) (*storeRequestMsgDat
 			SData: chunk.SData,
 		}
 	}
+	log.Trace(fmt.Sprintf("syncer newStoreRequestMsgData2 key = %v id = %v sreq = %v", key, id, sreq))
 
 	return sreq, nil
 }

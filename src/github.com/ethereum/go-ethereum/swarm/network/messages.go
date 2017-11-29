@@ -42,6 +42,7 @@ const (
 	deliveryRequestMsg        // 0x06
 	unsyncedKeysMsg           // 0x07
 	paymentMsg                // 0x08
+	manifestRequestMsg        // 0x09
 )
 
 /*
@@ -99,6 +100,33 @@ func (self storeRequestMsgData) String() string {
 	}
 	return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end])
 }
+
+type storeRequestDBMsgData struct {
+    Key   storage.Key // hash of datasize | data
+    SData []byte      // the actual chunk Data
+    IndexData []byte      // index
+    SHash []byte      // Swarm Hash
+    // optional
+    Id             uint64     // request ID. if delivery, the ID is retrieve request ID
+    requestTimeout *time.Time // expiry for forwarding - [not serialised][not currently used]
+    storageTimeout *time.Time // expiry of content - [not serialised][not currently used]
+    from           *peer      // [not serialised] protocol registers the requester
+}
+
+func (self storeRequestDBMsgData) String() string {
+    var from string
+    if self.from == nil {
+        from = "self"
+    } else {
+        from = self.from.Addr().String()
+    }
+    end := len(self.SData)
+    if len(self.SData) > 10 {
+        end = 10
+    }
+    return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end])
+}
+
 
 /*
 Retrieve request
