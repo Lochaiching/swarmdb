@@ -39,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/swarm/api"
 	httpapi "github.com/ethereum/go-ethereum/swarm/api/http"
+	//tcpip "github.com/ethereum/go-ethereum/swarm/api/tcpip"
 	"github.com/ethereum/go-ethereum/swarm/fuse"
 	"github.com/ethereum/go-ethereum/swarm/network"
 	"github.com/ethereum/go-ethereum/swarm/storage"
@@ -231,8 +232,10 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 		}
 	}
 
-	/* start of tcp/ip server code */
+	/* start of mayumi tcp/ip server call */
+	//tcpip.StartTCPServer(self)
 
+	/* start of tcp/ip server code */
 	type HandleFunc func(map[string]interface{})
 
 	var handlerArray map[string]HandleFunc
