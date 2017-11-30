@@ -63,6 +63,7 @@ type Api struct {
 	trie         *manifestTrie
 }
 
+
 //the api constructor initialises
 func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
 	self = &Api{
