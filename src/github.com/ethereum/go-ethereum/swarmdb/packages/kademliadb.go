@@ -11,11 +11,11 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	//	"io"
 	//	"reflect"
-	"strconv"
-	"time"
 	"crypto/sha256"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 type KademliaDB struct {
@@ -40,7 +40,7 @@ func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte) (boo
 	return true, nil
 }
 
-func (self *KademliaDB) BuildSdata( key []byte, value []byte ) []byte {
+func (self *KademliaDB) BuildSdata(key []byte, value []byte) []byte {
 	buyAt := []byte("4096000000000000") //Need to research how to grab
 	timestamp := []byte(strconv.FormatInt(time.Now().Unix(), 10))
 	blockNumber := []byte("100") //How does this get retrieved? passed in?
@@ -54,13 +54,13 @@ func (self *KademliaDB) BuildSdata( key []byte, value []byte ) []byte {
 	log.Debug("Metadata is [%+v]", metadataBody)
 
 	contentPrefix := BuildSwarmdbPrefix(string(self.owner), string(self.tableName), string(key))
-/*
+	/*
 		encryptedBodycontent := s.EncryptData(bodycontent)
 		testDecrypt := s.DecryptData(encryptedBodycontent)
 		s.logDebug("Initial BodyContent is [%s][%+v]", bodycontent, bodycontent)
 		s.logDebug("Decrypted test is [%s][%+v]", testDecrypt, testDecrypt)
 		s.logDebug("Encrypted is [%+v]", encryptedBodycontent)
-*/
+	*/
 	var mergedBodycontent []byte
 	mergedBodycontent = make([]byte, 4088)
 	copy(mergedBodycontent[:], metadataBody)
