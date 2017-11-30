@@ -103,25 +103,12 @@ func (self *KademliaDB) Put(k, v []byte) (bool, error) {
 }
 
 func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
-	keylen := 64 ///////..........
-	dummy := bytes.Repeat([]byte("Z"), keylen)
+	chunkKey := self.GenerateChunkKey( k )
 
-	owner := strings.ToLower(string(self.owner))
-	table := strings.ToLower(string(self.tableName))
-	id := strings.ToLower(string(k))
-	contentPrefix := BuildSwarmdbPrefix(owner, table, id)
 	//column = strings.ToLower(path_parts[2])
-
-	newkeybase := contentPrefix + string(dummy)
-	chunker := storage.NewTreeChunker(storage.NewChunkerParams())
-	rd := strings.NewReader(newkeybase)
-	key, _ := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil, false)
-	log.Debug(fmt.Sprintf("In KademliaDB prefix [%v] dummy %v newkeybase %v key %v", contentPrefix, dummy, newkeybase, k))
-
-	contentReader := self.api.Retrieve(key)
-	//reader := self.api.dpa.Retrieve(self.NodeHash)
+	contentReader := self.api.Retrieve(chunkKey)
 	if _, err := contentReader.Size(nil); err != nil {
-		log.Debug("key not found %s: %s", key, err)
+		log.Debug("key not found %s: %s", chunkKey, err)
 		return nil, false, fmt.Errorf("key not found: %s", err)
 	}
 
@@ -146,6 +133,21 @@ func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
 
 	//queryResponseReader := bytes.NewReader(queryResponse)
 	return queryResponse, true, nil
+}
+
+func (self *KademliaDB) GenerateChunkKey(k []byte) []byte {
+        owner := strings.ToLower(string(self.owner))
+        table := strings.ToLower(string(self.tableName))
+        id := strings.ToLower(string(k))
+        contentPrefix := BuildSwarmdbPrefix(owner, table, id)
+	keylen := 64 ///////..........
+	dummy := bytes.Repeat([]byte("Z"), keylen)
+	keybase := contentPrefix + string(dummy)
+	chunker := storage.NewTreeChunker(storage.NewChunkerParams())
+	rd := strings.NewReader(keybase)
+	key, _ := chunker.Split(rd, int64(len(keybase)), nil, nil, nil, false)
+	log.Debug(fmt.Sprintf("In KademliaDB prefix [%v] dummy [%v] Keybase [%s] key [%s] from [%s]", contentPrefix, dummy, keybase, key, k))
+	return key
 }
 
 func BuildSwarmdbPrefix(owner string, table string, id string) string {
