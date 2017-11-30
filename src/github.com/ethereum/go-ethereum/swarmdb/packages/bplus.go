@@ -1,10 +1,10 @@
-package bplus
+package swarmdb
 
 import (
 	"bufio"
 	"bytes"
 	// "crypto/sha256"
-	"github.com/ethereum/go-ethereum/swarm/storage"
+	// "github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/ethereum/go-ethereum/swarm/api"
 	"fmt"
 	"io"
@@ -378,8 +378,9 @@ func (l *d) mvR(r *d, c int) {
 // BPlusTree returns a newly created, empty Tree. The compare function is used
 // for key collation.
 
-func BPlusTree() *Tree {
+func NewBPlusTreeDB(api *api.Api) *Tree {
 	t := btTPool.get(cmp)
+	t.api = api
 	return t
 }
 
@@ -389,9 +390,6 @@ func (t *Tree) Open(owner []byte, tableName []byte, columnName []byte) (ok bool,
 	t.columnName = columnName
 	// t.kaddb = NewKadDB(owner, tableName, columnName)
 
-	dpa, err := storage.NewLocalDPA(DATA_DIR)
-	dpa.Start() // missing
-	t.api = api.NewApi(dpa, nil)
 	hashid, err := getTableENS(t.tableName)
 	fmt.Printf("Open HashID :[%s=>%s]\n", tableName, hashid)
 	if err != nil {
@@ -400,7 +398,7 @@ func (t *Tree) Open(owner []byte, tableName []byte, columnName []byte) (ok bool,
 	} else {
 		t.hashid = hashid
 		fmt.Printf("Open %s => hashid %s\n", tableName, hashid)
-		t.SWARMGet(t.api.GetDPA()) 
+		t.SWARMGet()
 		return true, nil
 	}
 
@@ -435,28 +433,7 @@ func (t *Tree) Close() (ok bool, err error) {
 	t.Clear()
 	*t = zt
 	btTPool.Put(t)
-	t.api.GetDPA().Start() // missing
-
 	return true, nil
-}
-
-func write_chunk(dpa *storage.DPA, sdata []byte) (dhash []byte , err error) {
-	rd := bytes.NewReader(sdata)
-	wg := &sync.WaitGroup{}
-	dhash, err = dpa.Store(rd, int64(len(sdata)), wg, nil)
-	wg.Wait()
-	if err != nil {
-	} else {
-		fmt.Printf("WROTE CHUNK : [%d %v]\n", len(sdata), sdata)
-	}
-	return dhash, err
-} 
-
-func read_chunk(dpa *storage.DPA, dhash []byte, buf []byte) (err error) {
-	reader := dpa.Retrieve(dhash)
-	_, err = reader.Read(buf)
-	fmt.Printf("Retrieve: %v => %v\n", buf, err)
-	return err
 }
 
 func get_chunk_nodetype(buf []byte) (nodetype string) {
@@ -467,11 +444,11 @@ func set_chunk_nodetype(buf []byte, nodetype string) {
 	copy(buf[CHUNK_SIZE-65:], []byte(nodetype))
 }
 
-func (t *Tree) SWARMGet(dpa *storage.DPA) (success bool) {
+func (t *Tree) SWARMGet() (success bool) {
 	// do a read from local file system, filling in: (a) hashid and (b) items
 	
 	buf := make([]byte, CHUNK_SIZE)
-	reader := dpa.Retrieve(t.hashid)
+	reader := t.api.Retrieve(t.hashid)
 	offset, err := reader.Read(buf)
 	fmt.Printf("Retrieve: %v => %v\n", buf, offset)
 
@@ -529,11 +506,14 @@ func (t *Tree) SWARMGet(dpa *storage.DPA) (success bool) {
 	return true
 }
 
-func (q *x) SWARMGet(dpa *storage.DPA) (changed bool) {
-		// X|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
+
+func (q *x) SWARMGet(api *api.Api) (changed bool) {
+	// X|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
 	// do a read from local file system, filling in: (a) hashid and (b) items
 	buf := make([]byte, CHUNK_SIZE)
-	err := read_chunk(dpa, q.hashid, buf) 
+	reader := api.Retrieve(q.hashid)
+	offset, err := reader.Read(buf)
+	fmt.Printf("Retrieve: %v => %v\n", buf, offset)
 	if err != nil {
 		fmt.Printf("SWARMGet FAIL X: [%s]\n", err)
 		// return false
@@ -567,12 +547,15 @@ func (q *x) SWARMGet(dpa *storage.DPA) (changed bool) {
 	return true
 }
 
-func (q *d) SWARMGet(dpa *storage.DPA) (changed bool) {
+func (q *d) SWARMGet(api *api.Api) (changed bool) {
 	// do a read from local file system, filling in: (a) hashid and (b) items
 	buf := make([]byte, CHUNK_SIZE)
-	err := read_chunk(dpa, q.hashid, buf) 
+
+	reader := api.Retrieve(q.hashid)
+	offset, err := reader.Read(buf)
+	fmt.Printf("Retrieve: %v (%d) => %v\n", buf, offset, err)
 	if err != nil {
-		fmt.Printf("SWARMGet FAIL (D): [%s]\n")
+		fmt.Printf("SWARMGet FAIL (D): [%s]\n", err)
 		// return false
 	}
 	for  i := 0 ; i < 32; i++ {
@@ -602,13 +585,13 @@ func (t *Tree) SWARMPut() (new_hashid []byte, changed bool) {
 	switch x := q.(type) {
 	case *x: // intermediate node -- descend on the next pass
 		fmt.Printf("ROOT XNode %s [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
-		new_hashid, changed = x.SWARMPut(t.api.GetDPA())
+		new_hashid, changed = x.SWARMPut(t.api)
 		if changed {
 			t.hashid = x.hashid
 		}
 	case *d: // data node -- EXACT match
 		fmt.Printf("ROOT DNode %s [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
-		new_hashid, changed = x.SWARMPut(t.api.GetDPA())
+		new_hashid, changed = x.SWARMPut(t.api)
 		if changed {
 			t.hashid = x.hashid
 		}
@@ -617,18 +600,18 @@ func (t *Tree) SWARMPut() (new_hashid []byte, changed bool) {
 	return new_hashid, changed
 }
 
-func (q *x) SWARMPut(dpa *storage.DPA) (new_hashid []byte, changed bool) {
+func (q *x) SWARMPut(api *api.Api) (new_hashid []byte, changed bool) {
 	// recurse through children
 	fmt.Printf("put XNode [c=%d] %s  [dirty=%v|notloaded=%v]\n", q.c, q.hashid, q.dirty, q.notloaded)
 	for i := 0; i <= q.c; i++ {
 		switch z := q.x[i].ch.(type) {
 		case *x:
 			if z.dirty {
-				z.SWARMPut(dpa)
+				z.SWARMPut(api)
 			}
 		case *d:
 			if z.dirty {
-				z.SWARMPut(dpa)
+				z.SWARMPut(api)
 			}
 		}
 	}
@@ -645,18 +628,24 @@ func (q *x) SWARMPut(dpa *storage.DPA) (new_hashid []byte, changed bool) {
 			copy(sdata[i*64+32:], z.hashid)  // max 32 bytes
 		}
 	}
-	new_hashid, err := write_chunk(dpa, sdata)
+
+	rd := bytes.NewReader(sdata)
+	wg := &sync.WaitGroup{}
+	tkey := []byte("dummy") // TODO
+	new_hashid, err := api.StoreBplusDB(tkey, rd, CHUNK_SIZE, wg) 
+	wg.Wait()
 	if err != nil {
 		return q.hashid, false
 	}
+	q.hashid = new_hashid
 	return new_hashid, true
 }
 
-func (q *d) SWARMPut(dpa *storage.DPA) (new_hashid []byte, changed bool) {
+func (q *d) SWARMPut(api *api.Api) (new_hashid []byte, changed bool) {
 	fmt.Printf("put DNode [c=%d] [dirty=%v|notloaded=%v, prev=%s, next=%s]\n", q.c, q.dirty, q.notloaded, q.prevhashid, q.nexthashid)
 	if q.n != nil {
 		if q.n.dirty {
-			q.n.SWARMPut(dpa)
+			q.n.SWARMPut(api)
 		}
 		q.nexthashid = q.n.hashid
 		fmt.Printf(" -- NEXT: %s [%v]\n", q.nexthashid, q.n.dirty)
@@ -665,7 +654,7 @@ func (q *d) SWARMPut(dpa *storage.DPA) (new_hashid []byte, changed bool) {
 
 	if q.p != nil {
 		if q.p.dirty {
-			q.p.SWARMPut(dpa)
+			q.p.SWARMPut(api)
 		}
 		q.prevhashid = q.p.hashid
 		fmt.Printf(" -- PREV: %s [%v]\n", q.prevhashid, q.p.dirty)
@@ -685,10 +674,16 @@ func (q *d) SWARMPut(dpa *storage.DPA) (new_hashid []byte, changed bool) {
 	if q.n != nil {
 		copy(sdata[CHUNK_SIZE-HASH_SIZE*2:], q.nexthashid)  // 32 bytes
 	}
-	new_hashid, err := write_chunk(dpa, sdata)
+
+	rd := bytes.NewReader(sdata)
+	wg := &sync.WaitGroup{}
+	tkey := []byte("dummy") // TODO
+	new_hashid, err := api.StoreBplusDB(tkey, rd, CHUNK_SIZE, wg) 
+	wg.Wait()
 	if err != nil {
 		return q.hashid, false
-	} 
+	}
+	q.hashid = new_hashid
 	return new_hashid, true
 }
 
@@ -775,7 +770,7 @@ func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
 		return false, kerr
 	}
 	for {
-		checkload(t.api.GetDPA(), q)
+		checkload(t.api, q)
 		var i int
 		i, ok = t.find(q, k)
 		if ok {
@@ -869,15 +864,15 @@ func (t *Tree) find(q interface{}, k []byte /*K*/) (i int, ok bool) {
 	return l, false
 }
 
-func checkload(dpa *storage.DPA, q interface{}) {
+func checkload(api *api.Api, q interface{}) {
 	switch x := q.(type) {
 	case *x: // intermediate node -- descend on the next pass
 		if x.notloaded {
-			x.SWARMGet(dpa)
+			x.SWARMGet(api)
 		}
 	case *d: // data node -- EXACT match
 		if x.notloaded {
-			x.SWARMGet(dpa)
+			x.SWARMGet(api)
 		}
 	}
 }
@@ -891,7 +886,7 @@ func (t *Tree) Get(k []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
 	}
 
 	for {
-		checkload(t.api.GetDPA(), q)
+		checkload(t.api, q)
 
 		var i int
 		// binary search on the node => i
@@ -1019,7 +1014,7 @@ func (t *Tree) Seek(k []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err error
 	}
 
 	for {
-		checkload(t.api.GetDPA(), q)
+		checkload(t.api, q)
 		var i int
 		if i, ok = t.find(q, k); ok {
 			switch x := q.(type) {
@@ -1058,7 +1053,7 @@ func (t *Tree) Put(k []byte /*K*/, v []byte /*V*/) (okresult bool, err error) {
 
 	// go down each level, from the "x" intermediate nodes to the "d" data nodes
 	for {
-		checkload(t.api.GetDPA(), q)
+		checkload(t.api, q)
 		i, ok := t.find(q, k)
 		if ok {
 			// the key is found
@@ -1116,7 +1111,7 @@ func (t *Tree) Insert(k []byte /*K*/, v []byte /*V*/) (okres bool, err error) {
 
 	// go down each level, from the "x" intermediate nodes to the "d" data nodes
 	for {
-		checkload(t.api.GetDPA(), q)
+		checkload(t.api, q)
 		i, ok := t.find(q, k)
 		if ok {
 			var dkerr *DuplicateKeyError
@@ -1347,7 +1342,7 @@ func (e *Enumerator) next() error {
 			r := btDPool.Get().(*d)
 			r.p = e.q
 			r.hashid = e.q.nexthashid
-			r.SWARMGet(e.t.api.GetDPA())
+			r.SWARMGet(e.t.api)
 			e.q = r
 			e.i = 0
 		} else {
