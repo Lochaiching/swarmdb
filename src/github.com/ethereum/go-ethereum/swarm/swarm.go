@@ -160,9 +160,9 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	log.Debug(fmt.Sprintf("type of ens = %s %v", reflect.TypeOf(enstest), enserr))
 	log.Debug(fmt.Sprintf("-> Swarm Domain Name Registrar @ address %v", config.EnsRoot.Hex()))
 
-	self.swarmdb = swarmdb.NewSwarmDB(self.api, self.ldb)
 	//self.api = api.NewApi(self.dpa, self.dns, self.lstore.DbStore.getMHash())
 	self.api = api.NewApiTest(self.dpa, self.dns, self.ldb)
+	self.swarmdb = swarmdb.NewSwarmDB(self.api, self.ldb)
 	// Manifests for Smart Hosting
 	log.Debug(fmt.Sprintf("-> Web3 virtual server API"))
 
