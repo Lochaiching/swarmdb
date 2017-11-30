@@ -1,4 +1,4 @@
-package swarmdb 
+package swarmdb
 
 import (
 	"bytes"
@@ -7,11 +7,12 @@ import (
 	//	"github.com/ethereum/go-ethereum/common"
 	//	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/ethereum/go-ethereum/swarm/api"
+	"github.com/ethereum/go-ethereum/swarm/storage"
 	//	"io"
 	//	"reflect"
-	//	"strconv"
+	"strconv"
+	"time"
 	"crypto/sha256"
 	"strings"
 	"sync"
@@ -37,6 +38,39 @@ func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte) (boo
 	self.column = column
 
 	return true, nil
+}
+
+func (self *KademliaDB) BuildSdata( key []byte, value []byte ) []byte {
+	buyAt := []byte("4096000000000000") //Need to research how to grab
+	timestamp := []byte(strconv.FormatInt(time.Now().Unix(), 10))
+	blockNumber := []byte("100") //How does this get retrieved? passed in?
+
+	var metadataBody []byte
+	metadataBody = make([]byte, 108)
+	copy(metadataBody[0:41], self.owner)
+	copy(metadataBody[42:59], buyAt)
+	copy(metadataBody[60:91], blockNumber)
+	copy(metadataBody[92:107], timestamp)
+	log.Debug("Metadata is [%+v]", metadataBody)
+
+	contentPrefix := BuildSwarmdbPrefix(string(self.owner), string(self.tableName), string(key))
+/*
+		encryptedBodycontent := s.EncryptData(bodycontent)
+		testDecrypt := s.DecryptData(encryptedBodycontent)
+		s.logDebug("Initial BodyContent is [%s][%+v]", bodycontent, bodycontent)
+		s.logDebug("Decrypted test is [%s][%+v]", testDecrypt, testDecrypt)
+		s.logDebug("Encrypted is [%+v]", encryptedBodycontent)
+*/
+	var mergedBodycontent []byte
+	mergedBodycontent = make([]byte, 4088)
+	copy(mergedBodycontent[:], metadataBody)
+	copy(mergedBodycontent[512:576], contentPrefix)
+	copy(mergedBodycontent[577:], value) // expected to be the encrypted body content
+
+	log.Debug("ContentPrefix: [%+v]", string(contentPrefix))
+	//log.Debug("Content: [%+v][%+v]", bodycontent, encryptedBodycontent)
+	log.Debug("Merged Body Content: [%v]", mergedBodycontent)
+	return (mergedBodycontent)
 }
 
 func (self *KademliaDB) Insert(k, v []byte) (bool, error) {
