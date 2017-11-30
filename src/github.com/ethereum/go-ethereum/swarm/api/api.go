@@ -32,7 +32,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-//	"github.com/ethereum/go-ethereum/core/types"
+	//	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	//	"github.com/ethereum/go-ethereum/swarmdb/database"
@@ -46,7 +46,7 @@ var (
 
 type Resolver interface {
 	Resolve(string) (common.Hash, error)
-//	Register(string) (*types.Transaction, error)
+	//	Register(string) (*types.Transaction, error)
 }
 
 /*
