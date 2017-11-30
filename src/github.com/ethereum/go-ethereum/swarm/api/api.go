@@ -32,7 +32,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	//	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	//	"github.com/ethereum/go-ethereum/swarmdb/database"
@@ -46,7 +46,7 @@ var (
 
 type Resolver interface {
 	Resolve(string) (common.Hash, error)
-	Register(string) (*types.Transaction, error)
+	//	Register(string) (*types.Transaction, error)
 }
 
 /*
@@ -591,7 +591,7 @@ func (self *Api) SubmitManifest() {
 	self.ldb.Put([]byte("manifestroot"), []byte(keys))
 	log.Debug(fmt.Sprintf("dns type = %s %v", reflect.TypeOf(self.dns), self.dns))
 	//ens := (*ens.ENS)(self.dns)
-	self.dns.Register("wolktable.eth")
+	//self.dns.Register("wolktable.eth")
 	//ens.Register("wolktable.eth")
 	log.Debug(fmt.Sprintf("Api.SubmitManifest[%v]: ", keys))
 	//log.Debug(fmt.Sprintf("Api.SubmitManifest[%s]%s: ", fkey, string(newkey)))

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+	"github.com/ethereum/go-ethereum/swarmdb/packages"
 )
 
 type SwarmDB struct {
@@ -72,13 +73,13 @@ func (self *SwarmDB) readTableData(tablename []byte) (map[string]indexinfo, erro
 		if hash == nil {
 			hash = n ////////////dummy
 		}
-		//idxinfo.roothash = hash
-		idxinfo.database, err = api.NewKademliaDB(self.api)
 		switch string(itype) {
 		case "HD":
-			idxinfo.database, _ = api.NewKademliaDB(self.api)
+		//	idxinfo.database, _ = swarmdb.NewHashDB(self.api)
+		case "KD":
+			idxinfo.database, _ = swarmdb.NewKademliaDB(self.api)
 		default:
-			idxinfo.database, _ = api.NewKademliaDB(self.api)
+			idxinfo.database, _ = swarmdb.NewKademliaDB(self.api)
 		}
 		indexmap[string(name)] = idxinfo
 		i++

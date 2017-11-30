@@ -166,6 +166,7 @@ func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, s
 		}
 		//TODO: add a timeout
 	}
+	log.Trace(fmt.Sprintf("Chunker: %v %v %v %v %v", treeSize, depth, size, self.hashFunc().Size(), key))
 	return key, nil
 }
 

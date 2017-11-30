@@ -21,7 +21,6 @@ import (
 	   "github.com/ethereum/go-ethereum/crypto"
 	*/
 	//"bytes"
-	"crypto/sha256"
 	"fmt"
 	"net/http"
 	"strings"
@@ -190,19 +189,6 @@ func SWARMDB_get(tbl_name string, id string) (jsonrecord string, err error) {
 
 func GetColumnDesc(owner string, table string, column string) (index string) {
 	return "kademlia"
-}
-
-func BuildSwarmdbPrefix(owner string, table string, id string) string {
-	//hashType := "SHA3"
-	//hashType := SHA256"
-
-	//Should add checks for valid type / length for building
-	prepString := strings.ToLower(owner) + strings.ToLower(table) + strings.ToLower(id)
-	h256 := sha256.New()
-	h256.Write([]byte(prepString))
-	prefix := fmt.Sprintf("%x", h256.Sum(nil))
-	log.Debug(fmt.Sprintf("In BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]", prepString, prefix, []byte(prefix), len([]byte(prefix))))
-	return prefix
 }
 
 func SwarmDbUploadKademlia(owner string, table string, key string, content string) {

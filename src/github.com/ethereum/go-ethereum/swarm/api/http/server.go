@@ -533,22 +533,22 @@ func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
 }
 
 func (s *Server) HandlePostTableData(w http.ResponseWriter, r *Request) {
-	rootkey,_ := ioutil.ReadAll(r.Body)
+	rootkey, _ := ioutil.ReadAll(r.Body)
 	a := fmt.Sprintf("%s", rootkey)
 	s.api.StoreTableData(r.uri.Path, rootkey)
-        w.Header().Set("Content-Type", "text/plain")
-        w.WriteHeader(http.StatusOK)
-        fmt.Fprint(w, a)
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, a)
 }
 
 func (s *Server) HandleGetTableData(w http.ResponseWriter, r *Request) {
-        value := s.api.GetTableData(r.uri.Path)
-    	log.Debug(fmt.Sprintf("HandleGetTableData res %v %v" ,r.uri.Path, value))
+	value := s.api.GetTableData(r.uri.Path)
+	log.Debug(fmt.Sprintf("HandleGetTableData res %v %v", r.uri.Path, value))
 	v := fmt.Sprintf("%s", value)
 
-        w.Header().Set("Content-Type", "text/plain")
-        w.WriteHeader(http.StatusOK)
-        fmt.Fprint(w, v)
+	w.Header().Set("Content-Type", "text/plain")
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprint(w, v)
 }
 
 func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
@@ -935,6 +935,12 @@ func (s *Server) HandleGetFile(w http.ResponseWriter, r *Request) {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+	if r.Method == "OPTIONS" {
+		return
+	}
 	s.logDebug("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
 	uri, err := api.Parse(strings.TrimLeft(r.URL.Path, "/"))
 	if err != nil {
@@ -944,7 +950,25 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//if uri.Swarmdb() == true && r.Method == "POST" {
-	if uri.Swarmdb() == true {	
+	if uri.Swarmdb() == true {
+		bodycontent, _ := ioutil.ReadAll(r.Body)
+		/*
+			if json.Valid(bodycontent) == false {
+				//http.Error(w, "Data Submission invalid.  Only valid JSON is allowed and ["+bodycontent+"] is not valid json", http.StatusBadRequest)
+				return
+			}
+		*/
+		/*
+			TODO: Validate body data against table
+			1. Retrieve Table Definition from "table" variable
+			2. For POST - confirm that
+			  (a) all columns exist in the table that are sent in the JSON object
+			  (b) all column values sent in match the type set forth in table definition
+			  (c) LONG TERM: dispatch to appropriate index function based on index defined in table definition
+			3. For GET - confirm that
+			  (a) column exists
+			  (b) LONG TERM: dispatch to appropriate index function based on index defined in table definition
+		*/
 		s.logDebug("in SWARMDB")
 		ownerAddress := []byte(strings.ToLower(uri.Addr))
 		buyAt := []byte("4096000000000000") //Need to research how to grab
@@ -964,7 +988,6 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		id := strings.ToLower(path_parts[1])
 		contentPrefix := BuildSwarmdbPrefix(string(ownerAddress), table, id)
 
-		bodycontent, _ := ioutil.ReadAll(r.Body)
 		encryptedBodycontent := s.EncryptData(bodycontent)
 		testDecrypt := s.DecryptData(encryptedBodycontent)
 		s.logDebug("Initial BodyContent is [%s][%+v]", bodycontent, bodycontent)
