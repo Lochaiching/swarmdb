@@ -1,15 +1,16 @@
-package main
+package bplus
 
 import (
 	"bufio"
 	"bytes"
-	"crypto/sha256"
+	// "crypto/sha256"
+	"github.com/ethereum/go-ethereum/swarm/storage"
+	"github.com/ethereum/go-ethereum/swarm/api"
 	"fmt"
 	"io"
-	"math/rand"
 	"os"
-	"strconv"
-	"strings"
+	// "strconv"
+	// "strings"
 	"sync"
 )
 
@@ -127,11 +128,16 @@ const (
 	kx        = 3
 	kd        = 3
 	ENS_DIR   = "ens"
-	CHUNK_DIR = "chunk"
+	DATA_DIR = "/tmp/joy"
+	CHUNK_SIZE = 4096
+	KV_SIZE = 64
+	K_SIZE = 32
+	V_SIZE = 32
+	HASH_SIZE = 32
 )
 
 // from table's ENS
-func putTableENS(tableName string, hashid string) (succ bool, err error) {
+func putTableENS(tableName []byte, hashid []byte) (succ bool, err error) {
 	path := fmt.Sprintf("%s/%s", ENS_DIR, tableName)
 	// do a write to local file system with all the items and the children
 	f, err := os.Create(path)
@@ -141,13 +147,13 @@ func putTableENS(tableName string, hashid string) (succ bool, err error) {
 	defer f.Close()
 
 	fmt.Printf(" Wrote ENS: [%s => %s]\n", tableName, hashid)
-	f.WriteString(hashid)
+	f.WriteString(string(hashid))
 	f.Sync()
 	return true, nil
 }
 
 // from table's ENS
-func getTableENS(tableName string) (hashid string, err error) {
+func getTableENS(tableName []byte) (hashid []byte, err error) {
 	var terr *TableNotExistError
 	path := fmt.Sprintf("%s/%s", ENS_DIR, tableName)
 	file, err := os.Open(path)
@@ -156,14 +162,11 @@ func getTableENS(tableName string) (hashid string, err error) {
 		return hashid, terr
 	}
 	defer file.Close()
-
 	var line string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line = scanner.Text()
-		if len(line) > 32 {
-			return line, nil
-		}
+		return []byte(line), nil
 	}
 	return hashid, terr
 }
@@ -185,8 +188,8 @@ var (
 	btXPool = sync.Pool{New: func() interface{} { return &x{} }}
 )
 
-type Key []byte
-type Val []byte
+//type Key []byte
+//type Val []byte
 
 type btTpool struct{ sync.Pool }
 
@@ -220,13 +223,13 @@ type (
 		p *d
 
 		// used in open, insert, delete
-		hashid    string
+		hashid    []byte
 		dirty     bool
 		notloaded bool
 
 		// used for linked list traversal
-		prevhashid string
-		nexthashid string
+		prevhashid []byte
+		nexthashid []byte
 	}
 
 	de struct { // d element
@@ -261,11 +264,12 @@ type (
 		r     interface{}
 		ver   int64
 
+		api   *api.Api
 		buffered   bool
-		owner      string
-		tableName  string
-		columnName string
-		hashid     string // computed at the end
+		owner      []byte
+		tableName  []byte
+		columnName []byte
+		hashid     []byte
 	}
 
 	xe struct { // x element
@@ -278,7 +282,7 @@ type (
 		x [2*kx + 2]xe
 
 		// used in open, insert, delete
-		hashid    string
+		hashid    []byte
 		dirty     bool
 		notloaded bool
 	}
@@ -379,17 +383,24 @@ func BPlusTree() *Tree {
 	return t
 }
 
-func (t *Tree) Open(owner string, tableName string, columnName string) (ok bool, err error) {
+func (t *Tree) Open(owner []byte, tableName []byte, columnName []byte) (ok bool, err error) {
 	t.owner = owner
 	t.tableName = tableName
 	t.columnName = columnName
+	// t.kaddb = NewKadDB(owner, tableName, columnName)
+
+	dpa, err := storage.NewLocalDPA(DATA_DIR)
+	dpa.Start() // missing
+	t.api = api.NewApi(dpa, nil)
 	hashid, err := getTableENS(t.tableName)
+	fmt.Printf("Open HashID :[%s=>%s]\n", tableName, hashid)
 	if err != nil {
+		fmt.Printf("ERR %v\n", err)
 		return ok, err
 	} else {
 		t.hashid = hashid
 		fmt.Printf("Open %s => hashid %s\n", tableName, hashid)
-		t.SWARMGet()
+		t.SWARMGet(t.api.GetDPA()) 
 		return true, nil
 	}
 
@@ -403,9 +414,9 @@ func (t *Tree) StartBuffer() (ok bool, err error) {
 func (t *Tree) FlushBuffer() (ok bool, err error) {
 	if t.buffered {
 		t.buffered = false
-		if t.SWARMPut() {
-			putTableENS(t.tableName, t.hashid)
-
+		new_hashid, changed := t.SWARMPut() 
+		if ( changed ) {
+			putTableENS(t.tableName, []byte(new_hashid))
 			return true, nil
 		}
 	} else {
@@ -424,37 +435,60 @@ func (t *Tree) Close() (ok bool, err error) {
 	t.Clear()
 	*t = zt
 	btTPool.Put(t)
+	t.api.GetDPA().Start() // missing
+
 	return true, nil
 }
 
-func (t *Tree) SWARMGet() (success bool) {
-	// do a read from local file system, filling in: (a) hashid and (b) items
-	path := fmt.Sprintf("%s/%s", CHUNK_DIR, t.hashid)
-	file, err := os.Open(path)
+func write_chunk(dpa *storage.DPA, sdata []byte) (dhash []byte , err error) {
+	rd := bytes.NewReader(sdata)
+	wg := &sync.WaitGroup{}
+	dhash, err = dpa.Store(rd, int64(len(sdata)), wg, nil)
+	wg.Wait()
 	if err != nil {
-		fmt.Printf("SWARMGet FAIL: [%s]\n", path)
-		return false
+	} else {
+		fmt.Printf("WROTE CHUNK : [%d %v]\n", len(sdata), sdata)
 	}
-	defer file.Close()
-	var line string
-	scanner := bufio.NewScanner(file)
-	created := false
-	for scanner.Scan() {
-		line = scanner.Text()
-		sa := strings.Split(line, "|")
-		if sa[0] == "X" {
-			if created {
-			} else {
-				// create X node
-				t.r = btXPool.Get().(*x)
-				created = true
-			}
-			i, _ := strconv.Atoi(sa[1])
-			hashid := sa[2]
-			k := []byte(sa[3])
-			// X|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
-			switch z := t.r.(type) {
-			case (*x):
+	return dhash, err
+} 
+
+func read_chunk(dpa *storage.DPA, dhash []byte, buf []byte) (err error) {
+	reader := dpa.Retrieve(dhash)
+	_, err = reader.Read(buf)
+	fmt.Printf("Retrieve: %v => %v\n", buf, err)
+	return err
+}
+
+func get_chunk_nodetype(buf []byte) (nodetype string) {
+	return string(buf[CHUNK_SIZE-65:CHUNK_SIZE-64]) 
+}
+
+func set_chunk_nodetype(buf []byte, nodetype string) {
+	copy(buf[CHUNK_SIZE-65:], []byte(nodetype))
+}
+
+func (t *Tree) SWARMGet(dpa *storage.DPA) (success bool) {
+	// do a read from local file system, filling in: (a) hashid and (b) items
+	
+	buf := make([]byte, CHUNK_SIZE)
+	reader := dpa.Retrieve(t.hashid)
+	offset, err := reader.Read(buf)
+	fmt.Printf("Retrieve: %v => %v\n", buf, offset)
+
+	if err != nil {
+		fmt.Printf("SWARMGet FAIL (T): [%s]\n", err)
+		// return false
+	}
+	fmt.Printf("GOT %s [%v]\n", t.hashid, buf)
+	nodetype := get_chunk_nodetype(buf)
+	if nodetype == "X" {
+		// create X node
+		t.r = btXPool.Get().(*x)
+		switch z := t.r.(type) {
+		case (*x):
+			for  i := 0 ; i < 32; i++ {
+				k := buf[i*KV_SIZE:i*KV_SIZE+K_SIZE]
+				hashid := buf[i*KV_SIZE+K_SIZE:i*KV_SIZE+KV_SIZE]
 				z.c++
 				x := btXPool.Get().(*x)
 				z.x[i].ch = x
@@ -467,33 +501,26 @@ func (t *Tree) SWARMGet() (success bool) {
 				x.hashid = hashid
 				fmt.Printf(" LOAD-X|%d|%s\n", i, x.hashid)
 			}
-		} else if sa[0] == "D" {
-			if created {
-			} else {
-				// create D node
-				t.r = btXPool.Get().(*x)
-				created = true
-			}
-			i, _ := strconv.Atoi(sa[1])
-			hashid := sa[2]
-			k := []byte(sa[3])
-			v := []byte(sa[3])
-			// D|0|50379fa9432e99a614f63433ae3ac731a389bd520ad39104509c218703a95b86|6
-			switch z := t.r.(type) {
-			case (*x):
+		}
+	} else if nodetype == "D" {
+		// create D node
+		t.r = btDPool.Get().(*x)
+		switch z := t.r.(type) {
+		case (*d):
+			for  i := 0 ; i < 32; i++ {
+				k := buf[i*KV_SIZE:i*KV_SIZE+31]
+				hashid := buf[i*KV_SIZE+32:i*64+63]
 				z.c++
 				x := btDPool.Get().(*d)
-				z.x[i].ch = x
-				z.x[i].k = k
-				x.d[i].k = k
-				x.d[i].v = v
-
+				z.d[i].k = k
+				z.d[i].v = hashid
 				x.notloaded = true
 				x.hashid = hashid
 				fmt.Printf(" LOAD-D|%d|%s\n", i, x.hashid)
 			}
 		}
 	}
+
 	switch z := t.r.(type) {
 	case (*x):
 		z.c--
@@ -502,39 +529,30 @@ func (t *Tree) SWARMGet() (success bool) {
 	return true
 }
 
-func (q *x) SWARMGet() (changed bool) {
+func (q *x) SWARMGet(dpa *storage.DPA) (changed bool) {
+		// X|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
 	// do a read from local file system, filling in: (a) hashid and (b) items
-	path := fmt.Sprintf("%s/%s", CHUNK_DIR, q.hashid)
-	file, err := os.Open(path)
+	buf := make([]byte, CHUNK_SIZE)
+	err := read_chunk(dpa, q.hashid, buf) 
 	if err != nil {
-		fmt.Printf("SWARMGet FAIL: [%s]\n", path)
-		return false
+		fmt.Printf("SWARMGet FAIL X: [%s]\n", err)
+		// return false
 	}
-	defer file.Close()
-	var line string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line = scanner.Text()
-		sa := strings.Split(line, "|")
-		if sa[0] == "X" {
-			// q.c++
-			i, _ := strconv.Atoi(sa[1])
-			hashid := sa[2]
-			k := []byte(sa[3])
+	for  i := 0 ; i < 32; i++ {
+		k := buf[i*64:i*64+31]
+		node_type := buf[i*64+31:i*64+32]
+		hashid := buf[i*64+32:i*64+63]
+		if string(node_type) == "X" {
 			// X|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
 			x := btXPool.Get().(*x)
 			q.x[i].ch = x
 			q.x[i].k = k
-
+			
 			x.notloaded = true
 			x.hashid = hashid
 			fmt.Printf(" LOAD-X|%d|%s\n", i, x.hashid)
-
-		} else if sa[0] == "D" {
+		} else if string(node_type) == "D" {
 			q.c++
-			i, _ := strconv.Atoi(sa[1])
-			hashid := sa[2]
-			k := sa[3]
 			// D|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
 			x := btDPool.Get().(*d)
 			q.x[i].ch = x
@@ -544,53 +562,38 @@ func (q *x) SWARMGet() (changed bool) {
 			fmt.Printf(" LOAD-D1|%d|%s\n", i, x.hashid)
 		}
 	}
-
 	q.notloaded = false
 	fmt.Printf("SWARMGet SUCC: [%s]\n", q.hashid)
 	return true
 }
 
-func (q *d) SWARMGet() (changed bool) {
+func (q *d) SWARMGet(dpa *storage.DPA) (changed bool) {
 	// do a read from local file system, filling in: (a) hashid and (b) items
-	path := fmt.Sprintf("%s/%s", CHUNK_DIR, q.hashid)
-	file, err := os.Open(path)
+	buf := make([]byte, CHUNK_SIZE)
+	err := read_chunk(dpa, q.hashid, buf) 
 	if err != nil {
-		fmt.Printf("SWARMGet FAIL: [%s]\n", path)
-		return false
+		fmt.Printf("SWARMGet FAIL (D): [%s]\n")
+		// return false
 	}
-	defer file.Close()
-	var line string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line = scanner.Text()
-		sa := strings.Split(line, "|")
-		if sa[0] == "C" {
+	for  i := 0 ; i < 32; i++ {
+		k := buf[i*64:i*64+31]
+		node_type := buf[i*64+31:i*64+32]
+		hashid := buf[i*64+32:i*64+63]
+		if string(node_type) == "C" {
 			q.c++
-			// s := fmt.Sprintf("C|%d|%v|%v\n", i, q.d[i].k, q.d[i].v)
-			i, _ := strconv.Atoi(sa[1])
-
-			//x := btDPool.Get().(*d)
-			q.d[i].k = []byte(sa[2])
-			q.d[i].v = []byte(sa[3])
+			q.d[i].k = k
+			q.d[i].v = hashid
 			q.notloaded = false
-			//fmt.Printf(" LOAD-C|%d|%v|%v\n", i, k, v)
-		}
-		if sa[0] == "P" {
-			q.prevhashid = sa[1]
-			//fmt.Printf(" LOAD-P|%s\n", q.prevhashid)
-		}
-
-		if sa[0] == "N" {
-			q.nexthashid = sa[1]
-			//fmt.Printf(" LOAD-N|%s\n", q.nexthashid)
 		}
 	}
+	q.prevhashid = buf[CHUNK_SIZE-64:CHUNK_SIZE-32]
+	q.nexthashid = buf[CHUNK_SIZE-32:CHUNK_SIZE]
 	q.notloaded = false
 	fmt.Printf("SWARMGet SUCC: [%s]\n", q.hashid)
 	return true
 }
 
-func (t *Tree) SWARMPut() (changed bool) {
+func (t *Tree) SWARMPut() (new_hashid []byte, changed bool) {
 	q := t.r
 	if q == nil {
 		return
@@ -598,99 +601,62 @@ func (t *Tree) SWARMPut() (changed bool) {
 
 	switch x := q.(type) {
 	case *x: // intermediate node -- descend on the next pass
-		fmt.Printf("ROOT Node %s [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
-		changed = x.SWARMPut()
+		fmt.Printf("ROOT XNode %s [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
+		new_hashid, changed = x.SWARMPut(t.api.GetDPA())
 		if changed {
 			t.hashid = x.hashid
 		}
 	case *d: // data node -- EXACT match
-		fmt.Printf("ROOT Node %s [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
-		changed = x.SWARMPut()
+		fmt.Printf("ROOT DNode %s [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
+		new_hashid, changed = x.SWARMPut(t.api.GetDPA())
 		if changed {
 			t.hashid = x.hashid
 		}
 	}
 
-	return changed
+	return new_hashid, changed
 }
 
-func (q *x) SWARMPut() (changed bool) {
+func (q *x) SWARMPut(dpa *storage.DPA) (new_hashid []byte, changed bool) {
 	// recurse through children
-	old_hashid := q.hashid
 	fmt.Printf("put XNode [c=%d] %s  [dirty=%v|notloaded=%v]\n", q.c, q.hashid, q.dirty, q.notloaded)
 	for i := 0; i <= q.c; i++ {
 		switch z := q.x[i].ch.(type) {
 		case *x:
 			if z.dirty {
-				z.SWARMPut()
+				z.SWARMPut(dpa)
 			}
 		case *d:
 			if z.dirty {
-				z.SWARMPut()
+				z.SWARMPut(dpa)
 			}
 		}
 	}
 
-	// compute the hash
-	h := sha256.New()
+	// compute the data here 
+	sdata := make([]byte, CHUNK_SIZE)
 	for i := 0; i <= q.c; i++ {
-		s := fmt.Sprintf("%v", q.x[i].k)
-		h.Write([]byte(s))
 		switch z := q.x[i].ch.(type) {
 		case *x:
-			h.Write([]byte(z.hashid))
+			copy(sdata[i*64:], q.x[i].k)     // max 32 bytes 
+			copy(sdata[i*64+32:], z.hashid)  // max 32 bytes
 		case *d:
-			h.Write([]byte(z.hashid))
+			copy(sdata[i*64:], q.x[i].k)     // max 32 bytes 
+			copy(sdata[i*64+32:], z.hashid)  // max 32 bytes
 		}
 	}
-	q.hashid = fmt.Sprintf("%x", h.Sum(nil))
-	if q.hashid != old_hashid || len(old_hashid) < 1 {
-		fn := fmt.Sprintf("%s/%s", CHUNK_DIR, q.hashid)
-		fmt.Printf("CHANGED %s\n", fn)
-		// do a write to local file system with all the items and the children
-		f, err := os.Create(fn)
-		if err != nil {
-			panic(err)
-		}
-		defer f.Close()
-
-		// write the children with "C"
-		for i := 0; i <= q.c; i++ {
-			switch z := q.x[i].ch.(type) {
-			case *x:
-				h.Write([]byte(z.hashid))
-				s := fmt.Sprintf("X|%d|%s|%v\n", i, z.hashid, q.x[i].k)
-				fmt.Printf(s)
-				f.WriteString(s)
-			case *d:
-				h.Write([]byte(z.hashid))
-				s := fmt.Sprintf("D|%d|%s|%v\n", i, z.hashid, q.x[i].k)
-				fmt.Printf(s)
-				f.WriteString(s)
-			}
-		}
-		f.Sync()
-		return true
-	} else {
-		fmt.Printf("not changed\n")
-		return false
+	new_hashid, err := write_chunk(dpa, sdata)
+	if err != nil {
+		return q.hashid, false
 	}
+	return new_hashid, true
 }
 
-func (q *d) SWARMPut() (changed bool) {
-	// build hash
-	old_hashid := q.hashid
+func (q *d) SWARMPut(dpa *storage.DPA) (new_hashid []byte, changed bool) {
 	fmt.Printf("put DNode [c=%d] [dirty=%v|notloaded=%v, prev=%s, next=%s]\n", q.c, q.dirty, q.notloaded, q.prevhashid, q.nexthashid)
-	h := sha256.New()
-	for i := 0; i < q.c; i++ {
-		s := fmt.Sprintf("%v", q.d[i].k)
-		h.Write([]byte(s))
-		s = fmt.Sprintf("%v", q.d[i].v)
-		h.Write([]byte(s))
-	}
 	if q.n != nil {
 		if q.n.dirty {
-			q.n.SWARMPut()
+			q.n.SWARMPut(dpa)
 		}
 		q.nexthashid = q.n.hashid
 		fmt.Printf(" -- NEXT: %s [%v]\n", q.nexthashid, q.n.dirty)
@@ -699,7 +665,7 @@ func (q *d) SWARMPut() (changed bool) {
 
 	if q.p != nil {
 		if q.p.dirty {
-			q.p.SWARMPut()
+			q.p.SWARMPut(dpa)
 		}
 		q.prevhashid = q.p.hashid
 		fmt.Printf(" -- PREV: %s [%v]\n", q.prevhashid, q.p.dirty)
@@ -707,41 +673,23 @@ func (q *d) SWARMPut() (changed bool) {
 
 	fmt.Printf("N: %v P: %v\n", q.n, q.p) //  q.prevhashid, q.nexthashid
 
-	q.hashid = fmt.Sprintf("%x", h.Sum(nil))
-	if q.hashid != old_hashid || len(old_hashid) < 1 {
-		fn := fmt.Sprintf("%s/%s", CHUNK_DIR, q.hashid)
-		fmt.Printf("CHANGED %s\n", fn)
-		// do a write to local file system with all the items and the children
-		f, err := os.Create(fn)
-		if err != nil {
-			panic(err)
-		}
-		defer f.Close()
-
-		// write the children with "C"
-		for i := 0; i < q.c; i++ {
-			s := fmt.Sprintf("C|%d|%v|%v\n", i, string(q.d[i].k), string(q.d[i].v))
-			fmt.Printf(s)
-			f.WriteString(s)
-		}
-
-		// write the children with "C"
-		if q.p != nil {
-			s := fmt.Sprintf("P|%s\n", q.prevhashid)
-			fmt.Printf(s)
-			f.WriteString(s)
-		}
-		if q.n != nil {
-			s := fmt.Sprintf("N|%s\n", q.nexthashid)
-			fmt.Printf(s)
-			f.WriteString(s)
-		}
-		f.Sync()
-		return true
-	} else {
-		fmt.Printf("not changed\n")
+	sdata := make([]byte, CHUNK_SIZE)
+	for i := 0; i < q.c; i++ {
+		copy(sdata[i*KV_SIZE:], q.d[i].k)     // max 32 bytes 
+		copy(sdata[i*KV_SIZE+K_SIZE:], q.d[i].v)  // max 32 bytes
 	}
-	return false
+
+	if q.p != nil {
+		copy(sdata[CHUNK_SIZE-HASH_SIZE*2:], q.prevhashid) // 32 bytes
+	}
+	if q.n != nil {
+		copy(sdata[CHUNK_SIZE-HASH_SIZE*2:], q.nexthashid)  // 32 bytes
+	}
+	new_hashid, err := write_chunk(dpa, sdata)
+	if err != nil {
+		return q.hashid, false
+	} 
+	return new_hashid, true
 }
 
 // Clear removes all K/V pairs from the tree.
@@ -817,8 +765,7 @@ func (t *Tree) catX(p, q, r *x, pi int) {
 	t.r = q
 }
 
-// Delete removes the k's KV pair, if it exists, in which case Delete returns
-// true.
+// Delete removes the k's KV pair, if it exists, in which case Delete returns true.
 func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
 	pi := -1
 	var p *x
@@ -828,7 +775,7 @@ func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
 		return false, kerr
 	}
 	for {
-		checkload(q)
+		checkload(t.api.GetDPA(), q)
 		var i int
 		i, ok = t.find(q, k)
 		if ok {
@@ -922,15 +869,15 @@ func (t *Tree) find(q interface{}, k []byte /*K*/) (i int, ok bool) {
 	return l, false
 }
 
-func checkload(q interface{}) {
+func checkload(dpa *storage.DPA, q interface{}) {
 	switch x := q.(type) {
 	case *x: // intermediate node -- descend on the next pass
 		if x.notloaded {
-			x.SWARMGet()
+			x.SWARMGet(dpa)
 		}
 	case *d: // data node -- EXACT match
 		if x.notloaded {
-			x.SWARMGet()
+			x.SWARMGet(dpa)
 		}
 	}
 }
@@ -944,7 +891,7 @@ func (t *Tree) Get(k []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
 	}
 
 	for {
-		checkload(q)
+		checkload(t.api.GetDPA(), q)
 
 		var i int
 		// binary search on the node => i
@@ -955,6 +902,7 @@ func (t *Tree) Get(k []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
 				q = x.x[i+1].ch
 				continue
 			case *d: // data node -- EXACT match
+				// kaddb.Get(t.dpa, x.d[i].v)
 				return x.d[i].v, ok, nil
 			}
 		}
@@ -1071,7 +1019,7 @@ func (t *Tree) Seek(k []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err error
 	}
 
 	for {
-		checkload(q)
+		checkload(t.api.GetDPA(), q)
 		var i int
 		if i, ok = t.find(q, k); ok {
 			switch x := q.(type) {
@@ -1110,7 +1058,7 @@ func (t *Tree) Put(k []byte /*K*/, v []byte /*V*/) (okresult bool, err error) {
 
 	// go down each level, from the "x" intermediate nodes to the "d" data nodes
 	for {
-		checkload(q)
+		checkload(t.api.GetDPA(), q)
 		i, ok := t.find(q, k)
 		if ok {
 			// the key is found
@@ -1126,6 +1074,7 @@ func (t *Tree) Put(k []byte /*K*/, v []byte /*V*/) (okresult bool, err error) {
 				q = x.x[i].ch
 				continue
 			case *d:
+				// kaddb.Put(t.dpa, t.owner, t.tableName, k, v)
 				x.d[i].v = v
 				x.dirty = true // we updated the value but did not insert anything
 			}
@@ -1167,7 +1116,7 @@ func (t *Tree) Insert(k []byte /*K*/, v []byte /*V*/) (okres bool, err error) {
 
 	// go down each level, from the "x" intermediate nodes to the "d" data nodes
 	for {
-		checkload(q)
+		checkload(t.api.GetDPA(), q)
 		i, ok := t.find(q, k)
 		if ok {
 			var dkerr *DuplicateKeyError
@@ -1398,7 +1347,7 @@ func (e *Enumerator) next() error {
 			r := btDPool.Get().(*d)
 			r.p = e.q
 			r.hashid = e.q.nexthashid
-			r.SWARMGet()
+			r.SWARMGet(e.t.api.GetDPA())
 			e.q = r
 			e.i = 0
 		} else {
@@ -1475,45 +1424,4 @@ func cmp(a, b []byte) int {
 	// Compare returns an integer comparing two byte slices lexicographically.
 	// The result will be 0 if a==b, -1 if a < b, and +1 if a > b. A nil argument is equivalent to an empty slice.
 	return bytes.Compare(a, b)
-}
-
-func testTable(tableName string, r OrderedDatabase) {
-	// open table [only gets the root node]
-	vals := rand.Perm(20)
-	// write 20 values into B-tree (only kept in memory)
-	r.StartBuffer()
-	for _, i := range vals {
-		k := []byte(fmt.Sprintf("%06x", i))
-		v := []byte(fmt.Sprintf("valueof%06x", i))
-		fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
-		r.Put(k, v)
-	}
-	// this writes B+tree to SWARM
-	r.FlushBuffer() // tableName
-	r.Print()
-
-	r.StartBuffer()
-	r.Put([]byte("000004"), []byte("Sammy2"))
-	r.Put([]byte("000009"), []byte("Happy2"))
-	r.Put([]byte("00000e"), []byte("Leroy2"))
-	g, _, _ := r.Get([]byte("00000d"))
-	fmt.Printf("GET: %v\n", g)
-	r.FlushBuffer()
-	r.Print()
-
-	// ENUMERATOR
-	res, _, _ := r.Seek([]byte("000004"))
-	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
-		fmt.Printf(" K: %v V: %v\n", string(k), string(v))
-	}
-
-}
-
-func main() {
-	owner := "0x34c7fc051eae78f8c37b82387a50a5458b8f7018"
-	tableName := "testtable"
-	columnName := "email"
-	r := BPlusTree()
-	r.Open(owner, tableName, columnName)
-	testTable(tableName, r)
 }

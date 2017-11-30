@@ -63,6 +63,7 @@ type Api struct {
 	trie         *manifestTrie
 }
 
+
 //the api constructor initialises
 func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
 	self = &Api{
@@ -86,6 +87,10 @@ func NewApiTest(dpa *storage.DPA, dns Resolver, ldb *storage.LDBDatabase) (self 
 		hashdbroot: hr,
 	}
 	return
+}
+
+func (self *Api) GetDPA() (dpa *storage.DPA) {
+	return self.dpa
 }
 
 // to be used only in TEST
