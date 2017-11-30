@@ -113,6 +113,17 @@ func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, table, ind
 }
 */
 
+func (self *Api) StoreBplusDB(tkey []byte, data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
+        key, err = self.dpa.Store(data, size, wg, nil)
+        // self.HashDBAdd([]byte(tkey), key, wg)
+        return
+}
+
+func (self *Api) BplusDBAdd(k []byte, v Val, wg *sync.WaitGroup) {
+	// log.Debug(fmt.Sprintf("BplusDBAdd %v \n", self.hashdbroot))
+	// self.hashdbroot.Add(k, v, self)
+}
+
 func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
 	key, err = self.dpa.Store(data, size, wg, nil)
 	self.HashDBAdd([]byte(tkey), key, wg)
