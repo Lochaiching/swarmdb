@@ -70,7 +70,7 @@ func main() {
 		primary_bool, _ := primary.ToBoolean()
 		index, _ := tbl_descriptor.Get("index")
 		index_string, _ := index.ToString()
-		succ := swarmdb.SWARMDB_createTable(tbl_name, column_string, primary_bool, index_string)
+		succ := swarmdb.CreateTable(tbl_name, column_string, primary_bool, index_string)
 		res, _ := vm.ToValue(succ)
 		return res
 	})
@@ -80,14 +80,21 @@ func main() {
 	vm.Set("add", func(call otto.FunctionCall) otto.Value {
 		tablename := call.Argument(0).String()
 		jsonrecord := call.Argument(1).String()
+
+		//test for correct json input of record
 		record := make(map[string]interface{})
 		if err := json.Unmarshal([]byte(jsonrecord), &record); err != nil {
 			fmt.Printf(err.Error() + ". Please try again\n")
 			result, _ := vm.ToValue(false)
 			return result
 		}
-		success, _ := swarmdb.SWARMDB_add(tablename, record)
-		result, _ := vm.ToValue(success)
+
+		err := swarmdb.AddRecord(tablename, jsonrecord)
+		if err != nil {
+			result, _ := vm.ToValue(err.Error())
+			return result
+		}
+		result, _ := vm.ToValue(true)
 		return result
 	})
 
@@ -96,7 +103,7 @@ func main() {
 	vm.Set("get", func(call otto.FunctionCall) otto.Value {
 		tbl_name := call.Argument(0).String() // e.g. "contacts"
 		id := call.Argument(1).String()       // e.g. "id"
-		jsonrecord, err := swarmdb.SWARMDB_get(tbl_name, id)
+		jsonrecord, err := swarmdb.GetRecord(tbl_name, id)
 		if err != nil {
 			res, _ := vm.ToValue(err.Error())
 			return res
@@ -110,7 +117,7 @@ func main() {
 	// [ {"name":"Sourabh Niyogi", "age":45 }, {"name":"Francesca Niyogi", "age":49} ...]
 	vm.Set("query", func(call otto.FunctionCall) otto.Value {
 		sql := call.Argument(0).String()
-		jsonarray, err := swarmdb.SWARMDB_query(sql)
+		jsonarray, err := swarmdb.Query(sql)
 		if err != nil {
 			res, _ := vm.ToValue(err.Error())
 			return res
