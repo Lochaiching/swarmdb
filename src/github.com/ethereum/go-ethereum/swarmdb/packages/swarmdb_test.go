@@ -1,20 +1,19 @@
 package swarmdb
 
 import (
-	"encoding/json"
 	"fmt"
-	"strings"
+	"testing"
 )
 
 func TestCreateTable(t *testing.T) {
 
 	tests := map[string][]string{
-		"hash":  []string{"contacts", "email", true, "hash"},
-		"kad":   []string{"pizzarias", "phone", true, "kademlia"},
-		"btree": []string{"movies", "imdb", true, "btree"},
+		"hash":  []string{"contacts", "email", "true", "hash"},
+		"kad":   []string{"pizzarias", "phone", "true", "kademlia"},
+		"btree": []string{"movies", "imdb", "true", "btree"},
 	}
 	for _, test := range tests {
-		err := CreateTable(test[0], test[1], test[2], test[3])
+		err := CreateTable(test[0], test[1], true, test[3])
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -63,13 +62,13 @@ func TestGetRecord(t *testing.T) {
 	}
 
 	tests := map[string][]string{
-		`ok`:    []string{"contacts", "rodney@wolk.com"},
-		`notok`: []string{"contacts", "wobble@gmail.com"},
+		"ok":    []string{"contacts", "rodney@wolk.com"},
+		"notok": []string{"contacts", "wobble@gmail.com"},
 	}
 
 	expected := map[string][]string{
-		`ok`:    []string{`{ "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }`},
-		`notok`: []string{},
+		"ok":    []string{`{ "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }`},
+		"notok": []string{},
 	}
 
 	for prefix, param := range tests {
@@ -77,8 +76,9 @@ func TestGetRecord(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if actual != expected[prefix] {
-			t.Fatal(fmt.Errorf("%s test. actual: %v, expected %v", prefix, actual, expected[prefix]))
+		//compare output slices - get ans should only be 1 record
+		if actual != expected[prefix][0] {
+			t.Fatal(fmt.Errorf("%s test. actual: %v, expected %v", prefix, actual, expected[prefix][0]))
 		}
 	}
 }
@@ -119,10 +119,19 @@ func TestQuery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if actual != expected[prefix] {
-			t.Fatal(fmt.Errorf("%s test. actual: %v, expected %v", prefix, actual, expected[prefix]))
+		//compare output slices (may be in a different order than 'expected')
+		for _, exp := range expected[prefix] {
+			found := false
+			for _, act := range actual {
+				if act == exp {
+					found = true
+					break
+				}
+			}
+			if found == false {
+				t.Fatal(fmt.Errorf("%s test. actual: %v, expected %v", prefix, actual, expected[prefix]))
+			}
 		}
-
 	}
 
 }
