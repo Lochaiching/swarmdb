@@ -3,7 +3,7 @@ package swarmdb
 type Database interface {
 	// Open: reads in root hashid from ENS
 	// Possible Errors: TableNotExistError, NetworkError
-	Open(owner string, tableName string, columnName string) (bool, error)
+	Open(owner []byte, tableName []byte, columnName []byte) (bool, error)
 
 	// Insert: adds key-value pair (value is an entire recrod)
 	// ok - returns true if new key added

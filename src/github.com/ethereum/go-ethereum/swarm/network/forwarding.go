@@ -55,11 +55,12 @@ var searchTimeout = 3 * time.Second
 // forwarding logic
 // logic propagating retrieve requests to peers given by the kademlia hive
 func (self *forwarder) Retrieve(chunk *storage.Chunk) {
+	log.Trace(fmt.Sprintf("forwarder.Retrieve: hive %s ", self.hive.String()))
 	peers := self.hive.getPeers(chunk.Key, 0)
-	log.Trace(fmt.Sprintf("forwarder.Retrieve: %v - received %d peers from KΛÐΞMLIΛ...", chunk.Key.Log(), len(peers)))
+	log.Trace(fmt.Sprintf("forwarder.Retrieve: %v - received %d peers from KΛÐΞMLIΛ... %v", chunk.Key.Log(), len(peers), peers))
 OUT:
 	for _, p := range peers {
-		log.Trace(fmt.Sprintf("forwarder.Retrieve: sending retrieveRequest %v to peer [%v]", chunk.Key.Log(), p))
+		log.Trace(fmt.Sprintf("forwarder.Retrieve: sending retrieveRequest %v to peer [%v] %v", chunk.Key.Log(), p, chunk.Key))
 		for _, recipients := range chunk.Req.Requesters {
 			for _, recipient := range recipients {
 				req := recipient.(*retrieveRequestMsgData)
@@ -93,6 +94,8 @@ func (self *forwarder) Store(chunk *storage.Chunk) {
 		Key:   chunk.Key,
 		SData: chunk.SData,
 	}
+	
+	log.Trace(fmt.Sprintf("forwarder.Store: chunk = %v msg = %v",  chunk, msg))
 	var source *peer
 	if chunk.Source != nil {
 		source = chunk.Source.(*peer)
@@ -108,6 +111,28 @@ func (self *forwarder) Store(chunk *storage.Chunk) {
 	log.Trace(fmt.Sprintf("forwarder.Store: sent to %v peers (chunk = %v)", n, chunk))
 }
 
+func (self *forwarder) StoreTest(chunk *storage.Chunk) {
+    var n int
+    msg := &storeRequestMsgData{
+        Key:   chunk.Key,
+        SData: chunk.SData,
+    }
+    var source *peer
+    if chunk.Source != nil {
+        source = chunk.Source.(*peer)
+    }
+    for _, p := range self.hive.getPeers(chunk.Key, 0) {
+        log.Trace(fmt.Sprintf("forwarder.Store: %v %v", p, chunk))
+
+        if p.syncer != nil && (source == nil || p.Addr() != source.Addr()) {
+            n++
+            Deliver(p, msg, PropagateReq)
+        }
+    }
+    log.Trace(fmt.Sprintf("forwarder.Store: sent to %v peers (chunk = %v)", n, chunk))
+}
+
+
 // once a chunk is found deliver it to its requesters unless timed out
 func (self *forwarder) Deliver(chunk *storage.Chunk) {
 	// iterate over request entries
@@ -117,6 +142,7 @@ func (self *forwarder) Deliver(chunk *storage.Chunk) {
 			Key:   chunk.Key,
 			SData: chunk.SData,
 		}
+		log.Trace(fmt.Sprintf("forwarder.Deliver: msg %v %v  %v", chunk.Key, chunk.SData, counter))
 		var n int
 		var req *retrieveRequestMsgData
 		// iterate over requesters with the same id

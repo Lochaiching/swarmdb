@@ -32,7 +32,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
+	//	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	//	"github.com/ethereum/go-ethereum/swarmdb/database"
@@ -46,7 +46,7 @@ var (
 
 type Resolver interface {
 	Resolve(string) (common.Hash, error)
-	Register(string) (*types.Transaction, error)
+	//	Register(string) (*types.Transaction, error)
 }
 
 /*
@@ -62,6 +62,7 @@ type Api struct {
 	manifestroot []byte
 	trie         *manifestTrie
 }
+
 
 //the api constructor initialises
 func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
@@ -88,6 +89,10 @@ func NewApiTest(dpa *storage.DPA, dns Resolver, ldb *storage.LDBDatabase) (self 
 	return
 }
 
+func (self *Api) GetDPA() (dpa *storage.DPA) {
+	return self.dpa
+}
+
 // to be used only in TEST
 func (self *Api) Upload(uploadDir, index string) (hash string, err error) {
 	fs := NewFileSystem(self)
@@ -107,6 +112,17 @@ func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, table, ind
 	db.Put(tkey, key)
 }
 */
+
+func (self *Api) StoreBplusDB(tkey []byte, data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
+        key, err = self.dpa.Store(data, size, wg, nil)
+        // self.HashDBAdd([]byte(tkey), key, wg)
+        return
+}
+
+func (self *Api) BplusDBAdd(k []byte, v Val, wg *sync.WaitGroup) {
+	// log.Debug(fmt.Sprintf("BplusDBAdd %v \n", self.hashdbroot))
+	// self.hashdbroot.Add(k, v, self)
+}
 
 func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
 	key, err = self.dpa.Store(data, size, wg, nil)
@@ -586,7 +602,7 @@ func (self *Api) SubmitManifest() {
 	self.ldb.Put([]byte("manifestroot"), []byte(keys))
 	log.Debug(fmt.Sprintf("dns type = %s %v", reflect.TypeOf(self.dns), self.dns))
 	//ens := (*ens.ENS)(self.dns)
-	self.dns.Register("wolktable.eth")
+	//self.dns.Register("wolktable.eth")
 	//ens.Register("wolktable.eth")
 	log.Debug(fmt.Sprintf("Api.SubmitManifest[%v]: ", keys))
 	//log.Debug(fmt.Sprintf("Api.SubmitManifest[%s]%s: ", fkey, string(newkey)))
