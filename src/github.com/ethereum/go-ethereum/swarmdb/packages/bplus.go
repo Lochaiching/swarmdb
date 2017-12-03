@@ -1,16 +1,11 @@
 package swarmdb
 
 import (
-	"bufio"
 	"bytes"
-	// "crypto/sha256"
-	// "github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/ethereum/go-ethereum/swarm/api"
+	// "github.com/ethereum/go-ethereum/swarmdb/packages"
 	"fmt"
 	"io"
-	"os"
-	// "strconv"
-	// "strings"
 	"sync"
 )
 
@@ -136,40 +131,6 @@ const (
 	HASH_SIZE = 32
 )
 
-// from table's ENS
-func putTableENS(tableName []byte, hashid []byte) (succ bool, err error) {
-	path := fmt.Sprintf("%s/%s", ENS_DIR, tableName)
-	// do a write to local file system with all the items and the children
-	f, err := os.Create(path)
-	if err != nil {
-		panic(err)
-	}
-	defer f.Close()
-
-	fmt.Printf(" Wrote ENS: [%s => %s]\n", tableName, hashid)
-	f.WriteString(string(hashid))
-	f.Sync()
-	return true, nil
-}
-
-// from table's ENS
-func getTableENS(tableName []byte) (hashid []byte, err error) {
-	var terr *TableNotExistError
-	path := fmt.Sprintf("%s/%s", ENS_DIR, tableName)
-	file, err := os.Open(path)
-	if err != nil {
-		fmt.Print("getTableENS FAIL: [%s]\n", path)
-		return hashid, terr
-	}
-	defer file.Close()
-	var line string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line = scanner.Text()
-		return []byte(line), nil
-	}
-	return hashid, terr
-}
 
 func init() {
 	if kd < 1 {
@@ -390,14 +351,13 @@ func (t *Tree) Open(owner []byte, tableName []byte, columnName []byte) (ok bool,
 	t.columnName = columnName
 	// t.kaddb = NewKadDB(owner, tableName, columnName)
 
-	hashid, err := getTableENS(t.tableName)
-	fmt.Printf("Open HashID :[%s=>%s]\n", tableName, hashid)
+	hashid, err := t.api.GetIndexRootHash(t.tableName)
+	fmt.Printf("Index:%s => %x\n", tableName, hashid)
 	if err != nil {
 		fmt.Printf("ERR %v\n", err)
 		return ok, err
 	} else {
 		t.hashid = hashid
-		fmt.Printf("Open %s => hashid %s\n", tableName, hashid)
 		t.SWARMGet()
 		return true, nil
 	}
@@ -414,7 +374,7 @@ func (t *Tree) FlushBuffer() (ok bool, err error) {
 		t.buffered = false
 		new_hashid, changed := t.SWARMPut() 
 		if ( changed ) {
-			putTableENS(t.tableName, []byte(new_hashid))
+			t.api.StoreIndexRootHash(t.tableName, []byte(new_hashid))
 			return true, nil
 		}
 	} else {
@@ -446,17 +406,12 @@ func set_chunk_nodetype(buf []byte, nodetype string) {
 
 func (t *Tree) SWARMGet() (success bool) {
 	// do a read from local file system, filling in: (a) hashid and (b) items
-	
-	buf := make([]byte, CHUNK_SIZE)
-	reader := t.api.Retrieve(t.hashid)
-	offset, err := reader.Read(buf)
-	fmt.Printf("Retrieve: %v => %v\n", buf, offset)
-
+	buf, err := t.api.RetrieveDBChunk(t.hashid)
 	if err != nil {
 		fmt.Printf("SWARMGet FAIL (T): [%s]\n", err)
 		// return false
 	}
-	fmt.Printf("GOT %s [%v]\n", t.hashid, buf)
+	fmt.Printf("GOT %x [%v]\n", t.hashid, buf)
 	nodetype := get_chunk_nodetype(buf)
 	if nodetype == "X" {
 		// create X node
@@ -479,21 +434,23 @@ func (t *Tree) SWARMGet() (success bool) {
 				fmt.Printf(" LOAD-X|%d|%s\n", i, x.hashid)
 			}
 		}
-	} else if nodetype == "D" {
+	} else { 
 		// create D node
-		t.r = btDPool.Get().(*x)
+		t.r = btDPool.Get().(*d)
 		switch z := t.r.(type) {
 		case (*d):
 			for  i := 0 ; i < 32; i++ {
-				k := buf[i*KV_SIZE:i*KV_SIZE+31]
-				hashid := buf[i*KV_SIZE+32:i*64+63]
-				z.c++
-				x := btDPool.Get().(*d)
-				z.d[i].k = k
-				z.d[i].v = hashid
-				x.notloaded = true
-				x.hashid = hashid
-				fmt.Printf(" LOAD-D|%d|%s\n", i, x.hashid)
+				k := buf[i*KV_SIZE:i*KV_SIZE+32]
+				hashid := buf[i*KV_SIZE+32:i*64+64]
+				if valid_hashid(hashid) && i < 2*kd  {
+					z.c++
+					x := btDPool.Get().(*d)
+					z.d[i].k = k
+					z.d[i].v = hashid
+					x.notloaded = true
+					x.hashid = hashid
+					fmt.Printf(" LOAD-D %d|k:%s|i:%x\n", i, string(k), x.hashid)
+				}
 			}
 		}
 	}
@@ -502,18 +459,24 @@ func (t *Tree) SWARMGet() (success bool) {
 	case (*x):
 		z.c--
 	}
-	fmt.Printf("SWARMGet SUCC: [%s]\n", t.hashid)
+	fmt.Printf("SWARMGet T: [%x]\n", t.hashid)
 	return true
 }
 
+func valid_hashid(hashid []byte) (valid bool) {
+	valid = true
+	for i := 0; i < len(hashid); i++ {
+		if ( hashid[i] != 0 )  {
+			return false
+		}
+	}
+	return valid
+}
 
 func (q *x) SWARMGet(api *api.Api) (changed bool) {
 	// X|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
 	// do a read from local file system, filling in: (a) hashid and (b) items
-	buf := make([]byte, CHUNK_SIZE)
-	reader := api.Retrieve(q.hashid)
-	offset, err := reader.Read(buf)
-	fmt.Printf("Retrieve: %v => %v\n", buf, offset)
+	buf, err := api.RetrieveDBChunk(q.hashid)
 	if err != nil {
 		fmt.Printf("SWARMGet FAIL X: [%s]\n", err)
 		// return false
@@ -543,17 +506,14 @@ func (q *x) SWARMGet(api *api.Api) (changed bool) {
 		}
 	}
 	q.notloaded = false
-	fmt.Printf("SWARMGet SUCC: [%s]\n", q.hashid)
+	fmt.Printf("SWARMGet X: [%x]\n", q.hashid)
 	return true
 }
 
 func (q *d) SWARMGet(api *api.Api) (changed bool) {
 	// do a read from local file system, filling in: (a) hashid and (b) items
-	buf := make([]byte, CHUNK_SIZE)
-
-	reader := api.Retrieve(q.hashid)
-	offset, err := reader.Read(buf)
-	fmt.Printf("Retrieve: %v (%d) => %v\n", buf, offset, err)
+	buf, err := api.RetrieveDBChunk(q.hashid)
+	fmt.Printf("Retrieve: %v => %v\n", buf,  err)
 	if err != nil {
 		fmt.Printf("SWARMGet FAIL (D): [%s]\n", err)
 		// return false
@@ -562,7 +522,7 @@ func (q *d) SWARMGet(api *api.Api) (changed bool) {
 		k := buf[i*64:i*64+31]
 		node_type := buf[i*64+31:i*64+32]
 		hashid := buf[i*64+32:i*64+63]
-		if string(node_type) == "C" {
+		if string(node_type) == "C" || true {
 			q.c++
 			q.d[i].k = k
 			q.d[i].v = hashid
@@ -572,7 +532,7 @@ func (q *d) SWARMGet(api *api.Api) (changed bool) {
 	q.prevhashid = buf[CHUNK_SIZE-64:CHUNK_SIZE-32]
 	q.nexthashid = buf[CHUNK_SIZE-32:CHUNK_SIZE]
 	q.notloaded = false
-	fmt.Printf("SWARMGet SUCC: [%s]\n", q.hashid)
+	fmt.Printf("SWARMGet D: [%x]\n", q.hashid)
 	return true
 }
 
@@ -629,11 +589,7 @@ func (q *x) SWARMPut(api *api.Api) (new_hashid []byte, changed bool) {
 		}
 	}
 
-	rd := bytes.NewReader(sdata)
-	wg := &sync.WaitGroup{}
-	tkey := []byte("dummy") // TODO
-	new_hashid, err := api.StoreBplusDB(tkey, rd, CHUNK_SIZE, wg) 
-	wg.Wait()
+	new_hashid, err := api.StoreDBChunk(sdata)
 	if err != nil {
 		return q.hashid, false
 	}
@@ -675,11 +631,8 @@ func (q *d) SWARMPut(api *api.Api) (new_hashid []byte, changed bool) {
 		copy(sdata[CHUNK_SIZE-HASH_SIZE*2:], q.nexthashid)  // 32 bytes
 	}
 
-	rd := bytes.NewReader(sdata)
-	wg := &sync.WaitGroup{}
-	tkey := []byte("dummy") // TODO
-	new_hashid, err := api.StoreBplusDB(tkey, rd, CHUNK_SIZE, wg) 
-	wg.Wait()
+	new_hashid, err := api.StoreDBChunk(sdata) 
+
 	if err != nil {
 		return q.hashid, false
 	}
@@ -1141,7 +1094,7 @@ func (t *Tree) Insert(k []byte /*K*/, v []byte /*V*/) (okres bool, err error) {
 }
 
 func (t *Tree) split(p *x, q *d, pi, i int, k []byte /*K*/, v []byte /*V*/) {
-	fmt.Printf("SPLIT!\n")
+	// fmt.Printf("SPLIT!\n")
 	t.ver++
 	r := btDPool.Get().(*d)
 	if q.n != nil {

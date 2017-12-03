@@ -25,7 +25,7 @@ import (
 	"sync"
 
 	"bytes"
-	"crypto/sha256"
+	// "crypto/sha256"
 	"mime"
 	"path/filepath"
 	"reflect"
@@ -35,7 +35,7 @@ import (
 	//	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-	//	"github.com/ethereum/go-ethereum/swarmdb/database"
+	// "github.com/ethereum/go-ethereum/swarmdb/chunkstore"
 )
 
 var (
@@ -55,8 +55,14 @@ on top of the dpa
 it is the public interface of the dpa which is included in the ethereum stack
 */
 type Api struct {
-	dpa          *storage.DPA
-	dns          Resolver
+	dbchunkstore  storage.DBChunkstore    // Sqlite3 based
+	ens           storage.ENSSimulation
+	
+	// MAJOR TODO: redo this to support the above going from singleton to cloud
+	dpa          *storage.DPA  // LDB based
+	dns          Resolver      // requires geth on Mainnet, so ...
+
+	// eliminate these
 	hashdbroot   *Node
 	ldb          *storage.LDBDatabase
 	manifestroot []byte
@@ -70,27 +76,20 @@ func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
 		dpa: dpa,
 		dns: dns,
 	}
-	return
-}
-
-func NewApiTest(dpa *storage.DPA, dns Resolver, ldb *storage.LDBDatabase) (self *Api) {
-	rn, err := ldb.Get([]byte("RootNode"))
-	hr := NewRootNode([]byte("RootNode"), nil)
-	if err == nil {
-		hr.NodeHash = rn
+	dbchunkstore, err := storage.NewDBChunkStore("/tmp/chunk.db")
+	if err != nil {
+		// TODO: PANIC
+	} else {
+		self.dbchunkstore = dbchunkstore
 	}
-	self = &Api{
-		dpa:        dpa,
-		dns:        dns,
-		ldb:        ldb,
-		trie:       nil,
-		hashdbroot: hr,
+
+	ens, err := storage.NewENSSimulation("/tmp/ens.db")
+	if err != nil {
+		// TODO: PANIC
+	} else {
+		self.ens = ens
 	}
 	return
-}
-
-func (self *Api) GetDPA() (dpa *storage.DPA) {
-	return self.dpa
 }
 
 // to be used only in TEST
@@ -102,26 +101,6 @@ func (self *Api) Upload(uploadDir, index string) (hash string, err error) {
 
 func (self *Api) StoreDB(data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
 	return self.dpa.StoreDB(data, size, wg, nil)
-}
-
-/*
-func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, table, index string){
-	key, err = self.dpa.Store(data, size, wg, nil)
-	self.swarmdb.Open(table)
-	db := self.swarmdb.OpenIndex(database, index)
-	db.Put(tkey, key)
-}
-*/
-
-func (self *Api) StoreBplusDB(tkey []byte, data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
-        key, err = self.dpa.Store(data, size, wg, nil)
-        // self.HashDBAdd([]byte(tkey), key, wg)
-        return
-}
-
-func (self *Api) BplusDBAdd(k []byte, v Val, wg *sync.WaitGroup) {
-	// log.Debug(fmt.Sprintf("BplusDBAdd %v \n", self.hashdbroot))
-	// self.hashdbroot.Add(k, v, self)
 }
 
 func (self *Api) StoreHashDB(tkey []byte, data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
@@ -142,6 +121,28 @@ func (self *Api) Retrieve(key storage.Key) storage.LazySectionReader {
 
 func (self *Api) Store(data io.Reader, size int64, wg *sync.WaitGroup) (key storage.Key, err error) {
 	return self.dpa.Store(data, size, wg, nil)
+}
+
+// DBChunkStore  API
+func (self *Api) RetrieveDBChunk(key []byte) (val []byte, err error) {
+	return self.dbchunkstore.RetrieveChunk(key)
+}
+
+func (self *Api) StoreDBChunk(val []byte) (key []byte, err error) {
+	return self.dbchunkstore.StoreChunk(val)
+}
+
+func (self *Api) StoreKDBChunk(key []byte, val []byte) (err error) {
+	return self.dbchunkstore.StoreKChunk(key, val)
+}
+
+// ENSSimulation  API
+func (self *Api) GetIndexRootHash(indexName []byte) (roothash []byte, err error) {
+	return self.ens.GetIndexRootHash(indexName)
+}
+
+func (self *Api) StoreIndexRootHash(indexName []byte, roothash []byte) (err error) {
+	return self.ens.StoreIndexRootHash(indexName, roothash)
 }
 
 type ErrResolve error
@@ -350,75 +351,6 @@ func (self *Api) GetTableData(table string) []byte {
 func (self *Api) StoreTableData(table string, rootkey []byte) []byte {
 	self.ldb.Put([]byte(table), []byte(rootkey))
 	return rootkey
-}
-
-func (self *Api) GetManifestRoot() storage.Key {
-	key, _ := self.ldb.Get([]byte("manifestroot"))
-	return key
-}
-
-//func (self *Api) GetTest(key storage.Key, path string) (reader storage.LazySectionReader, mimeType string, status int, err error) {
-func (self *Api) GetTest(path string) (reader storage.LazySectionReader, mimeType string, status int, err error) {
-	log.Debug(fmt.Sprintf("api GetTest: ", path))
-	key, _ := self.ldb.Get([]byte("manifestroot"))
-
-	if key == nil {
-		key, _ = self.NewManifest()
-	}
-	log.Debug(fmt.Sprintf("api GetTest %v self.manifestroot: %s", key, self.manifestroot))
-	if string(key) != string(self.manifestroot) {
-		log.Debug(fmt.Sprintf("api GetTest read trie: %v", key))
-		self.trie, err = loadManifest(self.dpa, common.Hex2Bytes(string(key)), nil)
-		log.Debug(fmt.Sprintf("api GetTest read trie done %v: ", key))
-		if err != nil {
-			log.Warn(fmt.Sprintf("loadManifestTrie error: %v", err))
-			return
-		}
-		self.manifestroot = key
-	}
-	trie := self.trie
-	log.Debug(fmt.Sprintf("api GetTest self.manifestroot: ", self.manifestroot))
-
-	log.Trace(fmt.Sprintf("getEntry(%s)", path))
-
-	entry, _ := trie.getEntry(path)
-	var ldbkey []byte
-
-	log.Trace(fmt.Sprintf("gettest entry 1: %v '%v'", entry, path))
-	if entry == nil {
-		ldbkey, _ = self.ldb.Get([]byte(path))
-		log.Trace(fmt.Sprintf("gettest entry 1.5: %v '%v'", entry, path))
-		log.Warn(fmt.Sprintf("entry null key ldb %v", ldbkey))
-	}
-	var newpath string
-	if entry == nil && ldbkey == nil {
-		h256 := sha256.New()
-		h256.Write([]byte(path))
-		newpath = fmt.Sprintf("%x", h256.Sum(nil))
-		entry, _ = trie.getEntry(newpath)
-		log.Trace(fmt.Sprintf("gettest entry 2: %v '%v'", entry, newpath))
-	}
-
-	if entry == nil {
-		ldbkey, _ = self.ldb.Get([]byte(newpath))
-		log.Trace(fmt.Sprintf("gettest entry 3: %v '%v'", entry, newpath))
-		log.Warn(fmt.Sprintf("entry null key ldb %v", ldbkey))
-	}
-
-	if entry != nil {
-		key = common.Hex2Bytes(entry.Hash)
-		status = entry.Status
-		mimeType = entry.ContentType
-		log.Trace(fmt.Sprintf("content lookup key: %v '%v' (%v)", entry.Hash, key, mimeType))
-		reader = self.dpa.Retrieve(key)
-	} else if ldbkey != nil {
-
-	} else {
-		status = http.StatusNotFound
-		err = fmt.Errorf("manifest entry for '%s' not found", path)
-		log.Warn(fmt.Sprintf("%v", err))
-	}
-	return
 }
 
 func (self *Api) Modify(key storage.Key, path, contentHash, contentType string) (storage.Key, error) {
