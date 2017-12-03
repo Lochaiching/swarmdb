@@ -103,7 +103,7 @@ func (self *KademliaDB) Put(k, v []byte) (bool, error) {
 }
 
 func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
-	chunkKey := self.GenerateChunkKey( k )
+	chunkKey := self.GenerateChunkKey(k)
 
 	//column = strings.ToLower(path_parts[2])
 	contentReader := self.api.Retrieve(chunkKey)
@@ -135,11 +135,11 @@ func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
 	return queryResponse, true, nil
 }
 
-func (self *KademliaDB) GenerateChunkKey(k []byte) []byte {
-        owner := strings.ToLower(string(self.owner))
-        table := strings.ToLower(string(self.tableName))
-        id := strings.ToLower(string(k))
-        contentPrefix := BuildSwarmdbPrefix(owner, table, id)
+func (self *KademliaDB) GenerateChunkKey(k []byte) storage.Key {
+	owner := strings.ToLower(string(self.owner))
+	table := strings.ToLower(string(self.tableName))
+	id := strings.ToLower(string(k))
+	contentPrefix := BuildSwarmdbPrefix(owner, table, id)
 	keylen := 64 ///////..........
 	dummy := bytes.Repeat([]byte("Z"), keylen)
 	keybase := contentPrefix + string(dummy)
@@ -147,6 +147,7 @@ func (self *KademliaDB) GenerateChunkKey(k []byte) []byte {
 	rd := strings.NewReader(keybase)
 	key, _ := chunker.Split(rd, int64(len(keybase)), nil, nil, nil, false)
 	log.Debug(fmt.Sprintf("In KademliaDB prefix [%v] dummy [%v] Keybase [%s] key [%s] from [%s]", contentPrefix, dummy, keybase, key, k))
+	fmt.Printf("In KademliaDB prefix [%v] dummy [%v] Keybase [%s] key [%s][%+v] from [%s]", contentPrefix, dummy, keybase, key, key, k)
 	return key
 }
 

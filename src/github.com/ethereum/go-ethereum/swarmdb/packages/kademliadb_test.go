@@ -17,10 +17,10 @@
 package swarmdb
 
 import (
-	//"bytes"
+	"bytes"
 	"fmt"
 	//"strings"
-	//"sync"
+	"sync"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/swarm/api"
@@ -59,34 +59,47 @@ func TestKademlia(t *testing.T) {
 	tc.Column = []byte(`yob`)
 	kdb.Open(tc.Owner, tc.TableName, tc.Column)
 	sdata := kdb.BuildSdata(tc.Key, tc.Value)
+	fmt.Printf("SDATA: (%s) [%+v]", sdata, sdata)
+	expectedKey := kdb.GenerateChunkKey( tc.Key )
+	fmt.Printf("Expected Key: (%s) [%+v]", expectedKey, expectedKey)
+
 	ok, err := kdb.Put(tc.Key, sdata)
 	if err != nil {
 		t.Fatal(err)
 	}
-	/*
-		sdata := make([]byte, 4096)
-		copy(sdata[0:], []byte(tc.Value))
-		rd := bytes.NewReader(sdata)
-		wg := &sync.WaitGroup{}
-		dhash, _ := api.GetDPA().StoreDB(rd, int64(len(sdata)), wg, nil)
-	*/
 	if !ok {
 		t.Fatal("The expected HASH for --> ", tc.Value, " <- is [", tc.Key, "] SAVED")
 	}
-	fmt.Printf("Issued Store: %v\n", tc.Key)
-	//wg.Wait()
 	fmt.Printf("WG Done: %v\n", tc.Key)
 
-	reader := api.GetDPA().Retrieve(tc.Key)
-	fmt.Printf("Retrieve: %v\n", tc.Key)
+	reader := api.GetDPA().Retrieve(expectedKey)
+	fmt.Printf("Retrieve: %v\n", expectedKey)
 	buf := make([]byte, 4096)
 	offset, err := reader.Read(buf)
 	fmt.Printf("Read done - %v\n", string(buf))
 	if err != nil {
 		fmt.Printf("Retrieve ERR: %v'", err)
 	} else {
-		fmt.Printf("Retrieve: %v offset:%d buf:'%v'", tc.Key, offset, buf)
+		fmt.Printf("Retrieve: %v offset:%d buf:'%v'", expectedKey, offset, buf)
 	}
+	
+	/*
+	*/
+	sdataDebug := make([]byte, 4096)
+	copy(sdataDebug[0:], []byte("Hello World"))
+	rd := bytes.NewReader(sdataDebug)
+	wg := &sync.WaitGroup{}
+	keyDebug, _ := api.GetDPA().Store(rd, int64(len(sdataDebug)), wg, nil)
+	fmt.Printf("KEY: [%s][%s]\n\n",keyDebug, sdataDebug)
+	dataDebug := api.GetDPA().Retrieve(keyDebug)
+        if _, err = dataDebug.Size(nil); err != nil {
+                //log.Debug("key not found %s: %s", keyDebug, err)
+        }
+        contentReaderSize, _ := dataDebug.Size(nil)
+        contentBytes := make([]byte, contentReaderSize)
+        _, _ = dataDebug.ReadAt(contentBytes, 0)
+
+	fmt.Print("data: [%s][%v]\n\n",string(contentBytes), contentBytes)
 	dpa.Stop()
 	/*
 		tests := []test{

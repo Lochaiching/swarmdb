@@ -23,6 +23,7 @@ import (
 	//"bytes"
 	"fmt"
 	"net/http"
+	//"regexp"
 	"strings"
 	//"sync"
 
@@ -48,7 +49,7 @@ type Request struct {
 	uri *api.URI
 }
 
-func SWARMDB_createTable(tbl_name string, column string, primary bool, index string) (succ bool) {
+func CreateTable(tbl_name string, column string, primary bool, index string) (err error) {
 	fmt.Printf("swarmdb.SWARMDB_createTable(%v, column: %v primary: %v index: %v)\n", tbl_name, column, primary, index)
 	// RODNEY/MAYUMI: CONNECT TO dispatch.go -- create table descriptor (in LocalDB + ENS), ...
 	switch index {
@@ -60,11 +61,11 @@ func SWARMDB_createTable(tbl_name string, column string, primary bool, index str
 		//fill in
 	}
 
-	return true
+	return nil
 }
 
 //data should be a pointer not actual structure
-func SWARMDB_query(sql string) (data []string, err error) {
+func Query(sql string) (data []string, err error) {
 
 	//parse sql
 	stmt, err := sqlparser.Parse(sql)
@@ -85,6 +86,15 @@ func SWARMDB_query(sql string) (data []string, err error) {
 	}
 
 	//get table
+	index := GetColumnDesc("dummy", "tbl_name", "id")
+	switch index {
+	case "kademlia":
+		// fill in GET
+	case "hash":
+		// fill in GET
+	case "btree":
+		// fill in GET
+	}
 	//data, primarykeycol = GET(node.From[0])  //not sure a primary key col is a feature we'll have
 	//pretending this is the solution to whatever the query puts out... (i.e. the whole contacts table)
 	var dataget []string
@@ -94,14 +104,19 @@ func SWARMDB_query(sql string) (data []string, err error) {
 	//pretending it also turns out a primary key col:
 	//primarykeycol := "email"
 
+	//pretending that this is no primary key, just json rows of data:
 	if node.Where != nil {
-		fmt.Printf("WHERE: %s \n", sqlparser.String(node.Where))
-		readable(node.Where.Expr)
+		fmt.Printf("WHERE: %s \n", readable(node.Where.Expr))
 
 		switch n := node.Where.Expr.(type) {
 		case *sqlparser.OrExpr:
+			// need >, <, >=, <=
 			left := strings.Split(sqlparser.String(n.Left), "=")
+			left[0] = strings.TrimSpace(left[0])
+			left[1] = strings.TrimSpace(left[1])
 			right := strings.Split(sqlparser.String(n.Right), "=")
+			right[0] = strings.TrimSpace(right[0])
+			right[1] = strings.TrimSpace(right[1])
 			for _, record := range dataget {
 				rmap := make(map[string]interface{})
 				if err := json.Unmarshal([]byte(record), &rmap); err != nil {
@@ -114,13 +129,37 @@ func SWARMDB_query(sql string) (data []string, err error) {
 			}
 		case *sqlparser.AndExpr:
 			left := strings.Split(sqlparser.String(n.Left), "=")
+			leftkey := strings.TrimSpace(left[0])
+			leftkey = strings.Replace(leftkey, `'`, "", -1)
+			leftkey = strings.Replace(leftkey, `"`, "", -1)
+			//leftval := strings.TrimSpace(left[1])
+			leftval := strings.TrimSpace(left[1])
+			leftval = strings.Replace(leftval, `'`, "", -1)
+			leftval = strings.Replace(leftval, `"`, "", -1)
+			fmt.Printf("left: %+v, %+v\n", leftkey, leftval)
 			right := strings.Split(sqlparser.String(n.Right), "=")
+			rightkey := strings.TrimSpace(right[0])
+			rightkey = strings.Replace(rightkey, `'`, "", -1)
+			rightkey = strings.Replace(rightkey, `"`, "", -1)
+			//right[0] = strings.TrimSpace(right[0])
+
+			fmt.Printf("right: %+v\n", right)
 			for _, record := range dataget {
-				rmap := make(map[string]interface{})
-				if err := json.Unmarshal([]byte(record), &rmap); err != nil {
+				r := make(map[string]interface{})
+				if err := json.Unmarshal([]byte(record), &r); err != nil {
 					return data, err
 				}
-				if (rmap[left[0]] == left[1]) && rmap[right[0]] == right[1] {
+				fmt.Printf("rmap: %+v\n", r)
+				fmt.Printf("rmap's left0: %+v\n", r[leftkey])
+				fmt.Printf("left1: %+v\n", leftval)
+				if r[leftkey] == leftval {
+					fmt.Printf("left is good\n")
+				}
+				if r[rightkey] == right[1] {
+					fmt.Printf("right is good\n")
+				}
+				if (r[leftkey] == leftval) && r[rightkey] == right[1] {
+					fmt.Printf("both are good. adding data\n")
 					data = append(data, record)
 				}
 			}
@@ -136,28 +175,51 @@ func SWARMDB_query(sql string) (data []string, err error) {
 	//fmt.Printf("ORDER BY: %s \n", sqlparser.String(node.OrderBy))
 
 	//fmt.Printf(")\n")
-
+	fmt.Printf("data: %+v\n", data)
 	return data, nil
 }
 
-func SWARMDB_add(tablename string, record map[string]interface{}) (success bool, err error) {
-
-	fmt.Printf("swarmdb.SWARMDB_add(%s, %+v)\n", tablename, record)
-	for key, _ := range record {
-		switch key {
-		case "email":
-			// fill in
-		case "name":
-			// fill in
-		case "age":
-			// fill in
-
-		}
-	}
-	return true, nil
+/*
+func cleanExpression(n sqlparser.Expr, operand string) (leftkey string, leftval string, rightkey string, rightval string) {
+	left := strings.Split(sqlparser.String(n.Left), operand)
+	leftkey = cleanValue(left[0])
+	leftval = cleanValue(left[1])
+	fmt.Printf("left: %+v, %+v\n", leftkey, leftval)
+	right := strings.Split(sqlparser.String(n.Right), operand)
+	rightkey = cleanValue(right[0])
+	rightval = cleanValue(right[1])
+	fmt.Printf("right: %+v, %+v\n", rightkey, rightval)
+	return leftkey, leftval, rightkey, rightval
 }
 
-func SWARMDB_get(tbl_name string, id string) (jsonrecord string, err error) {
+func cleanValue(val string) string {
+	val = strings.TrimSpace(val)
+	val = strings.Replace(val, `'`, "", -1)
+	val = strings.Replace(leftval, `"`, "", -1)
+	return val
+}
+*/
+
+func AddRecord(tablename string, record string) (err error) {
+
+	fmt.Printf("swarmdb.AddRecord(%s, %+v)\n", tablename, record)
+	index := GetColumnDesc("dummy", "tablename", "id")
+
+	//question: how to check for existing records? i.e. how to know cols and prim key to check for existing record?
+	switch index {
+	case "kademlia":
+		//PUT
+	case "hash":
+		//PUT
+	case "btree":
+		//PUT
+	default:
+	}
+
+	return nil
+}
+
+func GetRecord(tbl_name string, id string) (jsonrecord string, err error) {
 
 	// RODNEY/MAYUMI: CONNECT TO dispatch.go
 	// get table descriptor, and based on the primary key's index, call dispatch.go
