@@ -46,6 +46,10 @@ func NewDBChunkStore(path string) (dbcs DBChunkstore, err error) {
 }
 
 func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
+	if len(v) < minChunkSize {
+		return fmt.Errorf("chunk too small") // should be improved
+	}
+
 	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, storeDT ) values(?, ?, CURRENT_TIMESTAMP)`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
@@ -60,9 +64,16 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 	return nil
 }
 
+const (
+	minChunkSize = 4000
+)
+
 func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
-	inp := make([]byte, 4000)
-	copy(inp, v[0:4000])
+	if len(v) < minChunkSize {
+		return k, fmt.Errorf("chunk too small") // should be improved
+	}
+	inp := make([]byte, minChunkSize)
+	copy(inp, v[0:minChunkSize])
 	h := sha256.New()
 	h.Write([]byte(inp))
 	k = h.Sum(nil)
