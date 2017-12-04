@@ -120,16 +120,15 @@ func (t *BufferOverflowError) Error() string {
 }
 
 const (
-	kx        = 3
-	kd        = 3
+	kx             = 3
+	kd             = 3
 	KEYS_PER_CHUNK = 32
-	CHUNK_SIZE = 4096
-	KV_SIZE = 64
-	K_SIZE = 32
-	V_SIZE = 32
-	HASH_SIZE = 32
+	CHUNK_SIZE     = 4096
+	KV_SIZE        = 64
+	K_SIZE         = 32
+	V_SIZE         = 32
+	HASH_SIZE      = 32
 )
-
 
 func init() {
 	if kd < 1 {
@@ -224,7 +223,7 @@ type (
 		r     interface{}
 		ver   int64
 
-		api   *api.Api
+		api        *api.Api
 		buffered   bool
 		owner      []byte
 		tableName  []byte
@@ -371,8 +370,8 @@ func (t *Tree) StartBuffer() (ok bool, err error) {
 func (t *Tree) FlushBuffer() (ok bool, err error) {
 	if t.buffered {
 		t.buffered = false
-		new_hashid, changed := t.SWARMPut() 
-		if ( changed ) {
+		new_hashid, changed := t.SWARMPut()
+		if changed {
 			t.api.StoreIndexRootHash(t.tableName, []byte(new_hashid))
 			return true, nil
 		}
@@ -397,7 +396,7 @@ func (t *Tree) Close() (ok bool, err error) {
 
 // --
 func get_chunk_nodetype(buf []byte) (nodetype string) {
-	return string(buf[CHUNK_SIZE-65:CHUNK_SIZE-64]) 
+	return string(buf[CHUNK_SIZE-65 : CHUNK_SIZE-64])
 }
 
 func set_chunk_nodetype(buf []byte, nodetype string) {
@@ -406,7 +405,7 @@ func set_chunk_nodetype(buf []byte, nodetype string) {
 
 // --
 func get_chunk_childtype(buf []byte) (nodetype string) {
-	return string(buf[CHUNK_SIZE-66:CHUNK_SIZE-65]) 
+	return string(buf[CHUNK_SIZE-66 : CHUNK_SIZE-65])
 }
 
 func set_chunk_childtype(buf []byte, nodetype string) {
@@ -414,7 +413,7 @@ func set_chunk_childtype(buf []byte, nodetype string) {
 }
 
 func (t *Tree) SWARMGet() (success bool) {
-	if t.r != nil { 
+	if t.r != nil {
 		switch z := t.r.(type) {
 		case (*x):
 			return z.SWARMGet(t.api)
@@ -430,16 +429,16 @@ func (t *Tree) SWARMGet() (success bool) {
 	}
 	nodetype := get_chunk_nodetype(buf)
 	childtype := get_chunk_childtype(buf)
-	fmt.Printf("SWARMGet Retrieve %s [child %s] %x : %v\n", nodetype, childtype, t.hashid, buf)
+	t.api.PrintDBChunk(t.hashid, buf)
 	if nodetype == "X" {
 		// create X node
 		t.r = btXPool.Get().(*x)
 		switch z := t.r.(type) {
 		case (*x):
-			for  i := 0 ; i < KEYS_PER_CHUNK; i++ {
-				k := buf[i*KV_SIZE:i*KV_SIZE+K_SIZE]
-				hashid := buf[i*KV_SIZE+K_SIZE:i*KV_SIZE+KV_SIZE]
-				if valid_hashid(hashid) && i < 2*kx + 2 {  // 
+			for i := 0; i < KEYS_PER_CHUNK; i++ {
+				k := buf[i*KV_SIZE : i*KV_SIZE+K_SIZE]
+				hashid := buf[i*KV_SIZE+K_SIZE : i*KV_SIZE+KV_SIZE]
+				if valid_hashid(hashid) && i < 2*kx+2 { //
 					z.c++
 					if childtype == "X" {
 						x := btXPool.Get().(*x)
@@ -459,15 +458,15 @@ func (t *Tree) SWARMGet() (success bool) {
 				}
 			}
 		}
-	} else { 
+	} else {
 		// create D node
 		t.r = btDPool.Get().(*d)
 		switch z := t.r.(type) {
 		case (*d):
-			for  i := 0 ; i < KEYS_PER_CHUNK; i++ {
-				k := buf[i*KV_SIZE:i*KV_SIZE+K_SIZE]
-				hashid := buf[i*KV_SIZE+K_SIZE:i*KV_SIZE+KV_SIZE]
-				if valid_hashid(hashid) && i < 2*kd  {
+			for i := 0; i < KEYS_PER_CHUNK; i++ {
+				k := buf[i*KV_SIZE : i*KV_SIZE+K_SIZE]
+				hashid := buf[i*KV_SIZE+K_SIZE : i*KV_SIZE+KV_SIZE]
+				if valid_hashid(hashid) && i < 2*kd {
 					z.c++
 					x := btDPool.Get().(*d)
 					z.d[i].k = k
@@ -491,13 +490,12 @@ func (t *Tree) SWARMGet() (success bool) {
 func valid_hashid(hashid []byte) (valid bool) {
 	valid = false
 	for i := 0; i < len(hashid); i++ {
-		if ( hashid[i] != 0 )  {
+		if hashid[i] != 0 {
 			return true
 		}
 	}
 	return valid
 }
-
 
 func (q *x) SWARMGet(api *api.Api) (changed bool) {
 	if q.notloaded {
@@ -514,11 +512,11 @@ func (q *x) SWARMGet(api *api.Api) (changed bool) {
 	}
 
 	childtype := get_chunk_childtype(buf)
-	fmt.Printf("CHILDTYPE (%x) = [%s]\n", q.hashid, childtype) 
-	for  i := 0 ; i < KEYS_PER_CHUNK; i++ {
-		if i < 2*kx + 2 {
-			k := buf[i*KV_SIZE:i*KV_SIZE+K_SIZE]
-			hashid := buf[i*KV_SIZE+K_SIZE:i*KV_SIZE+KV_SIZE]
+	fmt.Printf("CHILDTYPE (%x) = [%s]\n", q.hashid, childtype)
+	for i := 0; i < KEYS_PER_CHUNK; i++ {
+		if i < 2*kx+2 {
+			k := buf[i*KV_SIZE : i*KV_SIZE+K_SIZE]
+			hashid := buf[i*KV_SIZE+K_SIZE : i*KV_SIZE+KV_SIZE]
 			if childtype == "X" {
 				// X|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
 				x := btXPool.Get().(*x)
@@ -545,31 +543,32 @@ func (q *x) SWARMGet(api *api.Api) (changed bool) {
 }
 
 func (q *d) SWARMGet(api *api.Api) (changed bool) {
+
 	if q.notloaded {
 	} else {
+
 		return false
 	}
+
 	// do a read from local file system, filling in: (a) hashid and (b) items
 	buf, err := api.RetrieveDBChunk(q.hashid)
-	fmt.Printf("Retrieve %x (D): %v\n", q.hashid, buf,  err)
 	if err != nil {
 		fmt.Printf("SWARMGet FAIL (D): [%s]\n", err)
-		// return false
 	}
-	for  i := 0 ; i < KEYS_PER_CHUNK; i++ {
-		k := buf[i*KV_SIZE:i*KV_SIZE+K_SIZE]
-		hashid := buf[i*KV_SIZE+K_SIZE:i*KV_SIZE+KV_SIZE]
-		if valid_hashid(hashid) && ( i < 2*kd + 1 ) {
+	for i := 0; i < KEYS_PER_CHUNK; i++ {
+		k := buf[i*KV_SIZE : i*KV_SIZE+K_SIZE]
+		hashid := buf[i*KV_SIZE+K_SIZE : i*KV_SIZE+KV_SIZE]
+		if valid_hashid(hashid) && (i < 2*kd+1) {
 			q.c++
 			q.d[i].k = k
 			q.d[i].v = hashid
 			q.notloaded = false
 		}
 	}
-	q.prevhashid = buf[CHUNK_SIZE-HASH_SIZE*2:CHUNK_SIZE-HASH_SIZE]
-	q.nexthashid = buf[CHUNK_SIZE-HASH_SIZE:CHUNK_SIZE]
+	q.prevhashid = buf[CHUNK_SIZE-HASH_SIZE*2 : CHUNK_SIZE-HASH_SIZE]
+	q.nexthashid = buf[CHUNK_SIZE-HASH_SIZE : CHUNK_SIZE]
 	q.notloaded = false
-	fmt.Printf("SWARMGet D: [%x]\n", q.hashid)
+	api.PrintDBChunk(q.hashid, buf)
 	return true
 }
 
@@ -613,48 +612,48 @@ func (q *x) SWARMPut(api *api.Api) (new_hashid []byte, changed bool) {
 		}
 	}
 
-	// compute the data here 
+	// compute the data here
 	sdata := make([]byte, CHUNK_SIZE)
 	childtype := "X"
 	for i := 0; i <= q.c; i++ {
 		switch z := q.x[i].ch.(type) {
 		case *x:
-			copy(sdata[i*KV_SIZE:], q.x[i].k)     // max 32 bytes 
-			copy(sdata[i*KV_SIZE+K_SIZE:], z.hashid)  // max 32 bytes
+			copy(sdata[i*KV_SIZE:], q.x[i].k)        // max 32 bytes
+			copy(sdata[i*KV_SIZE+K_SIZE:], z.hashid) // max 32 bytes
 		case *d:
-			copy(sdata[i*KV_SIZE:], q.x[i].k)     // max 32 bytes 
-			copy(sdata[i*KV_SIZE+K_SIZE:], z.hashid)  // max 32 bytes
+			copy(sdata[i*KV_SIZE:], q.x[i].k)        // max 32 bytes
+			copy(sdata[i*KV_SIZE+K_SIZE:], z.hashid) // max 32 bytes
 			childtype = "D"
 		}
 	}
 
-/*
- ROOT Node b047977f21aefcf5c679784add61c7c37b803bb00cf01f9252b903141deecb66 [dirty=true|notloaded=false]
- %!s(MISSING)XNode [c=1] b047977f21aefcf5c679784add61c7c37b803bb00cf01f9252b903141deecb66 (LEVEL 0) [dirty=true|notloaded=false]
- Child 0|1 KEY = 000004
- DNode [c=%!s(int=3)] (LEVEL 1) [dirty=false|notloaded=false|prev=|next=c7cf5541a7da8057b0f88952e6143e8895c61d930c0206fa91188fc22ca28003]
- DATA 0 (L2)|000001|Anjuli
- DATA 1 (L2)|000002|Amit
- DATA 2 (L2)|000003|Francesca
- Child 1|1 KEY = 
- DNode [c=%!s(int=5)] (LEVEL 1) [dirty=false|notloaded=false|prev=6aee29f53b555503b7e82bb78706fec04cd290de1687b868c466ccd5f10b9119|next=]
- DATA 0 (L2)|000004|Sourabh
- DATA 1 (L2)|000005|Happy
- DATA 2 (L2)|000006|Bertie
- DATA 3 (L2)|000007|Sammy
- DATA 4 (L2)|000008|Minnie
-Put Test DONE
+	/*
+	    ROOT Node b047977f21aefcf5c679784add61c7c37b803bb00cf01f9252b903141deecb66 [dirty=true|notloaded=false]
+	    %!s(MISSING)XNode [c=1] b047977f21aefcf5c679784add61c7c37b803bb00cf01f9252b903141deecb66 (LEVEL 0) [dirty=true|notloaded=false]
+	    Child 0|1 KEY = 000004
+	    DNode [c=%!s(int=3)] (LEVEL 1) [dirty=false|notloaded=false|prev=|next=c7cf5541a7da8057b0f88952e6143e8895c61d930c0206fa91188fc22ca28003]
+	    DATA 0 (L2)|000001|Anjuli
+	    DATA 1 (L2)|000002|Amit
+	    DATA 2 (L2)|000003|Francesca
+	    Child 1|1 KEY =
+	    DNode [c=%!s(int=5)] (LEVEL 1) [dirty=false|notloaded=false|prev=6aee29f53b555503b7e82bb78706fec04cd290de1687b868c466ccd5f10b9119|next=]
+	    DATA 0 (L2)|000004|Sourabh
+	    DATA 1 (L2)|000005|Happy
+	    DATA 2 (L2)|000006|Bertie
+	    DATA 3 (L2)|000007|Sammy
+	    DATA 4 (L2)|000008|Minnie
+	   Put Test DONE
 
---
- ROOT Node  [dirty=false|notloaded=false]
- %!s(MISSING)XNode [c=1]  (LEVEL 0) [dirty=false|notloaded=false]
- Child 0|1 KEY = 000004
- XNode [c=0] 0865e0fd5fd2f6fa42ffe212f53d190ac6a551835a2d255adece99bffb2e916f (LEVEL 1) [dirty=false|notloaded=false]
- Child 0|2 KEY = 
- Child 1|1 KEY = 
- XNode [c=0] c7cf5541a7da8057b0f88952e6143e8895c61d930c0206fa91188fc22ca28003 (LEVEL 1) [dirty=false|notloaded=true]
- Child 0|2 KEY = 
-*/
+	   --
+	    ROOT Node  [dirty=false|notloaded=false]
+	    %!s(MISSING)XNode [c=1]  (LEVEL 0) [dirty=false|notloaded=false]
+	    Child 0|1 KEY = 000004
+	    XNode [c=0] 0865e0fd5fd2f6fa42ffe212f53d190ac6a551835a2d255adece99bffb2e916f (LEVEL 1) [dirty=false|notloaded=false]
+	    Child 0|2 KEY =
+	    Child 1|1 KEY =
+	    XNode [c=0] c7cf5541a7da8057b0f88952e6143e8895c61d930c0206fa91188fc22ca28003 (LEVEL 1) [dirty=false|notloaded=true]
+	    Child 0|2 KEY =
+	*/
 	set_chunk_nodetype(sdata, "X")
 	set_chunk_childtype(sdata, childtype)
 	checktype := get_chunk_childtype(sdata)
@@ -692,20 +691,20 @@ func (q *d) SWARMPut(api *api.Api) (new_hashid []byte, changed bool) {
 
 	sdata := make([]byte, CHUNK_SIZE)
 	for i := 0; i < q.c; i++ {
-		copy(sdata[i*KV_SIZE:], q.d[i].k)     // max 32 bytes 
-		copy(sdata[i*KV_SIZE+K_SIZE:], q.d[i].v)  // max 32 bytes
+		copy(sdata[i*KV_SIZE:], q.d[i].k)        // max 32 bytes
+		copy(sdata[i*KV_SIZE+K_SIZE:], q.d[i].v) // max 32 bytes
 	}
-	
+
 	if q.p != nil {
 		copy(sdata[CHUNK_SIZE-HASH_SIZE*2:], q.prevhashid) // 32 bytes
 	}
 	if q.n != nil {
-		copy(sdata[CHUNK_SIZE-HASH_SIZE*2+HASH_SIZE:], q.nexthashid)  // 32 bytes
+		copy(sdata[CHUNK_SIZE-HASH_SIZE*2+HASH_SIZE:], q.nexthashid) // 32 bytes
 	}
 
 	set_chunk_nodetype(sdata, "D")
 	set_chunk_childtype(sdata, "C")
-	new_hashid, err := api.StoreDBChunk(sdata) 
+	new_hashid, err := api.StoreDBChunk(sdata)
 
 	if err != nil {
 		return q.hashid, false
@@ -861,13 +860,12 @@ func (t *Tree) find(q interface{}, k []byte /*K*/) (i int, ok bool) {
 	l := 0
 	switch x := q.(type) {
 	case *x:
-		fmt.Printf("X FIND\n")
 		h := x.c - 1
 		for l <= h {
-			fmt.Printf("l %d h %d c:%d\n", l, h, x.c)
+			// fmt.Printf("l %d h %d c:%d\n", l, h, x.c)
 			m := (l + h) >> 1
 			mk = x.x[m].k
-			fmt.Printf(" x: m=%d t.cmp( k=%v,  mk=%v) = %d \n", m, k, mk, t.cmp(k, mk))
+			//fmt.Printf(" x: m=%d t.cmp( k=%v,  mk=%v) = %d \n", m, k, mk, t.cmp(k, mk))
 			switch cmp := t.cmp(k, mk); {
 			case cmp > 0:
 				l = m + 1
@@ -879,20 +877,16 @@ func (t *Tree) find(q interface{}, k []byte /*K*/) (i int, ok bool) {
 		}
 	case *d:
 		h := x.c - 1
-		fmt.Printf("D FIND: %d\n", h)
 		for l <= h {
 			m := (l + h) >> 1
 			mk = x.d[m].k
-			fmt.Printf(" d: m=%d t.cmp( k=%v,  mk=%v) = %d \n", m, k, mk, t.cmp(k, mk))
+			//fmt.Printf(" d: m=%d t.cmp( k=%v,  mk=%v) = %d \n", m, k, mk, t.cmp(k, mk))
 			switch cmp := t.cmp(k, mk); {
 			case cmp > 0:
-				fmt.Printf("  -- cmp>0\n")
 				l = m + 1
 			case cmp == 0:
-				fmt.Printf("  -- cmp=0\n")
 				return m, true
 			default:
-				fmt.Printf("  -- cmp<0\n")
 				h = m - 1
 			}
 		}
@@ -916,7 +910,7 @@ func checkload(api *api.Api, q interface{}) {
 // Get returns the value associated with k and true if it exists. Otherwise Get
 // returns (zero-value, false).
 func (t *Tree) Get(key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
-	
+
 	q := t.r
 	if q == nil {
 		return
@@ -992,7 +986,6 @@ func (t *Tree) Print() {
 	return
 }
 
-
 func (q *x) print(level int) {
 	print_spaces(level)
 	fmt.Printf("XNode %x [c=%d] (LEVEL %d) [dirty=%v|notloaded=%v]\n", q.hashid, q.c, level, q.dirty, q.notloaded)
@@ -1065,21 +1058,17 @@ func (t *Tree) Seek(key []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err err
 		if i, ok = t.find(q, k); ok {
 			switch x := q.(type) {
 			case *x:
-				fmt.Printf(" X OK\n")
 				q = x.x[i+1].ch
 				continue
 			case *d: // err, hit, i, k, q, t, ver
-				fmt.Printf(" D OK\n")
 				return btEPool.get(nil, ok, i, k, x, t, t.ver), true, nil
 			}
 		}
 
 		switch x := q.(type) {
 		case *x:
-			fmt.Printf(" X not ok\n")
 			q = x.x[i].ch
 		case *d:
-			fmt.Printf(" D not ok\n")
 			return btEPool.get(nil, ok, i, k, x, t, t.ver), false, nil
 		}
 	}
@@ -1387,11 +1376,12 @@ func (e *Enumerator) next() error {
 	case e.i < e.q.c-1:
 		e.i++
 	default:
-		if len(e.q.nexthashid) > 0 && e.q.n == nil {
-			// fmt.Printf(" LOAD %v\n", e.q.nexthashid);
+		if valid_hashid(e.q.nexthashid) && e.q.n == nil {
+			fmt.Printf(" *** LOAD NEXT -- %x\n", e.q.nexthashid)
 			r := btDPool.Get().(*d)
 			r.p = e.q
 			r.hashid = e.q.nexthashid
+			r.notloaded = true
 			r.SWARMGet(e.t.api)
 			e.q = r
 			e.i = 0

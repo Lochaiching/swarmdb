@@ -2,13 +2,13 @@ package swarmdb
 
 import (
 	"fmt"
-	"github.com/ethereum/go-ethereum/swarmdb/packages"
-	"math"
 	"github.com/cznic/mathutil"
 	"github.com/ethereum/go-ethereum/swarm/api"
+	"github.com/ethereum/go-ethereum/swarmdb/packages"
+	"math"
 	"testing"
 	// "bytes"
-	"math/rand"
+	// "math/rand"
 	// "github.com/ethereum/go-ethereum/swarm/storage"
 	// "github.com/ethereum/go-ethereum/swarm/storage/database"
 )
@@ -23,8 +23,8 @@ func rng() *mathutil.FC32 {
 }
 
 const (
-	OWNER = "0x34c7fc051eae78f8c37b82387a50a5458b8f7018"
-	TABLENAME = "tes2"
+	OWNER      = "0x34c7fc051eae78f8c37b82387a50a5458b8f7018"
+	TABLENAME  = "test34"
 	COLUMNNAME = "id"
 )
 
@@ -37,47 +37,47 @@ func TestPut(t *testing.T) {
 	r := swarmdb.NewBPlusTreeDB(getAPI(t))
 	r.Open([]byte(OWNER), []byte(TABLENAME), []byte(COLUMNNAME))
 
-	r.StartBuffer()
-	// open table [only gets the root node]
-	vals := rand.Perm(20)
-	// write 20 values into B-tree (only kept in memory)
-	for _, i := range vals {
-		k := []byte(fmt.Sprintf("%06x", i))
-		v := []byte(fmt.Sprintf("valueof%06x", i))
-		fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
-		r.Put(k, v)
-	}
-	// this writes B+tree to SWARM
-	r.FlushBuffer() // tableName
+	/*	r.StartBuffer()
+		// open table [only gets the root node]
+		vals := rand.Perm(20)
+		// write 20 values into B-tree (only kept in memory)
+		for _, i := range vals {
+			k := []byte(fmt.Sprintf("%06x", i))
+			v := []byte(fmt.Sprintf("valueof%06x", i))
+			fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
+			r.Put(k, v)
+		}
+		// this writes B+tree to SWARM
+		r.FlushBuffer() // tableName
+
+		// r.Close() */
 	r.Print()
+	fmt.Printf("Put Test DONE\n----\n")
+	/*
 
-	// r.Close() 
-	fmt.Printf("Put Test DONE\n----\n");
-/*
+		s := swarmdb.NewBPlusTreeDB(getAPI(t))
+		s.Open([]byte(OWNER), []byte(TABLENAME), []byte(COLUMNNAME))
+		fmt.Printf("getting...\n")
 
-	s := swarmdb.NewBPlusTreeDB(getAPI(t))
-	s.Open([]byte(OWNER), []byte(TABLENAME), []byte(COLUMNNAME))
-	fmt.Printf("getting...\n")
+		g, _, _ := s.Get([]byte("000008"))
+		fmt.Printf("GET1: %v\n", string(g))
 
-	g, _, _ := s.Get([]byte("000008"))
-	fmt.Printf("GET1: %v\n", string(g))
+		h, _, _ := s.Get([]byte("000001"))
+		fmt.Printf("GET3: %v\n", string(h))
 
-	h, _, _ := s.Get([]byte("000001"))
-	fmt.Printf("GET3: %v\n", string(h))
-
-	s.Print()
-*/
-/*
-	r.StartBuffer()
-	r.Put([]byte("000004"), []byte("Sammy2"))
-	r.Put([]byte("000009"), []byte("Happy2"))
-	r.Put([]byte("00000e"), []byte("Leroy2"))
-	 */
+		s.Print()
+	*/
+	/*
+		r.StartBuffer()
+		r.Put([]byte("000004"), []byte("Sammy2"))
+		r.Put([]byte("000009"), []byte("Happy2"))
+		r.Put([]byte("00000e"), []byte("Leroy2"))
+	*/
 
 	// ENUMERATOR
-	res, _, _ := r.Seek([]byte("000001"))
+	res, _, _ := r.Seek([]byte("000004"))
 	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
-		fmt.Printf(" K: %v V: %v\n", string(k), string(v))
+		fmt.Printf("---> K: %v V: %v\n", string(k), string(v))
 	}
 
 }
@@ -85,7 +85,7 @@ func TestPut(t *testing.T) {
 /*
 func TestSetGet0(t *testing.T) {
 	r := swarmdb.NewBPlusTreeDB(getAPI(t))
-	
+
 	set := r.Put
 	key := []byte("42")
 	val := []byte("314")
@@ -107,7 +107,7 @@ func TestSetGet0(t *testing.T) {
 		t.Fatal(ok)
 	}
 
-	if bytes.Compare(g2, val2) != 0 { 
+	if bytes.Compare(g2, val2) != 0 {
 		t.Fatal(g2, val2)
 	}
 
@@ -148,7 +148,7 @@ func TestSetGet1(t *testing.T) {
 				t.Fatal(i, key, v, ok)
 			}
 
-			val := fmt.Sprintf("%v", k^x)  
+			val := fmt.Sprintf("%v", k^x)
 			if bytes.Compare([]byte(val), v) != 0 {
 				t.Fatal(i, val, v)
 			}
@@ -197,7 +197,7 @@ func TestSetGet2(t *testing.T) {
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
 		rng := rng()
 		r := swarmdb.NewBPlusTreeDB(getAPI(t))
-		
+
 		set := r.Put
 		a := make([]int, N)
 		for i := range a {
@@ -293,7 +293,7 @@ func TestDelete0(t *testing.T) {
 
 	key0 := []byte(fmt.Sprintf("%d", 0))
 	key1 := []byte(fmt.Sprintf("%d", 1))
-	
+
 	if ok, _ := r.Delete(key0); ok {
 		t.Fatal(ok)
 	}

@@ -55,12 +55,12 @@ on top of the dpa
 it is the public interface of the dpa which is included in the ethereum stack
 */
 type Api struct {
-	dbchunkstore  storage.DBChunkstore    // Sqlite3 based
-	ens           storage.ENSSimulation
-	
+	dbchunkstore storage.DBChunkstore // Sqlite3 based
+	ens          storage.ENSSimulation
+
 	// MAJOR TODO: redo this to support the above going from singleton to cloud
-	dpa          *storage.DPA  // LDB based
-	dns          Resolver      // requires geth on Mainnet, so ...
+	dpa *storage.DPA // LDB based
+	dns Resolver     // requires geth on Mainnet, so ...
 
 	// eliminate these
 	hashdbroot   *Node
@@ -68,7 +68,6 @@ type Api struct {
 	manifestroot []byte
 	trie         *manifestTrie
 }
-
 
 //the api constructor initialises
 func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
@@ -134,6 +133,10 @@ func (self *Api) StoreDBChunk(val []byte) (key []byte, err error) {
 
 func (self *Api) StoreKDBChunk(key []byte, val []byte) (err error) {
 	return self.dbchunkstore.StoreKChunk(key, val)
+}
+
+func (self *Api) PrintDBChunk(hashid []byte, c []byte) {
+	self.dbchunkstore.PrintDBChunk(hashid, c)
 }
 
 // ENSSimulation  API
