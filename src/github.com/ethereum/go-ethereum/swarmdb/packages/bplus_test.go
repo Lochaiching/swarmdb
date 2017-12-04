@@ -3,16 +3,15 @@ package swarmdb
 import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb/packages"
-	// "bytes"
 	"math"
-	// "math/rand"
 	"github.com/cznic/mathutil"
 	"github.com/ethereum/go-ethereum/swarm/api"
+	"testing"
+	// "bytes"
+	"math/rand"
 	// "github.com/ethereum/go-ethereum/swarm/storage"
 	// "github.com/ethereum/go-ethereum/swarm/storage/database"
-	"testing"
 )
-
 
 func rng() *mathutil.FC32 {
 	x, err := mathutil.NewFC32(math.MinInt32/4, math.MaxInt32/4, false)
@@ -25,9 +24,8 @@ func rng() *mathutil.FC32 {
 
 const (
 	OWNER = "0x34c7fc051eae78f8c37b82387a50a5458b8f7018"
-	TABLENAME = "testtable"
+	TABLENAME = "tes2"
 	COLUMNNAME = "id"
-	DATA_DIR = "/tmp/joy"
 )
 
 func getAPI(t *testing.T) (a *api.Api) {
@@ -35,24 +33,14 @@ func getAPI(t *testing.T) (a *api.Api) {
 }
 
 func TestPut(t *testing.T) {
+
 	r := swarmdb.NewBPlusTreeDB(getAPI(t))
 	r.Open([]byte(OWNER), []byte(TABLENAME), []byte(COLUMNNAME))
 
 	r.StartBuffer()
-	r.Put([]byte("000004"), []byte("Minnie"))
-	r.Put([]byte("000003"), []byte("Sammy"))
-	r.Put([]byte("000002"), []byte("Bertie"))
-	r.Put([]byte("000001"), []byte("Happy"))
-	r.Print()
-	r.FlushBuffer() // tableName
-	r.Close() 
-	fmt.Printf("Put Test DONE\n----\n");
-
-	/*
 	// open table [only gets the root node]
 	vals := rand.Perm(20)
 	// write 20 values into B-tree (only kept in memory)
-	r.StartBuffer()
 	for _, i := range vals {
 		k := []byte(fmt.Sprintf("%06x", i))
 		v := []byte(fmt.Sprintf("valueof%06x", i))
@@ -63,23 +51,34 @@ func TestPut(t *testing.T) {
 	r.FlushBuffer() // tableName
 	r.Print()
 
+	// r.Close() 
+	fmt.Printf("Put Test DONE\n----\n");
+/*
+
+	s := swarmdb.NewBPlusTreeDB(getAPI(t))
+	s.Open([]byte(OWNER), []byte(TABLENAME), []byte(COLUMNNAME))
+	fmt.Printf("getting...\n")
+
+	g, _, _ := s.Get([]byte("000008"))
+	fmt.Printf("GET1: %v\n", string(g))
+
+	h, _, _ := s.Get([]byte("000001"))
+	fmt.Printf("GET3: %v\n", string(h))
+
+	s.Print()
+*/
+/*
 	r.StartBuffer()
 	r.Put([]byte("000004"), []byte("Sammy2"))
 	r.Put([]byte("000009"), []byte("Happy2"))
 	r.Put([]byte("00000e"), []byte("Leroy2"))
 	 */
-	g, _, _ := r.Get([]byte("000002"))
-	fmt.Printf("GET: %v\n", g)
-	// r.FlushBuffer()
-	r.Print()
 
 	// ENUMERATOR
-/*
-	res, _, _ := r.Seek([]byte("000004"))
+	res, _, _ := r.Seek([]byte("000001"))
 	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
 		fmt.Printf(" K: %v V: %v\n", string(k), string(v))
 	}
-*/
 
 }
 

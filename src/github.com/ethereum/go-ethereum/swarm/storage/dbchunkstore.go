@@ -52,8 +52,10 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 }
 
 func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
+	inp := make([]byte, 4000)
+	copy(inp, v[0:4000])
 	h := sha256.New()
-	h.Write([]byte(v))
+	h.Write([]byte(inp))
 	k = h.Sum(nil)
 
 	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, storeDT ) values(?, ?, CURRENT_TIMESTAMP)`
