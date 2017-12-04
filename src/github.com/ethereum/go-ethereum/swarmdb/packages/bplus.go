@@ -265,6 +265,7 @@ type (
 		ver   int64
 
 		api   *api.Api
+		kdb   *KademliaDB
 		buffered   bool
 		owner      []byte
 		tableName  []byte
@@ -381,6 +382,11 @@ func (l *d) mvR(r *d, c int) {
 func NewBPlusTreeDB(api *api.Api) *Tree {
 	t := btTPool.get(cmp)
 	t.api = api
+	kdb, err := NewKademliaDB(api)
+	if err != nil {
+	} else {
+		t.kdb = kdb
+	}
 	return t
 }
 
@@ -388,7 +394,7 @@ func (t *Tree) Open(owner []byte, tableName []byte, columnName []byte) (ok bool,
 	t.owner = owner
 	t.tableName = tableName
 	t.columnName = columnName
-	// t.kaddb = NewKadDB(owner, tableName, columnName)
+	// t.kdb = NewKademliaDB(owner, tableName, columnName)
 
 	hashid, err := getTableENS(t.tableName)
 	fmt.Printf("Open HashID :[%s=>%s]\n", tableName, hashid)
@@ -1069,7 +1075,7 @@ func (t *Tree) Put(k []byte /*K*/, v []byte /*V*/) (okresult bool, err error) {
 				q = x.x[i].ch
 				continue
 			case *d:
-				// kaddb.Put(t.dpa, t.owner, t.tableName, k, v)
+				//t.kdb.Put(k, v)
 				x.d[i].v = v
 				x.dirty = true // we updated the value but did not insert anything
 			}
