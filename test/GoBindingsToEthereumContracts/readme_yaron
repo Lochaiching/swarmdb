@@ -66,19 +66,28 @@ wget https://github.com/ethereum/solidity/releases/download/v0.4.13/solc-static-
 cp solc-static-linux /var/www/vhosts/swarm.wolk.com/src/github.com/ethereum/go-ethereum/build/bin/solc
 chmod 755 /var/www/vhosts/swarm.wolk.com/src/github.com/ethereum/go-ethereum/build/bin/solc
 
-
-
+- example 1
+https://vincentserpoul.github.io/post/binding-ethereum-golang/
 
 cd /var/www/vhosts/swarm.wolk.com/test/DeployContract/
 abigen --sol ./Trigger.sol --pkg main --out trigger.go
 
+- example 2
+https://github.com/ethereum/go-ethereum/wiki/Native-DApps:-Go-bindings-to-Ethereum-contracts
+-------------------------------------------------------------------------------------------------------------------------------------
 
 
 
 
+Please read "How to Write Go Code".
 
+Don't use /src in your GOPATH. Packages are located in $GOPATH/src.
 
+For build or install you need to have your files in a package directory.
 
+For go run, you need to supply all files as argument:
+
+go run main.go employee.go
 
 
 
