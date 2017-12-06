@@ -1,7 +1,9 @@
 package common
 
 import (
+	"encoding/binary"
 	"fmt"
+	"math"
 )
 
 type Database interface {
@@ -62,6 +64,23 @@ const (
 	KT_FLOAT   = 3
 	KT_BLOB    = 4
 )
+
+func KeyToString(keytype KeyType, k []byte) (out string) {
+	switch keytype {
+	case KT_BLOB:
+		return fmt.Sprintf("%v", k)
+	case KT_STRING:
+		return fmt.Sprintf("%s", string(k))
+	case KT_INTEGER:
+		a := binary.BigEndian.Uint64(k)
+		return fmt.Sprintf("%d [%x]", a, k)
+	case KT_FLOAT:
+		bits := binary.BigEndian.Uint64(k)
+		f := math.Float64frombits(bits)
+		return fmt.Sprintf("%f", f)
+	}
+	return "unknown key type"
+}
 
 type TableNotExistError struct {
 }
