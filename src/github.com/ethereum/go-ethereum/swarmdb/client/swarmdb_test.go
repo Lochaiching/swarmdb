@@ -1,4 +1,4 @@
-package swarmdb
+package client
 
 import (
 	"encoding/json"
