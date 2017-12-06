@@ -1,39 +1,13 @@
 package swarmdb
 
 import (
-	/*
-	   "encoding/hex"
-	   "encoding/json"
-	   "errors"
-	   "io"
-	   "io/ioutil"
-	   "mime"
-	   "mime/multipart"
-	   "os"
-	   "path"
-	   "strconv"
-	   "time"
-
-	   "github.com/ethereum/go-ethereum/common"
-	   "github.com/rs/cors"
-	   "github.com/ethereum/go-ethereum/accounts/keystore"
-	   "github.com/ethereum/go-ethereum/accounts"
-	   "github.com/ethereum/go-ethereum/crypto"
-	*/
-	//"bytes"
+	"encoding/json"
 	"fmt"
-	"net/http"
-	//"regexp"
-	"strings"
-	//"sync"
-
 	"github.com/ethereum/go-ethereum/log"
 	api "github.com/ethereum/go-ethereum/swarm/api"
-	//"github.com/robertkrimen/otto"
-	//"github.com/ethereum/go-ethereum/swarm/storage"
-	//"github.com/robertkrimen/otto/repl"
-	"encoding/json"
 	"github.com/xwb1989/sqlparser"
+	"net/http"
+	"strings"
 )
 
 type Server struct {
@@ -45,27 +19,128 @@ type Server struct {
 // Request wraps http.Request and also includes the parsed bzz URI
 type Request struct {
 	http.Request
-
 	uri *api.URI
 }
 
-func CreateTable(tbl_name string, column string, primary bool, index string) (err error) {
-	fmt.Printf("swarmdb.SWARMDB_createTable(%v, column: %v primary: %v index: %v)\n", tbl_name, column, primary, index)
-	// RODNEY/MAYUMI: CONNECT TO dispatch.go -- create table descriptor (in LocalDB + ENS), ...
-	switch index {
-	case "kademlia":
-		//fill in
-	case "hash":
-		//fill in
-	case "btree":
-		//fill in
+type RequestOption struct {
+	RequestType  string        `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
+	Owner        string        `json:"owner,omitempty"`
+	Table        string        `json:"table"`           //"contacts"
+	Key          string        `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
+	Value        string        `json:"value,omitempty"` //value of val, usually the whole json record
+	TableOptions []TableOption `json:"tableoptions",omitempty"`
+}
+
+//cursor?
+type TableOption struct {
+	TreeType  string `json:"treetype,omitempty"`
+	Index     string `json:"index"`
+	IndexType string `json:"indextype,omitempty"`
+	Primary   int    `json:"primary,omitempty"`
+}
+
+//index is primary key
+//where do you get treetype from?
+//columntypes exp: {"name":"string", "age":"int", "gender":"string"}
+func CreateTable(treetype string, table string, index string, columntype map[string]string) (err error) {
+
+	var req RequestOption
+	req.RequestType = "CreateTable"
+	req.Table = table
+
+	//primary key call
+	var primarycol TableOption
+	primarycol.TreeType = treetype
+	primarycol.Index = index
+	primarycol.IndexType = columntype[index]
+	primarycol.Primary = 1
+	req.TableOptions = append(req.TableOptions, primarycol)
+
+	//secondary key calls
+	for col, coltype := range columntype {
+		if col != index {
+			var secondarycol TableOption
+			secondarycol.TreeType = treetype
+			secondarycol.Index = col
+			secondarycol.IndexType = coltype
+			secondarycol.Primary = 0
+			req.TableOptions = append(req.TableOptions, secondarycol)
+		}
 	}
+
+	fmt.Printf("swarmdb.CreateTable( %+v\n)", table)
+
+	//new swarmdbserver
+	//err = swarmdbserver.OpenConnection(owner?)
+	//err = swarmdbserver.OpenTable(table)
+	//err = swarmdbserver.CreateTable(req)
+	//swarmdbserver.CloseClientConnection
 
 	return nil
 }
 
+//value is a "record" in json format
+//key is most likely the primary key
+func AddRecord(owner string, table string, key string, value string) (err error) {
+
+	var req RequestOption
+	req.RequestType = "Insert" //does not allow duplicates...?
+	req.Owner = owner
+	req.Table = table
+	req.Key = key
+
+	vmap := make(map[string]interface{})
+	if err := json.Unmarshal([]byte(value), &vmap); err != nil {
+		return fmt.Errorf("record is not proper json")
+	}
+	vjson, _ := json.Marshal(vmap) //re-marshal to clean up any odd formatting
+	req.Value = string(vjson)
+	fmt.Printf("swarmdb.AddRecord(%+v)\n", req)
+
+	//new swarmdbserver
+	//err = swarmdbserver.OpenConnection
+	//err = swarmdbserver.OpenTable(table)
+	//err = swarmdbserver.PUT(req)
+	//swarmdbserver.CloseConnection
+
+	return nil
+}
+
+//id should be prim key
+//func GetRecord(tbl_name string, id string) (jsonrecord string, err error) {
+func GetRecord(owner string, table string, key string) (value string, err error) {
+
+	//fmt.Printf("swarmdb.SWARMDB_get(%s, %s)\n", tbl_name, id)
+
+	var req RequestOption
+	req.RequestType = "Get"
+	req.Owner = owner
+	req.Table = table
+	req.Key = key
+	fmt.Printf("swarmdb.GetRecord(%+v)\n", req)
+
+	//new swarmdbserver
+	//err = swarmdbserver.OpenConnection
+	//err = swarmdbserver.OpenTable(table)
+	//err = swarmdbserver.GET(req)
+	//swarmdbserver.CloseClientConnection
+
+	//let's say this is the answer out of the swarmdb: (tbl_name: contacts, id: rodeny@wolk.com)
+	jsonrecord := `{ "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }`
+
+	//return rec
+	return jsonrecord, nil
+}
+
 //data should be a pointer not actual structure
-func Query(sql string) (data []string, err error) {
+func Query(owner string, table string, index string, sql string) (data []string, err error) {
+
+	var req RequestOption
+	req.RequestType = "Get"
+	req.Owner = owner
+	req.Table = table
+
+	///here
 
 	//parse sql
 	stmt, err := sqlparser.Parse(sql)
@@ -86,15 +161,8 @@ func Query(sql string) (data []string, err error) {
 	}
 
 	//get table
-	index := GetColumnDesc("dummy", "tbl_name", "id")
-	switch index {
-	case "kademlia":
-		// fill in GET
-	case "hash":
-		// fill in GET
-	case "btree":
-		// fill in GET
-	}
+	// fill in GET
+
 	//data, primarykeycol = GET(node.From[0])  //not sure a primary key col is a feature we'll have
 	//pretending this is the solution to whatever the query puts out... (i.e. the whole contacts table)
 	var dataget []string
@@ -200,58 +268,12 @@ func cleanValue(val string) string {
 }
 */
 
-func AddRecord(tablename string, record string) (err error) {
-
-	fmt.Printf("swarmdb.AddRecord(%s, %+v)\n", tablename, record)
-	index := GetColumnDesc("dummy", "tablename", "id")
-
-	//question: how to check for existing records? i.e. how to know cols and prim key to check for existing record?
-	switch index {
-	case "kademlia":
-		//PUT
-	case "hash":
-		//PUT
-	case "btree":
-		//PUT
-	default:
-	}
-
-	return nil
+//stub for looking up treetype of existing tables
+/*
+func GetTreeType(owner string, table string) (index string, err error) {
+	return "BT", nil
 }
-
-func GetRecord(tbl_name string, id string) (jsonrecord string, err error) {
-
-	// RODNEY/MAYUMI: CONNECT TO dispatch.go
-	// get table descriptor, and based on the primary key's index, call dispatch.go
-	fmt.Printf("swarmdb.SWARMDB_get(%s, %s)\n", tbl_name, id)
-
-	index := GetColumnDesc("dummy", tbl_name, id)
-
-	record := make(map[string]interface{})
-	switch index {
-	case "kademlia":
-		record, err = SwarmDbDownloadKademlia("0x728781E75735dc0962Df3a51d7Ef47E798A7107E", tbl_name, id)
-	case "hash":
-		//record, err = SwarmDbDownloadKademlia( "dummy", tbl_name, id )
-
-	case "btree":
-		//record, err = SwarmDbDownloadKademlia( "dummy", tbl_name, id )
-	}
-	jr, _ := json.Marshal(record)
-	jsonrecord = string(jr)
-	if err != nil {
-		return jsonrecord, err
-	}
-	//let's say this is the answer out of the swarmdb: (tbl_name: contacts, id: rodeny@wolk.com)
-	jsonrecord = `{ "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }`
-
-	//return rec
-	return jsonrecord, nil
-}
-
-func GetColumnDesc(owner string, table string, column string) (index string) {
-	return "kademlia"
-}
+*/
 
 func SwarmDbUploadKademlia(owner string, table string, key string, content string) {
 	/*
@@ -355,3 +377,20 @@ func readable(node sqlparser.Expr) string {
 		return sqlparser.String(node)
 	}
 }
+
+/*
+//best place to call open/close client connections?
+func openConnection() (err error) {
+	//diff kinds of clients? how to decide which?
+	return nil
+}
+
+func closeConnection() (err error) {
+	//diff kinds of clients? how to decide which?
+	//need garbage collection?
+	return nil
+}
+
+func openTable() (err error) {
+}
+*/
