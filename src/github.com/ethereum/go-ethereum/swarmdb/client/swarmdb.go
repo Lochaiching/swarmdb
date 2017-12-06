@@ -1,15 +1,14 @@
-package swarmdb
+package client
 
 import (
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
-	api "github.com/ethereum/go-ethereum/swarm/api"
+	"github.com/ethereum/go-ethereum/swarmdb/common"
 	"github.com/xwb1989/sqlparser"
-	"net/http"
 	"strings"
 )
-
+/*
 type Server struct {
 	api *api.Api
 	sk  [32]byte
@@ -21,7 +20,20 @@ type Request struct {
 	http.Request
 	uri *api.URI
 }
+ */
 
+
+func NewClient(gateway string) *Client {
+	return &Client {
+		Gateway: gateway,
+	}
+}
+
+type Client struct {
+	Gateway string
+}
+
+/*
 type RequestOption struct {
 	RequestType  string        `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
 	Owner        string        `json:"owner,omitempty"`
@@ -38,18 +50,19 @@ type TableOption struct {
 	IndexType string `json:"indextype,omitempty"`
 	Primary   int    `json:"primary,omitempty"`
 }
+ */
 
 //index is primary key
 //where do you get treetype from?
 //columntypes exp: {"name":"string", "age":"int", "gender":"string"}
 func CreateTable(treetype string, table string, index string, columntype map[string]string) (err error) {
 
-	var req RequestOption
+	var req common.RequestOption
 	req.RequestType = "CreateTable"
 	req.Table = table
 
 	//primary key call
-	var primarycol TableOption
+	var primarycol common.TableOption
 	primarycol.TreeType = treetype
 	primarycol.Index = index
 	primarycol.IndexType = columntype[index]
@@ -59,7 +72,7 @@ func CreateTable(treetype string, table string, index string, columntype map[str
 	//secondary key calls
 	for col, coltype := range columntype {
 		if col != index {
-			var secondarycol TableOption
+			var secondarycol common.TableOption
 			secondarycol.TreeType = treetype
 			secondarycol.Index = col
 			secondarycol.IndexType = coltype
@@ -83,7 +96,7 @@ func CreateTable(treetype string, table string, index string, columntype map[str
 //key is most likely the primary key
 func AddRecord(owner string, table string, key string, value string) (err error) {
 
-	var req RequestOption
+	var req common.RequestOption
 	req.RequestType = "Insert" //does not allow duplicates...?
 	req.Owner = owner
 	req.Table = table
@@ -112,7 +125,7 @@ func GetRecord(owner string, table string, key string) (value string, err error)
 
 	//fmt.Printf("swarmdb.SWARMDB_get(%s, %s)\n", tbl_name, id)
 
-	var req RequestOption
+	var req common.RequestOption
 	req.RequestType = "Get"
 	req.Owner = owner
 	req.Table = table
@@ -135,7 +148,7 @@ func GetRecord(owner string, table string, key string) (value string, err error)
 //data should be a pointer not actual structure
 func Query(owner string, table string, index string, sql string) (data []string, err error) {
 
-	var req RequestOption
+	var req common.RequestOption
 	req.RequestType = "Get"
 	req.Owner = owner
 	req.Table = table
