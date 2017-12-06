@@ -17,9 +17,14 @@ type DBChunkstore struct {
 }
 
 type DBChunk struct {
-	Key     []byte // 32
-	Val     []byte // 4096
-	StoreDT *time.Time
+	Key         []byte // 32
+	Val         []byte // 4096
+	Owner       []byte // 42
+	BuyAt       []byte // 32
+	Blocknumber []byte // 32
+	Tablename   []byte // 32
+	TableId     []byte // 32
+	StoreDT     *time.Time
 }
 
 func NewDBChunkStore(path string) (dbcs DBChunkstore, err error) {
@@ -30,6 +35,7 @@ func NewDBChunkStore(path string) (dbcs DBChunkstore, err error) {
 	if db == nil {
 		return dbcs, err
 	}
+	fmt.Printf("Created DB Chunkstore")
 	dbcs.db = db
 	dbcs.filepath = path
 	// create table if not exists
@@ -37,18 +43,24 @@ func NewDBChunkStore(path string) (dbcs DBChunkstore, err error) {
 	CREATE TABLE IF NOT EXISTS chunk (
 	chunkKey TEXT NOT NULL PRIMARY KEY,
 	chunkVal BLOB,
+	Owner TEXT,
+	BuyAt TEXT,
+	BlockNumber TEXT,
+	Tablename TEXT,
+	Tableid TEXT,
 	storeDT DATETIME
 	);
 	`
-
 	_, err = db.Exec(sql_table)
 	if err != nil {
+		fmt.Printf("Error Creating Table")
 		return dbcs, err
 	}
 	return dbcs, nil
 }
 
 func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
+	fmt.Printf("\nStartin StoreKChunk")
 	if len(v) < minChunkSize {
 		return fmt.Errorf("chunk too small") // should be improved
 	}
@@ -56,14 +68,17 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, storeDT ) values(?, ?, CURRENT_TIMESTAMP)`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
+		fmt.Printf("\nError Preparing into Table: [%s]", err)
 		return (err)
 	}
 	defer stmt.Close()
 
 	_, err2 := stmt.Exec(k, v)
 	if err2 != nil {
+		fmt.Printf("\nError Inserting into Table: [%s]", err)
 		return (err2)
 	}
+	fmt.Printf("\nEnding StoreKChunk")
 	return nil
 }
 
