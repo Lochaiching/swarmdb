@@ -1,10 +1,10 @@
-package swarmdb
+package common
+
+import (
+	"fmt"
+)
 
 type Database interface {
-	// Open: reads in root hashid from ENS
-	// Possible Errors: TableNotExistError, NetworkError
-	Open(owner []byte, tableName []byte, columnName []byte) (bool, error)
-
 	// Insert: adds key-value pair (value is an entire recrod)
 	// ok - returns true if new key added
 	// Possible Errors: KeySizeError, ValueSizeError, DuplicateKeyError, NetworkError, BufferOverflowError
@@ -52,4 +52,69 @@ type OrderedDatabase interface {
 type OrderedDatabaseCursor interface {
 	Next() (k []byte /*K*/, v []byte /*V*/, err error)
 	Prev() (k []byte /*K*/, v []byte /*V*/, err error)
+}
+
+type KeyType int
+
+const (
+	KT_INTEGER = 1
+	KT_STRING  = 2
+	KT_FLOAT   = 3
+	KT_BLOB    = 4
+)
+
+type TableNotExistError struct {
+}
+
+func (t *TableNotExistError) Error() string {
+	return fmt.Sprintf("Table does not exist")
+}
+
+type KeyNotFoundError struct {
+}
+
+func (t *KeyNotFoundError) Error() string {
+	return fmt.Sprintf("Key not found")
+}
+
+type KeySizeError struct {
+}
+
+func (t *KeySizeError) Error() string {
+	return fmt.Sprintf("Key size too large")
+}
+
+type ValueSizeError struct {
+}
+
+func (t *ValueSizeError) Error() string {
+	return fmt.Sprintf("Value size too large")
+}
+
+type DuplicateKeyError struct {
+}
+
+func (t *DuplicateKeyError) Error() string {
+	return fmt.Sprintf("Duplicate key error")
+}
+
+type NetworkError struct {
+}
+
+func (t *NetworkError) Error() string {
+	return fmt.Sprintf("Network error")
+}
+
+type NoBufferError struct {
+}
+
+func (t *NoBufferError) Error() string {
+	return fmt.Sprintf("No buffer error")
+}
+
+type BufferOverflowError struct {
+}
+
+func (t *BufferOverflowError) Error() string {
+	return fmt.Sprintf("Buffer overflow error")
 }

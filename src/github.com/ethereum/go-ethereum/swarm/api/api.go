@@ -32,6 +32,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	sdbcommon "github.com/ethereum/go-ethereum/swarmdb/common"
 	//	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
@@ -135,8 +136,8 @@ func (self *Api) StoreKDBChunk(key []byte, val []byte) (err error) {
 	return self.dbchunkstore.StoreKChunk(key, val)
 }
 
-func (self *Api) PrintDBChunk(hashid []byte, c []byte) {
-	self.dbchunkstore.PrintDBChunk(hashid, c)
+func (self *Api) PrintDBChunk(keytype sdbcommon.KeyType, hashid []byte, c []byte) {
+	self.dbchunkstore.PrintDBChunk(keytype, hashid, c)
 }
 
 // ENSSimulation  API

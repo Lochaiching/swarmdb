@@ -3,8 +3,11 @@ package storage
 import (
 	"crypto/sha256"
 	"database/sql"
+	"encoding/binary"
 	"fmt"
+	"github.com/ethereum/go-ethereum/swarmdb/common"
 	_ "github.com/mattn/go-sqlite3"
+	"math"
 	"time"
 )
 
@@ -149,7 +152,7 @@ func is_hash(hashid []byte) (valid bool) {
 	}
 }
 
-func (self *DBChunkstore) PrintDBChunk(hashid []byte, c []byte) {
+func (self *DBChunkstore) PrintDBChunk(keytype common.KeyType, hashid []byte, c []byte) {
 	nodetype := string(c[4096-65 : 4096-64])
 	if valid_type(nodetype) {
 		fmt.Printf("Chunk %x ", hashid)
@@ -187,11 +190,24 @@ func (self *DBChunkstore) PrintDBChunk(hashid []byte, c []byte) {
 		if emptybytes(k) && emptybytes(v) {
 		} else {
 			fmt.Printf(" %d:\t", i)
-			fmt.Printf("%s\t", string(k))
+
+			switch keytype {
+			case common.KT_BLOB:
+				fmt.Printf("%v", k)
+			case common.KT_STRING:
+				fmt.Printf("%s", string(k))
+			case common.KT_INTEGER:
+				a := binary.BigEndian.Uint64(k)
+				fmt.Printf("%d", a)
+			case common.KT_FLOAT:
+				bits := binary.LittleEndian.Uint64(k)
+				f := math.Float64frombits(bits)
+				fmt.Printf("%f", f)
+			}
 			if is_hash(v) {
-				fmt.Printf("%x\t", v)
+				fmt.Printf("\t%x\t", v)
 			} else {
-				fmt.Printf("%v\t", string(v))
+				fmt.Printf("\t%v\t", string(v))
 			}
 			fmt.Printf("\n")
 		}

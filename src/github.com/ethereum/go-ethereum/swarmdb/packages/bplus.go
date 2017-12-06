@@ -2,122 +2,15 @@ package swarmdb
 
 import (
 	"bytes"
-	"github.com/ethereum/go-ethereum/swarm/api"
-	// "github.com/ethereum/go-ethereum/swarmdb/packages"
+	"encoding/binary"
 	"fmt"
+	"github.com/ethereum/go-ethereum/swarm/api"
+	"github.com/ethereum/go-ethereum/swarmdb/common"
 	"io"
+	"math"
+	"strings"
 	"sync"
 )
-
-type Database interface {
-	// Open: reads in root hashid from ENS
-	// Possible Errors: TableNotExistError, NetworkError
-	Open(owner string, tableName string, columnName string) (bool, error)
-
-	// Insert: adds key-value pair (value is an entire recrod)
-	// ok - returns true if new key added
-	// Possible Errors: KeySizeError, ValueSizeError, DuplicateKeyError, NetworkError, BufferOverflowError
-	Insert(key []byte, value []byte) (bool, error)
-
-	// Put -- inserts/updates key-value pair (value is an entire record)
-	// ok - returns true if new key added
-	// Possible Errors: KeySizeError, ValueSizeError, NetworkError, BufferOverflowError
-	Put(key []byte, value []byte) (bool, error)
-
-	// Get - gets value of key (value is an entire record)
-	// ok - returns true if key found, false if not found
-	// Possible errors: KeySizeError, NetworkError
-	Get(key []byte) ([]byte, bool, error)
-
-	// Delete - deletes key
-	// ok - returns true if key found, false if not found
-	// Possible errors: KeySizeError, NetworkError, BufferOverflowError
-	Delete(key []byte) (bool, error)
-
-	// Start/Flush - any buffered updates will be flushed to SWARM on FlushBuffer
-	// ok - returns true if buffer started / flushed
-	// Possible errors: NoBufferError, NetworkError
-	StartBuffer() (bool, error)
-	FlushBuffer() (bool, error)
-
-	// Close - if buffering, then will flush buffer
-	// ok - returns true if operation successful
-	// Possible errors: NetworkError
-	Close() (bool, error)
-
-	// prints what is in memory
-	Print()
-}
-
-type OrderedDatabase interface {
-	Database
-
-	// Seek -- moves cursor to key k
-	// ok - returns true if key found, false if not found
-	// Possible errors: KeySizeError, NetworkError
-	Seek(k []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err error)
-}
-
-type OrderedDatabaseCursor interface {
-	Next() (k []byte /*K*/, v []byte /*V*/, err error)
-	Prev() (k []byte /*K*/, v []byte /*V*/, err error)
-}
-
-type TableNotExistError struct {
-}
-
-func (t *TableNotExistError) Error() string {
-	return fmt.Sprintf("Table does not exist")
-}
-
-type KeyNotFoundError struct {
-}
-
-func (t *KeyNotFoundError) Error() string {
-	return fmt.Sprintf("Key not found")
-}
-
-type KeySizeError struct {
-}
-
-func (t *KeySizeError) Error() string {
-	return fmt.Sprintf("Key size too large")
-}
-
-type ValueSizeError struct {
-}
-
-func (t *ValueSizeError) Error() string {
-	return fmt.Sprintf("Value size too large")
-}
-
-type DuplicateKeyError struct {
-}
-
-func (t *DuplicateKeyError) Error() string {
-	return fmt.Sprintf("Duplicate key error")
-}
-
-type NetworkError struct {
-}
-
-func (t *NetworkError) Error() string {
-	return fmt.Sprintf("Network error")
-}
-
-type NoBufferError struct {
-}
-
-func (t *NoBufferError) Error() string {
-	return fmt.Sprintf("No buffer error")
-}
-
-type BufferOverflowError struct {
-}
-
-func (t *BufferOverflowError) Error() string {
-	return fmt.Sprintf("Buffer overflow error")
-}
 
 const (
 	kx             = 3
@@ -223,12 +116,10 @@ type (
 		r     interface{}
 		ver   int64
 
-		api        *api.Api
-		buffered   bool
-		owner      []byte
-		tableName  []byte
-		columnName []byte
-		hashid     []byte
+		api      *api.Api
+		buffered bool
+		keyType  common.KeyType
+		hashid   []byte
 	}
 
 	xe struct { // x element
@@ -337,34 +228,23 @@ func (l *d) mvR(r *d, c int) {
 // BPlusTree returns a newly created, empty Tree. The compare function is used
 // for key collation.
 
-func NewBPlusTreeDB(api *api.Api) *Tree {
-	t := btTPool.get(cmp)
+func NewBPlusTreeDB(api *api.Api, hashid []byte, keytype common.KeyType) *Tree {
+	var t *Tree
+	switch keytype {
+	case common.KT_BLOB:
+		t = btTPool.get(cmpBytes)
+	case common.KT_FLOAT:
+		t = btTPool.get(cmpFloat)
+	case common.KT_STRING:
+		t = btTPool.get(cmpString)
+	case common.KT_INTEGER:
+		t = btTPool.get(cmpInt64)
+	}
+	t.keyType = keytype
+	t.hashid = hashid
 	t.api = api
-	kdb, err := NewKademliaDB(api)
-	if err != nil {
-	} else {
-		t.kdb = kdb
-	}
+	t.SWARMGet()
 	return t
-}
-
-func (t *Tree) Open(owner []byte, tableName []byte, columnName []byte) (ok bool, err error) {
-	t.owner = owner
-	t.tableName = tableName
-	t.columnName = columnName
-	// t.kdb = NewKademliaDB(owner, tableName, columnName)
-
-	hashid, err := t.api.GetIndexRootHash(t.tableName)
-	fmt.Printf("Index:%s => %x\n", tableName, hashid)
-	if err != nil {
-		fmt.Printf("ERR %v\n", err)
-		return ok, err
-	} else {
-		t.hashid = hashid
-		t.SWARMGet()
-		return true, nil
-	}
-
 }
 
 func (t *Tree) StartBuffer() (ok bool, err error) {
@@ -377,14 +257,29 @@ func (t *Tree) FlushBuffer() (ok bool, err error) {
 		t.buffered = false
 		new_hashid, changed := t.SWARMPut()
 		if changed {
-			t.api.StoreIndexRootHash(t.tableName, []byte(new_hashid))
+			t.hashid = new_hashid
+			// t.api.StoreIndexRootHash(t.tableName, []byte(new_hashid))
 			return true, nil
 		}
 	} else {
-		var nberr *NoBufferError
+		var nberr *common.NoBufferError
 		return false, nberr
 	}
 	return true, nil
+}
+
+func (t *Tree) check_flush() (ok bool) {
+	if t.buffered {
+		return false
+	}
+
+	new_hashid, changed := t.SWARMPut()
+	if changed {
+		fmt.Printf("check_flush changed new hash => %x\n", new_hashid)
+		// t.api.StoreIndexRootHash(t.tableName, []byte(new_hashid))
+		return true
+	}
+	return false
 }
 
 // Close performs Clear and recycles t to a pool for possible later reuse. No
@@ -417,6 +312,10 @@ func set_chunk_childtype(buf []byte, nodetype string) {
 	copy(buf[CHUNK_SIZE-66:], []byte(nodetype))
 }
 
+func (t *Tree) GetHashID() (hashid []byte) {
+	return t.hashid
+}
+
 func (t *Tree) SWARMGet() (success bool) {
 	if t.r != nil {
 		switch z := t.r.(type) {
@@ -434,7 +333,7 @@ func (t *Tree) SWARMGet() (success bool) {
 	}
 	nodetype := get_chunk_nodetype(buf)
 	childtype := get_chunk_childtype(buf)
-	t.api.PrintDBChunk(t.hashid, buf)
+	t.api.PrintDBChunk(t.keyType, t.hashid, buf)
 	if nodetype == "X" {
 		// create X node
 		t.r = btXPool.Get().(*x)
@@ -573,7 +472,7 @@ func (q *d) SWARMGet(api *api.Api) (changed bool) {
 	q.prevhashid = buf[CHUNK_SIZE-HASH_SIZE*2 : CHUNK_SIZE-HASH_SIZE]
 	q.nexthashid = buf[CHUNK_SIZE-HASH_SIZE : CHUNK_SIZE]
 	q.notloaded = false
-	api.PrintDBChunk(q.hashid, buf)
+	// api.PrintDBChunk(t.keyType, q.hashid, buf)
 	return true
 }
 
@@ -586,13 +485,13 @@ func (t *Tree) SWARMPut() (new_hashid []byte, changed bool) {
 	switch x := q.(type) {
 	case *x: // intermediate node -- descend on the next pass
 		fmt.Printf("ROOT XNode %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
-		new_hashid, changed = x.SWARMPut(t.api)
+		new_hashid, changed = x.SWARMPut(t.api, t.keyType)
 		if changed {
 			t.hashid = x.hashid
 		}
 	case *d: // data node -- EXACT match
 		fmt.Printf("ROOT DNode %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
-		new_hashid, changed = x.SWARMPut(t.api)
+		new_hashid, changed = x.SWARMPut(t.api, t.keyType)
 		if changed {
 			t.hashid = x.hashid
 		}
@@ -601,18 +500,18 @@ func (t *Tree) SWARMPut() (new_hashid []byte, changed bool) {
 	return new_hashid, changed
 }
 
-func (q *x) SWARMPut(api *api.Api) (new_hashid []byte, changed bool) {
+func (q *x) SWARMPut(api *api.Api, keytype common.KeyType) (new_hashid []byte, changed bool) {
 	// recurse through children
-	fmt.Printf("put XNode [c=%d] %s  [dirty=%v|notloaded=%v]\n", q.c, q.hashid, q.dirty, q.notloaded)
+	fmt.Printf("put XNode [c=%d] %x [dirty=%v|notloaded=%v]\n", q.c, q.hashid, q.dirty, q.notloaded)
 	for i := 0; i <= q.c; i++ {
 		switch z := q.x[i].ch.(type) {
 		case *x:
 			if z.dirty {
-				z.SWARMPut(api)
+				z.SWARMPut(api, keytype)
 			}
 		case *d:
 			if z.dirty {
-				z.SWARMPut(api)
+				z.SWARMPut(api, keytype)
 			}
 		}
 	}
@@ -632,33 +531,6 @@ func (q *x) SWARMPut(api *api.Api) (new_hashid []byte, changed bool) {
 		}
 	}
 
-	/*
-	    ROOT Node b047977f21aefcf5c679784add61c7c37b803bb00cf01f9252b903141deecb66 [dirty=true|notloaded=false]
-	    %!s(MISSING)XNode [c=1] b047977f21aefcf5c679784add61c7c37b803bb00cf01f9252b903141deecb66 (LEVEL 0) [dirty=true|notloaded=false]
-	    Child 0|1 KEY = 000004
-	    DNode [c=%!s(int=3)] (LEVEL 1) [dirty=false|notloaded=false|prev=|next=c7cf5541a7da8057b0f88952e6143e8895c61d930c0206fa91188fc22ca28003]
-	    DATA 0 (L2)|000001|Anjuli
-	    DATA 1 (L2)|000002|Amit
-	    DATA 2 (L2)|000003|Francesca
-	    Child 1|1 KEY =
-	    DNode [c=%!s(int=5)] (LEVEL 1) [dirty=false|notloaded=false|prev=6aee29f53b555503b7e82bb78706fec04cd290de1687b868c466ccd5f10b9119|next=]
-	    DATA 0 (L2)|000004|Sourabh
-	    DATA 1 (L2)|000005|Happy
-	    DATA 2 (L2)|000006|Bertie
-	    DATA 3 (L2)|000007|Sammy
-	    DATA 4 (L2)|000008|Minnie
-	   Put Test DONE
-
-	   --
-	    ROOT Node  [dirty=false|notloaded=false]
-	    %!s(MISSING)XNode [c=1]  (LEVEL 0) [dirty=false|notloaded=false]
-	    Child 0|1 KEY = 000004
-	    XNode [c=0] 0865e0fd5fd2f6fa42ffe212f53d190ac6a551835a2d255adece99bffb2e916f (LEVEL 1) [dirty=false|notloaded=false]
-	    Child 0|2 KEY =
-	    Child 1|1 KEY =
-	    XNode [c=0] c7cf5541a7da8057b0f88952e6143e8895c61d930c0206fa91188fc22ca28003 (LEVEL 1) [dirty=false|notloaded=true]
-	    Child 0|2 KEY =
-	*/
 	set_chunk_nodetype(sdata, "X")
 	set_chunk_childtype(sdata, childtype)
 	checktype := get_chunk_childtype(sdata)
@@ -670,29 +542,30 @@ func (q *x) SWARMPut(api *api.Api) (new_hashid []byte, changed bool) {
 	}
 	q.hashid = new_hashid
 	fmt.Printf("Stored X: %x [%v]\n", q.hashid, sdata)
+	api.PrintDBChunk(keytype, q.hashid, sdata)
 	return new_hashid, true
 }
 
-func (q *d) SWARMPut(api *api.Api) (new_hashid []byte, changed bool) {
-	fmt.Printf("put DNode [c=%d] [dirty=%v|notloaded=%v, prev=%s, next=%s]\n", q.c, q.dirty, q.notloaded, q.prevhashid, q.nexthashid)
+func (q *d) SWARMPut(api *api.Api, keytype common.KeyType) (new_hashid []byte, changed bool) {
+	fmt.Printf("put DNode [c=%d] [dirty=%v|notloaded=%v, prev=%x, next=%x]\n", q.c, q.dirty, q.notloaded, q.prevhashid, q.nexthashid)
 	if q.n != nil {
 		if q.n.dirty {
-			q.n.SWARMPut(api)
+			q.n.SWARMPut(api, keytype)
 		}
 		q.nexthashid = q.n.hashid
-		fmt.Printf(" -- NEXT: %s [%v]\n", q.nexthashid, q.n.dirty)
+		fmt.Printf(" -- NEXT: %x [%v]\n", q.nexthashid, q.n.dirty)
 	}
 	q.dirty = false
 
 	if q.p != nil {
 		if q.p.dirty {
-			q.p.SWARMPut(api)
+			q.p.SWARMPut(api, keytype)
 		}
 		q.prevhashid = q.p.hashid
 		fmt.Printf(" -- PREV: %s [%v]\n", q.prevhashid, q.p.dirty)
 	}
 
-	fmt.Printf("N: %x P: %x\n", q.n, q.p) //  q.prevhashid, q.nexthashid
+	// fmt.Printf("N: %x P: %x\n", q.n, q.p) //  q.prevhashid, q.nexthashid
 
 	sdata := make([]byte, CHUNK_SIZE)
 	for i := 0; i < q.c; i++ {
@@ -715,7 +588,8 @@ func (q *d) SWARMPut(api *api.Api) (new_hashid []byte, changed bool) {
 		return q.hashid, false
 	}
 	q.hashid = new_hashid
-	fmt.Printf("Stored D: %x [%v]\n", q.hashid, sdata)
+	fmt.Printf("Stored D: %x\n", q.hashid)
+	api.PrintDBChunk(keytype, q.hashid, sdata)
 	return new_hashid, true
 }
 
@@ -798,7 +672,7 @@ func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
 	var p *x
 	q := t.r
 	if q == nil {
-		var kerr *KeyNotFoundError
+		var kerr *common.KeyNotFoundError
 		return false, kerr
 	}
 	for {
@@ -828,6 +702,7 @@ func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
 					t.Clear()
 				}
 				x.dirty = true // we found the key and  actually deleted it!
+				t.check_flush()
 				return true, nil
 			}
 		}
@@ -842,7 +717,7 @@ func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
 			q = x.x[i].ch
 			x.dirty = true // optimization: this should really be if something is *actually* deleted
 		case *d:
-			var kerr *KeyNotFoundError
+			var kerr *common.KeyNotFoundError
 			return false, kerr // we got to the bottom and key was not found
 		}
 	}
@@ -927,7 +802,7 @@ func (t *Tree) Get(key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
 		checkload(t.api, q)
 
 		var i int
-		fmt.Printf("FINDING: %v\n", k)
+
 		// binary search on the node => i
 		if i, ok = t.find(q, k); ok {
 			// found it
@@ -937,17 +812,16 @@ func (t *Tree) Get(key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
 				continue
 			case *d: // data node -- EXACT match
 				// kaddb.Get(t.dpa, x.d[i].v)
-				fmt.Printf("FOUND %d\n", i)
-				return x.d[i].v, ok, nil
+				return x.d[i].v, true, nil
 			}
 		}
 		// descend down the tree using the binary search
-		fmt.Printf("DESCEND\n")
+
 		switch x := q.(type) {
 		case *x:
 			q = x.x[i].ch
 		default:
-			return zk, ok, nil
+			return zk, false, nil
 		}
 	}
 }
@@ -1047,7 +921,7 @@ func (t *Tree) overflow(p *x, q *d, pi, i int, k []byte /*K*/, v []byte /*V*/) {
 // Seek returns an Enumerator positioned on an item such that k >= item's key.
 // ok reports if k == item.key The Enumerator's position is possibly after the
 // last item in the tree.
-func (t *Tree) Seek(key []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err error) {
+func (t *Tree) Seek(key []byte /*K*/) (e common.OrderedDatabaseCursor, ok bool, err error) {
 	k := make([]byte, K_SIZE)
 	copy(k, key)
 
@@ -1082,6 +956,7 @@ func (t *Tree) Seek(key []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err err
 }
 
 func (t *Tree) Put(key []byte /*K*/, v []byte /*V*/) (okresult bool, err error) {
+
 	k := make([]byte, K_SIZE)
 	copy(k, key)
 
@@ -1116,8 +991,11 @@ func (t *Tree) Put(key []byte /*K*/, v []byte /*V*/) (okresult bool, err error) 
 				//t.kdb.Put(k, v)
 				x.d[i].v = v
 				x.dirty = true // we updated the value but did not insert anything
+				fmt.Printf("FLUSHA")
+				t.check_flush()
+				fmt.Printf("FLUSHB")
+				return true, nil
 			}
-			return
 		}
 
 		switch x := q.(type) {
@@ -1137,7 +1015,8 @@ func (t *Tree) Put(key []byte /*K*/, v []byte /*V*/) (okresult bool, err error) 
 				t.overflow(p, x, pi, i, k, v)
 			}
 			x.dirty = true // we inserted the value at the intermediate node or leaf node
-			return
+			t.check_flush()
+			return true, nil
 		}
 	}
 }
@@ -1158,7 +1037,7 @@ func (t *Tree) Insert(k []byte /*K*/, v []byte /*V*/) (okres bool, err error) {
 		checkload(t.api, q)
 		i, ok := t.find(q, k)
 		if ok {
-			var dkerr *DuplicateKeyError
+			var dkerr *common.DuplicateKeyError
 			return false, dkerr
 		}
 
@@ -1179,6 +1058,7 @@ func (t *Tree) Insert(k []byte /*K*/, v []byte /*V*/) (okres bool, err error) {
 				t.overflow(p, x, pi, i, k, v)
 			}
 			x.dirty = true // we inserted the value at the intermediate node or leaf node
+			t.check_flush()
 			return true, nil
 		}
 	}
@@ -1460,8 +1340,43 @@ func (e *Enumerator) prev() error {
 	return e.err
 }
 
-func cmp(a, b []byte) int {
+func cmpBytes(a, b []byte) int {
 	// Compare returns an integer comparing two byte slices lexicographically.
 	// The result will be 0 if a==b, -1 if a < b, and +1 if a > b. A nil argument is equivalent to an empty slice.
 	return bytes.Compare(a, b)
+}
+
+func cmpString(a, b []byte) int {
+	as := string(a)
+	bs := string(b)
+	return strings.Compare(as, bs)
+}
+
+func cmpFloat(a, b []byte) int {
+	abits := binary.LittleEndian.Uint64(a)
+	af := math.Float64frombits(abits)
+
+	bbits := binary.LittleEndian.Uint64(b)
+	bf := math.Float64frombits(bbits)
+
+	if af < bf {
+		return -1
+	} else if af > bf {
+		return +1
+	} else {
+		return 0
+	}
+}
+
+// ints are 64 bit / 8 byte
+func cmpInt64(a, b []byte) int {
+	ai := binary.LittleEndian.Uint64(a)
+	bi := binary.LittleEndian.Uint64(b)
+	if ai < bi {
+		return -1
+	} else if ai > bi {
+		return +1
+	} else {
+		return 0
+	}
 }
