@@ -63,6 +63,21 @@ const (
 	KT_BLOB    = 4
 )
 
+type RequestOption struct {
+	RequestType  string        `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
+	Owner        string        `json:"owner,omitempty"`
+	Table        string        `json:"table"`           //"contacts"
+	Key          string        `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
+	Value        string        `json:"value,omitempty"` //value of val, usually the whole json record
+	TableOptions []TableOption `json:"tableoptions",omitempty"`
+}
+type TableOption struct {
+	TreeType  string `json:"treetype,omitempty"`
+	Index     string `json:"index"`
+	IndexType string `json:"indextype,omitempty"`
+	Primary   int    `json:"primary,omitempty"`
+}
+
 type TableNotExistError struct {
 }
 
