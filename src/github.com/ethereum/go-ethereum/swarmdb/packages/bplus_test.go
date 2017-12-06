@@ -37,7 +37,7 @@ func TestPutInteger(t *testing.T) {
 	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
 		k := make([]byte, 8)
-		binary.LittleEndian.PutUint64(k, uint64(i))
+		binary.BigEndian.PutUint64(k, uint64(i))
 
 		v := []byte(fmt.Sprintf("valueof%06x", i))
 		fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))

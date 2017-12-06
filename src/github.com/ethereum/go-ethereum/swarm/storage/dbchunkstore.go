@@ -3,11 +3,11 @@ package storage
 import (
 	"crypto/sha256"
 	"database/sql"
-	"encoding/binary"
+	//"encoding/binary"
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb/common"
 	_ "github.com/mattn/go-sqlite3"
-	"math"
+	//"math"
 	"time"
 )
 
@@ -204,21 +204,7 @@ func (self *DBChunkstore) PrintDBChunk(keytype common.KeyType, hashid []byte, c 
 		copy(v, c[i*64+32:i*64+64])
 		if emptybytes(k) && emptybytes(v) {
 		} else {
-			fmt.Printf(" %d:\t", i)
-
-			switch keytype {
-			case common.KT_BLOB:
-				fmt.Printf("%v", k)
-			case common.KT_STRING:
-				fmt.Printf("%s", string(k))
-			case common.KT_INTEGER:
-				a := binary.BigEndian.Uint64(k)
-				fmt.Printf("%d", a)
-			case common.KT_FLOAT:
-				bits := binary.LittleEndian.Uint64(k)
-				f := math.Float64frombits(bits)
-				fmt.Printf("%f", f)
-			}
+			fmt.Printf(" %d:\t%s", i, common.KeyToString(keytype, k))
 			if is_hash(v) {
 				fmt.Printf("\t%x\t", v)
 			} else {

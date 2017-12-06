@@ -562,7 +562,7 @@ func (q *d) SWARMPut(api *api.Api, keytype common.KeyType) (new_hashid []byte, c
 			q.p.SWARMPut(api, keytype)
 		}
 		q.prevhashid = q.p.hashid
-		fmt.Printf(" -- PREV: %s [%v]\n", q.prevhashid, q.p.dirty)
+		fmt.Printf(" -- PREV: %x [%v]\n", q.prevhashid, q.p.dirty)
 	}
 
 	// fmt.Printf("N: %x P: %x\n", q.n, q.p) //  q.prevhashid, q.nexthashid
@@ -857,15 +857,15 @@ func (t *Tree) Print() {
 	switch x := q.(type) {
 	case *x: // intermediate node -- descend on the next pass
 		fmt.Printf("ROOT Node %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
-		x.print(0)
+		x.print(t.keyType, 0)
 	case *d: // data node -- EXACT match
 		fmt.Printf("ROOT Node %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
-		x.print(0)
+		x.print(t.keyType, 0)
 	}
 	return
 }
 
-func (q *x) print(level int) {
+func (q *x) print(keytype common.KeyType, level int) {
 	print_spaces(level)
 	fmt.Printf("XNode %x [c=%d] (LEVEL %d) [dirty=%v|notloaded=%v]\n", q.hashid, q.c, level, q.dirty, q.notloaded)
 	for i := 0; i <= q.c; i++ {
@@ -873,20 +873,20 @@ func (q *x) print(level int) {
 		fmt.Printf("Child %d|%v KEY = %v\n", i, level+1, string(q.x[i].k))
 		switch z := q.x[i].ch.(type) {
 		case *x:
-			z.print(level + 1)
+			z.print(keytype, level+1)
 		case *d:
-			z.print(level + 1)
+			z.print(keytype, level+1)
 		}
 	}
 	return
 }
 
-func (q *d) print(level int) {
+func (q *d) print(keytype common.KeyType, level int) {
 	print_spaces(level)
 	fmt.Printf("DNode %x [c=%d] (LEVEL %d) [dirty=%v|notloaded=%v|prev=%x|next=%x]\n", q.hashid, q.c, level, q.dirty, q.notloaded, q.prevhashid, q.nexthashid)
 	for i := 0; i < q.c; i++ {
 		print_spaces(level + 1)
-		fmt.Printf("DATA %d (L%d)|%v|%v\n", i, level+1, string(q.d[i].k), string(q.d[i].v))
+		fmt.Printf("DATA %d (L%d)|%v|%v\n", i, level+1, common.KeyToString(keytype, q.d[i].k), string(q.d[i].v))
 	}
 	return
 }
