@@ -1,6 +1,7 @@
 package common
 
 import (
+	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
 	"math"
@@ -82,8 +83,38 @@ func KeyToString(keytype KeyType, k []byte) (out string) {
 	return "unknown key type"
 }
 
+func ValueToString(v []byte) (out string) {
+	if IsHash(v) {
+		return fmt.Sprintf("%x", v)
+	} else {
+		return fmt.Sprintf("%v", string(v))
+	}
+}
 
-func IntToByte(i int) (k []byte){
+func EmptyBytes(hashid []byte) (valid bool) {
+	valid = true
+	for i := 0; i < len(hashid); i++ {
+		if hashid[i] != 0 {
+			return false
+		}
+	}
+	return valid
+}
+func IsHash(hashid []byte) (valid bool) {
+	cnt := 0
+	for i := 0; i < len(hashid); i++ {
+		if hashid[i] == 0 {
+			cnt++
+		}
+	}
+	if cnt > 3 {
+		return false
+	} else {
+		return true
+	}
+}
+
+func IntToByte(i int) (k []byte) {
 	k = make([]byte, 8)
 	binary.BigEndian.PutUint64(k, uint64(i))
 	return k
@@ -93,6 +124,13 @@ func FloatToByte(f float64) (k []byte) {
 	bits := math.Float64bits(f)
 	k = make([]byte, 8)
 	binary.BigEndian.PutUint64(k, bits)
+	return k
+}
+
+func SHA256(inp string) (k []byte) {
+	h := sha256.New()
+	h.Write([]byte(inp))
+	k = h.Sum(nil)
 	return k
 }
 

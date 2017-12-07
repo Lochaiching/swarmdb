@@ -35,7 +35,7 @@ func NewDBChunkStore(path string) (dbcs DBChunkstore, err error) {
 	if db == nil {
 		return dbcs, err
 	}
-	fmt.Printf("Created DB Chunkstore")
+	// fmt.Printf("Created DB Chunkstore")
 	dbcs.db = db
 	dbcs.filepath = path
 	// create table if not exists
@@ -78,7 +78,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 		fmt.Printf("\nError Inserting into Table: [%s]", err)
 		return (err2)
 	}
-	fmt.Printf("\nEnding StoreKChunk of \nkey[%s],\nvalue[%s]\n", k,v)
+	fmt.Printf("\nEnding StoreKChunk of \nkey[%s],\nvalue[%s]\n", k, v)
 	return nil
 }
 
@@ -112,20 +112,20 @@ func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
 }
 
 func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
-	fmt.Printf("\nIn RetrieveChunk")
+	// fmt.Printf("\nIn RetrieveChunk")
 	val = make([]byte, 4096)
 	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
-	fmt.Printf("\nSelecting Chunk with key of [%s]", key)
+	// fmt.Printf("\nSelecting Chunk with key of [%s]", key)
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
-		fmt.Printf("Error preparing sql [%s] Err: [%s]",sql,err)
+		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
 		return val, err
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query(key)
 	if err != nil {
-		fmt.Printf("Error preparing sql [%s] Err: [%s]",sql,err)
+		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -137,18 +137,8 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 		}
 		return val, nil
 	}
-	fmt.Printf("\nEnd of RetrieveChunk")
+	// fmt.Printf("\nEnd of RetrieveChunk")
 	return val, nil
-}
-
-func emptybytes(hashid []byte) (valid bool) {
-	valid = true
-	for i := 0; i < len(hashid); i++ {
-		if hashid[i] != 0 {
-			return false
-		}
-	}
-	return valid
 }
 
 func valid_type(typ string) (valid bool) {
@@ -156,20 +146,6 @@ func valid_type(typ string) (valid bool) {
 		return true
 	}
 	return false
-}
-
-func is_hash(hashid []byte) (valid bool) {
-	cnt := 0
-	for i := 0; i < len(hashid); i++ {
-		if hashid[i] == 0 {
-			cnt++
-		}
-	}
-	if cnt > 3 {
-		return false
-	} else {
-		return true
-	}
 }
 
 func (self *DBChunkstore) PrintDBChunk(keytype common.KeyType, hashid []byte, c []byte) {
@@ -187,12 +163,12 @@ func (self *DBChunkstore) PrintDBChunk(keytype common.KeyType, hashid []byte, c 
 			n := make([]byte, 32)
 			copy(p, c[4096-64:4096-32])
 			copy(n, c[4096-64:4096-32])
-			if is_hash(p) {
+			if common.IsHash(p) {
 				fmt.Printf(" PREV: %x ", p)
 			} else {
 				fmt.Printf(" PREV: *NULL* ", p)
 			}
-			if is_hash(n) {
+			if common.IsHash(n) {
 				fmt.Printf("\tNEXT: %x ", n)
 			} else {
 				fmt.Printf("\tNEXT: *NULL* ", p)
@@ -207,15 +183,9 @@ func (self *DBChunkstore) PrintDBChunk(keytype common.KeyType, hashid []byte, c 
 	for i := 0; i < 32; i++ {
 		copy(k, c[i*64:i*64+32])
 		copy(v, c[i*64+32:i*64+64])
-		if emptybytes(k) && emptybytes(v) {
+		if common.EmptyBytes(k) && common.EmptyBytes(v) {
 		} else {
-			fmt.Printf(" %d:\t%s", i, common.KeyToString(keytype, k))
-			if is_hash(v) {
-				fmt.Printf("\t%x\t", v)
-			} else {
-				fmt.Printf("\t%v\t", string(v))
-			}
-			fmt.Printf("\n")
+			fmt.Printf(" %d:\t%s\t%s\n", i, common.KeyToString(keytype, k), common.ValueToString(v))
 		}
 	}
 	fmt.Printf("\n")
