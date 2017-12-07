@@ -1,0 +1,198 @@
+package swarmdb
+
+import (
+	"bytes"
+	//	"encoding/binary"
+	"fmt"
+	//	"github.com/ethereum/go-ethereum/common"
+	//	"github.com/ethereum/go-ethereum/crypto/sha3"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/swarm/api"
+	//"github.com/ethereum/go-ethereum/swarm/storage"
+	//	"io"
+	//	"reflect"
+	"crypto/sha256"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+type KademliaDB struct {
+	api       *api.Api
+	mutex     sync.Mutex
+	owner     []byte
+	tableName []byte
+	column    []byte
+}
+
+func NewKademliaDB(api *api.Api) (*KademliaDB, error) {
+	kd := new(KademliaDB)
+	kd.api = api
+	return kd, nil
+}
+
+func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte) (bool, error) {
+	self.owner = owner
+	self.tableName = tableName
+	self.column = column
+
+	return true, nil
+}
+
+func (self *KademliaDB) BuildSdata(key []byte, value []byte) []byte {
+	buyAt := []byte("4096000000000000") //Need to research how to grab
+	timestamp := []byte(strconv.FormatInt(time.Now().Unix(), 10))
+	blockNumber := []byte("100") //How does this get retrieved? passed in?
+	wlksig := []byte("6909ea88ced9c594e5212a1292fcf73c") //md5("wolk4all")
+
+	var metadataBody []byte
+	metadataBody = make([]byte, 140)
+	copy(metadataBody[0:41], self.owner)
+	copy(metadataBody[42:59], buyAt)
+	copy(metadataBody[60:91], blockNumber)
+	copy(metadataBody[92:107], timestamp)
+	copy(metadataBody[108:139], wlksig)
+	log.Debug("Metadata is [%+v]", metadataBody)
+
+	contentPrefix := BuildSwarmdbPrefix(self.owner, self.tableName, key)
+	/*
+		encryptedBodycontent := s.EncryptData(bodycontent)
+		testDecrypt := s.DecryptData(encryptedBodycontent)
+		s.logDebug("Initial BodyContent is [%s][%+v]", bodycontent, bodycontent)
+		s.logDebug("Decrypted test is [%s][%+v]", testDecrypt, testDecrypt)
+		s.logDebug("Encrypted is [%+v]", encryptedBodycontent)
+	*/
+	var mergedBodycontent []byte
+	mergedBodycontent = make([]byte, 4088)
+	copy(mergedBodycontent[:], metadataBody)
+	copy(mergedBodycontent[512:576], contentPrefix)
+	copy(mergedBodycontent[577:], value) // expected to be the encrypted body content
+
+	log.Debug("ContentPrefix: [%+v]", string(contentPrefix))
+	//log.Debug("Content: [%+v][%+v]", bodycontent, encryptedBodycontent)
+	log.Debug("Merged Body Content: [%v]", mergedBodycontent)
+	return (mergedBodycontent)
+}
+
+func (self *KademliaDB) Put(k, v []byte) (bool, error) {
+	//Need to put EXPECTED in there instead of 'v'
+	raw_indexkey := self.api.StoreKDBChunk(k, v)
+	log.Debug(fmt.Sprintf("In KademliaDB rawkey [%v] ", raw_indexkey))
+	return true, nil
+}
+
+func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
+	chunkKey := self.GenerateChunkKey(k)
+	fmt.Printf("\nPredicted chunkKey is: [%v]", chunkKey)
+	//column = strings.ToLower(path_parts[2])
+	contentReader, err := self.api.RetrieveDBChunk(chunkKey)
+	if err != nil {
+		log.Debug("key not found %s: %s", chunkKey, err)
+		return nil, false, fmt.Errorf("key not found: %s", err)
+	}
+
+	encryptedContentBytes := bytes.TrimRight(contentReader[577:], "\x00")
+	log.Debug(fmt.Sprintf("In HandledGetDB Retrieved 'mainhash' v[%v] s[%s] ", encryptedContentBytes, encryptedContentBytes))
+
+	response_reader := bytes.NewReader(encryptedContentBytes)
+	/* Current Plan is for Decryption to happen at SwarmDBManager Layer (so commenting out) */
+	/*
+		        decryptedContentBytes := s.DecryptData(encryptedContentBytes)
+		        decrypted_reader := bytes.NewReader(decryptedContentBytes)
+		        log.Debug(fmt.Sprintf("In HandledGetDB got back the 'reader' v[%v] s[%s] ", decrypted_reader, decrypted_reader))
+			response_reader := decrypted_reader
+	*/
+
+	queryResponse := make([]byte, 4096)             //TODO: match to sizes in metadata content
+	_, _ = response_reader.ReadAt(queryResponse, 0) //TODO: match to sizes in metadata content
+
+	//queryResponseReader := bytes.NewReader(queryResponse)
+	return queryResponse, true, nil
+}
+
+func (self *KademliaDB) GenerateChunkKey(k []byte) []byte {
+	owner := []byte(strings.ToLower(string(self.owner)))
+	table := []byte(strings.ToLower(string(self.tableName)))
+	id := []byte(strings.ToLower(string(k)))
+	contentPrefix := BuildSwarmdbPrefix(owner, table, id)
+	log.Debug(fmt.Sprintf("\nIn GenerateChunkKey prefix Owner: [%s] Table: [%s] ID: [%s] == [%v](%s)", owner, table, id, contentPrefix, contentPrefix))
+	fmt.Printf("\nGenerateChunkKey Owner: [%s] Table: [%s] ID: [%s] == [%v](%s)", owner, table, id, contentPrefix, contentPrefix)
+	return contentPrefix
+}
+
+func BuildSwarmdbPrefix(owner []byte, table []byte, id []byte) []byte {
+	//hashType := "SHA3"
+	//hashType := SHA256"
+
+	//Should add checks for valid type / length for building
+	prepString := strings.ToLower(string(owner)) + strings.ToLower(string(table)) + strings.ToLower(string(id))
+	h256 := sha256.New()
+	h256.Write([]byte(prepString))
+	prefix := h256.Sum(nil)
+	fmt.Printf("\nIn BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]", prepString, prefix, []byte(prefix), len([]byte(prefix)))
+	log.Debug(fmt.Sprintf("\nIn BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]", prepString, prefix, []byte(prefix), len([]byte(prefix))))
+	return []byte(prefix)
+}
+
+func (self *KademliaDB) Close() (bool, error) {
+	return true, nil
+}
+
+func (self *KademliaDB) FlushBuffer() (bool, error) {
+	return true, nil
+}
+
+func (self *KademliaDB) StartBuffer() (bool, error) {
+	return true, nil
+}
+
+func (self *KademliaDB) Print() {
+	return
+}
+
+/*
+func (self *KademliaDB) Delete(k []byte) (bool, error) {
+	_, err := self.Put(k, nil)
+	if err != nil {
+		return false, err
+	}
+	return true, err
+}
+
+func (self *KademliaDB) Insert(k, v []byte) (bool, error) {
+	res, _, _ := self.Get(k)
+	if res != nil {
+		err := fmt.Errorf("%s is already in Database", string(k))
+		return false, err
+	}
+	_, err := self.Put(k, v)
+	if err != nil {
+		return false, nil
+	}
+	return true, err
+}
+
+func (self *Node) Update(updatekey []byte, updatevalue []byte) (newnode *Node, err error) {
+	res, _ := self.Get(updatekey)
+	if res != nil {
+		err = fmt.Errorf("couldn't find the key for updating")
+		return
+	}
+	return self, err
+}
+func convertToByte(a Val) []byte {
+	log.Trace(fmt.Sprintf("convertToByte type: %v '%v'", a, reflect.TypeOf(a)))
+	if va, ok := a.([]byte); ok {
+		log.Trace(fmt.Sprintf("convertToByte []byte: %v '%v' %s", a, va, string(va)))
+		return []byte(va)
+	}
+	if va, ok := a.(storage.Key); ok {
+		log.Trace(fmt.Sprintf("convertToByte storage.Key: %v '%v' %s", a, va, string(va)))
+		return []byte(va)
+	} else if va, ok := a.(string); ok {
+		return []byte(va)
+	}
+	return nil
+}
+*/

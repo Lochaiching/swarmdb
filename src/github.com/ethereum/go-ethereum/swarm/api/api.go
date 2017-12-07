@@ -25,7 +25,7 @@ import (
 	"sync"
 
 	"bytes"
-	// "crypto/sha256"
+	"crypto/sha256"
 	"mime"
 	"path/filepath"
 	"reflect"
@@ -91,6 +91,23 @@ func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
 	}
 	return
 }
+
+
+func NewApiTest(dpa *storage.DPA, dns Resolver, ldb *storage.LDBDatabase) (self *Api) {
+ 	rn, err := ldb.Get([]byte("RootNode"))
+ 	hr := NewRootNode([]byte("RootNode"), nil)
+ 	if err == nil {
+ 		hr.NodeHash = rn
+  	}
+ 	self = &Api{
+ 		dpa:        dpa,
+ 		dns:        dns,
+ 		ldb:        ldb,
+ 		trie:       nil,
+ 		hashdbroot: hr,
+  	}
+  	return
+  }
 
 // to be used only in TEST
 func (self *Api) Upload(uploadDir, index string) (hash string, err error) {
@@ -355,6 +372,75 @@ func (self *Api) GetTableData(table string) []byte {
 func (self *Api) StoreTableData(table string, rootkey []byte) []byte {
 	self.ldb.Put([]byte(table), []byte(rootkey))
 	return rootkey
+}
+
+func (self *Api) GetManifestRoot() storage.Key {
+	key, _ := self.ldb.Get([]byte("manifestroot"))
+	return key
+}
+
+//func (self *Api) GetTest(key storage.Key, path string) (reader storage.LazySectionReader, mimeType string, status int, err error) {
+func (self *Api) GetTest(path string) (reader storage.LazySectionReader, mimeType string, status int, err error) {
+	log.Debug(fmt.Sprintf("api GetTest: ", path))
+	key, _ := self.ldb.Get([]byte("manifestroot"))
+
+	if key == nil {
+		key, _ = self.NewManifest()
+	}
+	log.Debug(fmt.Sprintf("api GetTest %v self.manifestroot: %s", key, self.manifestroot))
+	if string(key) != string(self.manifestroot) {
+		log.Debug(fmt.Sprintf("api GetTest read trie: %v", key))
+		self.trie, err = loadManifest(self.dpa, common.Hex2Bytes(string(key)), nil)
+		log.Debug(fmt.Sprintf("api GetTest read trie done %v: ", key))
+		if err != nil {
+			log.Warn(fmt.Sprintf("loadManifestTrie error: %v", err))
+			return
+		}
+		self.manifestroot = key
+	}
+	trie := self.trie
+	log.Debug(fmt.Sprintf("api GetTest self.manifestroot: ", self.manifestroot))
+
+	log.Trace(fmt.Sprintf("getEntry(%s)", path))
+
+	entry, _ := trie.getEntry(path)
+	var ldbkey []byte
+
+	log.Trace(fmt.Sprintf("gettest entry 1: %v '%v'", entry, path))
+	if entry == nil {
+		ldbkey, _ = self.ldb.Get([]byte(path))
+		log.Trace(fmt.Sprintf("gettest entry 1.5: %v '%v'", entry, path))
+		log.Warn(fmt.Sprintf("entry null key ldb %v", ldbkey))
+	}
+	var newpath string
+	if entry == nil && ldbkey == nil {
+		h256 := sha256.New()
+		h256.Write([]byte(path))
+		newpath = fmt.Sprintf("%x", h256.Sum(nil))
+		entry, _ = trie.getEntry(newpath)
+		log.Trace(fmt.Sprintf("gettest entry 2: %v '%v'", entry, newpath))
+	}
+
+	if entry == nil {
+		ldbkey, _ = self.ldb.Get([]byte(newpath))
+		log.Trace(fmt.Sprintf("gettest entry 3: %v '%v'", entry, newpath))
+		log.Warn(fmt.Sprintf("entry null key ldb %v", ldbkey))
+	}
+
+	if entry != nil {
+		key = common.Hex2Bytes(entry.Hash)
+		status = entry.Status
+		mimeType = entry.ContentType
+		log.Trace(fmt.Sprintf("content lookup key: %v '%v' (%v)", entry.Hash, key, mimeType))
+		reader = self.dpa.Retrieve(key)
+	} else if ldbkey != nil {
+
+	} else {
+		status = http.StatusNotFound
+		err = fmt.Errorf("manifest entry for '%s' not found", path)
+		log.Warn(fmt.Sprintf("%v", err))
+	}
+	return
 }
 
 func (self *Api) Modify(key storage.Key, path, contentHash, contentType string) (storage.Key, error) {
