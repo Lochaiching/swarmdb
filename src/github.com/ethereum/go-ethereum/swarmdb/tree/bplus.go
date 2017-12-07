@@ -350,14 +350,14 @@ func (t *Tree) SWARMGet() (success bool) {
 						z.x[i].k = k
 						x.notloaded = true
 						x.hashid = hashid
-						fmt.Printf(" LOAD-TX|%d|%v|%x\n", i, string(k), string(x.hashid))
+						fmt.Printf(" LOAD-TX|%d|%v|%x\n", i, common.KeyToString(t.keyType, k), string(x.hashid))
 					} else if childtype == "D" {
 						x := btDPool.Get().(*d)
 						z.x[i].ch = x
 						z.x[i].k = k
 						x.notloaded = true
 						x.hashid = hashid
-						fmt.Printf(" LOAD-TD|%d|%v|%x\n", i, string(k), string(x.hashid))
+						fmt.Printf(" LOAD-TD|%d|%v|%x\n", i, common.KeyToString(t.keyType, k), string(x.hashid))
 					}
 				}
 			}
@@ -377,7 +377,7 @@ func (t *Tree) SWARMGet() (success bool) {
 					z.d[i].v = hashid
 					x.notloaded = true
 					x.hashid = hashid
-					fmt.Printf(" LOAD-D %d|k:%s|i:%s\n", i, string(k), string(x.hashid))
+					fmt.Printf(" LOAD-D %d|k:%s|i:%s\n", i, common.KeyToString(t.keyType, k), string(x.hashid))
 				}
 			}
 		}
@@ -870,7 +870,7 @@ func (q *x) print(keytype common.KeyType, level int) {
 	fmt.Printf("XNode %x [c=%d] (LEVEL %d) [dirty=%v|notloaded=%v]\n", q.hashid, q.c, level, q.dirty, q.notloaded)
 	for i := 0; i <= q.c; i++ {
 		print_spaces(level + 1)
-		fmt.Printf("Child %d|%v KEY = %v\n", i, level+1, string(q.x[i].k))
+		fmt.Printf("Child %d|%v\n", i, level+1) // , common.KeyToString(keytype, q.x[i].k))
 		switch z := q.x[i].ch.(type) {
 		case *x:
 			z.print(keytype, level+1)
@@ -886,7 +886,7 @@ func (q *d) print(keytype common.KeyType, level int) {
 	fmt.Printf("DNode %x [c=%d] (LEVEL %d) [dirty=%v|notloaded=%v|prev=%x|next=%x]\n", q.hashid, q.c, level, q.dirty, q.notloaded, q.prevhashid, q.nexthashid)
 	for i := 0; i < q.c; i++ {
 		print_spaces(level + 1)
-		fmt.Printf("DATA %d (L%d)|%v|%v\n", i, level+1, common.KeyToString(keytype, q.d[i].k), string(q.d[i].v))
+		fmt.Printf("DATA %d (L%d)|%s|%v\n", i, level+1, common.KeyToString(keytype, q.d[i].k), string(q.d[i].v))
 	}
 	return
 }
@@ -1353,10 +1353,10 @@ func cmpString(a, b []byte) int {
 }
 
 func cmpFloat(a, b []byte) int {
-	abits := binary.LittleEndian.Uint64(a)
+	abits := binary.BigEndian.Uint64(a)
 	af := math.Float64frombits(abits)
 
-	bbits := binary.LittleEndian.Uint64(b)
+	bbits := binary.BigEndian.Uint64(b)
 	bf := math.Float64frombits(bbits)
 
 	if af < bf {
