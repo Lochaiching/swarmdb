@@ -84,7 +84,7 @@ func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
 	newkeybase := contentPrefix + string(dummy)
 	chunker := storage.NewTreeChunker(storage.NewChunkerParams())
 	rd := strings.NewReader(newkeybase)
-	key, _ := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil, false)
+	key, _ := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil)
 	log.Debug(fmt.Sprintf("In KademliaDB prefix [%v] dummy %v newkeybase %v key %v", contentPrefix, dummy, newkeybase, k))
 
 	contentReader := self.api.Retrieve(key)

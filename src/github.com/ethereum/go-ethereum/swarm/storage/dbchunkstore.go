@@ -6,6 +6,7 @@ import (
 	//"encoding/binary"
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb/common"
+	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	_ "github.com/mattn/go-sqlite3"
 	//"math"
 	"time"
@@ -14,6 +15,7 @@ import (
 type DBChunkstore struct {
 	filepath string
 	db       *sql.DB
+	km       *keymanager.KeyManager
 }
 
 type DBChunk struct {
@@ -35,7 +37,6 @@ func NewDBChunkStore(path string) (dbcs DBChunkstore, err error) {
 	if db == nil {
 		return dbcs, err
 	}
-	// fmt.Printf("Created DB Chunkstore")
 	dbcs.db = db
 	dbcs.filepath = path
 	// create table if not exists
@@ -56,11 +57,16 @@ func NewDBChunkStore(path string) (dbcs DBChunkstore, err error) {
 		fmt.Printf("Error Creating Table")
 		return dbcs, err
 	}
+	km, errKm := keymanager.NewKeyManager("/tmp/blah")
+	if errKm != nil {
+		fmt.Printf("Error Creating KeyManager")
+		return dbcs, err
+	}
+	dbcs.km = &km
 	return dbcs, nil
 }
 
 func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
-	fmt.Printf("\nStartin StoreKChunk")
 	if len(v) < minChunkSize {
 		return fmt.Errorf("chunk too small") // should be improved
 	}
@@ -73,12 +79,13 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 	}
 	defer stmt.Close()
 
-	_, err2 := stmt.Exec(k, v)
+	encVal := self.km.EncryptData(v)
+	_, err2 := stmt.Exec(k[:32], encVal) //TODO: why is k going in as 64 instead of 32?
+	fmt.Printf("\noriginal val [%v] encoded to [%v]", v, encVal)
 	if err2 != nil {
 		fmt.Printf("\nError Inserting into Table: [%s]", err)
 		return (err2)
 	}
-	fmt.Printf("\nEnding StoreKChunk of \nkey[%s],\nvalue[%s]\n", k, v)
 	return nil
 }
 
@@ -103,8 +110,10 @@ func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
 	}
 	defer stmt.Close()
 
-	_, err2 := stmt.Exec(k, v)
+	encVal := self.km.EncryptData(v)
+	_, err2 := stmt.Exec(k, encVal)
 	if err2 != nil {
+		fmt.Printf("\nError Inserting into Table: [%s]", err)
 		return k, err2
 	}
 
@@ -112,10 +121,8 @@ func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
 }
 
 func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
-	// fmt.Printf("\nIn RetrieveChunk")
 	val = make([]byte, 4096)
 	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
-	// fmt.Printf("\nSelecting Chunk with key of [%s]", key)
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
 		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
@@ -123,6 +130,7 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 	}
 	defer stmt.Close()
 
+	//rows, err := stmt.Query()
 	rows, err := stmt.Query(key)
 	if err != nil {
 		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
@@ -135,9 +143,9 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 		if err2 != nil {
 			return nil, err2
 		}
-		return val, nil
+		decVal := self.km.DecryptData(val)
+		return decVal, nil
 	}
-	// fmt.Printf("\nEnd of RetrieveChunk")
 	return val, nil
 }
 
