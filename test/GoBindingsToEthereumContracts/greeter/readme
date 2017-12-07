@@ -1,4 +1,8 @@
 
+https://github.com/ethereum/go-ethereum/wiki/Native-DApps:-Go-bindings-to-Ethereum-contracts
+
+
+
 [root@puppeth-centos7-11091000-99xf greeter]# which solc
 /var/www/vhosts/swarm.wolk.com/src/github.com/ethereum/go-ethereum/build/bin/solc
 
