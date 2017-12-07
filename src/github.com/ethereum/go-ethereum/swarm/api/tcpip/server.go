@@ -7,6 +7,7 @@ import (
 	"fmt"
 	//	"log"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/swarmdb/common"
 	"github.com/ethereum/go-ethereum/swarmdb/database"
 	"net"
 	"strings"
@@ -25,12 +26,12 @@ type Client struct {
 	reader    *bufio.Reader
 	writer    *bufio.Writer
 	owner     Ownerinfo
-	databases map[string]map[string]*swarmdb.Database
+	databases map[string]map[string]*common.Database
 }
 
 type ClientInfo struct {
 	owner     Ownerinfo
-	databases map[string]map[string]*swarmdb.Database
+	databases map[string]map[string]*common.Database
 }
 
 func newClient(connection net.Conn) *Client {
@@ -42,7 +43,7 @@ func newClient(connection net.Conn) *Client {
 		outgoing:  make(chan string),
 		reader:    reader,
 		writer:    writer,
-		databases: make(map[string]map[string]*swarmdb.Database),
+		databases: make(map[string]map[string]*common.Database),
 	}
 	go client.read()
 	go client.write()
@@ -81,7 +82,7 @@ type Server struct {
 	lock        sync.Mutex
 	incoming    chan string
 	outgoing    chan string
-	owners      map[string]map[string]map[string]*swarmdb.Database
+	owners      map[string]map[string]map[string]*common.Database
 	clientInfos map[string]*ClientInfo
 }
 
@@ -108,7 +109,7 @@ func NewServer(db *swarmdb.SwarmDB, l net.Listener) *Server {
 	sv.conn = make(chan net.Conn)
 	sv.incoming = make(chan string)
 	sv.outgoing = make(chan string)
-	sv.owners = make(map[string]map[string]map[string]*swarmdb.Database)
+	sv.owners = make(map[string]map[string]map[string]*common.Database)
 	sv.clientInfos = make(map[string]*ClientInfo)
 	return sv
 }
@@ -215,7 +216,7 @@ func (svr *Server)setClientInfo(jsonstr []byte)(){
 	}
 	var cl ClientInfo
 	cl.owner = owner
-	cl.databases = make(map[string]map[string]*swarmdb.Database)
+	cl.databases = make(map[string]map[string]*common.Database)
 	svr.clientInfos[conn.RemoteAddr()] = cl
 }
 */
