@@ -35,6 +35,14 @@ func NewSwarmDB(api *api.Api, ldb *storage.LDBDatabase) *SwarmDB {
 	return sd
 }
 
+func (self *SwarmDB)GetIndexRootHash(tablename string) (roothash []byte, err error) {
+	return self.api.GetIndexRootHash(tablename)
+}
+
+func (self *SwarmDB)RetrieveFromSwarm(key storage.Key) storage.LazySectionReader {
+	return self.api.Retrieve(key)
+}
+
 func (self *SwarmDB) Open(tablename string) error {
 	if _, ok := self.tablelist[tablename]; !ok {
 		td, err := self.readTableData([]byte(tablename))
