@@ -109,7 +109,7 @@ cp the abi to the file
 -Generating the bindings
 cd /var/www/vhosts/swarm.wolk.com/test/GoBindingsToEthereumContracts/greeter/
 abigen --abi greeter.abi --pkg main --type greeter --out greeter.go
-
+abigen --abi greeter.abi --pkg main --type greeter --out greeter2.go --bin token.bin
 
 
 
