@@ -5,14 +5,11 @@ import (
 	"fmt"
 	"github.com/cznic/mathutil"
 	"github.com/ethereum/go-ethereum/swarm/api"
-	"github.com/ethereum/go-ethereum/swarmdb/packages"
+	"github.com/ethereum/go-ethereum/swarmdb/tree"
 	"math"
 	"testing"
-	// "bytes"
 	"github.com/ethereum/go-ethereum/swarmdb/common"
 	"math/rand"
-	"os"
-	// "github.com/ethereum/go-ethereum/swarm/storage/database"
 )
 
 func rng() *mathutil.FC32 {
@@ -28,31 +25,28 @@ func getAPI(t *testing.T) (a *api.Api) {
 }
 
 func TestPutInteger(t *testing.T) {
+
+	fmt.Printf("---- TestPutInteger\n")
 	hashid := make([]byte, 32)
 	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
 
 	r.StartBuffer()
-	// open table [only gets the root node]
 	vals := rand.Perm(20)
 	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
-		k := make([]byte, 8)
-		binary.BigEndian.PutUint64(k, uint64(i))
-
+		k := IntToByte(i)
 		v := []byte(fmt.Sprintf("valueof%06x", i))
 		fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
 		r.Put(k, v)
 	}
 	// this writes B+tree to SWARM
-	r.FlushBuffer() // tableName
+	r.FlushBuffer()
 
 	// r.Close()
 	r.Print()
 	fmt.Printf("Put Test DONE\n----\n")
-	os.Exit(0)
 
 	hashid = r.GetHashID()
-
 	s := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
 	fmt.Printf("getting...\n")
 
@@ -64,17 +58,102 @@ func TestPutInteger(t *testing.T) {
 
 	s.Print()
 
+	// ENUMERATOR
+	res, _, _ := r.Seek([]byte("000004"))
+	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
+		fmt.Printf("---> K: %s V: %v\n", common.KeyToString(common.KT_INTEGER, k), string(v))
+	}
+}
+
+
+func TestPutString(t *testing.T) {
+	fmt.Printf("---- TestPutString\n")
+
+	hashid := make([]byte, 32)
+	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
+
 	r.StartBuffer()
-	r.Put([]byte("000004"), []byte("Sammy2"))
-	r.Put([]byte("000009"), []byte("Happy2"))
-	r.Put([]byte("00000e"), []byte("Leroy2"))
+	vals := rand.Perm(20)
+	// write 20 values into B-tree (only kept in memory)
+	for _, i := range vals {
+		k := []byte(fmt.Sprintf("%06x", i))
+		v := []byte(fmt.Sprintf("valueof%06x", i))
+		fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
+		r.Put(k, v)
+	}
+	// this writes B+tree to SWARM
+	r.FlushBuffer()
+
+	// r.Close()
+	r.Print()
+	fmt.Printf("Put Test DONE\n----\n")
+
+	hashid = r.GetHashID()
+
+	s := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
+	fmt.Printf("getting...\n")
+
+	g, _, _ := s.Get([]byte("000008"))
+	fmt.Printf("GET1: %v\n", string(g))
+
+	h, _, _ := s.Get([]byte("000001"))
+	fmt.Printf("GET3: %v\n", string(h))
+
+	s.Print()
 
 	// ENUMERATOR
 	res, _, _ := r.Seek([]byte("000004"))
 	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
-		fmt.Printf("---> K: %v V: %v\n", string(k), string(v))
+		fmt.Printf("---> K: %s V: %v\n", common.KeyToString(common.KT_STRING, k), string(v))
 	}
 }
+
+func IntToByte(i int) (k []byte){
+	k = make([]byte, 8)
+	binary.BigEndian.PutUint64(k, uint64(i))
+	return k
+}
+
+func FloatToByte(f float64) (k []byte) {
+	bits := math.Float64bits(f)
+	k = make([]byte, 8)
+	binary.BigEndian.PutUint64(k, bits)
+	return k
+}
+
+func TestPutFloat(t *testing.T) {
+	fmt.Printf("---- TestPutFloat\n")
+
+	hashid := make([]byte, 32)
+	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_FLOAT)
+
+	r.StartBuffer()
+	vals := rand.Perm(20)
+	// write 20 values into B-tree (only kept in memory)
+	for _, i := range vals {
+		k := FloatToByte(float64(i) + .314159)
+		v := []byte(fmt.Sprintf("valueof%06x", i))
+		fmt.Printf("Insert %d %v %v\n", i, common.KeyToString(common.KT_FLOAT, k), string(v))
+		r.Put(k, v)
+	}
+	// this writes B+tree to SWARM
+	r.FlushBuffer()
+
+	// r.Close()
+	r.Print()
+	fmt.Printf("Put Test DONE\n----\n")
+
+	hashid = r.GetHashID()
+
+	// ENUMERATOR
+	s := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_FLOAT)
+	
+	res, _, _ := s.Seek(FloatToByte(3.14159))
+	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
+		fmt.Printf("---> K: %s V: %v\n", common.KeyToString(common.KT_FLOAT, k), string(v))
+	}
+}
+
 
 /*
 func TestSetGet0(t *testing.T) {
