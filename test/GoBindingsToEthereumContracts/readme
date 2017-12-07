@@ -31,6 +31,7 @@ nohup geth --bootnodes enode://f6d69f3dc8edc33087cbd500aac794dec0a539ff10d059b06
        --password <(echo -n "mdotm") \
        --verbosity 6 \
        --networkid 55334 \
+       --rpc \
         2>> /var/www/vhosts/data/geth.log &
         
         
@@ -79,6 +80,30 @@ https://github.com/ethereum/go-ethereum/wiki/Native-DApps:-Go-bindings-to-Ethere
 
 
 
+
+
+
+----------------------------- nodejs ----------------------------------------------------------------------------------------------------------------
+curl --silent --location https://rpm.nodesource.com/setup_8.x | bash -
+Then install:
+
+yum -y install nodejs
+
+
+-solc
+
+[root@puppeth-centos7-11091000-99xf ~]# npm install -g solc
+/usr/bin/solcjs -> /usr/lib/node_modules/solc/solcjs
++ solc@0.4.19
+added 65 packages in 5.01s
+
+---------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+
+
 Please read "How to Write Go Code".
 
 Don't use /src in your GOPATH. Packages are located in $GOPATH/src.
@@ -88,17 +113,6 @@ For build or install you need to have your files in a package directory.
 For go run, you need to supply all files as argument:
 
 go run main.go employee.go
-
-
-
-
-
-
-
-
-
-
-
 
 
 
