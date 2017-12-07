@@ -1,7 +1,7 @@
 package swarmdb
 
 import (
-	"encoding/binary"
+	// "encoding/binary"
 	"fmt"
 	"github.com/cznic/mathutil"
 	"github.com/ethereum/go-ethereum/swarm/api"
@@ -26,48 +26,51 @@ func getAPI(t *testing.T) (a *api.Api) {
 
 func TestPutInteger(t *testing.T) {
 
-	fmt.Printf("---- TestPutInteger\n")
+	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
 	hashid := make([]byte, 32)
 	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
 
+	// write 20 values into B-tree (only kept in memory)
 	r.StartBuffer()
 	vals := rand.Perm(20)
-	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
-		k := IntToByte(i)
+		k := common.IntToByte(i)
 		v := []byte(fmt.Sprintf("valueof%06x", i))
-		fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
+		// fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
 		r.Put(k, v)
 	}
-	// this writes B+tree to SWARM
+	// flush B+tree in memory to SWARM
 	r.FlushBuffer()
-
-	// r.Close()
-	r.Print()
-	fmt.Printf("Put Test DONE\n----\n")
+	// r.Print()
 
 	hashid = r.GetHashID()
 	s := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
-	fmt.Printf("getting...\n")
 
-	g, _, _ := s.Get([]byte("000008"))
-	fmt.Printf("GET1: %v\n", string(g))
-
-	h, _, _ := s.Get([]byte("000001"))
-	fmt.Printf("GET3: %v\n", string(h))
-
-	s.Print()
+	g, ok, err := s.Get(common.IntToByte(8))
+	if ! ok || err != nil {
+		t.Fatal(g, err)
+	} else {
+		fmt.Printf("Get(8): [%s]\n", string(g))
+	}
+	h, ok2, err2 := s.Get(common.IntToByte(1))
+	if ! ok2 || err2 != nil {
+		t.Fatal(h, err2)
+	}
+	fmt.Printf("Get(1): [%s]\n", string(h))
+	// s.Print()
 
 	// ENUMERATOR
 	res, _, _ := r.Seek([]byte("000004"))
+	records := 0
 	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
-		fmt.Printf("---> K: %s V: %v\n", common.KeyToString(common.KT_INTEGER, k), string(v))
+		fmt.Printf(" *int*> %d: K: %s V: %v\n", records, common.KeyToString(common.KT_INTEGER, k), string(v))
+		records++
 	}
+	fmt.Printf("---- TestPutInteger DONE (%d records)\n", records)
 }
 
-
 func TestPutString(t *testing.T) {
-	fmt.Printf("---- TestPutString\n")
+	fmt.Printf("---- TestPutString: generate 20 strings and enumerate them\n")
 
 	hashid := make([]byte, 32)
 	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
@@ -78,51 +81,34 @@ func TestPutString(t *testing.T) {
 	for _, i := range vals {
 		k := []byte(fmt.Sprintf("%06x", i))
 		v := []byte(fmt.Sprintf("valueof%06x", i))
-		fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
+		// fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
 		r.Put(k, v)
 	}
 	// this writes B+tree to SWARM
 	r.FlushBuffer()
-
-	// r.Close()
-	r.Print()
-	fmt.Printf("Put Test DONE\n----\n")
+	// r.Print()
 
 	hashid = r.GetHashID()
-
 	s := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
-	fmt.Printf("getting...\n")
-
 	g, _, _ := s.Get([]byte("000008"))
-	fmt.Printf("GET1: %v\n", string(g))
+	fmt.Printf("Get(000008): %v\n", string(g))
 
 	h, _, _ := s.Get([]byte("000001"))
-	fmt.Printf("GET3: %v\n", string(h))
-
-	s.Print()
+	fmt.Printf("Get(000001): %v\n", string(h))
+	// s.Print()
 
 	// ENUMERATOR
 	res, _, _ := r.Seek([]byte("000004"))
+	records := 0
 	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
-		fmt.Printf("---> K: %s V: %v\n", common.KeyToString(common.KT_STRING, k), string(v))
+		fmt.Printf(" *string*> %d K: %s V: %v\n", records, common.KeyToString(common.KT_STRING, k), string(v))
+		records++
 	}
-}
-
-func IntToByte(i int) (k []byte){
-	k = make([]byte, 8)
-	binary.BigEndian.PutUint64(k, uint64(i))
-	return k
-}
-
-func FloatToByte(f float64) (k []byte) {
-	bits := math.Float64bits(f)
-	k = make([]byte, 8)
-	binary.BigEndian.PutUint64(k, bits)
-	return k
+	fmt.Printf("---- TestPutString DONE (%d records)\n", records)
 }
 
 func TestPutFloat(t *testing.T) {
-	fmt.Printf("---- TestPutFloat\n")
+	fmt.Printf("---- TestPutFloat: generate 20 floats and enumerate them\n")
 
 	hashid := make([]byte, 32)
 	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_FLOAT)
@@ -131,26 +117,40 @@ func TestPutFloat(t *testing.T) {
 	vals := rand.Perm(20)
 	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
-		k := FloatToByte(float64(i) + .314159)
+		k := common.FloatToByte(float64(i) + .314159)
 		v := []byte(fmt.Sprintf("valueof%06x", i))
-		fmt.Printf("Insert %d %v %v\n", i, common.KeyToString(common.KT_FLOAT, k), string(v))
+		// fmt.Printf("Insert %d %v %v\n", i, common.KeyToString(common.KT_FLOAT, k), string(v))
 		r.Put(k, v)
 	}
 	// this writes B+tree to SWARM
 	r.FlushBuffer()
-
-	// r.Close()
-	r.Print()
-	fmt.Printf("Put Test DONE\n----\n")
+	// r.Print()
 
 	hashid = r.GetHashID()
 
-	// ENUMERATOR
 	s := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_FLOAT)
-	
-	res, _, _ := s.Seek(FloatToByte(3.14159))
+/*
+	g, ok, err := s.Get(common.FloatToByte(8.14159))
+	if ! ok || err != nil {
+		t.Fatal(g, err)
+	} else {
+		fmt.Printf("Get(8.14159): %v\n", string(g))
+	}
+
+	h, ok2, err2 := s.Get(common.FloatToByte(1.14159))
+	if ! ok2 || err2 != nil {
+		t.Fatal(h, err2)
+	} else {
+		fmt.Printf("Get(1.14159): %v\n", string(g))
+	}
+*/
+	// s.Print()
+	// ENUMERATOR
+	res, _, _ := s.Seek(common.FloatToByte(3.14159))
+	records := 0
 	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
-		fmt.Printf("---> K: %s V: %v\n", common.KeyToString(common.KT_FLOAT, k), string(v))
+		fmt.Printf(" *float*> %d: K: %s V: %v\n", records, common.KeyToString(common.KT_FLOAT, k), string(v))
+		records++
 	}
 }
 
@@ -186,7 +186,6 @@ func TestSetGet0(t *testing.T) {
 	} else {
 		fmt.Printf("PASS GET1\n")
 	}
-	os.Exit(0);
 
 	if bytes.Compare(g2, val2) != 0 {
 		t.Fatal(g2, val2)

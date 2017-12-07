@@ -82,6 +82,20 @@ func KeyToString(keytype KeyType, k []byte) (out string) {
 	return "unknown key type"
 }
 
+
+func IntToByte(i int) (k []byte){
+	k = make([]byte, 8)
+	binary.BigEndian.PutUint64(k, uint64(i))
+	return k
+}
+
+func FloatToByte(f float64) (k []byte) {
+	bits := math.Float64bits(f)
+	k = make([]byte, 8)
+	binary.BigEndian.PutUint64(k, bits)
+	return k
+}
+
 type RequestOption struct {
 	RequestType  string        `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
 	Owner        string        `json:"owner,omitempty"`

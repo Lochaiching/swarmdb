@@ -204,41 +204,59 @@ func TestQuery(t *testing.T) {
 
 	for prefix, q := range queries {
 
-		actual, err := Query(owner, table, index, q)
+		fmt.Printf("Query test: %s: %s\n", prefix, q)
+		actual, err := Query(owner, table, q)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		//compare output slices (may be in a different order than 'expected', also values maybe in a different order.)
+
+		if len(expected[prefix]) != len(actual) {
+			t.Fatal(fmt.Errorf("expected and actual are not the same.\nexpected: %v\nactual: %v\n", expected[prefix], actual))
+		}
+
 		for _, exp := range expected[prefix] {
+
+			expmap := make(map[string]string)
+			if err := json.Unmarshal([]byte(exp), &expmap); err != nil {
+				t.Fatal(err)
+			}
 
 			found := false
 			for _, act := range actual {
-				a := make(map[string]string)
-				if err := json.Unmarshal([]byte(act), &a); err != nil {
+
+				actmap := make(map[string]string)
+				if err := json.Unmarshal([]byte(act), &actmap); err != nil {
 					t.Fatal(err)
 				}
-				e := make(map[string]string)
-				if err := json.Unmarshal([]byte(exp), &e); err != nil {
-					t.Fatal(err)
-				}
-				for key, val := range e {
-					if val == a[key] {
 
-					}
-
+				if len(actmap) != len(expmap) {
+					continue //try next actual map
 				}
-				/*
-					if act == exp {
-						found = true
+
+				match := true
+				for key, expval := range expmap {
+					if actmap[key] != expval {
+						match = false
 						break
 					}
-				*/
+				}
+				if match {
+					found = true
+					break
+				}
+
 			}
+
 			if found == false {
 				t.Fatal(fmt.Errorf("%s test. actual: %v, expected %v", prefix, actual, expected[prefix]))
 			}
+
 		}
+
+		fmt.Printf("success. %+v\n", actual)
+
 	}
 
 }
