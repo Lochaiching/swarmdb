@@ -13,7 +13,7 @@ import (
 	//	"reflect"
 	"crypto/sha256"
 	"strconv"
-	"strings"
+	//"strings"
 	"sync"
 	"time"
 )
@@ -43,7 +43,7 @@ func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte) (boo
 func (self *KademliaDB) BuildSdata(key []byte, value []byte) []byte {
 	buyAt := []byte("4096000000000000") //Need to research how to grab
 	timestamp := []byte(strconv.FormatInt(time.Now().Unix(), 10))
-	blockNumber := []byte("100") //How does this get retrieved? passed in?
+	blockNumber := []byte("100")                         //How does this get retrieved? passed in?
 	wlksig := []byte("6909ea88ced9c594e5212a1292fcf73c") //md5("wolk4all")
 
 	var metadataBody []byte
@@ -75,18 +75,20 @@ func (self *KademliaDB) BuildSdata(key []byte, value []byte) []byte {
 	return (mergedBodycontent)
 }
 
-func (self *KademliaDB) Put(k, v []byte) (bool, error) {
+func (self *KademliaDB) Put(k []byte, v []byte) (bool, error) {
+	hashVal := v[512:576]
 	//Need to put EXPECTED in there instead of 'v'
-	raw_indexkey := self.api.StoreKDBChunk(k, v)
+	raw_indexkey := self.api.StoreKDBChunk(hashVal, v)
 	log.Debug(fmt.Sprintf("In KademliaDB rawkey [%v] ", raw_indexkey))
 	return true, nil
 }
 
 func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
 	chunkKey := self.GenerateChunkKey(k)
-	fmt.Printf("\nPredicted chunkKey is: [%v]", chunkKey)
+	fmt.Printf("\nPredicted chunkKey is: [%x]", chunkKey)
 	//column = strings.ToLower(path_parts[2])
 	contentReader, err := self.api.RetrieveDBChunk(chunkKey)
+	fmt.Printf("\nChunk retrieved: [%s][%v]", contentReader, contentReader)
 	if err != nil {
 		log.Debug("key not found %s: %s", chunkKey, err)
 		return nil, false, fmt.Errorf("key not found: %s", err)
@@ -112,9 +114,9 @@ func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
 }
 
 func (self *KademliaDB) GenerateChunkKey(k []byte) []byte {
-	owner := []byte(strings.ToLower(string(self.owner)))
-	table := []byte(strings.ToLower(string(self.tableName)))
-	id := []byte(strings.ToLower(string(k)))
+	owner := self.owner
+	table := self.tableName
+	id := k
 	contentPrefix := BuildSwarmdbPrefix(owner, table, id)
 	log.Debug(fmt.Sprintf("\nIn GenerateChunkKey prefix Owner: [%s] Table: [%s] ID: [%s] == [%v](%s)", owner, table, id, contentPrefix, contentPrefix))
 	fmt.Printf("\nGenerateChunkKey Owner: [%s] Table: [%s] ID: [%s] == [%v](%s)", owner, table, id, contentPrefix, contentPrefix)
@@ -126,13 +128,17 @@ func BuildSwarmdbPrefix(owner []byte, table []byte, id []byte) []byte {
 	//hashType := SHA256"
 
 	//Should add checks for valid type / length for building
-	prepString := strings.ToLower(string(owner)) + strings.ToLower(string(table)) + strings.ToLower(string(id))
+	prepLen := len(owner) + len(table) + len(id)
+	prepBytes := make([]byte, prepLen)
+	copy(prepBytes[0:], owner)
+	copy(prepBytes[len(owner):], table)
+	copy(prepBytes[len(owner)+len(table):], id)
 	h256 := sha256.New()
-	h256.Write([]byte(prepString))
+	h256.Write([]byte(prepBytes))
 	prefix := h256.Sum(nil)
-	fmt.Printf("\nIn BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]", prepString, prefix, []byte(prefix), len([]byte(prefix)))
-	log.Debug(fmt.Sprintf("\nIn BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]", prepString, prefix, []byte(prefix), len([]byte(prefix))))
-	return []byte(prefix)
+	fmt.Printf("\nIn BuildSwarmdbPrefix prepBytes[%s] and prefix[%x] in Bytes [%v] with size [%v]", prepBytes, prefix, []byte(prefix), len([]byte(prefix)))
+	log.Debug(fmt.Sprintf("\nIn BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]", prepBytes, prefix, []byte(prefix), len([]byte(prefix))))
+	return (prefix)
 }
 
 func (self *KademliaDB) Close() (bool, error) {
