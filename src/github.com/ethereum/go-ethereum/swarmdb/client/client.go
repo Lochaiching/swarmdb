@@ -8,30 +8,19 @@ import (
 	"github.com/xwb1989/sqlparser"
 	"strings"
 )
-/*
-type Server struct {
-	api *api.Api
-	sk  [32]byte
-	pk  [32]byte
-}
-
-// Request wraps http.Request and also includes the parsed bzz URI
-type Request struct {
-	http.Request
-	uri *api.URI
-}
- */
 
 
-func NewClient(gateway string) *Client {
-	return &Client {
-		Gateway: gateway,
-	}
-}
+//func NewClient(gateway string) *Client {
+//	return &Client {
+//		Gateway: gateway,
+//	}
+//}
 
-type Client struct {
-	Gateway string
-}
+//type Client struct {
+//	Gateway string
+//}
+
+
 
 /*
 type RequestOption struct {
@@ -51,6 +40,7 @@ type TableOption struct {
 	Primary   int    `json:"primary,omitempty"`
 }
  */
+
 
 //index is primary key
 //where do you get treetype from?
@@ -146,7 +136,7 @@ func GetRecord(owner string, table string, key string) (value string, err error)
 }
 
 //data should be a pointer not actual structure
-func Query(owner string, table string, index string, sql string) (data []string, err error) {
+func Query(owner string, table string, sql string) (data []string, err error) {
 
 	var req common.RequestOption
 	req.RequestType = "Get"
