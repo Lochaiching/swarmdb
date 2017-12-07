@@ -26,14 +26,18 @@ func GetKeys() (sk [32]byte, pk [32]byte) {
 	ks := keystore.NewKeyStore("/var/www/vhosts/data/keystore", keystore.StandardScryptN, keystore.StandardScryptP)
 	var ks_accounts []accounts.Account //     type Account struct    in->   keystore/keystore.go
 	ks_accounts = ks.Accounts()
-	acc_url := ks_accounts[0].URL
-	acc_url_string := fmt.Sprintf("%s", acc_url)
-	filename := acc_url_string[11:] // /var/www/vhosts/data/keystore/UTC--2017-10-13T23-15-16.214744640Z--dc8a520a69157a7087f0b575644b8e454f462159
+	var keyJson []byte
+	var readErr error
+	if( len(ks_accounts) > 0 ) {
+		acc_url := ks_accounts[0].URL
+		acc_url_string := fmt.Sprintf("%s", acc_url)
+		filename := acc_url_string[11:] // /var/www/vhosts/data/keystore/UTC--2017-10-13T23-15-16.214744640Z--dc8a520a69157a7087f0b575644b8e454f462159
 
-	// Open the key file
-	//keyJson, readErr := ioutil.ReadFile("/var/www/vhosts/data/keystore/UTC--2017-10-13T23-15-16.214744640Z--dc8a520a69157a7087f0b575644b8e454f462159")
-	keyJson, readErr := ioutil.ReadFile(filename)
-	if readErr != nil {
+		// Open the key file
+		//keyJson, readErr = ioutil.ReadFile("/var/www/vhosts/data/keystore/UTC--2017-10-13T23-15-16.214744640Z--dc8a520a69157a7087f0b575644b8e454f462159")
+		keyJson, readErr = ioutil.ReadFile(filename)
+	}
+	if readErr != nil || len(ks_accounts) == 0 {
 		//s.logDebug("SWARM server.go ReadFile of keystore file error: %s ", readErr)
 		log.Debug(fmt.Sprintf("[BZZ] HTTP: "+"SWARM server.go ReadFile of keystore file error: %s ", readErr))
 
@@ -44,7 +48,7 @@ func GetKeys() (sk [32]byte, pk [32]byte) {
 	}
 
 	keyWrapper, keyErr := keystore.DecryptKey([]byte(keyJson), "mdotm")
-	if keyErr != nil {
+	if keyErr != nil || len(ks_accounts) == 0 {
 		//s.logDebug("SWARM server.go DecryptKey error: %s ", keyErr)
 		log.Debug(fmt.Sprintf("[BZZ] HTTP: "+"SWARM server.go DecryptKey error: %s ", keyErr))
 
