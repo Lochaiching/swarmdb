@@ -75,7 +75,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 		fmt.Printf("\nError Inserting into Table: [%s]", err)
 		return (err2)
 	}
-	fmt.Printf("\nEnding StoreKChunk")
+	fmt.Printf("\nEnding StoreKChunk of \nkey[%s],\nvalue[%s]\n", k,v)
 	return nil
 }
 
@@ -109,16 +109,20 @@ func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
 }
 
 func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
+	fmt.Printf("\nIn RetrieveChunk")
 	val = make([]byte, 4096)
 	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
+	fmt.Printf("\nSelecting Chunk with key of [%s]", key)
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
+		fmt.Printf("Error preparing sql [%s] Err: [%s]",sql,err)
 		return val, err
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query(key)
 	if err != nil {
+		fmt.Printf("Error preparing sql [%s] Err: [%s]",sql,err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -130,6 +134,7 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 		}
 		return val, nil
 	}
+	fmt.Printf("\nEnd of RetrieveChunk")
 	return val, nil
 }
 
