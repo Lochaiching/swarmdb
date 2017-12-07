@@ -80,7 +80,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 	defer stmt.Close()
 
 	encVal := self.km.EncryptData(v)
-	_, err2 := stmt.Exec(k, encVal)
+	_, err2 := stmt.Exec(k[:32], encVal) //TODO: why is k going in as 64 instead of 32?
 	fmt.Printf("\noriginal val [%v] encoded to [%v]", v, encVal)
 	if err2 != nil {
 		fmt.Printf("\nError Inserting into Table: [%s]", err)
@@ -140,12 +140,10 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 
 	for rows.Next() {
 		err2 := rows.Scan(&val)
-		fmt.Printf("RETVALUE is [%s] Err: ", val)
 		if err2 != nil {
 			return nil, err2
 		}
 		decVal := self.km.DecryptData(val)
-		fmt.Printf("DECVALUE is [%s] Err: ", val)
 		return decVal, nil
 	}
 	return val, nil
