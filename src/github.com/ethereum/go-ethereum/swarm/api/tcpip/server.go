@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarmdb/common"
 )
-
+/* moved to swarmdb/common pkg
 type RequestOption struct {
         RequestType  string        `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
         Owner        string        `json:"owner,omitempty"`
@@ -32,7 +32,7 @@ type TableOption struct {
         KeyType   int    `json:"keytype,omitempty"`
         Primary   int    `json:"primary,omitempty"`
 }
-
+*/
 
 
 /*
@@ -235,8 +235,8 @@ func (svr *Server) listen(){
 	}()
 }
 
-func parseData(data string)(*RequestOption, error){
-	udata := new(RequestOption)	
+func parseData(data string)(*common.RequestOption, error){
+	udata := new(common.RequestOption)	
 	if err := json.Unmarshal([]byte(data), udata); err != nil {
         	fmt.Println("JSON Unmarshal error:", err)
         	return nil, err
@@ -318,7 +318,7 @@ func (svr *Server)loadOwnerInfo(ownername string) (*OwnerInfo) {
 	return owner
 }
 
-func (svr *Server)CreateTable(tablename string, option []TableOption, address string)(err error){
+func (svr *Server)CreateTable(tablename string, option []common.TableOption, address string)(err error){
 	buf := make([]byte, 4096)
 	for i, columninfo := range option{
 		copy(buf[2048+i*64:],columninfo.Index)
