@@ -16,7 +16,7 @@ type SwarmDB struct {
 type indexinfo struct {
 	//roothash	storage.Key
 	//roothash []byte
-	common.database Database
+	database common.Database
 }
 
 /*
@@ -35,11 +35,11 @@ func NewSwarmDB(api *api.Api, ldb *storage.LDBDatabase) *SwarmDB {
 	return sd
 }
 
-func (self *SwarmDB)GetIndexRootHash(tablename string) (roothash []byte, err error) {
-	return self.api.GetIndexRootHash(tablename)
+func (self *SwarmDB) GetIndexRootHash(tablename string) (roothash []byte, err error) {
+	return self.api.GetIndexRootHash([]byte(tablename))
 }
 
-func (self *SwarmDB)RetrieveFromSwarm(key storage.Key) storage.LazySectionReader {
+func (self *SwarmDB) RetrieveFromSwarm(key storage.Key) storage.LazySectionReader {
 	return self.api.Retrieve(key)
 }
 
@@ -54,7 +54,7 @@ func (self *SwarmDB) Open(tablename string) error {
 	return nil
 }
 
-func (self *SwarmDB) OpenIndex(tablename, indexname string) Database {
+func (self *SwarmDB) OpenIndex(tablename, indexname string) common.Database {
 	return self.tablelist[tablename][indexname].database
 }
 
@@ -83,13 +83,13 @@ func (self *SwarmDB) readTableData(tablename []byte) (map[string]indexinfo, erro
 		}
 		switch string(itype) {
 		case "BP":
-			idxinfo.database = swarmdb.NewBPlusTreeDB(self.api)
+		//	idxinfo.database = swarmdb.NewBPlusTreeDB(self.api)
 		case "HD":
 		//	idxinfo.database, _ = swarmdb.NewHashDB(self.api)
 		case "KD":
 		//	idxinfo.database, _ = swarmdb.NewKademliaDB(self.api)
 		default:
-	//		idxinfo.database, _ = swarmdb.NewHashDB(self.api)
+			//		idxinfo.database, _ = swarmdb.NewHashDB(self.api)
 		}
 		indexmap[string(name)] = idxinfo
 		i++
