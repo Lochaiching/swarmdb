@@ -43,8 +43,8 @@ import (
 	repl "github.com/robertkrimen/otto/repl"
 	//"github.com/xwb1989/sqlparser"
 	//"github.com/ethereum/go-ethereum/swarm/api"
-	"github.com/ethereum/go-ethereum/swarmdb/packages"
-	//"github.com/ethereum/go-ethereum/swarmdb/client"
+	//"github.com/ethereum/go-ethereum/swarmdb/packages"
+	"github.com/ethereum/go-ethereum/swarmdb/client"
 	// "io"
 	"os"
 	//"strings"
@@ -70,7 +70,7 @@ func main() {
 		primary_bool, _ := primary.ToBoolean()
 		index, _ := tbl_descriptor.Get("index")
 		index_string, _ := index.ToString()
-		succ := swarmdb.CreateTable(tbl_name, column_string, primary_bool, index_string)
+		succ := client.CreateTable(tbl_name, column_string, primary_bool, index_string)
 		res, _ := vm.ToValue(succ)
 		return res
 	})
@@ -89,7 +89,7 @@ func main() {
 			return result
 		}
 
-		err := swarmdb.AddRecord(tablename, jsonrecord)
+		err := client.AddRecord(tablename, jsonrecord)
 		if err != nil {
 			result, _ := vm.ToValue(err.Error())
 			return result
@@ -103,7 +103,7 @@ func main() {
 	vm.Set("get", func(call otto.FunctionCall) otto.Value {
 		tbl_name := call.Argument(0).String() // e.g. "contacts"
 		id := call.Argument(1).String()       // e.g. "id"
-		jsonrecord, err := swarmdb.GetRecord(tbl_name, id)
+		jsonrecord, err := client.GetRecord(tbl_name, id)
 		if err != nil {
 			res, _ := vm.ToValue(err.Error())
 			return res
@@ -117,7 +117,7 @@ func main() {
 	// [ {"name":"Sourabh Niyogi", "age":45 }, {"name":"Francesca Niyogi", "age":49} ...]
 	vm.Set("query", func(call otto.FunctionCall) otto.Value {
 		sql := call.Argument(0).String()
-		jsonarray, err := swarmdb.Query(sql)
+		jsonarray, err := client.Query(sql)
 		if err != nil {
 			res, _ := vm.ToValue(err.Error())
 			return res
