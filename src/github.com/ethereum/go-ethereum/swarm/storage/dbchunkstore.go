@@ -81,7 +81,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 
 	encVal := self.km.EncryptData(v)
 	_, err2 := stmt.Exec(k[:32], encVal) //TODO: why is k going in as 64 instead of 32?
-	fmt.Printf("\noriginal val [%v] encoded to [%v]", v, encVal)
+	//fmt.Printf("\noriginal val [%v] encoded to [%v]", v, encVal)
 	if err2 != nil {
 		fmt.Printf("\nError Inserting into Table: [%s]", err)
 		return (err2)
