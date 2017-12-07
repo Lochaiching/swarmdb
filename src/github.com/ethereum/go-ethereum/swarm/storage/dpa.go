@@ -17,11 +17,11 @@
 package storage
 
 import (
-	"bytes"
+	//"bytes"
 	"errors"
 	"fmt"
 	"io"
-	"strings"
+	//"strings"
 	"sync"
 	"time"
 
@@ -67,9 +67,9 @@ type DPA struct {
 
 // for testing locally
 func NewLocalDPA(datadir string) (*DPA, error) {
-
+	//hash := MakeHashFunc("SWARMDBSHA3")
 	hash := MakeHashFunc("SHA256")
-
+	//fmt.Printf("Does the hasher have a rodney func? %s",hash.RodneyTest())
 	dbStore, err := NewDbStore(datadir, hash, singletonSwarmDbCapacity, 0)
 	if err != nil {
 		return nil, err
@@ -100,12 +100,14 @@ func (self *DPA) Retrieve(key Key) LazySectionReader {
 // Public API. Main entry point for document storage directly. Used by the
 // FS-aware API and httpaccess
 func (self *DPA) Store(data io.Reader, size int64, swg *sync.WaitGroup, wwg *sync.WaitGroup) (key Key, err error) {
-	return self.Chunker.Split(data, size, self.storeC, swg, wwg, false)
+	//return self.Chunker.Split(data, size, self.storeC, swg, wwg, false)
+	return self.Chunker.Split(data, size, self.storeC, swg, wwg)
 }
 
 func (self *DPA) StoreDB(data io.Reader, size int64, swg *sync.WaitGroup, wwg *sync.WaitGroup) (key Key, err error) {
- 	////////////////
- 	return self.Chunker.Split(data, size, self.storeC, swg, wwg, true)
+	////////////////
+	//return self.Chunker.Split(data, size, self.storeC, swg, wwg, true)
+	return self.Chunker.Split(data, size, self.storeC, swg, wwg)
 }
 
 func (self *DPA) Start() {
@@ -228,31 +230,9 @@ func (self *dpaChunkStore) Get(key Key) (chunk *Chunk, err error) {
 
 // Put is the entrypoint for local store requests coming from storeLoop
 func (self *dpaChunkStore) Put(entry *Chunk) {
-	if( entry.swarmdb == true ) {
-		log.Debug(fmt.Sprintf("SwarmDB (TRUE) Debugging: Entry is [%+v] with Key [%+v]",entry, entry.Key))
-	} else {
-		log.Debug(fmt.Sprintf("SwarmDB (FALSE) Debugging: Entry is [%+v] with Key [%+v]",entry, entry.Key))
-	}
+	fmt.Printf("In dpaChunkstore PUT \n\n")
 	chunk, err := self.localStore.Get(entry.Key)
-	if entry.swarmdb {
-		chunk = entry
-		ekey := fmt.Sprintf("%v", entry.Key)
- 		keylen := len(ekey)
-		dummy := bytes.Repeat([]byte("Z"), keylen)
-		idx := make([]byte, len(chunk.SData)-8)
- 		copy(idx, chunk.SData[8:])
-		contentPrefixStart := 512+8
-		contentPrefixEnd := 576+8
-		newkeybase_bytes := chunk.SData[contentPrefixStart:contentPrefixEnd]
- 		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB keybase bytes: [%+v][%s]", newkeybase_bytes, string(newkeybase_bytes)))
- 		newkeybase := string(newkeybase_bytes)+string(dummy)
- 		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB keybase used: [%+v][%s]", newkeybase, string(newkeybase)))
- 	    	chunker := NewTreeChunker(NewChunkerParams())
- 		r := strings.NewReader(newkeybase)
- 		chunk.Key, err = chunker.Split(r, int64(len(newkeybase)), nil, nil, nil, false)
- 		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB new Chunk.Key [%s][%v]", entry.Key, entry.Key))
- 		log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB basekey = %v: key = %v sdata = %v(%s) chunkKey=[%v][%s]", newkeybase, entry.Key, chunk.SData, chunk.SData, chunk.Key, chunk.Key))
- 	} else if err != nil {
+	if err != nil {
 		log.Debug(fmt.Sprintf("DPA.Put: %v new chunk. call netStore.Put Entry Details %+v", entry.Key.Log(), entry))
 		chunk = entry
 	} else if chunk.SData == nil {
@@ -261,7 +241,7 @@ func (self *dpaChunkStore) Put(entry *Chunk) {
 		chunk.Size = entry.Size
 	} else {
 		log.Trace(fmt.Sprintf("DPA.Put: %v chunk already known", entry.Key.Log()))
-		if !entry.swarmdb { 
+		if !entry.swarmdb {
 			return
 		}
 	}
@@ -293,7 +273,6 @@ func (self *dpaChunkStore) PutDB(entry *Chunk) {
     self.netStore.Put(chunk)
 }
 */
-
 
 // Close chunk store
 func (self *dpaChunkStore) Close() {
