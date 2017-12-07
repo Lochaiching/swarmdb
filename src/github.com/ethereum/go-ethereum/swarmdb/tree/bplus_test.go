@@ -2,14 +2,16 @@ package swarmdb
 
 import (
 	// "encoding/binary"
+	"bytes"
+	// "strings"
 	"fmt"
 	"github.com/cznic/mathutil"
 	"github.com/ethereum/go-ethereum/swarm/api"
+	"github.com/ethereum/go-ethereum/swarmdb/common"
 	"github.com/ethereum/go-ethereum/swarmdb/tree"
 	"math"
-	"testing"
-	"github.com/ethereum/go-ethereum/swarmdb/common"
 	"math/rand"
+	"testing"
 )
 
 func rng() *mathutil.FC32 {
@@ -47,13 +49,13 @@ func TestPutInteger(t *testing.T) {
 	s := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
 
 	g, ok, err := s.Get(common.IntToByte(8))
-	if ! ok || err != nil {
+	if !ok || err != nil {
 		t.Fatal(g, err)
 	} else {
 		fmt.Printf("Get(8): [%s]\n", string(g))
 	}
 	h, ok2, err2 := s.Get(common.IntToByte(1))
-	if ! ok2 || err2 != nil {
+	if !ok2 || err2 != nil {
 		t.Fatal(h, err2)
 	}
 	fmt.Printf("Get(1): [%s]\n", string(h))
@@ -127,24 +129,7 @@ func TestPutFloat(t *testing.T) {
 	// r.Print()
 
 	hashid = r.GetHashID()
-
 	s := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_FLOAT)
-/*
-	g, ok, err := s.Get(common.FloatToByte(8.14159))
-	if ! ok || err != nil {
-		t.Fatal(g, err)
-	} else {
-		fmt.Printf("Get(8.14159): %v\n", string(g))
-	}
-
-	h, ok2, err2 := s.Get(common.FloatToByte(1.14159))
-	if ! ok2 || err2 != nil {
-		t.Fatal(h, err2)
-	} else {
-		fmt.Printf("Get(1.14159): %v\n", string(g))
-	}
-*/
-	// s.Print()
 	// ENUMERATOR
 	res, _, _ := s.Seek(common.FloatToByte(3.14159))
 	records := 0
@@ -154,92 +139,90 @@ func TestPutFloat(t *testing.T) {
 	}
 }
 
+func TestSetGetString(t *testing.T) {
+	hashid := make([]byte, 32)
+	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
 
-/*
-func TestSetGet0(t *testing.T) {
-	r := swarmdb.NewBPlusTreeDB(getAPI(t))
-	set := r.Put
+	// put
 	key := []byte("42")
-	val := []byte("314")
-	set(key, val)
+	val := common.SHA256("314")
+	r.Put(key, val)
 
+	// check put with get
 	g, ok, err := r.Get(key)
 	if !ok || err != nil {
 		t.Fatal(ok)
 	}
-
 	if bytes.Compare(g, val) != 0 {
 		t.Fatal(g, val)
 	}
+	//r.Print()
+	hashid = r.GetHashID()
 
-	val2 := []byte("278")
-	set(key, val2)
-	r.Print()
+	// r2 put
+	r2 := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
+	val2 := common.SHA256("278")
+	r2.Put(key, val2)
+	//r2.Print()
 
-	fmt.Printf("-----R2\n");
-	r2 := swarmdb.NewBPlusTreeDB(getAPI(t))
-	r2.Print()
+	// check put with get
 	g2, ok, err := r2.Get(key)
-	if ! ok || err != nil {
-		fmt.Printf("ok %v err %v\n", ok, err)
-		t.Fatal(ok)
-	} else {
-		fmt.Printf("PASS GET1\n")
-	}
-
-	if bytes.Compare(g2, val2) != 0 {
-		t.Fatal(g2, val2)
-	}
-
-	key2 := []byte("420")
-	val3 := []byte("bbb")
-	set(key2, val3)
-	r3 := swarmdb.NewBPlusTreeDB(getAPI(t))
-	g3, ok, err := r3.Get(key2)
 	if !ok || err != nil {
 		t.Fatal(ok)
 	}
+	if bytes.Compare(g2, val2) != 0 {
+		t.Fatal(g2, val2)
+	}
+	hashid = r2.GetHashID()
 
+	// r3 put
+	r3 := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
+	key2 := []byte("420")
+	val3 := common.SHA256("bbb")
+	r3.Put(key2, val3)
+
+	// check put with get
+	g3, ok, err := r3.Get(key2)
+	//r3.Print()
+	if !ok || err != nil {
+		t.Fatal(ok)
+	}
 	if bytes.Compare(g3, val3) != 0 {
 		t.Fatal(g3, val3)
-	} else {
-		fmt.Printf("PASS GET2\n")
 	}
-	r.Close()
+	fmt.Printf("PASS\n")
+
 }
 
-
-func TestSetGet1(t *testing.T) {
+func TestSetGetInt(t *testing.T) {
 	const N = 4
+	hashid := make([]byte, 32)
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := swarmdb.NewBPlusTreeDB(getAPI(t))
-		set := r.Put
+		r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
+
 		a := make([]int, N)
 		for i := range a {
 			a[i] = (i ^ x) << 1
 		}
 		fmt.Printf("%v\n", a)
 		for _, k := range a {
-			key := fmt.Sprintf("%v", k)
-			val := fmt.Sprintf("%v", k^x)
-			set([]byte(key), []byte(val))
+			r.Put(common.IntToByte(k), common.SHA256(fmt.Sprintf("%v", k^x)))
 		}
 
 		for i, k := range a {
-			key := fmt.Sprintf("%v", k)
-			v, ok, err := r.Get([]byte(key))
-			if ! ok || err!= nil {
-				t.Fatal(i, key, v, ok)
+			v, ok, err := r.Get(common.IntToByte(k))
+			if !ok || err != nil {
+				t.Fatal(i, k, v, ok)
 			}
 
-			val := fmt.Sprintf("%v", k^x)
+			val := common.SHA256(fmt.Sprintf("%v", k^x))
 			if bytes.Compare([]byte(val), v) != 0 {
 				t.Fatal(i, val, v)
 			}
 
 			k |= 1
-			key2 := fmt.Sprintf("%v", k)
-			_, ok, _ = r.Get([]byte(key2))
+
+			_, ok, _ = r.Get(common.IntToByte(k))
 			if ok {
 				t.Fatal(i, k)
 			}
@@ -247,149 +230,50 @@ func TestSetGet1(t *testing.T) {
 		}
 
 		for _, k := range a {
-			key := fmt.Sprintf("%v", k)
-			val := fmt.Sprintf("%v", k^x+42)
-
-			r.Put([]byte(key), []byte(val))
+			r.Put(common.IntToByte(k), common.SHA256(fmt.Sprintf("%v", k^x+42)))
 		}
 
 		for i, k := range a {
-			key := fmt.Sprintf("%v", k)
-			val := fmt.Sprintf("%v", k^x+42)
-			v, ok, err := r.Get([]byte(key))
+			v, ok, err := r.Get(common.IntToByte(k))
 			if !ok || err != nil {
 				t.Fatal(i, k, v, ok)
 			}
 
+			val := common.SHA256(fmt.Sprintf("%v", k^x+42))
 			if bytes.Compare([]byte(val), v) != 0 {
 				t.Fatal(i, v, val)
 			}
 
 			k |= 1
-			key2 := fmt.Sprintf("%v", k)
-			_, ok, _ = r.Get([]byte(key2))
-			if ok {
-				t.Fatal(i, k)
-			}
-		}
-		r.Close()
-	}
-}
-*/
-
-/*
-func TestSetGet2(t *testing.T) {
-	const N = 40000
-	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		rng := rng()
-		r := swarmdb.NewBPlusTreeDB(getAPI(t))
-
-		set := r.Put
-		a := make([]int, N)
-		for i := range a {
-			a[i] = (rng.Next() ^ x) << 1
-		}
-		for _, k := range a {
-			key := fmt.Sprintf("%v", k)
-			val := fmt.Sprintf("%v", k^x)
-			set([]byte(key), []byte(val))
-		}
-
-		for i, k := range a {
-			key := fmt.Sprintf("%v", k)
-			v, ok, err := r.Get([]byte(key))
-			if !ok || err!= nil {
-				t.Fatal(i, k, v, ok)
-			}
-			val := fmt.Sprintf("%v", k^x)
-			if bytes.Compare([]byte(val), v) != 0 {
-				t.Fatal(i, val, v)
-			}
-
-			k |= 1
-			key2 := fmt.Sprintf("%v", k)
- 			_, ok, _ = r.Get([]byte(key2))
+			_, ok, _ = r.Get(common.IntToByte(k))
 			if ok {
 				t.Fatal(i, k)
 			}
 		}
 
-		for _, k := range a {
-			key := fmt.Sprintf("%v", k)
-			val := fmt.Sprintf("%v", (k^x)+42)
-			r.Put([]byte(key), []byte(val))
-		}
-
-		for i, k := range a {
-			key := fmt.Sprintf("%v", k)
-			v, ok, err := r.Get([]byte(key))
-			if !ok || err != nil {
-				t.Fatal(i, k, v, ok)
-			}
-
-			val := fmt.Sprintf("%v", k^x+42)
-			if bytes.Compare(v, []byte(val)) != 0 {
-				t.Fatal(i, val, v)
-			}
-
-			k |= 1
-			key2 := fmt.Sprintf("%v", k)
-			_, ok, _ = r.Get([]byte(key2))
-			if ok {
-				t.Fatal(i, k)
-			}
-		}
 	}
 }
 
-func TestSetGet3(t *testing.T) {
-	r := swarmdb.NewBPlusTreeDB(getAPI(t))
-	set := r.Put
-	var i int
-	for i = 0; ; i++ {
-		key := fmt.Sprintf("%v", i)
-		val := fmt.Sprintf("%v", -i)
-		set([]byte(key), []byte(val))
-		if _, ok := r.r.(*x); ok {
-			break
-		}
-	}
-	for j := 0; j <= i; j++ {
-		key := fmt.Sprintf("%v", j)
-		val := fmt.Sprintf("%v", j)
-		set([]byte(key), []byte(val))
-	}
-
-	for j := 0; j <= i; j++ {
-		key := fmt.Sprintf("%v", j)
-		val := fmt.Sprintf("%v", j)
-		v, ok, err := r.Get(j)
-		if !ok || err != nil{
-			t.Fatal(j)
- }
-		if bytes.Compare(val, v) {
-			t.Fatal(val, v)
-		}
-	}
-}
-
-// works
 func TestDelete0(t *testing.T) {
-	r := swarmdb.NewBPlusTreeDB(getAPI(t))
+	hashid := make([]byte, 32)
+	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
 
-	key0 := []byte(fmt.Sprintf("%d", 0))
-	key1 := []byte(fmt.Sprintf("%d", 1))
+	key0 := common.IntToByte(0)
+	key1 := common.IntToByte(1)
+
+	val0 := common.SHA256("0")
+	val1 := common.SHA256("1")
 
 	if ok, _ := r.Delete(key0); ok {
 		t.Fatal(ok)
 	}
 
-	r.Put(key0, key0)
+	r.Put(key0, val0)
 	if ok, _ := r.Delete(key1); ok {
 		t.Fatal(ok)
 	}
 
-	if ok, _ := r.Delete(key0); !ok  {
+	if ok, _ := r.Delete(key0); !ok {
 		t.Fatal(ok)
 	}
 
@@ -397,8 +281,8 @@ func TestDelete0(t *testing.T) {
 		t.Fatal(ok)
 	}
 
-	r.Put(key0, key0)
-	r.Put(key1, key1)
+	r.Put(key0, val0)
+	r.Put(key1, val1)
 	if ok, _ := r.Delete(key1); !ok {
 		t.Fatal(ok)
 	}
@@ -415,8 +299,8 @@ func TestDelete0(t *testing.T) {
 		t.Fatal(ok)
 	}
 
-	r.Put(key0, key0)
-	r.Put(key1, key1)
+	r.Put(key0, val0)
+	r.Put(key1, val1)
 	if ok, _ := r.Delete(key0); !ok {
 		t.Fatal(ok)
 	}
@@ -435,59 +319,46 @@ func TestDelete0(t *testing.T) {
 }
 
 func TestDelete1(t *testing.T) {
-	const N = 130000
+	hashid := make([]byte, 32)
+	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := swarmdb.NewBPlusTreeDB(getAPI(t))
-		set := r.Put
+		r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
 		a := make([]int, N)
 		for i := range a {
 			a[i] = (i ^ x) << 1
 		}
 		for _, k := range a {
-			key := fmt.Sprintf("%v", k)
-			val := fmt.Sprintf("%v", 0)
-			// fmt.Printf("%s|%s\n", key, val)
-			set([]byte(key), []byte(val))
+			r.Put(common.IntToByte(k), common.SHA256("0"))
 		}
 
 		for i, k := range a {
-			key := fmt.Sprintf("%v", k)
-			ok, _ := r.Delete([]byte(key))
-			// fmt.Printf("DEL%s\n", key)
+			ok, _ := r.Delete(common.IntToByte(k))
 			if !ok {
-				fmt.Printf("YIPE%s\n", key)
+				fmt.Printf("YIPE%s\n", k)
 				t.Fatal(i, x, k)
 			}
 		}
-		r.Close();
 	}
-	fmt.Printf("DONE\n");
 }
 
 func TestDelete2(t *testing.T) {
-	const N = 100000
+	const N = 100
+	hashid := make([]byte, 32)
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := swarmdb.NewBPlusTreeDB(getAPI(t))
-
-		set := r.Put
+		r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
 		a := make([]int, N)
 		rng := rng()
 		for i := range a {
 			a[i] = (rng.Next() ^ x) << 1
 		}
 		for _, k := range a {
-			key := fmt.Sprintf("%d", k);
-			val := fmt.Sprintf("%d", 0);
-			set([]byte(key), []byte(val))
+			r.Put(common.IntToByte(k), common.SHA256("0"))
 		}
-
 		for i, k := range a {
-			key := fmt.Sprintf("%d", k);
-			ok, _ := r.Delete([]byte(key))
+			ok, _ := r.Delete(common.IntToByte(k))
 			if !ok {
 				t.Fatal(i, x, k)
 			}
 		}
 	}
 }
-*/

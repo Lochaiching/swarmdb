@@ -275,7 +275,8 @@ func (t *Tree) check_flush() (ok bool) {
 
 	new_hashid, changed := t.SWARMPut()
 	if changed {
-		fmt.Printf("check_flush changed new hash => %x\n", new_hashid)
+		t.hashid = new_hashid
+		// fmt.Printf("check_flush changed new hash => %x\n", new_hashid)
 		// t.api.StoreIndexRootHash(t.tableName, []byte(new_hashid))
 		return true
 	}
@@ -377,7 +378,7 @@ func (t *Tree) SWARMGet() (success bool) {
 					z.d[i].v = hashid
 					x.notloaded = true
 					x.hashid = hashid
-					fmt.Printf(" LOAD-D %d|k:%s|i:%s\n", i, common.KeyToString(t.keyType, k), string(x.hashid))
+					// fmt.Printf(" LOAD-D %d|k:%s|i:%s\n", i, common.KeyToString(t.keyType, k), string(x.hashid))
 				}
 			}
 		}
@@ -437,7 +438,7 @@ func (q *x) SWARMGet(api *api.Api) (changed bool) {
 				q.x[i].k = []byte(k)
 				x.notloaded = true
 				x.hashid = hashid
-				fmt.Printf(" LOAD-D1|%d|%s\n", i, x.hashid)
+				//fmt.Printf(" LOAD-D1|%d|%s\n", i, x.hashid)
 			}
 		}
 	}
@@ -884,7 +885,7 @@ func (q *d) print(keytype common.KeyType, level int) {
 	fmt.Printf("DNode %x [c=%d] (LEVEL %d) [dirty=%v|notloaded=%v|prev=%x|next=%x]\n", q.hashid, q.c, level, q.dirty, q.notloaded, q.prevhashid, q.nexthashid)
 	for i := 0; i < q.c; i++ {
 		print_spaces(level + 1)
-		fmt.Printf("DATA %d (L%d)|%s|%v\n", i, level+1, common.KeyToString(keytype, q.d[i].k), string(q.d[i].v))
+		fmt.Printf("DATA %d (L%d)|%s|%v\n", i, level+1, common.KeyToString(keytype, q.d[i].k), common.ValueToString(q.d[i].v))
 	}
 	return
 }
@@ -986,12 +987,9 @@ func (t *Tree) Put(key []byte /*K*/, v []byte /*V*/) (okresult bool, err error) 
 				q = x.x[i].ch
 				continue
 			case *d:
-				//t.kdb.Put(k, v)
 				x.d[i].v = v
 				x.dirty = true // we updated the value but did not insert anything
-				fmt.Printf("FLUSHA")
 				t.check_flush()
-				fmt.Printf("FLUSHB")
 				return true, nil
 			}
 		}
