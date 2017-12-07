@@ -333,7 +333,7 @@ func (t *Tree) SWARMGet() (success bool) {
 	}
 	nodetype := get_chunk_nodetype(buf)
 	childtype := get_chunk_childtype(buf)
-	t.api.PrintDBChunk(t.keyType, t.hashid, buf)
+	// t.api.PrintDBChunk(t.keyType, t.hashid, buf)
 	if nodetype == "X" {
 		// create X node
 		t.r = btXPool.Get().(*x)
@@ -350,14 +350,14 @@ func (t *Tree) SWARMGet() (success bool) {
 						z.x[i].k = k
 						x.notloaded = true
 						x.hashid = hashid
-						fmt.Printf(" LOAD-TX|%d|%v|%x\n", i, common.KeyToString(t.keyType, k), string(x.hashid))
+						// fmt.Printf(" LOAD-TX|%d|%v|%x\n", i, common.KeyToString(t.keyType, k), string(x.hashid))
 					} else if childtype == "D" {
 						x := btDPool.Get().(*d)
 						z.x[i].ch = x
 						z.x[i].k = k
 						x.notloaded = true
 						x.hashid = hashid
-						fmt.Printf(" LOAD-TD|%d|%v|%x\n", i, common.KeyToString(t.keyType, k), string(x.hashid))
+						// fmt.Printf(" LOAD-TD|%d|%v|%x\n", i, common.KeyToString(t.keyType, k), string(x.hashid))
 					}
 				}
 			}
@@ -387,7 +387,7 @@ func (t *Tree) SWARMGet() (success bool) {
 	case (*x):
 		z.c--
 	}
-	fmt.Printf("SWARMGet T: [%x]\n", t.hashid)
+	// fmt.Printf("SWARMGet T: [%x]\n", t.hashid)
 	return true
 }
 
@@ -484,13 +484,13 @@ func (t *Tree) SWARMPut() (new_hashid []byte, changed bool) {
 
 	switch x := q.(type) {
 	case *x: // intermediate node -- descend on the next pass
-		fmt.Printf("ROOT XNode %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
+		// fmt.Printf("ROOT XNode %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
 		new_hashid, changed = x.SWARMPut(t.api, t.keyType)
 		if changed {
 			t.hashid = x.hashid
 		}
 	case *d: // data node -- EXACT match
-		fmt.Printf("ROOT DNode %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
+		// fmt.Printf("ROOT DNode %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
 		new_hashid, changed = x.SWARMPut(t.api, t.keyType)
 		if changed {
 			t.hashid = x.hashid
@@ -502,7 +502,7 @@ func (t *Tree) SWARMPut() (new_hashid []byte, changed bool) {
 
 func (q *x) SWARMPut(api *api.Api, keytype common.KeyType) (new_hashid []byte, changed bool) {
 	// recurse through children
-	fmt.Printf("put XNode [c=%d] %x [dirty=%v|notloaded=%v]\n", q.c, q.hashid, q.dirty, q.notloaded)
+	// fmt.Printf("put XNode [c=%d] %x [dirty=%v|notloaded=%v]\n", q.c, q.hashid, q.dirty, q.notloaded)
 	for i := 0; i <= q.c; i++ {
 		switch z := q.x[i].ch.(type) {
 		case *x:
@@ -533,27 +533,25 @@ func (q *x) SWARMPut(api *api.Api, keytype common.KeyType) (new_hashid []byte, c
 
 	set_chunk_nodetype(sdata, "X")
 	set_chunk_childtype(sdata, childtype)
-	checktype := get_chunk_childtype(sdata)
-	fmt.Printf("WROTE CHILDTYPE %s checktype: %s\n", childtype, checktype)
 
 	new_hashid, err := api.StoreDBChunk(sdata)
 	if err != nil {
 		return q.hashid, false
 	}
 	q.hashid = new_hashid
-	fmt.Printf("Stored X: %x [%v]\n", q.hashid, sdata)
-	api.PrintDBChunk(keytype, q.hashid, sdata)
+	// fmt.Printf("Stored X: %x [%v]\n", q.hashid)
+	// api.PrintDBChunk(keytype, q.hashid, sdata)
 	return new_hashid, true
 }
 
 func (q *d) SWARMPut(api *api.Api, keytype common.KeyType) (new_hashid []byte, changed bool) {
-	fmt.Printf("put DNode [c=%d] [dirty=%v|notloaded=%v, prev=%x, next=%x]\n", q.c, q.dirty, q.notloaded, q.prevhashid, q.nexthashid)
+	// fmt.Printf("put DNode [c=%d] [dirty=%v|notloaded=%v, prev=%x, next=%x]\n", q.c, q.dirty, q.notloaded, q.prevhashid, q.nexthashid)
 	if q.n != nil {
 		if q.n.dirty {
 			q.n.SWARMPut(api, keytype)
 		}
 		q.nexthashid = q.n.hashid
-		fmt.Printf(" -- NEXT: %x [%v]\n", q.nexthashid, q.n.dirty)
+		// fmt.Printf(" -- NEXT: %x [%v]\n", q.nexthashid, q.n.dirty)
 	}
 	q.dirty = false
 
@@ -562,7 +560,7 @@ func (q *d) SWARMPut(api *api.Api, keytype common.KeyType) (new_hashid []byte, c
 			q.p.SWARMPut(api, keytype)
 		}
 		q.prevhashid = q.p.hashid
-		fmt.Printf(" -- PREV: %x [%v]\n", q.prevhashid, q.p.dirty)
+		// fmt.Printf(" -- PREV: %x [%v]\n", q.prevhashid, q.p.dirty)
 	}
 
 	// fmt.Printf("N: %x P: %x\n", q.n, q.p) //  q.prevhashid, q.nexthashid
@@ -588,8 +586,8 @@ func (q *d) SWARMPut(api *api.Api, keytype common.KeyType) (new_hashid []byte, c
 		return q.hashid, false
 	}
 	q.hashid = new_hashid
-	fmt.Printf("Stored D: %x\n", q.hashid)
-	api.PrintDBChunk(keytype, q.hashid, sdata)
+	// fmt.Printf("Stored D: %x\n", q.hashid)
+	// api.PrintDBChunk(keytype, q.hashid, sdata)
 	return new_hashid, true
 }
 
@@ -1262,7 +1260,7 @@ func (e *Enumerator) next() error {
 		e.i++
 	default:
 		if valid_hashid(e.q.nexthashid) && e.q.n == nil {
-			fmt.Printf(" *** LOAD NEXT -- %x\n", e.q.nexthashid)
+			// fmt.Printf(" *** LOAD NEXT -- %x\n", e.q.nexthashid)
 			r := btDPool.Get().(*d)
 			r.p = e.q
 			r.hashid = e.q.nexthashid
