@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"database/sql"
 	//"encoding/binary"
@@ -79,11 +80,20 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 	}
 	defer stmt.Close()
 
-	encVal := self.km.EncryptData(v)
-	_, err2 := stmt.Exec(k[:32], encVal) //TODO: why is k going in as 64 instead of 32?
-	//fmt.Printf("\noriginal val [%v] encoded to [%v]", v, encVal)
+	recordData := v[577:]
+	encRecordData := self.km.EncryptData(recordData)
+
+	var finalSdata [4096]byte
+	copy(finalSdata[0:566], v[0:576])
+	copy(finalSdata[577:], encRecordData)
+	var newFinalSData []byte
+	copy(newFinalSData[0:], finalSdata[0:4095])
+	fmt.Printf("\n\noriginal val [%v] encoded to [%v]", v, finalSdata[0:4095])
+	_, err2 := stmt.Exec(k[:32], finalSdata) //TODO: why is k going in as 64 instead of 32?
+	fmt.Printf("\noriginal val [%v] encoded to [%v]", v, newFinalSData)
 	if err2 != nil {
-		fmt.Printf("\nError Inserting into Table: [%s]", err)
+		fmt.Printf("\nError Inserting into Table: [%s]", err2)
+		fmt.Printf("Putting in this data: [%s]", finalSdata)
 		return (err2)
 	}
 	return nil
@@ -118,6 +128,39 @@ func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
 	}
 
 	return k, nil
+}
+
+func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
+	val = make([]byte, 4096)
+	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
+	stmt, err := self.db.Prepare(sql)
+	if err != nil {
+		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+		return val, err
+	}
+	defer stmt.Close()
+
+	//rows, err := stmt.Query()
+	rows, err := stmt.Query(key)
+	if err != nil {
+		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		err2 := rows.Scan(&val)
+		if err2 != nil {
+			return nil, err2
+		}
+		fmt.Printf("\nLength of val is: [%s] and contents are [%s](%v)",len(val), val, val)
+		jsonRecord := val[577:]
+		fmt.Printf("json record is: [%s]", jsonRecord)
+		decVal := self.km.DecryptData(jsonRecord)
+		decVal = bytes.TrimRight(decVal, "\x00")
+		return decVal, nil
+	}
+	return val, nil
 }
 
 func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
