@@ -3,7 +3,6 @@
 
 all:
 	@echo "test all."
-	-go test ./yaron/yaron_test.go ./yaron/yaron.go
 	@echo "test enssimulation."
 	-go test ../swarm/storage/enssimulation_test.go
 	@echo "test dbchunkstore."
