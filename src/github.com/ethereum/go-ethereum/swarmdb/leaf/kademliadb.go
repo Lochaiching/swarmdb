@@ -70,11 +70,11 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 	return (mergedBodycontent)
 }
 
-func (self *KademliaDB) Put(k []byte, v []byte) (bool, error) {
+func (self *KademliaDB) Put(k []byte, v []byte) ([]byte, error) {
 	sdata := self.buildSdata(k, v)
 	hashVal := sdata[512:576]
 	_ = self.api.StoreKDBChunk(hashVal, sdata)
-	return true, nil
+	return hashVal, nil
 }
 
 func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {

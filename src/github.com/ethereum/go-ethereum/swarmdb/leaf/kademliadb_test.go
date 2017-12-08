@@ -76,12 +76,9 @@ func TestKademliaPutGet(t *testing.T) {
 	}
 
 	kdb.Open(tc.Owner, tc.TableName, tc.Column)
-	ok, err := kdb.Put(tc.Key, tc.Value)
+	_, err = kdb.Put(tc.Key, tc.Value)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatal("The expected HASH for --> ", tc.Value, " <- is [", tc.Key, "] SAVED")
 	}
 	val, _, _ := kdb.Get(tc.Key)
 	if bytes.Compare(val, tc.Value) != 0 {
