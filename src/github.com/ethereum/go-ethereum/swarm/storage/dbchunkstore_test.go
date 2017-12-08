@@ -31,6 +31,16 @@ func TestDBChunkStore(t *testing.T) {
 	} else {
  		fmt.Printf("SUCCESS in StoreChunk:  %x => %v\n", string(k), string(v))
 	}
+	// RetrieveChunk
+	val, err := store.RetrieveChunk(k)
+	if err != nil {
+		t.Fatal("Failure to RetrieveChunk: Failure to retrieve", k, v, val)
+	} 
+	if bytes.Compare(val, v) != 0 {
+		t.Fatal("Failure to RetrieveChunk: Incorrect match", k, v, val)
+	} else {
+		fmt.Printf("SUCCESS in RetrieveChunk:  %x => %v\n", string(k), string(v))
+	}
 
 	// StoreKChunk
 	err2 := store.StoreKChunk(k, v)
@@ -46,17 +56,4 @@ func TestDBChunkStore(t *testing.T) {
 	} else {
  		fmt.Printf("SUCCESS in StoreKChunk Err (input only has %d bytes)\n", len(r))
 	}
-
-	// RetrieveChunk
-	val, err := store.RetrieveChunk(k)
-	if err != nil {
-		t.Fatal("Failure to RetrieveChunk: Failure to retrieve", k, v, val)
-	} 
-	if bytes.Compare(val, v) != 0 {
-		t.Fatal("Failure to RetrieveChunk: Incorrect match", k, v, val)
-	} else {
-		fmt.Printf("SUCCESS in RetrieveChunk:  %x => %v\n", string(k), string(v))
-	}
-
-
 }
