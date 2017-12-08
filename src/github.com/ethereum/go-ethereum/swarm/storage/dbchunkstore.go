@@ -182,7 +182,7 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 }
 
 func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
-	val = make([]byte, 4096)
+	val = make([]byte, 8192)
 	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
