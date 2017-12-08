@@ -85,18 +85,14 @@ func (self *KademliaDB) Put(k []byte, v []byte) (bool, error) {
 
 func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
 	chunkKey := self.GenerateChunkKey(k)
-	fmt.Printf("\nPredicted chunkKey is: [%x]", chunkKey)
 	//column = strings.ToLower(path_parts[2])
-	contentReader, err := self.api.RetrieveDBChunk(chunkKey)
-	fmt.Printf("\nChunk retrieved: [%s][%v]", contentReader, contentReader)
+	contentReader, err := self.api.RetrieveKDBChunk(chunkKey)
 	if err != nil {
 		log.Debug("key not found %s: %s", chunkKey, err)
 		return nil, false, fmt.Errorf("key not found: %s", err)
 	}
 
 	encryptedContentBytes := bytes.TrimRight(contentReader[577:], "\x00")
-	log.Debug(fmt.Sprintf("In HandledGetDB Retrieved 'mainhash' v[%v] s[%s] ", encryptedContentBytes, encryptedContentBytes))
-
 	response_reader := bytes.NewReader(encryptedContentBytes)
 	/* Current Plan is for Decryption to happen at SwarmDBManager Layer (so commenting out) */
 	/*
@@ -105,7 +101,6 @@ func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
 		        log.Debug(fmt.Sprintf("In HandledGetDB got back the 'reader' v[%v] s[%s] ", decrypted_reader, decrypted_reader))
 			response_reader := decrypted_reader
 	*/
-
 	queryResponse := make([]byte, 4096)             //TODO: match to sizes in metadata content
 	_, _ = response_reader.ReadAt(queryResponse, 0) //TODO: match to sizes in metadata content
 
@@ -119,7 +114,6 @@ func (self *KademliaDB) GenerateChunkKey(k []byte) []byte {
 	id := k
 	contentPrefix := BuildSwarmdbPrefix(owner, table, id)
 	log.Debug(fmt.Sprintf("\nIn GenerateChunkKey prefix Owner: [%s] Table: [%s] ID: [%s] == [%v](%s)", owner, table, id, contentPrefix, contentPrefix))
-	fmt.Printf("\nGenerateChunkKey Owner: [%s] Table: [%s] ID: [%s] == [%v](%s)", owner, table, id, contentPrefix, contentPrefix)
 	return contentPrefix
 }
 
@@ -136,7 +130,7 @@ func BuildSwarmdbPrefix(owner []byte, table []byte, id []byte) []byte {
 	h256 := sha256.New()
 	h256.Write([]byte(prepBytes))
 	prefix := h256.Sum(nil)
-	fmt.Printf("\nIn BuildSwarmdbPrefix prepBytes[%s] and prefix[%x] in Bytes [%v] with size [%v]", prepBytes, prefix, []byte(prefix), len([]byte(prefix)))
+	//fmt.Printf("\nIn BuildSwarmdbPrefix prepBytes[%s] and prefix[%x] in Bytes [%v] with size [%v]", prepBytes, prefix, []byte(prefix), len([]byte(prefix)))
 	log.Debug(fmt.Sprintf("\nIn BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]", prepBytes, prefix, []byte(prefix), len([]byte(prefix))))
 	return (prefix)
 }

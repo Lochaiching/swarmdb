@@ -11,7 +11,8 @@ import (
 func main() {
 	// Create an IPC based RPC connection to a remote node
 //y	conn, err := ethclient.Dial("/home/karalabe/.ethereum/testnet/geth.ipc")
-    conn, err := ethclient.Dial("/var/www/vhosts/data/geth.ipc")	
+//  conn, err := ethclient.Dial("/var/www/vhosts/data/geth.ipc")      // this is working OK
+    conn, err := ethclient.Dial("http://127.0.0.1:8545")              // this is working OK	   //  JSON-RPC Endpoint   https://github.com/ethereum/wiki/wiki/JSON-RPC
 	if err != nil {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
 	}

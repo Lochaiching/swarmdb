@@ -83,6 +83,8 @@ func MakeHashFunc(hash string) Hasher {
 		return crypto.SHA256.New
 	case "SHA3":
 		return sha3.NewKeccak256
+	case "SWARMDBSHA3":
+		return sha3.NewSwarmDBKeccak256
 	}
 	return nil
 }
@@ -149,7 +151,7 @@ type Chunk struct {
 	Req      *RequestStatus  // request Status needed by netStore
 	wg       *sync.WaitGroup // wg to synchronize
 	dbStored chan bool       // never remove a chunk from memStore before it is written to dbStore
-	swarmdb	 bool
+	swarmdb  bool
 }
 
 func NewChunk(key Key, rs *RequestStatus) *Chunk {
@@ -191,7 +193,7 @@ type Splitter interface {
 	   The caller gets returned an error channel, if an error is encountered during splitting, it is fed to errC error channel.
 	   A closed error signals process completion at which point the key can be considered final if there were no errors.
 	*/
-	Split(io.Reader, int64, chan *Chunk, *sync.WaitGroup, *sync.WaitGroup, bool) (Key, error)
+	Split(io.Reader, int64, chan *Chunk, *sync.WaitGroup, *sync.WaitGroup) (Key, error)
 }
 
 type Joiner interface {

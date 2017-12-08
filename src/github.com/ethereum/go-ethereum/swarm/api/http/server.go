@@ -590,7 +590,7 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
 	newkeybase := contentPrefix + string(dummy)
 	chunker := storage.NewTreeChunker(storage.NewChunkerParams())
 	rd := strings.NewReader(newkeybase)
-	key, err := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil, false)
+	key, err := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil)
 	log.Debug(fmt.Sprintf("In HandleGetDB prefix [%v] dummy %v newkeybase %v key %v", contentPrefix, dummy, newkeybase, key))
 
 	contentReader := s.api.Retrieve(key)
@@ -974,6 +974,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		buyAt := []byte("4096000000000000") //Need to research how to grab
 		timestamp := []byte(strconv.FormatInt(time.Now().Unix(), 10))
 		blockNumber := []byte("100")
+		wlkSig := []byte("100")
 
 		var metadataBody []byte
 		metadataBody = make([]byte, 108)
@@ -981,6 +982,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		copy(metadataBody[42:59], buyAt)
 		copy(metadataBody[60:91], blockNumber)
 		copy(metadataBody[92:107], timestamp)
+		copy(metadataBody[108:139], wlkSig)
 		s.logDebug("Metadata is [%+v]", metadataBody)
 
 		path_parts := strings.Split(uri.Path, "/")

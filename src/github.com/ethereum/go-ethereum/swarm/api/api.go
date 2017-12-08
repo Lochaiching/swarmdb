@@ -141,6 +141,10 @@ func (self *Api) Store(data io.Reader, size int64, wg *sync.WaitGroup) (key stor
 }
 
 // DBChunkStore  API
+func (self *Api) RetrieveKDBChunk(key []byte) (val []byte, err error) {
+	return self.dbchunkstore.RetrieveKChunk(key)
+}
+
 func (self *Api) RetrieveDBChunk(key []byte) (val []byte, err error) {
 	return self.dbchunkstore.RetrieveChunk(key)
 }
