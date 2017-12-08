@@ -37,8 +37,8 @@ type testCase struct {
 	ExpectedKey []byte
 }
 
-func TestKademlia(t *testing.T) {
-	fmt.Printf("\nStarting TestKademlia")
+func TestKademliaChunkKeyGeneration(t *testing.T) {
+	fmt.Printf("\nStarting TestKademliaChunkKeyGeneration\n")
 	var tc testCase
 	tc.Value = []byte(`[{"yob":1980,"location":"San Mateo/Chicago"}]`)
 	tc.Key = []byte(`rodney1@wolk.com`)
@@ -53,42 +53,35 @@ func TestKademlia(t *testing.T) {
 	}
 
 	kdb.Open(tc.Owner, tc.TableName, tc.Column)
-	sdata := kdb.BuildSdata(tc.Key, tc.Value)
 	generatedKey := kdb.GenerateChunkKey(tc.Key)
 	expectedKey := []byte{232, 13, 189, 249, 19, 48, 66, 109, 189, 89, 16, 49, 191, 59, 245, 251, 210, 223, 121, 151, 165, 252, 232, 245, 156, 183, 4, 176, 14, 37, 155, 30}
-
 	if bytes.Compare(generatedKey, expectedKey) != 0 {
 		t.Fatal("The generatedKey is incorrect [", generatedKey, "] doesn't match expected Key of [", expectedKey, "]")
 	}
+}
 
-	ok, err := kdb.Put(tc.Key, sdata)
+func TestKademliaPutGet(t *testing.T) {
+	fmt.Printf("\nStarting TestKademlia\n")
+	var tc testCase
+	tc.Value = []byte(`[{"yob":1980,"location":"San Mateo/Chicago"}]`)
+	tc.Key = []byte(`rodney1@wolk.com`)
+	tc.Owner = []byte(`0x728781e75735dc0962df3a51d7ef47e798a7107e`)
+	tc.TableName = []byte(`email`)
+	tc.Column = []byte(`yob`)
+
+	api := api.NewApi(nil, nil)
+	kdb, err := swarmdb.NewKademliaDB(api)
+	if err != nil {
+		t.Fatal("Failed creating Kademlia")
+	}
+
+	kdb.Open(tc.Owner, tc.TableName, tc.Column)
+	_, err = kdb.Put(tc.Key, tc.Value)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if !ok {
-		t.Fatal("The expected HASH for --> ", tc.Value, " <- is [", tc.Key, "] SAVED")
 	}
 	val, _, _ := kdb.Get(tc.Key)
 	if bytes.Compare(val, tc.Value) != 0 {
 		t.Fatal("The value retrieved is incorrect [", val, "] and doesn't match expected value of [", tc.Value, "]")
 	}
-	fmt.Printf("\nVal is %s", val)
-	/*
-			sdataDebug := make([]byte, 4096)
-			copy(sdataDebug[0:], []byte("Hello World"))
-			rd := bytes.NewReader(sdataDebug)
-			wg := &sync.WaitGroup{}
-			keyDebug, _ := api.GetDPA().Store(rd, int64(len(sdataDebug)), wg, nil)
-			keyDebug = []byte("78a3aca2c161c9e5ca2e4112b15cc9fd405e2bc4c21c546172e67823d647842f")
-			fmt.Printf("KEY: [%s][%s]\n\n",keyDebug, sdataDebug)
-			dataDebug := api.GetDPA().Retrieve(keyDebug)
-		        if _, err = dataDebug.Size(nil); err != nil {
-		                //log.Debug("key not found %s: %s", keyDebug, err)
-		        }
-		        contentReaderSize, _ := dataDebug.Size(nil)
-		        contentBytes := make([]byte, contentReaderSize)
-		        _, _ = dataDebug.ReadAt(contentBytes, 0)
-
-			fmt.Print("data: [%s][%v]\n\n",string(contentBytes), contentBytes)
-	*/
 }

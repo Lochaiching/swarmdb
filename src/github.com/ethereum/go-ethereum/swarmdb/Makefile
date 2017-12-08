@@ -1,13 +1,53 @@
-# make test
-test:
-	go test keymanager/keymanager_test.go
-	go test tree/bplus_test.go
-	go test tree/hashdb_test.go
-	go test leaf/kademliadb_test.go
-	go test client/client_test.go
 
-# make testswarm
-testswarm:
+.PHONY: all enssimulation dbchunkstore server keymanager bplus client kademliadb hashdb
+
+all:
+	@echo "test all."
+	@echo "test enssimulation."
+	-go test ../swarm/storage/enssimulation_test.go
+	@echo "test dbchunkstore."
+	-go test ../swarm/storage/dbchunkstore_test.go
+	@echo "test server."
+	-go test ../swarm/api/tcpip/server_test.go
+	@echo "test keymanager."
+	-go test ./keymanager/keymanager_test.go
+	@echo "test bplus."
+	-go test ./tree/bplus_test.go
+	@echo "test client."
+	-go test ./client/client_test.go
+	@echo "test kademliadb."
+	-go test ./leaf/kademliadb_test.go
+	@echo "test hashdb."
+	-go test ./tree/hashdb_test.go
+
+enssimulation:
+	@echo "test enssimulation."
+	go test ../swarm/storage/enssimulation_test.go
+
+dbchunkstore:
+	@echo "test dbchunkstore."
 	go test ../swarm/storage/dbchunkstore_test.go
-	go test ../swarm/enssimulation_test.go
+
+server:
+	@echo "test server."
 	go test ../swarm/api/tcpip/server_test.go
+
+keymanager:
+	@echo "test keymanager."
+	go test ./keymanager/keymanager_test.go
+
+bplus:
+	@echo "test bplus."
+	go test ./tree/bplus_test.go
+
+client:
+	@echo "test client."
+	go test ./client/client_test.go
+
+kademliadb:
+	@echo "test kademliadb."
+	go test ./leaf/kademliadb_test.go
+
+hashdb:
+	@echo "test hashdb."
+	go test ./tree/hashdb_test.go

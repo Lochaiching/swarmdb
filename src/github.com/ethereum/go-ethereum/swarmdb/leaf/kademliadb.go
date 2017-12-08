@@ -1,7 +1,6 @@
 package swarmdb
 
 import (
-	"bytes"
 	//	"encoding/binary"
 	"fmt"
 	//	"github.com/ethereum/go-ethereum/common"
@@ -16,6 +15,10 @@ import (
 	//"strings"
 	"sync"
 	"time"
+)
+
+const (
+	chunkSize = 4096
 )
 
 type KademliaDB struct {
@@ -40,7 +43,7 @@ func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte) (boo
 	return true, nil
 }
 
-func (self *KademliaDB) BuildSdata(key []byte, value []byte) []byte {
+func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 	buyAt := []byte("4096000000000000") //Need to research how to grab
 	timestamp := []byte(strconv.FormatInt(time.Now().Unix(), 10))
 	blockNumber := []byte("100")                         //How does this get retrieved? passed in?
@@ -56,31 +59,22 @@ func (self *KademliaDB) BuildSdata(key []byte, value []byte) []byte {
 	log.Debug("Metadata is [%+v]", metadataBody)
 
 	contentPrefix := BuildSwarmdbPrefix(self.owner, self.tableName, key)
-	/*
-		encryptedBodycontent := s.EncryptData(bodycontent)
-		testDecrypt := s.DecryptData(encryptedBodycontent)
-		s.logDebug("Initial BodyContent is [%s][%+v]", bodycontent, bodycontent)
-		s.logDebug("Decrypted test is [%s][%+v]", testDecrypt, testDecrypt)
-		s.logDebug("Encrypted is [%+v]", encryptedBodycontent)
-	*/
+
 	var mergedBodycontent []byte
-	mergedBodycontent = make([]byte, 4088)
+	mergedBodycontent = make([]byte, chunkSize)
 	copy(mergedBodycontent[:], metadataBody)
 	copy(mergedBodycontent[512:576], contentPrefix)
 	copy(mergedBodycontent[577:], value) // expected to be the encrypted body content
 
-	log.Debug("ContentPrefix: [%+v]", string(contentPrefix))
-	//log.Debug("Content: [%+v][%+v]", bodycontent, encryptedBodycontent)
 	log.Debug("Merged Body Content: [%v]", mergedBodycontent)
 	return (mergedBodycontent)
 }
 
-func (self *KademliaDB) Put(k []byte, v []byte) (bool, error) {
-	hashVal := v[512:576]
-	//Need to put EXPECTED in there instead of 'v'
-	raw_indexkey := self.api.StoreKDBChunk(hashVal, v)
-	log.Debug(fmt.Sprintf("In KademliaDB rawkey [%v] ", raw_indexkey))
-	return true, nil
+func (self *KademliaDB) Put(k []byte, v []byte) ([]byte, error) {
+	sdata := self.buildSdata(k, v)
+	hashVal := sdata[512:576]
+	_ = self.api.StoreKDBChunk(hashVal, sdata)
+	return hashVal, nil
 }
 
 func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
@@ -91,21 +85,7 @@ func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
 		log.Debug("key not found %s: %s", chunkKey, err)
 		return nil, false, fmt.Errorf("key not found: %s", err)
 	}
-
-	encryptedContentBytes := bytes.TrimRight(contentReader[577:], "\x00")
-	response_reader := bytes.NewReader(encryptedContentBytes)
-	/* Current Plan is for Decryption to happen at SwarmDBManager Layer (so commenting out) */
-	/*
-		        decryptedContentBytes := s.DecryptData(encryptedContentBytes)
-		        decrypted_reader := bytes.NewReader(decryptedContentBytes)
-		        log.Debug(fmt.Sprintf("In HandledGetDB got back the 'reader' v[%v] s[%s] ", decrypted_reader, decrypted_reader))
-			response_reader := decrypted_reader
-	*/
-	queryResponse := make([]byte, 4096)             //TODO: match to sizes in metadata content
-	_, _ = response_reader.ReadAt(queryResponse, 0) //TODO: match to sizes in metadata content
-
-	//queryResponseReader := bytes.NewReader(queryResponse)
-	return queryResponse, true, nil
+	return contentReader, true, nil
 }
 
 func (self *KademliaDB) GenerateChunkKey(k []byte) []byte {

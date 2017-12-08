@@ -1,10 +1,10 @@
 package storage
 
 import (
-	"fmt"
 	"bytes"
-	"testing" 
+	"fmt"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+	"testing"
 )
 
 func TestDBChunkStore(t *testing.T) {
@@ -22,14 +22,24 @@ func TestDBChunkStore(t *testing.T) {
 	if err == nil {
 		t.Fatal("Failure to generate StoreChunk Err", k, v)
 	} else {
- 		fmt.Printf("SUCCESS in StoreChunk Err (input only has %d bytes)\n", len(r))
+		fmt.Printf("SUCCESS in StoreChunk Err (input only has %d bytes)\n", len(r))
 	}
 
 	k, err1 := store.StoreChunk(v)
 	if err1 != nil {
 		t.Fatal("Failure to StoreChunk", k, v)
 	} else {
- 		fmt.Printf("SUCCESS in StoreChunk:  %x => %v\n", string(k), string(v))
+		fmt.Printf("SUCCESS in StoreChunk:  %x => %v\n", string(k), string(v))
+	}
+	// RetrieveChunk
+	val, err := store.RetrieveChunk(k)
+	if err != nil {
+		t.Fatal("Failure to RetrieveChunk: Failure to retrieve", k, v, val)
+	}
+	if bytes.Compare(val, v) != 0 {
+		t.Fatal("Failure to RetrieveChunk: Incorrect match", k, v, val)
+	} else {
+		fmt.Printf("SUCCESS in RetrieveChunk:  %x => %v\n", string(k), string(v))
 	}
 
 	// StoreKChunk
@@ -37,26 +47,13 @@ func TestDBChunkStore(t *testing.T) {
 	if err2 != nil {
 		t.Fatal("Failure to StoreKChunk", k, v)
 	} else {
- 		fmt.Printf("SUCCESS in StoreKChunk:  %x => %v\n", string(k), string(v))
+		fmt.Printf("SUCCESS in StoreKChunk:  %x => %v\n", string(k), string(v))
 	}
 
 	err3 := store.StoreKChunk(k, r)
 	if err3 == nil {
 		t.Fatal("Failure to generate StoreKChunk Err", k, r)
 	} else {
- 		fmt.Printf("SUCCESS in StoreKChunk Err (input only has %d bytes)\n", len(r))
+		fmt.Printf("SUCCESS in StoreKChunk Err (input only has %d bytes)\n", len(r))
 	}
-
-	// RetrieveChunk
-	val, err := store.RetrieveChunk(k)
-	if err != nil {
-		t.Fatal("Failure to RetrieveChunk: Failure to retrieve", k, v, val)
-	} 
-	if bytes.Compare(val, v) != 0 {
-		t.Fatal("Failure to RetrieveChunk: Incorrect match", k, v, val)
-	} else {
-		fmt.Printf("SUCCESS in RetrieveChunk:  %x => %v\n", string(k), string(v))
-	}
-
-
 }
