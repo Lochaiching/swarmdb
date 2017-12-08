@@ -2,48 +2,127 @@ package tcpip
 
 import (
 	"bufio"
-	"io"
-	//	"encoding/go"
+	"encoding/json"
 	"fmt"
+	"io"
 	//	"log"
+	"net"
+	//	"strings"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarmdb/common"
 	"github.com/ethereum/go-ethereum/swarmdb/database"
-	"net"
-	"strings"
+	leaf "github.com/ethereum/go-ethereum/swarmdb/leaf"
+	"strconv"
 	"sync"
 )
 
-type Ownerinfo struct {
+/* moved to swarmdb/common pkg
+type RequestOption struct {
+        RequestType  string        `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
+        Owner        string        `json:"owner,omitempty"`
+        Table        string        `json:"table,omitempty"`           //"contacts"
+	Index        string        `json:"index,omitempty"`
+        Key          string        `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
+        Value        string        `json:"value,omitempty"` //value of val, usually the whole json record
+        TableOptions []TableOption `json:"tableoptions",omitempty"`
+}
+type TableOption struct {
+        TreeType  string `json:"treetype,omitempty"`
+        Index     string `json:"index,omitempty"`
+        KeyType   int    `json:"keytype,omitempty"`
+        Primary   int    `json:"primary,omitempty"`
+}
+*/
+
+/*
+type JsonRequest struct{
+        Request string `json:"request,omitempty"`
+        Owner string `json:"owner,omitempty"`
+        Table string `json:"table,omitempty"`
+        Index string `json:"index,omitempty"`
+        Key string `json:"key,omitempty"`
+        Value string `json:"value,omitempty"`
+	Option []JsonCreateTable `json:"Option,omitempty"`
+}
+
+type JsonCreateTable struct{
+	Index string `json:"index,omitempty"`
+	Primary	int	`json:"primary, ,omitempty"`
+	IndexType	string	`json:"indextype,omitempty"`
+	KeyType		int	`json:"keytype,omitempty"`
+}
+*/
+
+type TableInfo struct {
+	tablename string
+	roothash  []byte
+	indexes   map[string]*IndexInfo
+}
+
+func (svr *Server) NewTableInfo(tablename string) TableInfo {
+	var tbl TableInfo
+	tbl.tablename = tablename
+	tbl.indexes = make(map[string]*IndexInfo)
+	return tbl
+}
+
+type IndexInfo struct {
+	indexname string
+	indextype string
+	roothash  []byte
+	dbaccess  common.Database
+	active    int
+	primary   int
+	keytype   int
+}
+
+type OwnerInfo struct {
 	name   string
 	passwd string
+	tables map[string]*TableInfo
+}
+
+func NewOwnerInfo(name, passwd string) OwnerInfo {
+	var owner OwnerInfo
+	owner.name = name
+	owner.passwd = passwd
+	owner.tables = make(map[string]*TableInfo)
+	return owner
+}
+
+type IncomingInfo struct {
+	data    string
+	address string
 }
 
 type Client struct {
-	conn      net.Conn
-	incoming  chan string
-	outgoing  chan string
-	reader    *bufio.Reader
-	writer    *bufio.Writer
-	owner     Ownerinfo
-	databases map[string]map[string]*common.Database
+	conn     net.Conn
+	incoming chan *IncomingInfo
+	outgoing chan string
+	reader   *bufio.Reader
+	writer   *bufio.Writer
+	//owner	OwnerInfo
+	//databases	map[string]map[string]*common.Database
 }
 
 type ClientInfo struct {
-	owner     Ownerinfo
-	databases map[string]map[string]*common.Database
+	owner          *OwnerInfo
+	tables         map[string]*TableInfo
+	opendtablename string
+	openedtable    *TableInfo
 }
 
 func newClient(connection net.Conn) *Client {
 	writer := bufio.NewWriter(connection)
 	reader := bufio.NewReader(connection)
 	client := &Client{
-		conn:      connection,
-		incoming:  make(chan string),
-		outgoing:  make(chan string),
-		reader:    reader,
-		writer:    writer,
-		databases: make(map[string]map[string]*common.Database),
+		conn:     connection,
+		incoming: make(chan *IncomingInfo),
+		outgoing: make(chan string),
+		reader:   reader,
+		writer:   writer,
+		//databases: make(map[string]map[string]*common.Database),
 	}
 	go client.read()
 	go client.write()
@@ -60,7 +139,11 @@ func (client *Client) read() {
 		if err != nil {
 			////////
 		}
-		client.incoming <- line
+		incoming := new(IncomingInfo)
+		incoming.data = line
+		incoming.address = client.conn.RemoteAddr().String()
+		//client.incoming <- line
+		client.incoming <- incoming
 		fmt.Printf("[%s]Read:%s", client.conn.RemoteAddr(), line)
 	}
 }
@@ -77,13 +160,15 @@ type Server struct {
 	listener net.Listener
 	clients  []*Client
 	conn     chan net.Conn
-	//connections map[string]string
-	//conns 	[]net.Conn
-	lock        sync.Mutex
-	incoming    chan string
-	outgoing    chan string
-	owners      map[string]map[string]map[string]*common.Database
+	lock     sync.Mutex
+	incoming chan *IncomingInfo
+	outgoing chan string
+	// owner -> table name -> index name -> (index hash root -> pointer)
+	//databases	map[string]map[string]map[string]*indexdata
+	owners      map[string]*OwnerInfo
+	tables      map[string]map[string]*TableInfo
 	clientInfos map[string]*ClientInfo
+	//kaddb       *leaf.KademliaDB
 }
 
 type ServerConfig struct {
@@ -91,26 +176,19 @@ type ServerConfig struct {
 	Port string
 }
 
-type HandlerFunc func(map[string]interface{})
-
-type funcCall struct {
-	FuncName string
-	Args     map[string]interface{}
-}
-
-var registeredHandlers map[string]HandlerFunc
-
 func NewServer(db *swarmdb.SwarmDB, l net.Listener) *Server {
 	sv := new(Server)
 	sv.swarmdb = db
 	sv.listener = l
-	//sv.conns := make(chan net.Conn, 128)
 	sv.clients = make([]*Client, 0)
 	sv.conn = make(chan net.Conn)
-	sv.incoming = make(chan string)
+	sv.incoming = make(chan *IncomingInfo)
 	sv.outgoing = make(chan string)
-	sv.owners = make(map[string]map[string]map[string]*common.Database)
+	sv.tables = make(map[string]map[string]*TableInfo)
+	sv.owners = make(map[string]*OwnerInfo)
 	sv.clientInfos = make(map[string]*ClientInfo)
+	kdb, _ := leaf.NewKademliaDB(db.Api)
+	sv.swarmdb.Kdb = kdb
 	return sv
 }
 
@@ -128,9 +206,6 @@ func StartTCPServer(swarmdb *swarmdb.SwarmDB, config *ServerConfig) {
 	}
 	//defer svr.listener.Close()
 
-	registeredHandlers = make(map[string]HandlerFunc)
-	registeredHandlers["TcpipDispatch"] = TcpipDispatch
-
 	svr.listen()
 	for {
 		conn, err := svr.listener.Accept()
@@ -139,30 +214,10 @@ func StartTCPServer(swarmdb *swarmdb.SwarmDB, config *ServerConfig) {
 		svr.conn <- conn
 	}
 	if err != nil {
+		//	log.Fatal(err)
 		log.Debug(fmt.Sprintf("err"))
 	}
-	/*
-	   	//defer svr.listener.Close()
-	       		tcpipReader := bufio.NewReader(conn)
-	   		message, _ := tcpipReader.ReadString('\n')
-	   		newmessage := strings.ToUpper(message)
-	       		conn.Write([]byte(newmessage + "\n"))
-	                   var data funcCall
-	                   dec := gob.NewDecoder(tcpipReader)
-	                   err = dec.Decode(&data)
-	                   log.Debug(fmt.Sprintf("[TCPIP] GOB Data: [%v]", data))
-	                   if err != nil {
-	                           log.Debug(fmt.Sprintf("[TCPIP] Error decoding GOB data:", err))
-	                           return
-	                   }
-	                   log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.FuncName))
-	                   log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.Args))
-	                   registeredHandlers[data.FuncName](data.Args)
-	*/
-}
-
-func TcpipDispatch(args map[string]interface{}) {
-	log.Debug(fmt.Sprintf("Printing Args from TCPIP_Printer: \n%#v\n", args))
+	defer svr.listener.Close()
 }
 
 func (svr *Server) listen() {
@@ -178,66 +233,53 @@ func (svr *Server) listen() {
 	}()
 }
 
-type fd struct {
-	handler string
-	jsonstr []byte
+func parseData(data string) (*common.RequestOption, error) {
+	udata := new(common.RequestOption)
+	if err := json.Unmarshal([]byte(data), udata); err != nil {
+		fmt.Println("JSON Unmarshal error:", err)
+		return nil, err
+	}
+	return udata, nil
 }
 
-func parseData(data string) *fd {
-	d := strings.Split(data, " ")
-	r := new(fd)
-	r.handler = d[0]
-	r.jsonstr = []byte(d[1])
-	return r
-}
-
-func (svr *Server) selectHandler(data string) {
-	d := parseData(data)
-	switch d.handler {
-	case "NewClient":
-		//svr.setClientInfo(d.jsonstr)
-	case "OpenDatabase":
-		//svr.HandleOpenDatabase()
-	case "CreateTable":
-		//	
+func (svr *Server) selectHandler(data *IncomingInfo) {
+	d, err := parseData(data.data)
+	if err != nil {
+		svr.outgoing <- err.Error()
+	}
+	switch d.RequestType {
+	case "OpenClient":
+		svr.NewConnection(string(d.Owner), data.address)
 	case "OpenTable":
-	case "PUT":
-		owner := []byte(d.jsonStr.Owner)
-		table := []byte(d.jsonStr.Table)
-		k := []byte(d.jsonStr.Key)
-		svr.swarmdb.kdb.Open(owner, table, k)
-		v := d.jsonStr.Value
-		hash :=	svr.swarmdb.kdb.Put(k,v) 
+		resp := "okay"
+		err := svr.OpenTable(string(d.Table), data.address)
+		if err != nil {
+			resp = err.Error()
+		}
+		svr.outgoing <- resp
+	case "CloseTable":
+	case "CreateTable":
+		svr.CreateTable(string(d.Table), d.TableOptions, data.address)
 
-		//read the table options at GetTreeToUse(table, d.TableOptions) to determine if BPtree or HashTree and KEY TYPE 
-		//based on that find the root hash id from ens
-		//select tree using self.api, roothashid, keytype (integer)
-		//tree.put
-	case "GET":
+	case "Insert":
+	case "Put":
+		svr.Put(d.Index, d.Key, d.Value, data.address)
+
+	case "Get":
+		//RODNEY: svr.Get( d.Key )
 		//Tree/Hash.Pt
 		//kdb.Put
-	case "CloseDatabase":
+	case "Delete":
+	case "Query":
+		//ALINA/SOURABH: Todo
 	}
+	svr.outgoing <- "RequestType Error"
+	return
 }
-
-/*
-func (svr *Server)setClientInfo(jsonstr []byte)(){
-	//jsonstr ->str[]
-	if owner, ok := svr.owners["dummy"]; !ok{
-		//read owner info
-		owner.name = "dummy"
-		owner.passwd = "dummy"
-		svr.owners["dummy"] = owner
-	}
-	var cl ClientInfo
-	cl.owner = owner
-	cl.databases = make(map[string]map[string]*common.Database)
-	svr.clientInfos[conn.RemoteAddr()] = cl
-}
-*/
 
 func (svr *Server) addClient(conn net.Conn) {
 	client := newClient(conn)
+	/// this one is not good. need to change it
 	svr.clients = append(svr.clients, client)
 	go func() {
 		for {
@@ -247,43 +289,139 @@ func (svr *Server) addClient(conn net.Conn) {
 	}()
 }
 
-/*
-func (svr *Server) HandleNewConnection(username, password string)(string, error){
-	//pw, _err := svr.swarmdb.ldb.Get([]byte(username))
-	pw := ([]byte("password"))
-	var err error
-	if err != nil || strings.Compare(password, string(pw)) != 0{
-		return "", err
+func (svr *Server) NewConnection(ownername string, address string) {
+	//////  do authentication if needed.
+
+	if _, ok := svr.owners[string(ownername)]; !ok {
+		svr.owners[ownername] = svr.loadOwnerInfo(ownername)
+		svr.tables[ownername] = make(map[string]*TableInfo)
+		svr.owners[ownername].tables = svr.tables[ownername]
 	}
-/// dummy
-	svr.lock.Lock()
-	sessionid := username
-	if _, ok := svr.connections[sessionid]; ok {
+	if _, ok := svr.clientInfos[address]; !ok {
+		cl := new(ClientInfo)
+		cl.owner = svr.owners[ownername]
+		cl.tables = svr.tables[ownername]
+		svr.clientInfos[address] = cl
+	} else {
 	}
-	svr.connections[sessionid] = username
-	svr.lock.Unlock()
-	return sessionid, nil
+	fmt.Println("NewConnection address", address, "cl", svr.clientInfos[address])
 }
 
-func handleConnection(conn net.Conn) error {
-	buf := make([]byte, 1024)
-	for{
-		n, err := conn.Read(buf)
-		if n == 0 {
-			fmt.Printf("[%s]Recv:EOF\n", conn.RemoteAddr())
+func (svr *Server) loadOwnerInfo(ownername string) *OwnerInfo {
+	owner := new(OwnerInfo)
+	owner.name = ownername
+	/// authentication
+	/*
+		//owner, err := svr.swarmdb.checkOwner(ownername)
+		if err != nil{
+			return nil, err
+		}
+	*/
+	return owner
+}
+
+func (svr *Server) CreateTable(tablename string, option []common.TableOption, address string) (err error) {
+	buf := make([]byte, 4096)
+	for i, columninfo := range option {
+		copy(buf[2048+i*64:], columninfo.Index)
+		copy(buf[2048+i*64+26:], strconv.Itoa(columninfo.Primary))
+		copy(buf[2048+i*64+27:], "9")
+		copy(buf[2048+i*64+28:], strconv.Itoa(columninfo.KeyType))
+		copy(buf[2048+i*64+30:], columninfo.TreeType)
+	}
+	// need to store KDB??
+	swarmhash, err := svr.swarmdb.StoreToSwarm(string(buf))
+	if err != nil {
+		return
+	}
+	err = svr.swarmdb.StoreIndexRootHash([]byte(tablename), []byte(swarmhash))
+	return err
+}
+
+func (svr *Server) OpenTable(tablename string, address string) (err error) {
+	cl := svr.clientInfos[address]
+	owner := svr.owners[cl.owner.name]
+	if _, ok := svr.tables[cl.owner.name][tablename]; !ok {
+		///// get table info
+		svr.tables[cl.owner.name][tablename], err = svr.loadTableInfo(cl.owner.name, tablename)
+		if err != nil {
+			return err
+		}
+	}
+	fmt.Println("OpenTable svr.tables ", svr.tables[cl.owner.name][tablename])
+	owner.tables[tablename] = svr.tables[cl.owner.name][tablename]
+	cl.tables[tablename] = svr.tables[cl.owner.name][tablename]
+	for index := range svr.owners[cl.owner.name].tables[tablename].indexes {
+		cl.tables[tablename].indexes[index] = svr.owners[cl.owner.name].tables[tablename].indexes[index]
+	}
+	cl.openedtable = cl.tables[tablename]
+	fmt.Printf("OpenTable openedtable %v\n", cl.openedtable.indexes)
+	fmt.Printf("OpenTable %v\n", cl.tables[tablename].indexes)
+	return nil
+}
+
+func (svr *Server) loadTableInfo(owner string, tablename string) (*TableInfo, error) {
+	table := svr.NewTableInfo(tablename)
+	table.indexes = make(map[string]*IndexInfo)
+	/// get TableInfo
+	roothash, err := svr.swarmdb.GetIndexRootHash(tablename)
+	if err != nil {
+		return nil, err
+	}
+	indexdata := svr.swarmdb.RetrieveFromSwarm(roothash)
+	indexdatasize, _ := indexdata.Size(nil)
+	indexbuf := make([]byte, indexdatasize)
+	_, _ = indexdata.ReadAt(indexbuf, 0)
+	for i := 2048; i < 4096; i = i + 64 {
+		//    if
+		buf := make([]byte, 64)
+		copy(buf, indexbuf[i:i+64])
+		if buf[0] == 0 {
 			break
 		}
-		CheckError(err, "Read Error")
-		fmt.Printf("[%s]Recv:%s\n", conn.RemoteAddr(), string(buf[:n]))
-		conn.Write([]byte("OK\n"))
+		indexinfo := new(IndexInfo)
+		indexinfo.indexname = string(buf[:25])
+		indexinfo.primary, _ = strconv.Atoi(string(buf[26:27]))
+		indexinfo.active, _ = strconv.Atoi(string(buf[27:28]))
+		indexinfo.keytype, _ = strconv.Atoi(string(buf[28:29]))
+		indexinfo.indextype = string(buf[30:32])
+		copy(indexinfo.roothash, buf[31:63])
+		switch indexinfo.indextype {
+		/*
+			case "BT" :
+				indexinfo.pointer = swarmdb.NewBPlusTreeDB(svr.swarmdb.api)
+		*/
+		case "HD":
+			indexinfo.dbaccess, err = api.NewHashDB(indexinfo.roothash, svr.swarmdb.Api)
+			if err != nil {
+				return nil, err
+			}
+		}
+		//indexinfo.dbaccess.Open([]byte(owner), []byte(tablename), []byte(indexinfo.indexname))
+		table.indexes[indexinfo.indexname] = indexinfo
 	}
+	return &table, nil
 }
 
-func (svr *Server)HandleOpenTable(tablename string){
+func (svr *Server) Put(index, key, value string, address string) error {
+	/// store value to kdb and get a hash
+	svr.swarmdb.Kdb.Open([]byte(svr.clientInfos[address].owner.name), []byte(svr.clientInfos[address].openedtable.tablename), []byte(index))
+
+	sdata := svr.swarmdb.Kdb.BuildSdata([]byte(key), []byte(value))
+	khash := svr.swarmdb.Kdb.GenerateChunkKey([]byte(key))
+	_, err := svr.swarmdb.Kdb.Put([]byte(key), sdata)
+	_, err = svr.clientInfos[address].openedtable.indexes[index].dbaccess.Put([]byte(key), []byte(khash))
+
+		//ALINA: read the table options at GetTreeToUse(table, d.TableOptions) to determine if BPtree or HashTree and KEY TYPE 
+		//MAYUMI: based on that find the root hash id from ens
+		//ALINA: For all the columns, create/instantiate new HASH/BPTree with the self.api, roothashid, keytype (integer)
+		//		and tree.put
+	return err
 }
 
-func (svr *Server)HandleOpenIndex(tablename, indexname string){
+func (svr *Server) Get(index, key string, address string) (string, error) {
+	res, _, err := svr.clientInfos[address].openedtable.indexes[index].dbaccess.Get([]byte(key))
+	///RODNEY: get value from kdb
+	//RODNEY: Integrate function for getting table typkdb.Get(key)
+	return string(res), err
 }
-
-
-*/

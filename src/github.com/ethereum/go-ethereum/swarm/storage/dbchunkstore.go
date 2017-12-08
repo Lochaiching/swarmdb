@@ -10,7 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	_ "github.com/mattn/go-sqlite3"
 	//"math"
-	"time"
+	//"time"
+    "encoding/json"
 )
 
 type DBChunkstore struct {
@@ -27,7 +28,14 @@ type DBChunk struct {
 	Blocknumber []byte // 32
 	Tablename   []byte // 32
 	TableId     []byte // 32
-	StoreDT     *time.Time
+    StoreDT     int64
+}
+
+type ChunkStat struct {
+    CurrentTS          int64     `json:"CurrentTS`
+    ChunkRead          int64     `json:"ChunkRead`
+    ChunkWrite         int64     `json:"ChunkWrite`
+    ChunkStored        int64     `json:"ChunkStored"`
 }
 
 func NewDBChunkStore(path string) (dbcs DBChunkstore, err error) {
@@ -53,11 +61,25 @@ func NewDBChunkStore(path string) (dbcs DBChunkstore, err error) {
 	storeDT DATETIME
 	);
 	`
+    netstat_table := `
+    CREATE TABLE IF NOT EXISTS netstat (
+    statDT  DATETIME NOT NULL PRIMARY KEY,
+    rcnt INTEGER DEFAULT 0,
+    wcnt INTEGER DEFAULT 0,
+    scnt INTEGER DEFAULT 0
+    );
+    `
 	_, err = db.Exec(sql_table)
 	if err != nil {
-		fmt.Printf("Error Creating Table")
+		fmt.Printf("Error Creating Chunk Table")
 		return dbcs, err
 	}
+    _, err = db.Exec(netstat_table)
+    if err != nil {
+        fmt.Printf("Error Creating Stat Table")
+        return dbcs, err
+    }
+
 	km, errKm := keymanager.NewKeyManager("/tmp/blah")
 	if errKm != nil {
 		fmt.Printf("Error Creating KeyManager")
@@ -96,6 +118,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 		fmt.Printf("Putting in this data: [%s]", finalSdata)
 		return (err2)
 	}
+    stmt.Close()
 	return nil
 }
 
@@ -126,7 +149,7 @@ func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
 		fmt.Printf("\nError Inserting into Table: [%s]", err)
 		return k, err2
 	}
-
+    stmt.Close()
 	return k, nil
 }
 
@@ -243,21 +266,69 @@ func (self *DBChunkstore) PrintDBChunk(keytype common.KeyType, hashid []byte, c 
 }
 
 func (self *DBChunkstore) ScanAll() (err error) {
-	sql_readall := `SELECT chunkKey, chunkVal, storeDT FROM chunk ORDER BY datetime(storeDT) DESC`
+	sql_readall := `SELECT chunkKey, chunkVal,strftime('%s',storeDT) FROM chunk ORDER BY storeDT DESC`
 	rows, err := self.db.Query(sql_readall)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
 
+    var rcnt int
 	var result []DBChunk
 	for rows.Next() {
 		c := DBChunk{}
-		err2 := rows.Scan(&c.Key, &c.Val, &c.StoreDT)
+        err2 := rows.Scan(&c.Key, &c.Val, &c.StoreDT)
 		if err2 != nil {
 			return err2
 		}
+        rcnt++
+        c.Val = self.km.DecryptData(c.Val)
+        fmt.Printf("[record] %x => %s [%v]\n", c.Key, c.Val, c.StoreDT)
 		result = append(result, c)
 	}
+    rows.Close()
+
+    sql_chunkRead := `INSERT OR REPLACE INTO netstat (statDT, rcnt) values(CURRENT_TIMESTAMP, ?)`
+    stmt, err := self.db.Prepare(sql_chunkRead)
+    if err != nil {
+        return err
+    }
+    defer stmt.Close()
+
+    _, err2 := stmt.Exec(rcnt)
+    if err2 != nil {
+        fmt.Printf("\nError updating stat Table: [%s]", err2)
+        return err2
+    }
+    stmt.Close()
 	return nil
+}   
+
+func (self *DBChunkstore) GetChunkStat() (res string, err error) {
+    sql_chunkTally := `SELECT strftime('%s',statDT) as STS, sum(rcnt), sum(wcnt), sum(scnt) FROM netstat group by strftime('%s',statDT) order by STS DESC`
+    rows, err := self.db.Query(sql_chunkTally)
+    if err != nil {
+        return res, err
+    }
+    defer rows.Close()
+
+    var result []ChunkStat
+    for rows.Next() {
+        c := ChunkStat{}
+        err2 := rows.Scan(&c.CurrentTS, &c.ChunkRead, &c.ChunkWrite, &c.ChunkStored)
+        if err2 != nil {
+            fmt.Printf("ERROR:%s\n",err2)
+            return res, err2
+        }
+        fmt.Printf("[stat] Time %v => Read:%v | Write:%v | Stored:%v\n", c.CurrentTS, c.ChunkRead, c.ChunkWrite, c.ChunkStored)
+        result = append(result, c)
+    }
+    rows.Close()
+    
+    output, err := json.Marshal(result)
+    if err != nil {
+        return res, nil
+    }else{
+        return string(output), nil
+    }
 }
