@@ -37,8 +37,8 @@ type testCase struct {
 	ExpectedKey []byte
 }
 
-func TestKademlia(t *testing.T) {
-	fmt.Printf("\nStarting TestKademlia")
+func TestKademliaPutGet(t *testing.T) {
+	fmt.Printf("\nStarting TestKademlia\n")
 	var tc testCase
 	tc.Value = []byte(`[{"yob":1980,"location":"San Mateo/Chicago"}]`)
 	tc.Key = []byte(`rodney1@wolk.com`)
@@ -72,23 +72,4 @@ func TestKademlia(t *testing.T) {
 	if bytes.Compare(val, tc.Value) != 0 {
 		t.Fatal("The value retrieved is incorrect [", val, "] and doesn't match expected value of [", tc.Value, "]")
 	}
-	fmt.Printf("\nVal is %s", val)
-	/*
-			sdataDebug := make([]byte, 4096)
-			copy(sdataDebug[0:], []byte("Hello World"))
-			rd := bytes.NewReader(sdataDebug)
-			wg := &sync.WaitGroup{}
-			keyDebug, _ := api.GetDPA().Store(rd, int64(len(sdataDebug)), wg, nil)
-			keyDebug = []byte("78a3aca2c161c9e5ca2e4112b15cc9fd405e2bc4c21c546172e67823d647842f")
-			fmt.Printf("KEY: [%s][%s]\n\n",keyDebug, sdataDebug)
-			dataDebug := api.GetDPA().Retrieve(keyDebug)
-		        if _, err = dataDebug.Size(nil); err != nil {
-		                //log.Debug("key not found %s: %s", keyDebug, err)
-		        }
-		        contentReaderSize, _ := dataDebug.Size(nil)
-		        contentBytes := make([]byte, contentReaderSize)
-		        _, _ = dataDebug.ReadAt(contentBytes, 0)
-
-			fmt.Print("data: [%s][%v]\n\n",string(contentBytes), contentBytes)
-	*/
 }

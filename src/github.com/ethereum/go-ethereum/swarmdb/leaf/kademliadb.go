@@ -1,7 +1,6 @@
 package swarmdb
 
 import (
-	"bytes"
 	//	"encoding/binary"
 	"fmt"
 	//	"github.com/ethereum/go-ethereum/common"
@@ -16,6 +15,10 @@ import (
 	//"strings"
 	"sync"
 	"time"
+)
+
+const (
+	chunkSize = 4096
 )
 
 type KademliaDB struct {
@@ -64,7 +67,7 @@ func (self *KademliaDB) BuildSdata(key []byte, value []byte) []byte {
 		s.logDebug("Encrypted is [%+v]", encryptedBodycontent)
 	*/
 	var mergedBodycontent []byte
-	mergedBodycontent = make([]byte, 4088)
+	mergedBodycontent = make([]byte, chunkSize)
 	copy(mergedBodycontent[:], metadataBody)
 	copy(mergedBodycontent[512:576], contentPrefix)
 	copy(mergedBodycontent[577:], value) // expected to be the encrypted body content
@@ -91,21 +94,7 @@ func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
 		log.Debug("key not found %s: %s", chunkKey, err)
 		return nil, false, fmt.Errorf("key not found: %s", err)
 	}
-
-	encryptedContentBytes := bytes.TrimRight(contentReader[577:], "\x00")
-	response_reader := bytes.NewReader(encryptedContentBytes)
-	/* Current Plan is for Decryption to happen at SwarmDBManager Layer (so commenting out) */
-	/*
-		        decryptedContentBytes := s.DecryptData(encryptedContentBytes)
-		        decrypted_reader := bytes.NewReader(decryptedContentBytes)
-		        log.Debug(fmt.Sprintf("In HandledGetDB got back the 'reader' v[%v] s[%s] ", decrypted_reader, decrypted_reader))
-			response_reader := decrypted_reader
-	*/
-	queryResponse := make([]byte, 4096)             //TODO: match to sizes in metadata content
-	_, _ = response_reader.ReadAt(queryResponse, 0) //TODO: match to sizes in metadata content
-
-	//queryResponseReader := bytes.NewReader(queryResponse)
-	return queryResponse, true, nil
+	return contentReader, true, nil
 }
 
 func (self *KademliaDB) GenerateChunkKey(k []byte) []byte {
