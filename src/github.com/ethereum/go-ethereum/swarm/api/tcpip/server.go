@@ -168,7 +168,7 @@ type Server struct {
 	owners      map[string]*OwnerInfo
 	tables      map[string]map[string]*TableInfo
 	clientInfos map[string]*ClientInfo
-	kaddb       *leaf.KademliaDB
+	//kaddb       *leaf.KademliaDB
 }
 
 type ServerConfig struct {
@@ -188,7 +188,7 @@ func NewServer(db *swarmdb.SwarmDB, l net.Listener) *Server {
 	sv.owners = make(map[string]*OwnerInfo)
 	sv.clientInfos = make(map[string]*ClientInfo)
 	kdb, _ := leaf.NewKademliaDB(db.Api)
-	sv.kaddb = kdb
+	sv.swarmdb.Kdb = kdb
 	return sv
 }
 
@@ -264,8 +264,14 @@ func (svr *Server) selectHandler(data *IncomingInfo) {
 	case "Insert":
 	case "Put":
 		svr.Put(d.Index, d.Key, d.Value, data.address)
+
 	case "Get":
+		//RODNEY: svr.Get( d.Key )
+		//Tree/Hash.Pt
+		//kdb.Put
 	case "Delete":
+	case "Query":
+		//ALINA/SOURABH: Todo
 	}
 	svr.outgoing <- "RequestType Error"
 	return
@@ -399,19 +405,23 @@ func (svr *Server) loadTableInfo(owner string, tablename string) (*TableInfo, er
 
 func (svr *Server) Put(index, key, value string, address string) error {
 	/// store value to kdb and get a hash
-	svr.kaddb.Open([]byte(svr.clientInfos[address].owner.name), []byte(svr.clientInfos[address].openedtable.tablename), []byte(index))
+	svr.swarmdb.Kdb.Open([]byte(svr.clientInfos[address].owner.name), []byte(svr.clientInfos[address].openedtable.tablename), []byte(index))
 
-	sdata := svr.kaddb.BuildSdata([]byte(key), []byte(value))
-	khash := svr.kaddb.GenerateChunkKey([]byte(key))
-	_, err := svr.kaddb.Put([]byte(key), sdata)
+	sdata := svr.swarmdb.Kdb.BuildSdata([]byte(key), []byte(value))
+	khash := svr.swarmdb.Kdb.GenerateChunkKey([]byte(key))
+	_, err := svr.swarmdb.Kdb.Put([]byte(key), sdata)
 	_, err = svr.clientInfos[address].openedtable.indexes[index].dbaccess.Put([]byte(key), []byte(khash))
+
+		//ALINA: read the table options at GetTreeToUse(table, d.TableOptions) to determine if BPtree or HashTree and KEY TYPE 
+		//MAYUMI: based on that find the root hash id from ens
+		//ALINA: For all the columns, create/instantiate new HASH/BPTree with the self.api, roothashid, keytype (integer)
+		//		and tree.put
 	return err
 }
 
 func (svr *Server) Get(index, key string, address string) (string, error) {
 	res, _, err := svr.clientInfos[address].openedtable.indexes[index].dbaccess.Get([]byte(key))
-	/// get value from kdb
-
-	//kres, _, _ := svr.kdb.Get(key)
+	///RODNEY: get value from kdb
+	//RODNEY: Integrate function for getting table typkdb.Get(key)
 	return string(res), err
 }

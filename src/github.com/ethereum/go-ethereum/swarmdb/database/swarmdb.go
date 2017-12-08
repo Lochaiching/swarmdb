@@ -11,6 +11,8 @@ type SwarmDB struct {
 	tablelist map[string]map[string]indexinfo
 	ldb       *storage.LDBDatabase
 	api       *api.Api
+	Kdb	*Kademlia
+ 	bptree	*BPlusTreeDB
 }
 
 type indexinfo struct {
@@ -32,6 +34,7 @@ func NewSwarmDB(api *api.Api, ldb *storage.LDBDatabase) *SwarmDB {
 	sd.api = api
 	sd.ldb = ldb
 	sd.tablelist = make(map[string]map[string]indexinfo)
+	sd.Kdb = NewKademliaDB(api)
 	return sd
 }
 
