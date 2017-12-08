@@ -43,7 +43,7 @@ func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte) (boo
 	return true, nil
 }
 
-func (self *KademliaDB) BuildSdata(key []byte, value []byte) []byte {
+func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 	buyAt := []byte("4096000000000000") //Need to research how to grab
 	timestamp := []byte(strconv.FormatInt(time.Now().Unix(), 10))
 	blockNumber := []byte("100")                         //How does this get retrieved? passed in?
@@ -59,30 +59,21 @@ func (self *KademliaDB) BuildSdata(key []byte, value []byte) []byte {
 	log.Debug("Metadata is [%+v]", metadataBody)
 
 	contentPrefix := BuildSwarmdbPrefix(self.owner, self.tableName, key)
-	/*
-		encryptedBodycontent := s.EncryptData(bodycontent)
-		testDecrypt := s.DecryptData(encryptedBodycontent)
-		s.logDebug("Initial BodyContent is [%s][%+v]", bodycontent, bodycontent)
-		s.logDebug("Decrypted test is [%s][%+v]", testDecrypt, testDecrypt)
-		s.logDebug("Encrypted is [%+v]", encryptedBodycontent)
-	*/
+
 	var mergedBodycontent []byte
 	mergedBodycontent = make([]byte, chunkSize)
 	copy(mergedBodycontent[:], metadataBody)
 	copy(mergedBodycontent[512:576], contentPrefix)
 	copy(mergedBodycontent[577:], value) // expected to be the encrypted body content
 
-	log.Debug("ContentPrefix: [%+v]", string(contentPrefix))
-	//log.Debug("Content: [%+v][%+v]", bodycontent, encryptedBodycontent)
 	log.Debug("Merged Body Content: [%v]", mergedBodycontent)
 	return (mergedBodycontent)
 }
 
 func (self *KademliaDB) Put(k []byte, v []byte) (bool, error) {
-	hashVal := v[512:576]
-	//Need to put EXPECTED in there instead of 'v'
-	raw_indexkey := self.api.StoreKDBChunk(hashVal, v)
-	log.Debug(fmt.Sprintf("In KademliaDB rawkey [%v] ", raw_indexkey))
+	sdata := self.buildSdata(k, v)
+	hashVal := sdata[512:576]
+	_ = self.api.StoreKDBChunk(hashVal, sdata)
 	return true, nil
 }
 
