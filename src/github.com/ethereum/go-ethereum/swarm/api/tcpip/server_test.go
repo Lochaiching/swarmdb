@@ -6,6 +6,7 @@ import (
 	"os"
         //"github.com/ethereum/go-ethereum/log"
         "github.com/ethereum/go-ethereum/swarmdb/database"
+        common "github.com/ethereum/go-ethereum/swarmdb/common"
         "github.com/ethereum/go-ethereum/swarm/api"
         "github.com/ethereum/go-ethereum/swarm/storage"
 	"testing"
@@ -22,13 +23,9 @@ func testTcpServer(t *testing.T, f func(*Server)) {
 	if err != nil {
 		return
 	}
-        ldb, err:= storage.NewLDBDatabase("/tmp/ldb")
-	if err != nil{
-		fmt.Println("ldb error ", err)
-	}
-	api := api.NewApiTest(dpa, nil, ldb)
+	api := api.NewApi(dpa, nil)
 	dpa.Start()
-	sdb := swarmdb.NewSwarmDB(api, ldb)
+	sdb := swarmdb.NewSwarmDB(api)
 	//StartTCPServer
 	svr := NewServer(sdb, nil)
 	
@@ -41,14 +38,19 @@ func testTcpServer(t *testing.T, f func(*Server)) {
 
 func TestTcpServerCreateTable(t *testing.T){
 	testTcpServer(t, func(svr *Server){
-		o := TableOption{Index: "testindex1", Primary: 1, TreeType:"HD", KeyType:1}
-		var option []TableOption
+		o := common.TableOption{Index: "testindex1", Primary: 1, TreeType:"HD", KeyType:1}
+		var option []common.TableOption
 		option = append(option, o)
 		svr.NewConnection("owner1", "testconnection")
 		svr.CreateTable("testtable", option, "testconnection")
 		svr.OpenTable("testtable", "testconnection")
-		svr.Put("testindex1", "key", "value", "testconnection")
-		//svr.Get("ttestindex", "testconnection")
+		//svr.Put("testindex1", "key", "value", "testconnection")
+		putstr := `{"testindex1":"value2"}`
+		svr.Put(putstr, "testconnection")
+		res, err := svr.Get("testindex1", "key", "testconnection")
+	fmt.Printf("Get %s %v \n", string(res), err)
+		fres, ferr := svr.Get("testindex1", "value2", "testconnection")
+	fmt.Printf("Get %s %v \n", string(fres), ferr)
 		//svr.CloseTable()
 	})
 }	

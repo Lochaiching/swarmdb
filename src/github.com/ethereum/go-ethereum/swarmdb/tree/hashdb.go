@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	sdbcommon "github.com/ethereum/go-ethereum/swarmdb/common"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
@@ -311,6 +312,8 @@ func (self *HashDB)Get(k []byte)([]byte, bool, error){
 	b := true
 	if ret == nil{
 		b = false
+		var err *sdbcommon.KeyNotFoundError
+		return nil, b, err
 	}
 	value := convertToByte(ret)
 	return value, b, nil
