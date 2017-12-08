@@ -200,7 +200,11 @@ func (svr *Server) selectHandler(data string) {
 		//svr.HandleOpenDatabase()
 	case "OpenTable":
 	case "PUT":
+		//kdb.Put
+		//Tree/Hash.Pt
 	case "GET":
+		//Tree/Hash.Pt
+		//kdb.Put
 	case "CloseDatabase":
 	}
 }
