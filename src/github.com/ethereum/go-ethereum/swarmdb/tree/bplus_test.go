@@ -71,7 +71,7 @@ func TestPutInteger(t *testing.T) {
 	fmt.Printf("---- TestPutInteger DONE (%d records)\n", records)
 }
 
-func aTestPutString(t *testing.T) {
+func TestPutString(t *testing.T) {
 	fmt.Printf("---- TestPutString: generate 20 strings and enumerate them\n")
 
 	hashid := make([]byte, 32)
@@ -109,7 +109,7 @@ func aTestPutString(t *testing.T) {
 	fmt.Printf("---- TestPutString DONE (%d records)\n", records)
 }
 
-func aTestPutFloat(t *testing.T) {
+func TestPutFloat(t *testing.T) {
 	fmt.Printf("---- TestPutFloat: generate 20 floats and enumerate them\n")
 
 	hashid := make([]byte, 32)
@@ -139,7 +139,7 @@ func aTestPutFloat(t *testing.T) {
 	}
 }
 
-func aTestSetGetString(t *testing.T) {
+func TestSetGetString(t *testing.T) {
 	hashid := make([]byte, 32)
 	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
 
@@ -194,7 +194,7 @@ func aTestSetGetString(t *testing.T) {
 
 }
 
-func aTestSetGetInt(t *testing.T) {
+func TestSetGetInt(t *testing.T) {
 	const N = 4
 	hashid := make([]byte, 32)
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
@@ -254,7 +254,7 @@ func aTestSetGetInt(t *testing.T) {
 	}
 }
 
-func aTestDelete0(t *testing.T) {
+func TestDelete0(t *testing.T) {
 	hashid := make([]byte, 32)
 	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
 
@@ -318,7 +318,7 @@ func aTestDelete0(t *testing.T) {
 	}
 }
 
-func aTestDelete1(t *testing.T) {
+func TestDelete1(t *testing.T) {
 	hashid := make([]byte, 32)
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
@@ -341,7 +341,7 @@ func aTestDelete1(t *testing.T) {
 	}
 }
 
-func aTestDelete2(t *testing.T) {
+func TestDelete2(t *testing.T) {
 	const N = 100
 	hashid := make([]byte, 32)
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
