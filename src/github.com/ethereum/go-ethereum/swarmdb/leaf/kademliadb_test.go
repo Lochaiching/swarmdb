@@ -91,5 +91,4 @@ func TestKademlia(t *testing.T) {
 
 			fmt.Print("data: [%s][%v]\n\n",string(contentBytes), contentBytes)
 	*/
-	//	dpa.Stop()
 }
