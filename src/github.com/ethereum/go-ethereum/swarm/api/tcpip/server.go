@@ -198,10 +198,21 @@ func (svr *Server) selectHandler(data string) {
 		//svr.setClientInfo(d.jsonstr)
 	case "OpenDatabase":
 		//svr.HandleOpenDatabase()
+	case "CreateTable":
+		//	
 	case "OpenTable":
 	case "PUT":
-		//kdb.Put
-		//Tree/Hash.Pt
+		owner := []byte(d.jsonStr.Owner)
+		table := []byte(d.jsonStr.Table)
+		k := []byte(d.jsonStr.Key)
+		svr.swarmdb.kdb.Open(owner, table, k)
+		v := d.jsonStr.Value
+		hash :=	svr.swarmdb.kdb.Put(k,v) 
+
+		//read the table options at GetTreeToUse(table, d.TableOptions) to determine if BPtree or HashTree and KEY TYPE 
+		//based on that find the root hash id from ens
+		//select tree using self.api, roothashid, keytype (integer)
+		//tree.put
 	case "GET":
 		//Tree/Hash.Pt
 		//kdb.Put
