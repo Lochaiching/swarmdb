@@ -275,7 +275,7 @@ func (svr *Server) selectHandler(data *IncomingInfo) {
 		}
 		svr.outgoing <- "okay"
 	case "Put":
-		if len(d.Index) == 0 || len(d.Key) == 0 || len(d.Value) == 0{
+		if len(d.Value) == 0{
 			svr.outgoing <- rerr.Error()
 			return
 		}
@@ -297,10 +297,30 @@ func (svr *Server) selectHandler(data *IncomingInfo) {
 		}
 		svr.outgoing <- sret
 	case "Delete":
-		if len(d.Index) == 0 || len(d.Key) == 0 {
+		if len(d.Key) == 0 {
 			svr.outgoing <- rerr.Error()
 			return
 		}
+		err := svr.Delete(d.Key, data.address)
+		ret := "okay"
+		if err != nil{
+			ret = err.Error()
+		}
+		svr.outgoing <- ret
+	case "StartBuffer":
+		err := svr.StartBuffer(data.address)
+		ret := "okay"
+		if err != nil{
+			ret = err.Error()
+		}
+		svr.outgoing <- ret
+	case "FlushBuffer":
+		err := svr.FlushBuffer(data.address)
+		ret := "okay"
+		if err != nil{
+			ret = err.Error()
+		}
+		svr.outgoing <- ret
 	}
 	svr.outgoing <- "RequestType Error"
 	return
@@ -523,3 +543,39 @@ func (svr *Server) Get(index, key string, address string) ([]byte, error) {
 	fres := bytes.Trim(kres, "\x00")
 	return fres, err
 }
+
+func (svr *Server) Delete(key string, address string)(err error){
+        cl := svr.clientInfos[address]
+        for _, ip := range cl.openedtable.indexes{
+                _, err := ip.dbaccess.Delete([]byte(key))
+                if err != nil{
+                        return err
+                }
+        }
+	return nil
+}
+
+func (svr *Server) StartBuffer(address string)(err error){
+        cl := svr.clientInfos[address]
+
+        for _, ip := range cl.openedtable.indexes{
+                _, err := ip.dbaccess.StartBuffer()
+                if err != nil{
+                        return err
+                }
+        }
+	return nil
+}
+
+func (svr *Server) FlushBuffer(address string)(err error){
+	cl := svr.clientInfos[address]
+	
+	for _, ip := range cl.openedtable.indexes{
+        	_, err := ip.dbaccess.FlushBuffer()
+		if err != nil{
+			return err
+		}
+	}
+	return nil
+}
+
