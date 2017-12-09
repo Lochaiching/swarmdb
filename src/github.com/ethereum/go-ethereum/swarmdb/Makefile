@@ -32,7 +32,7 @@ dbchunkstore:
 
 server:
 	@echo "test server."
-	go test ../swarm/api/tcpip/server_test.go
+	go test ../swarm/api/tcpip/server.go ../swarm/api/tcpip/server_test.go
 
 keymanager:
 	@echo "test keymanager."

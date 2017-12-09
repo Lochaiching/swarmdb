@@ -452,10 +452,12 @@ func (svr *Server) loadTableInfo(owner string, tablename string) (*TableInfo, er
 		copy(indexinfo.roothash, buf[31:63])
 		switch indexinfo.indextype {
 		case "BT" :
+/*
 			indexinfo.dbaccess = tree.NewBPlusTreeDB(svr.swarmdb.Api, indexinfo.roothash, common.KeyType(indexinfo.keytype))
 			if err != nil {
 				return nil, err
 			}
+*/
 		case "HD":
 			indexinfo.dbaccess, err = tree.NewHashDB(indexinfo.roothash, svr.swarmdb.Api)
 			if err != nil {
@@ -541,7 +543,7 @@ func (svr *Server) Get(index, key string, address string) ([]byte, error) {
 	}
 
 	/// get value from kdb
-	kres, _, _ := cl.kaddb.Get([]byte(key))
+	kres, _, _ := cl.kaddb.GetByKey([]byte(key))
 	fres := bytes.Trim(kres, "\x00")
 	return fres, err
 }
@@ -577,7 +579,38 @@ func (svr *Server) FlushBuffer(address string)(err error){
 		if err != nil{
 			return err
 		}
+		roothash, err := ip.dbaccess.GetRootHash()
+		indexname := cl.openedtablename + ":" + ip.indexname
+		ip.roothash = roothash
+		err = svr.swarmdb.StoreIndexRootHash([]byte(indexname), roothash)
+		if err != nil{
+			return err
+		}
 	}
-	return nil
+	err = svr.updateTableInfo(address)
+	return err
 }
+
+func (svr *Server) updateTableInfo(address string) (err error) {
+	cl := svr.clientInfos[address]
+	tablename := cl.openedtablename
+        buf := make([]byte, 4096)
+	i := 0
+        for idx, ivalue := range cl.openedtable.indexes {
+                copy(buf[2048+i*64:], idx)
+                copy(buf[2048+i*64+26:], strconv.Itoa(ivalue.primary))
+                copy(buf[2048+i*64+27:], strconv.Itoa(ivalue.active))
+                copy(buf[2048+i*64+28:], strconv.Itoa(ivalue.keytype))
+                copy(buf[2048+i*64+30:], ivalue.indextype)
+                copy(buf[2048+i*64+30:], ivalue.roothash)
+		i++
+        }
+        swarmhash, err := svr.swarmdb.StoreDBChunk(buf)
+        if err != nil {
+                return
+        }
+       	err = svr.swarmdb.StoreIndexRootHash([]byte(tablename), []byte(swarmhash))
+        return err
+}
+
 

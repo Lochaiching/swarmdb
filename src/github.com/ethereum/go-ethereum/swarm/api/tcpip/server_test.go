@@ -6,14 +6,13 @@ import (
 	"os"
 	//"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/api"
-	"github.com/ethereum/go-ethereum/swarm/api/tcpip"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	common "github.com/ethereum/go-ethereum/swarmdb/common"
 	"github.com/ethereum/go-ethereum/swarmdb/database"
 	"testing"
 )
 
-func testTcpServer(t *testing.T, f func(*tcpip.Server)) {
+func testTcpServer(t *testing.T, f func(*Server)) {
 	datadir, err := ioutil.TempDir("", "tcptest")
 	if err != nil {
 		t.Fatalf("unable to create temp dir: %v", err)
@@ -28,7 +27,7 @@ func testTcpServer(t *testing.T, f func(*tcpip.Server)) {
 	dpa.Start()
 	sdb := swarmdb.NewSwarmDB(api)
 	//StartTCPServer
-	svr := tcpip.NewServer(sdb, nil)
+	svr := NewServer(sdb, nil)
 
 	if err != nil {
 		fmt.Println("hashdb open error")
@@ -38,7 +37,7 @@ func testTcpServer(t *testing.T, f func(*tcpip.Server)) {
 }
 
 func TestTcpServerCreateTable(t *testing.T) {
-	testTcpServer(t, func(svr *tcpip.Server) {
+	testTcpServer(t, func(svr *Server) {
 		o := common.TableOption{Index: "testindex1", Primary: 1, TreeType: "HD", KeyType: 1}
 		var option []common.TableOption
 		option = append(option, o)
