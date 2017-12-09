@@ -366,7 +366,8 @@ func (svr *Server) CreateTable(tablename string, option []common.TableOption, ad
 		copy(buf[2048+i*64+30:], columninfo.TreeType)
 	}
 	// need to store KDB??
-	swarmhash, err := svr.swarmdb.StoreToSwarm(string(buf))
+	//swarmhash, err := svr.swarmdb.StoreToSwarm(string(buf))
+	swarmhash, err := svr.swarmdb.StoreDBChunk(buf)
 	if err != nil {
 		return
 	}
@@ -404,10 +405,16 @@ func (svr *Server) loadTableInfo(owner string, tablename string) (*TableInfo, er
 		return nil, err
 	}
 	setprimary := false
-	indexdata := svr.swarmdb.RetrieveFromSwarm(roothash)
-	indexdatasize, _ := indexdata.Size(nil)
-	indexbuf := make([]byte, indexdatasize)
-	_, _ = indexdata.ReadAt(indexbuf, 0)
+	//indexdata := svr.swarmdb.RetrieveFromSwarm(roothash)
+	indexdata, err := svr.swarmdb.RetrieveDBChunk(roothash)
+	if err != nil {
+		return nil, err
+	}
+	//indexdatasize, _ := indexdata.Size(nil)
+	//indexdatasize, _ := indexdata.Size(nil)
+	//indexbuf := make([]byte, indexdatasize)
+	//_, _ = indexdata.ReadAt(indexbuf, 0)
+	indexbuf := indexdata
 	for i := 2048; i < 4096; i = i + 64 {
 		//    if
 		buf := make([]byte, 64)
