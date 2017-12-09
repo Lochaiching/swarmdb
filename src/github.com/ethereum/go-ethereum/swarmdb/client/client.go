@@ -9,7 +9,6 @@ import (
 	"strings"
 )
 
-
 //func NewClient(gateway string) *Client {
 //	return &Client {
 //		Gateway: gateway,
@@ -19,8 +18,6 @@ import (
 //type Client struct {
 //	Gateway string
 //}
-
-
 
 /*
 type RequestOption struct {
@@ -39,8 +36,7 @@ type TableOption struct {
 	IndexType string `json:"indextype,omitempty"`
 	Primary   int    `json:"primary,omitempty"`
 }
- */
-
+*/
 
 //index is primary key
 //where do you get treetype from?
@@ -332,32 +328,6 @@ func SwarmDbDownloadKademlia(owner string, table string, id string) (record map[
 
 }
 
-/*
-func DecryptData( data []byte ) []byte {
-      	sk = [32]byte{240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
-      	pk = [32]byte{159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
-
-        var decryptNonce [24]byte
-        //decryptNonce = [24]byte {4, 0, 50, 203, 12, 81, 11, 49, 236, 255, 155, 11, 101, 6, 97, 233, 94, 169, 107, 4, 37, 57, 106, 151}
-        copy(decryptNonce[:], data[:24])
-        decrypted, ok := box.Open(nil, data[24:], &decryptNonce, &pk, &sk)
-        if !ok {
-                panic("decryption error")
-        }
-        return decrypted
-}
-
-func EncryptData( data []byte ) []byte {
-      	sk = [32]byte{240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
-      	pk = [32]byte{159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
-
-        var nonce [24]byte
-        nonce = [24]byte {4, 0, 50, 203, 12, 81, 11, 49, 236, 255, 155, 11, 101, 6, 97, 233, 94, 169, 107, 4, 37, 57, 106, 151}
-        msg := data //[]byte("Alas, poor Yorick! I knew him, Horatio")
-        encrypted := box.Seal(nonce[:], msg, &nonce, &pk, &sk)
-        return encrypted
-}
-*/
 func logDebug(format string, v ...interface{}) {
 	log.Debug(fmt.Sprintf("[SWARMDB] HTTP: "+format, v...))
 }
