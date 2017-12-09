@@ -5,14 +5,14 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	common "github.com/ethereum/go-ethereum/swarmdb/common"
+	swarmdb "github.com/ethereum/go-ethereum/swarmdb/leaf"
 )
 
 type SwarmDB struct {
 	tablelist map[string]map[string]indexinfo
 	ldb       *storage.LDBDatabase
 	api       *api.Api
-	Kdb	*Kademlia
- 	bptree	*BPlusTreeDB
+	Kdb	*swarmdb.KademliaDB
 }
 
 type indexinfo struct {
@@ -34,7 +34,7 @@ func NewSwarmDB(api *api.Api, ldb *storage.LDBDatabase) *SwarmDB {
 	sd.api = api
 	sd.ldb = ldb
 	sd.tablelist = make(map[string]map[string]indexinfo)
-	sd.Kdb = NewKademliaDB(api)
+	sd.Kdb,_ = swarmdb.NewKademliaDB(api)
 	return sd
 }
 
