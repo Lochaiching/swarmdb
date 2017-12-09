@@ -162,7 +162,8 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 
 	//self.api = api.NewApi(self.dpa, self.dns, self.lstore.DbStore.getMHash())
 	self.api = api.NewApiTest(self.dpa, self.dns, self.ldb)
-	self.swarmdb = swarmdb.NewSwarmDB(self.api, self.ldb)
+	//Rodney commented at 17:08 PDT on 2017/12/08 to use just api -- self.swarmdb = swarmdb.NewSwarmDB(self.api, self.ldb)
+	self.swarmdb = swarmdb.NewSwarmDB(self.api)
 	// Manifests for Smart Hosting
 	log.Debug(fmt.Sprintf("-> Web3 virtual server API"))
 
