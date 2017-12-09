@@ -61,6 +61,7 @@ type netstatFile struct {
 	WalletAddress string
 	Claims        map[string]string
 	LaunchDT      time.Time
+    LWriteDT      time.Time
 	LogDT         time.Time
 }
 
@@ -89,11 +90,13 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) error {
 	var file netstatFile
 	err := json.Unmarshal(data, &file)
 	if err != nil {
+        fmt.Println(err)
 		return err
 	}
 
 	self.launchDT = file.LaunchDT
 	self.logDT = file.LogDT
+    self.lwriteDT = file.LWriteDT
 	self.nodeid = file.NodeID
 	self.farmer = ethcommon.HexToAddress(file.WalletAddress)
 
@@ -188,6 +191,46 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 	return
 }
 
+func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
+    var data []byte
+    devaultDBPath := "netstat.json"
+    data, err = ioutil.ReadFile(devaultDBPath)
+    if err != nil {
+        fmt.Printf("Error in Loading netStat from %s.. generating new Log instead\n", devaultDBPath)
+        self, _ = NewDBChunkStore(path)
+        return self, nil
+    
+    }
+
+    self = &DBChunkstore{}
+    err = json.Unmarshal(data, self)
+    if err != nil {
+        fmt.Printf("Error in Parsing netStat new Log created\n => %s\n", err)
+        self, _ = NewDBChunkStore(path)
+        return self, nil
+    }
+
+    db, err := sql.Open("sqlite3", path)
+    if err != nil {
+        return nil, err 
+    }   
+    if db == nil {
+        return nil, err 
+    }
+
+    km, errKm := keymanager.NewKeyManager("/tmp/blah")
+    if errKm != nil {
+        fmt.Printf("Error Creating KeyManager")
+        return nil, err
+    }
+
+    self.db = db
+    self.km =  &km
+    self.filepath = path
+    self.statpath = devaultDBPath    
+    return
+}
+
 func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 	if len(v) < minChunkSize {
 		return fmt.Errorf("chunk too small") // should be improved
@@ -245,6 +288,7 @@ func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
 		return k, err2
 	}
 	stmt.Close()
+    self.lwriteDT = time.Now()
 	return k, nil
 }
 
