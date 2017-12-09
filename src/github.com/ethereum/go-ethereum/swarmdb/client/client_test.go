@@ -3,6 +3,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/swarmdb/client"
 	"testing"
 )
 
@@ -22,7 +23,7 @@ func TestCreateTable(t *testing.T) {
 
 	for prefix, test := range tests {
 		fmt.Printf("CreateTable test %s: %v \n", prefix, test)
-		err := CreateTable(test[0].(string), test[1].(string), test[2].(string), test[3].(map[string]string))
+		err := client.CreateTable(test[0].(string), test[1].(string), test[2].(string), test[3].(map[string]string))
 		if err != nil {
 			fmt.Printf("failed.\n")
 			t.Fatal(err)
@@ -57,14 +58,14 @@ func TestAddRecord(t *testing.T) {
 		"age":    "int",
 		"gender": "string",
 	}
-	err := CreateTable("BT", "contacts", "email", btreetestcols)
+	err := client.CreateTable("BT", "contacts", "email", btreetestcols)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for prefix, test := range tests {
 		fmt.Printf("AddRecord test %s: %v\n", prefix, test)
-		err := AddRecord(test[0], test[1], test[2], test[3])
+		err := client.AddRecord(test[0], test[1], test[2], test[3])
 		if err != nil { //did not add record
 			if expected[prefix] == "fail" {
 				fmt.Printf("success. failed with %v\n", err)
@@ -102,13 +103,13 @@ func TestGetRecord(t *testing.T) {
 		"age":    "int",
 		"gender": "string",
 	}
-	err := CreateTable(treetype, table, index, btreetestcols)
+	err := client.CreateTable(treetype, table, index, btreetestcols)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for key, rec := range records {
-		err := AddRecord(owner, table, key, rec)
+		err := client.AddRecord(owner, table, key, rec)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -129,7 +130,7 @@ func TestGetRecord(t *testing.T) {
 	for prefix, testkey := range tests {
 
 		fmt.Printf("GetRecord test %s: %v\n", prefix, testkey)
-		actual, err := GetRecord(owner, table, testkey)
+		actual, err := client.GetRecord(owner, table, testkey)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -176,13 +177,13 @@ func TestQuery(t *testing.T) {
 		"age":    "int",
 		"gender": "string",
 	}
-	err := CreateTable(treetype, table, index, btreetestcols)
+	err := client.CreateTable(treetype, table, index, btreetestcols)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for key, rec := range records {
-		err := AddRecord(owner, table, key, rec)
+		err := client.AddRecord(owner, table, key, rec)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -205,7 +206,7 @@ func TestQuery(t *testing.T) {
 	for prefix, q := range queries {
 
 		fmt.Printf("Query test: %s: %s\n", prefix, q)
-		actual, err := Query(owner, table, q)
+		actual, err := client.Query(owner, table, q)
 		if err != nil {
 			t.Fatal(err)
 		}
