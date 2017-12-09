@@ -338,6 +338,7 @@ func (svr *Server) CreateTable(tablename string, option []common.TableOption, ad
 	return err
 }
 
+//Permission handling
 func (svr *Server) OpenTable(tablename string, address string) (err error) {
 	cl := svr.clientInfos[address]
 	owner := svr.owners[cl.owner.name]
@@ -403,7 +404,9 @@ func (svr *Server) loadTableInfo(owner string, tablename string) (*TableInfo, er
 	return &table, nil
 }
 
+//Owner: X Table: contacts Index: Email Key: rodney@wolk.com VAL: { age: 20, loc: "sm", email: "rodney@wolk.com" }
 func (svr *Server) Put(index, key, value string, address string) error {
+	// Function for retrieving the column that is primary and passing t
 	/// store value to kdb and get a hash
 	svr.swarmdb.Kdb.Open([]byte(svr.clientInfos[address].owner.name), []byte(svr.clientInfos[address].openedtable.tablename), []byte(index))
 
