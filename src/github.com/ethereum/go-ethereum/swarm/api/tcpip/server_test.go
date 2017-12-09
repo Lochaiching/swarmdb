@@ -1,18 +1,19 @@
 package tcpip
 
 import (
-        "fmt"
+	"fmt"
 	"io/ioutil"
 	"os"
-        //"github.com/ethereum/go-ethereum/log"
-        "github.com/ethereum/go-ethereum/swarmdb/database"
-        common "github.com/ethereum/go-ethereum/swarmdb/common"
-        "github.com/ethereum/go-ethereum/swarm/api"
-        "github.com/ethereum/go-ethereum/swarm/storage"
+	//"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/swarm/api"
+	"github.com/ethereum/go-ethereum/swarm/api/tcpip"
+	"github.com/ethereum/go-ethereum/swarm/storage"
+	common "github.com/ethereum/go-ethereum/swarmdb/common"
+	"github.com/ethereum/go-ethereum/swarmdb/database"
 	"testing"
 )
 
-func testTcpServer(t *testing.T, f func(*Server)) {
+func testTcpServer(t *testing.T, f func(*tcpip.Server)) {
 	datadir, err := ioutil.TempDir("", "tcptest")
 	if err != nil {
 		t.Fatalf("unable to create temp dir: %v", err)
@@ -27,18 +28,18 @@ func testTcpServer(t *testing.T, f func(*Server)) {
 	dpa.Start()
 	sdb := swarmdb.NewSwarmDB(api)
 	//StartTCPServer
-	svr := NewServer(sdb, nil)
-	
-	if err != nil{
+	svr := tcpip.NewServer(sdb, nil)
+
+	if err != nil {
 		fmt.Println("hashdb open error")
 	}
 	f(svr)
 	dpa.Stop()
 }
 
-func TestTcpServerCreateTable(t *testing.T){
-	testTcpServer(t, func(svr *Server){
-		o := common.TableOption{Index: "testindex1", Primary: 1, TreeType:"HD", KeyType:1}
+func TestTcpServerCreateTable(t *testing.T) {
+	testTcpServer(t, func(svr *tcpip.Server) {
+		o := common.TableOption{Index: "testindex1", Primary: 1, TreeType: "HD", KeyType: 1}
 		var option []common.TableOption
 		option = append(option, o)
 		svr.NewConnection("owner1", "testconnection")
@@ -48,10 +49,9 @@ func TestTcpServerCreateTable(t *testing.T){
 		putstr := `{"testindex1":"value2"}`
 		svr.Put(putstr, "testconnection")
 		res, err := svr.Get("testindex1", "key", "testconnection")
-	fmt.Printf("Get %s %v \n", string(res), err)
+		fmt.Printf("Get %s %v \n", string(res), err)
 		fres, ferr := svr.Get("testindex1", "value2", "testconnection")
-	fmt.Printf("Get %s %v \n", string(fres), ferr)
+		fmt.Printf("Get %s %v \n", string(fres), ferr)
 		//svr.CloseTable()
 	})
-}	
-
+}
