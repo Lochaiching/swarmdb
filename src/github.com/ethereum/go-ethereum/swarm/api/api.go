@@ -56,7 +56,7 @@ on top of the dpa
 it is the public interface of the dpa which is included in the ethereum stack
 */
 type Api struct {
-	dbchunkstore storage.DBChunkstore // Sqlite3 based
+	dbchunkstore *storage.DBChunkstore // Sqlite3 based
 	ens          storage.ENSSimulation
 
 	// MAJOR TODO: redo this to support the above going from singleton to cloud

@@ -7,17 +7,43 @@ import (
 	//"encoding/binary"
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb/common"
+ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	_ "github.com/mattn/go-sqlite3"
-	//"math"
-	//"time"
+	"math/big"
+	"time"
 	"encoding/json"
+    "io/ioutil"
+    "os"
 )
 
+
 type DBChunkstore struct {
-	filepath string
-	db       *sql.DB
-	km       *keymanager.KeyManager
+    db       *sql.DB
+    km       *keymanager.KeyManager
+
+    //file directory
+    filepath    string
+    statpath    string
+
+    //persisted fields
+    nodeid      string
+    farmer      ethcommon.Address
+    claims      map[string]*big.Int
+
+    //persisted stats
+    chunkR      int64
+    chunkW      int64
+    chunkS      int64
+
+    //temp fields
+    chunkRL     int64
+    chunkWL     int64
+    chunkSL     int64
+
+    launchDT     time.Time
+    lwriteDT     time.Time
+    logDT        time.Time
 }
 
 type DBChunk struct {
@@ -31,37 +57,91 @@ type DBChunk struct {
 	StoreDT     int64
 }
 
-type ChunkStat struct {
-	CurrentTS   int64 `json:"CurrentTS`
-	ChunkRead   int64 `json:"ChunkRead`
-	ChunkWrite  int64 `json:"ChunkWrite`
-	ChunkStored int64 `json:"ChunkStored"`
+type netstatFile struct {
+    NodeID              string
+    WalletAddress       string
+    Claims              map[string]string
+    LaunchDT            time.Time
+    LogDT               time.Time
 }
 
-func NewDBChunkStore(path string) (dbcs DBChunkstore, err error) {
-	db, err := sql.Open("sqlite3", path)
-	if err != nil {
-		return dbcs, err
-	}
-	if db == nil {
-		return dbcs, err
-	}
-	dbcs.db = db
-	dbcs.filepath = path
-	// create table if not exists
-	sql_table := `
-	CREATE TABLE IF NOT EXISTS chunk (
-	chunkKey TEXT NOT NULL PRIMARY KEY,
-	chunkVal BLOB,
-	Owner TEXT,
-	BuyAt TEXT,
-	BlockNumber TEXT,
-	Tablename TEXT,
-	Tableid TEXT,
-	storeDT DATETIME
-	);
-	`
-	netstat_table := `
+type ChunkStat struct {
+    CurrentTS          int64     `json:"CurrentTS`
+    ChunkRead          int64     `json:"ChunkRead`
+    ChunkWrite         int64     `json:"ChunkWrite`
+    ChunkStored        int64     `json:"ChunkStored"`
+}
+
+
+func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
+    var file = &netstatFile{
+        NodeID:  self.nodeid,
+        WalletAddress: self.farmer.Hex(),
+        Claims:     make(map[string]string),
+        LaunchDT:   self.launchDT,
+        LogDT:      time.Now(),
+    }
+    for ticket, reward := range self.claims {
+        file.Claims[ticket] = reward.String()
+    }
+    return json.Marshal(file)
+}
+
+func (self *DBChunkstore) UnmarshalJSON(data []byte) error {
+    var file netstatFile
+    err := json.Unmarshal(data, &file)
+    if err != nil {
+        return err
+    }
+
+    self.launchDT = file.LaunchDT
+    self.logDT =  file.LogDT
+    self.nodeid = file.NodeID
+    self.farmer = ethcommon.HexToAddress(file.WalletAddress)
+
+    var ok bool
+    for ticket, reward := range file.Claims {
+        self.claims[ticket], ok = new(big.Int).SetString(reward, 10)
+        if !ok {
+            return fmt.Errorf("Ticket %v amount set: unable to convert string to big integer: %v", ticket, reward)
+        }
+    }
+    return nil
+}
+
+func (self *DBChunkstore) Save() (err error) {
+    data, err := json.MarshalIndent(self, "", " ")
+    if err != nil {
+        return err
+    }
+    //self.log.Trace("Saving NetStat to disk", self.statpath)
+    return ioutil.WriteFile(self.statpath, data, os.ModePerm)
+}
+
+func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
+
+    claims := make(map[string]*big.Int)
+    db, err := sql.Open("sqlite3", path)
+    if err != nil {
+        return nil, err
+    }
+    if db == nil {
+        return nil, err
+    }
+    // create table if not exists
+    sql_table := `
+    CREATE TABLE IF NOT EXISTS chunk (
+    chunkKey TEXT NOT NULL PRIMARY KEY,
+    chunkVal BLOB,
+    Owner TEXT,
+    BuyAt TEXT,
+    BlockNumber TEXT,
+    Tablename TEXT,
+    Tableid TEXT,
+    storeDT DATETIME
+    );
+    `
+    netstat_table := `
     CREATE TABLE IF NOT EXISTS netstat (
     statDT  DATETIME NOT NULL PRIMARY KEY,
     rcnt INTEGER DEFAULT 0,
@@ -69,24 +149,46 @@ func NewDBChunkStore(path string) (dbcs DBChunkstore, err error) {
     scnt INTEGER DEFAULT 0
     );
     `
-	_, err = db.Exec(sql_table)
-	if err != nil {
-		fmt.Printf("Error Creating Chunk Table")
-		return dbcs, err
-	}
-	_, err = db.Exec(netstat_table)
-	if err != nil {
-		fmt.Printf("Error Creating Stat Table")
-		return dbcs, err
-	}
+    _, err = db.Exec(sql_table)
+    if err != nil {
+        fmt.Printf("Error Creating Chunk Table")
+        return nil, err
+    }
+    _, err = db.Exec(netstat_table)
+    if err != nil {
+        fmt.Printf("Error Creating Stat Table")
+        return nil, err
+    }
 
-	km, errKm := keymanager.NewKeyManager("/tmp/blah")
-	if errKm != nil {
-		fmt.Printf("Error Creating KeyManager")
-		return dbcs, err
-	}
-	dbcs.km = &km
-	return dbcs, nil
+
+    km, errKm := keymanager.NewKeyManager("/tmp/blah")
+    if errKm != nil {
+        fmt.Printf("Error Creating KeyManager")
+        return nil, err
+    }
+
+    walletAddr := ethcommon.HexToAddress("0x56ad284968f2c2edb44c1380411c2c3b12b26c3f")
+
+    self = &DBChunkstore{
+        db: db,
+        km: &km,
+        filepath: path,
+        statpath: "netstat.json",
+        nodeid:   "1234",
+        farmer:   walletAddr,
+        claims:   claims,
+        chunkR:   0,
+        chunkW:   0,
+        chunkS:   0,
+        chunkRL:  0,
+        chunkWL:  0,
+        chunkSL:  0,
+        launchDT: time.Now(),
+        lwriteDT: time.Now(),
+        logDT:    time.Now(),
+    }
+
+    return
 }
 
 func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
@@ -204,7 +306,11 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 		if err2 != nil {
 			return nil, err2
 		}
-		decVal := self.km.DecryptData(val)
+        jsonRecord := val[577:]
+        trimmedJson := bytes.TrimRight(jsonRecord, "\x00")
+        decVal := self.km.DecryptData(trimmedJson)
+        decVal = bytes.TrimRight(decVal, "\x00")
+		//decVal := self.km.DecryptData(val)
 		return decVal, nil
 	}
 	return val, nil
@@ -277,8 +383,13 @@ func (self *DBChunkstore) ScanAll() (err error) {
 			return err2
 		}
 		rcnt++
-		c.Val = self.km.DecryptData(c.Val)
+/*
+        jsonRecord := c.Val[577:]
+        trimmedJson := bytes.TrimRight(jsonRecord, "\x00")
+        decVal := self.km.DecryptData(trimmedJson)
+        c.Val = bytes.TrimRight(decVal, "\x00")
 		fmt.Printf("[record] %x => %s [%v]\n", c.Key, c.Val, c.StoreDT)
+*/
 		result = append(result, c)
 	}
 	rows.Close()

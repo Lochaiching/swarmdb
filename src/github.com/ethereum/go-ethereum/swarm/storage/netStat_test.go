@@ -9,7 +9,7 @@ import (
 
 var (
     testDBPath = "chunks.db"
-    chunkTotal = 2000    
+    chunkTotal = 1000    
 )
 
 
@@ -54,6 +54,15 @@ func TestDBChunkStore(t *testing.T) {
             t.Fatal("[FAILURE] netStat Retrieval Error\n")
         }else {
             fmt.Printf("[SUCCESS] netStat optput: %s\n", res)
+        }
+    })
+
+    t.Run("Save", func(t *testing.T) {
+        err := store.Save()
+        if err != nil {
+            t.Fatal("[FAILURE] unable to generate netStat json\n")
+        }else {
+            fmt.Printf("[SUCCESS] netStat stored in persisted files\n")
         }
     })
 
