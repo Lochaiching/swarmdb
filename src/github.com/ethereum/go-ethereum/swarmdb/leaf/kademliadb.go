@@ -77,12 +77,20 @@ func (self *KademliaDB) Put(k []byte, v []byte) ([]byte, error) {
 	return hashVal, nil
 }
 
-func (self *KademliaDB) Get(k []byte) ([]byte, bool, error) {
+func (self *KademliaDB) GetByKey(k []byte) ([]byte, bool, error) {
 	chunkKey := self.GenerateChunkKey(k)
-	//column = strings.ToLower(path_parts[2])
-	contentReader, err := self.api.RetrieveKDBChunk(chunkKey)
+	content, _, err := self.Get(chunkKey)
 	if err != nil {
 		log.Debug("key not found %s: %s", chunkKey, err)
+		return nil, false, fmt.Errorf("key not found: %s", err)
+	}
+	return content, true, nil
+}
+
+func (self *KademliaDB) Get(h []byte) ([]byte, bool, error) {
+	contentReader, err := self.api.RetrieveKDBChunk(h)
+	if err != nil {
+		log.Debug("key not found %s: %s", h, err)
 		return nil, false, fmt.Errorf("key not found: %s", err)
 	}
 	return contentReader, true, nil
