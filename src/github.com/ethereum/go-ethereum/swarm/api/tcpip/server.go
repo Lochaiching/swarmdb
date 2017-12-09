@@ -395,6 +395,7 @@ func (svr *Server) CreateTable(tablename string, option []common.TableOption, ad
 	return err
 }
 
+//Permission handling
 func (svr *Server) OpenTable(tablename string, address string) (err error) {
 	cl := svr.clientInfos[address]
 	owner := svr.owners[cl.owner.name]
@@ -474,6 +475,7 @@ func (svr *Server) loadTableInfo(owner string, tablename string) (*TableInfo, er
 	return &table, nil
 }
 
+//Owner: X Table: contacts Index: Email Key: rodney@wolk.com VAL: { age: 20, loc: "sm", email: "rodney@wolk.com" }
 func (svr *Server) Put(value string, address string) (err error) {
 	/// store value to kdb and get a hash
 	cl := svr.clientInfos[address]

@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	common "github.com/ethereum/go-ethereum/swarmdb/common"
+	//swarmdb "github.com/ethereum/go-ethereum/swarmdb/leaf"
 )
 
 type SwarmDB struct {
