@@ -19,6 +19,8 @@ all:
 	-go test ./leaf/kademliadb_test.go
 	@echo "test hashdb."
 	-go test ./tree/hashdb_test.go
+	@echo "test netstat."
+	-go test ../swarm/storage/netStat_test.go
 
 enssimulation:
 	@echo "test enssimulation."
@@ -51,3 +53,7 @@ kademliadb:
 hashdb:
 	@echo "test hashdb."
 	go test ./tree/hashdb_test.go
+
+netstat:
+	@echo "test netstat."
+	go test ../swarm/storage/netStat_test.go
