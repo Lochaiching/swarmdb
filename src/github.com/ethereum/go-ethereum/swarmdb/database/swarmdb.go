@@ -108,3 +108,11 @@ func (self *SwarmDB)StoreToSwarm(content string) (storage.Key, error){
        return key, err
 }
 
+func (self *SwarmDB)StoreDBChunk(value []byte)(key []byte, err error) {
+	return self.Api.StoreDBChunk(value)
+}
+
+func (self *SwarmDB) RetrieveDBChunk(key []byte) (val []byte, err error) {
+	return self.Api.RetrieveDBChunk(key)
+}
+
