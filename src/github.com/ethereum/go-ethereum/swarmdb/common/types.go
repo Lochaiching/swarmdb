@@ -207,3 +207,17 @@ type BufferOverflowError struct {
 func (t *BufferOverflowError) Error() string {
 	return fmt.Sprintf("Buffer overflow error")
 }
+
+type RequestFormatError struct{
+}
+
+func (t *RequestFormatError) Error() string {
+	return fmt.Sprintf("Request format error")
+}
+
+type NoColumnError struct{
+}
+
+func (t *NoColumnError) Error() string{
+	return fmt.Sprintf("No column --- in the table")
+}

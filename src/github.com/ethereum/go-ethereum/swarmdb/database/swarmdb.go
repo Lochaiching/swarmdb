@@ -1,18 +1,18 @@
 package swarmdb
 
 import (
-	"fmt"
+//	"fmt"
+	"strings"
+	"sync"
 	"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	common "github.com/ethereum/go-ethereum/swarmdb/common"
-	swarmdb "github.com/ethereum/go-ethereum/swarmdb/leaf"
+	//swarmdb "github.com/ethereum/go-ethereum/swarmdb/leaf"
 )
 
 type SwarmDB struct {
 	tablelist map[string]map[string]indexinfo
-	ldb       *storage.LDBDatabase
-	api       *api.Api
-	Kdb	*swarmdb.KademliaDB
+	Api       *api.Api
 }
 
 type indexinfo struct {
@@ -21,31 +21,22 @@ type indexinfo struct {
 	database common.Database
 }
 
-/*
-type tabledata struct{
-	indextype string
-	primary bool
-	rootnode []byte
-}
-*/
-
-func NewSwarmDB(api *api.Api, ldb *storage.LDBDatabase) *SwarmDB {
+func NewSwarmDB(api *api.Api) *SwarmDB {
 	sd := new(SwarmDB)
-	sd.api = api
-	sd.ldb = ldb
+	sd.Api = api
 	sd.tablelist = make(map[string]map[string]indexinfo)
-	sd.Kdb,_ = swarmdb.NewKademliaDB(api)
 	return sd
 }
 
 func (self *SwarmDB) GetIndexRootHash(tablename string) (roothash []byte, err error) {
-	return self.api.GetIndexRootHash([]byte(tablename))
+	return self.Api.GetIndexRootHash([]byte(tablename))
 }
 
 func (self *SwarmDB) RetrieveFromSwarm(key storage.Key) storage.LazySectionReader {
-	return self.api.Retrieve(key)
+	return self.Api.Retrieve(key)
 }
 
+/*
 func (self *SwarmDB) Open(tablename string) error {
 	if _, ok := self.tablelist[tablename]; !ok {
 		td, err := self.readTableData([]byte(tablename))
@@ -88,9 +79,9 @@ func (self *SwarmDB) readTableData(tablename []byte) (map[string]indexinfo, erro
 		case "BP":
 		//	idxinfo.database = swarmdb.NewBPlusTreeDB(self.api)
 		case "HD":
-		//	idxinfo.database, _ = swarmdb.NewHashDB(self.api)
+		//	idxinfo.database, _ = swarmdb.NewHashDB(self.Api)
 		case "KD":
-		//	idxinfo.database, _ = swarmdb.NewKademliaDB(self.api)
+		//	idxinfo.database, _ = swarmdb.NewKademliaDB(self.Api)
 		default:
 			//		idxinfo.database, _ = swarmdb.NewHashDB(self.api)
 		}
@@ -99,3 +90,22 @@ func (self *SwarmDB) readTableData(tablename []byte) (map[string]indexinfo, erro
 	}
 	return indexmap, err
 }
+*/
+
+
+func (self *SwarmDB) StoreIndexRootHash(name []byte, roothash []byte) (err error) {
+       return self.Api.StoreIndexRootHash(name, roothash)
+}
+
+
+func (self *SwarmDB)StoreToSwarm(content string) (storage.Key, error){
+       r := strings.NewReader(content)
+       wg := &sync.WaitGroup{}
+       key, err := self.Api.Store(r, int64(len(content)), wg)
+       wg.Wait()
+       if err != nil {
+               return nil, err
+       }
+       return key, err
+}
+
