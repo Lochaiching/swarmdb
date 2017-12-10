@@ -38,7 +38,7 @@ func testTcpServer(t *testing.T, f func(*Server)) {
 
 func TestTcpServerCreateTable(t *testing.T) {
 	testTcpServer(t, func(svr *Server) {
-		o := common.TableOption{Index: "testindex1", Primary: 1, TreeType: "BT", KeyType: 1}
+		o := common.TableOption{Index: "testindex1", Primary: 1, TreeType: "HD", KeyType: 2}
 		var option []common.TableOption
 		option = append(option, o)
 		svr.NewConnection("owner1", "testconnection")
@@ -51,6 +51,19 @@ func TestTcpServerCreateTable(t *testing.T) {
 		fmt.Printf("Get %s %v \n", string(res), err)
 		fres, ferr := svr.Get("testindex1", "value2", "testconnection")
 		fmt.Printf("Get %s %v \n", string(fres), ferr)
+		fberr := svr.StartBuffer("testconnection")
+		if fberr == nil{
+			fmt.Printf("StartBuffer \n")
+		}else {
+			fmt.Printf("StartBuffer err = %v\n", fberr)
+		}
+			
+		fberr = svr.FlushBuffer("testconnection")
+		if fberr == nil{
+			fmt.Printf("FlushBuffer \n")
+		}else {
+			fmt.Printf("FlushBuffer err = %v\n", fberr)
+		}
 		//svr.CloseTable()
 	})
 }

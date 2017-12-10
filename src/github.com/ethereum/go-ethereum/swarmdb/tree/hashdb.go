@@ -49,8 +49,8 @@ func NewHashDB(rootnode []byte, api *api.Api) (*HashDB, error) {
 fmt.Println("In NewHashDB")
 	hd := new(HashDB)
 	n := NewNode(nil, nil)
+	n.Root = true
 	if rootnode == nil{
-		n.Root = true
 	}else{
 		n.NodeHash = rootnode
 	}

@@ -43,6 +43,7 @@ type TableInfo struct {
 	indexes   map[string]*IndexInfo
 	primary	  string
 	counter   int   //// not supported yet. 
+	tlock     sync.Mutex
 }
 
 func (svr *Server) NewTableInfo(tablename string) TableInfo {
@@ -60,12 +61,14 @@ type IndexInfo struct {
 	active    int
 	primary   int
 	keytype   int
+	ilock     sync.Mutex
 }
 
 type OwnerInfo struct {
 	name   string
 	passwd string
 	tables map[string]*TableInfo
+	olock     sync.Mutex
 }
 
 func NewOwnerInfo(name, passwd string) OwnerInfo {
@@ -88,7 +91,6 @@ type Client struct {
 	reader   *bufio.Reader
 	writer   *bufio.Writer
 	//owner	OwnerInfo
-	//databases	map[string]map[string]*common.Database
 }
 
 type ClientInfo struct {
@@ -108,7 +110,6 @@ func newClient(connection net.Conn) *Client {
 		outgoing: make(chan string),
 		reader:   reader,
 		writer:   writer,
-		//databases: make(map[string]map[string]*common.Database),
 	}
 	go client.read()
 	go client.write()
@@ -381,7 +382,7 @@ func (svr *Server) CreateTable(tablename string, option []common.TableOption, ad
 	for i, columninfo := range option {
 		copy(buf[2048+i*64:], columninfo.Index)
 		copy(buf[2048+i*64+26:], strconv.Itoa(columninfo.Primary))
-		copy(buf[2048+i*64+27:], "9")
+		copy(buf[2048+i*64+27:], "1")
 		copy(buf[2048+i*64+28:], strconv.Itoa(columninfo.KeyType))
 		copy(buf[2048+i*64+30:], columninfo.TreeType)
 	}
@@ -431,13 +432,8 @@ func (svr *Server) loadTableInfo(owner string, tablename string) (*TableInfo, er
 	if err != nil {
 		return nil, err
 	}
-	//indexdatasize, _ := indexdata.Size(nil)
-	//indexdatasize, _ := indexdata.Size(nil)
-	//indexbuf := make([]byte, indexdatasize)
-	//_, _ = indexdata.ReadAt(indexbuf, 0)
 	indexbuf := indexdata
 	for i := 2048; i < 4096; i = i + 64 {
-		//    if
 		buf := make([]byte, 64)
 		copy(buf, indexbuf[i:i+64])
 		if buf[0] == 0 {
@@ -449,7 +445,7 @@ func (svr *Server) loadTableInfo(owner string, tablename string) (*TableInfo, er
 		indexinfo.active, _ = strconv.Atoi(string(buf[27:28]))
 		indexinfo.keytype, _ = strconv.Atoi(string(buf[28:29]))
 		indexinfo.indextype = string(buf[30:32])
-		copy(indexinfo.roothash, buf[31:63])
+		indexinfo.roothash =  buf[32:]
 		switch indexinfo.indextype {
 		case "BT" :
 			indexinfo.dbaccess = tree.NewBPlusTreeDB(svr.swarmdb.Api, indexinfo.roothash, common.KeyType(indexinfo.keytype))
@@ -600,7 +596,7 @@ func (svr *Server) updateTableInfo(address string) (err error) {
                 copy(buf[2048+i*64+27:], strconv.Itoa(ivalue.active))
                 copy(buf[2048+i*64+28:], strconv.Itoa(ivalue.keytype))
                 copy(buf[2048+i*64+30:], ivalue.indextype)
-                copy(buf[2048+i*64+30:], ivalue.roothash)
+                copy(buf[2048+i*64+32:], ivalue.roothash)
 		i++
         }
         swarmhash, err := svr.swarmdb.StoreDBChunk(buf)
