@@ -38,7 +38,7 @@ func testTcpServer(t *testing.T, f func(*Server)) {
 
 func TestTcpServerCreateTable(t *testing.T) {
 	testTcpServer(t, func(svr *Server) {
-		o := common.TableOption{Index: "testindex1", Primary: 1, TreeType: "HD", KeyType: 1}
+		o := common.TableOption{Index: "testindex1", Primary: 1, TreeType: "BT", KeyType: 1}
 		var option []common.TableOption
 		option = append(option, o)
 		svr.NewConnection("owner1", "testconnection")

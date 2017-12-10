@@ -41,6 +41,9 @@ type Node struct {
 	NodeHash []byte //for disk/(net?)DB. Currently, it's bin data but it will be the hash
 	Loaded   bool
 }
+func (self *HashDB) GetRootHash() ([]byte, error) {
+	return self.rootnode.NodeHash, nil
+}
 
 func NewHashDB(rootnode []byte, api *api.Api) (*HashDB, error) {
 fmt.Println("In NewHashDB")

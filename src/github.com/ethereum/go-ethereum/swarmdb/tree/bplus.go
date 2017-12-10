@@ -313,8 +313,8 @@ func set_chunk_childtype(buf []byte, nodetype string) {
 	copy(buf[CHUNK_SIZE-66:], []byte(nodetype))
 }
 
-func (t *Tree) GetHashID() (hashid []byte) {
-	return t.hashid
+func (t *Tree) GetRootHash() (hashid []byte, err error) {
+	return t.hashid, nil
 }
 
 func (t *Tree) SWARMGet() (success bool) {

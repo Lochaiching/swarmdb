@@ -452,12 +452,10 @@ func (svr *Server) loadTableInfo(owner string, tablename string) (*TableInfo, er
 		copy(indexinfo.roothash, buf[31:63])
 		switch indexinfo.indextype {
 		case "BT" :
-/*
 			indexinfo.dbaccess = tree.NewBPlusTreeDB(svr.swarmdb.Api, indexinfo.roothash, common.KeyType(indexinfo.keytype))
 			if err != nil {
 				return nil, err
 			}
-*/
 		case "HD":
 			indexinfo.dbaccess, err = tree.NewHashDB(indexinfo.roothash, svr.swarmdb.Api)
 			if err != nil {

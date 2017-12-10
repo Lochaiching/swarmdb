@@ -8,6 +8,9 @@ import (
 )
 
 type Database interface {
+
+	GetRootHash() ([]byte, error) 
+
 	// Insert: adds key-value pair (value is an entire recrod)
 	// ok - returns true if new key added
 	// Possible Errors: KeySizeError, ValueSizeError, DuplicateKeyError, NetworkError, BufferOverflowError
