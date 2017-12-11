@@ -153,11 +153,11 @@ func (t *Table) Put(value string) (err error) {
 	// PRIMARY INDEX ONLY -- need to put every indexes but currently added only for the primary index
 	fmt.Printf(" primary: %v dbaccess: %v  k: %v v(%d bytes): %v\n", t.primary, t.indexes[t.primary].dbaccess, pvalue.(string), len(khash), khash)
 	_, err = t.indexes[t.primary].dbaccess.Put([]byte(pvalue.(string)), []byte(khash))
-	switch x := t.indexes[t.primary].dbaccess.(type) {
+	/*switch x := t.indexes[t.primary].dbaccess.(type) {
 	case (*Tree):
-		fmt.Printf("B+ tree Print\n")
+		 fmt.Printf("B+ tree Print\n")
 		x.Print()
-	}
+	}*/
 	return err
 }
 
