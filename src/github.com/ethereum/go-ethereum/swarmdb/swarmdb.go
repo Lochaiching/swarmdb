@@ -106,13 +106,13 @@ func (t *Table) OpenTable() (err error) {
 		if buf[0] == 0 {
 			break
 		}
-		indexinfo := new(IndexInfo)
-		indexinfo.indexname = string(bytes.Trim(buf[:25], "\x00"))
-		indexinfo.primary, _ = strconv.Atoi(string(buf[26:27]))
-		indexinfo.active, _ = strconv.Atoi(string(buf[27:28]))
-		indexinfo.keytype, _ = strconv.Atoi(string(buf[28:29]))
-		indexinfo.indextype = string(buf[30:32])
-		copy(indexinfo.roothash, buf[31:63])
+                indexinfo := new(IndexInfo)
+                indexinfo.indexname = string(bytes.Trim(buf[:25], "\x00"))
+                indexinfo.primary, _ = strconv.Atoi(string(buf[26:27]))
+                indexinfo.active, _ = strconv.Atoi(string(buf[27:28]))
+                indexinfo.keytype, _ = strconv.Atoi(string(buf[28:29]))
+                indexinfo.indextype = string(buf[30:32])
+                indexinfo.roothash =  buf[32:]
 		switch indexinfo.indextype {
 		case "BT":
 			indexinfo.dbaccess = NewBPlusTreeDB(t.swarmdb, indexinfo.roothash, KeyType(indexinfo.keytype))
@@ -242,12 +242,12 @@ func (t *Table) updateTableInfo() (err error) {
 	buf := make([]byte, 4096)
 	i := 0
 	for idx, ivalue := range t.indexes {
-		copy(buf[2048+i*64:], idx)
-		copy(buf[2048+i*64+26:], strconv.Itoa(ivalue.primary))
-		copy(buf[2048+i*64+27:], strconv.Itoa(ivalue.active))
-		copy(buf[2048+i*64+28:], strconv.Itoa(ivalue.keytype))
-		copy(buf[2048+i*64+30:], ivalue.indextype)
-		copy(buf[2048+i*64+30:], ivalue.roothash)
+                copy(buf[2048+i*64:], idx)
+                copy(buf[2048+i*64+26:], strconv.Itoa(ivalue.primary))
+                copy(buf[2048+i*64+27:], strconv.Itoa(ivalue.active))
+                copy(buf[2048+i*64+28:], strconv.Itoa(ivalue.keytype))
+                copy(buf[2048+i*64+30:], ivalue.indextype)
+                copy(buf[2048+i*64+32:], ivalue.roothash)
 		i++
 	}
 	swarmhash, err := t.swarmdb.StoreDBChunk(buf)
