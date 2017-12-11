@@ -37,7 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/swarm/api"
 	httpapi "github.com/ethereum/go-ethereum/swarm/api/http"
-	tcpapi "github.com/ethereum/go-ethereum/swarm/api/tcpip"
+	tcpapi "github.com/ethereum/go-ethereum/swarmdb/server"
 	"github.com/ethereum/go-ethereum/swarm/fuse"
 	"github.com/ethereum/go-ethereum/swarm/network"
 	"github.com/ethereum/go-ethereum/swarm/storage"
