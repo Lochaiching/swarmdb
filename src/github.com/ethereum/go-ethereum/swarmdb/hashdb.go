@@ -6,9 +6,9 @@ import (
 	"fmt"
 	// ethcommon "github.com/ethereum/go-ethereum/common"
 	// common "github.com/ethereum/go-ethereum/swarmdb/common"
-	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/swarm/storage"
 	"io"
 	"reflect"
 	"strconv"
@@ -40,6 +40,7 @@ type Node struct {
 	NodeHash []byte //for disk/(net?)DB. Currently, it's bin data but it will be the hash
 	Loaded   bool
 }
+
 func (self *HashDB) GetRootHash() ([]byte, error) {
 	return self.rootnode.NodeHash, nil
 }
@@ -49,8 +50,8 @@ func NewHashDB(rootnode []byte, swarmdb SwarmDB) (*HashDB, error) {
 	hd := new(HashDB)
 	n := NewNode(nil, nil)
 	n.Root = true
-	if rootnode == nil{
-	}else{
+	if rootnode == nil {
+	} else {
 		n.NodeHash = rootnode
 	}
 	hd.rootnode = n
@@ -130,11 +131,11 @@ func newRootNode(k []byte, val Val, l int, version int, NodeKey []byte) *Node {
 	return rootnode
 }
 
-func (self *HashDB)Open(owner, tablename, columnname []byte)(bool, error){
+func (self *HashDB) Open(owner, tablename, columnname []byte) (bool, error) {
 	return true, nil
 }
 
-func (self *HashDB)Put(k, v[]byte) (bool, error){
+func (self *HashDB) Put(k, v []byte) (bool, error) {
 	self.rootnode.Add(k, v, self.swarmdb)
 	return true, nil
 }
@@ -297,10 +298,10 @@ func (self *Node) storeBinToNetwork(swarmdb SwarmDB) []byte {
 	return adhash
 }
 
-func (self *HashDB)Get(k []byte)([]byte, bool, error){
-	ret := self.rootnode.Get(k, self.swarmdb) 
+func (self *HashDB) Get(k []byte) ([]byte, bool, error) {
+	ret := self.rootnode.Get(k, self.swarmdb)
 	b := true
-	if ret == nil{
+	if ret == nil {
 		b = false
 		var err *KeyNotFoundError
 		return nil, b, err
@@ -389,9 +390,9 @@ func (self *Node) load(swarmdb SwarmDB) {
 	log.Trace(fmt.Sprintf("hashdb Node Get load self: %v'", self))
 }
 
-func (self *HashDB)Insert(k, v []byte) (bool, error){
+func (self *HashDB) Insert(k, v []byte) (bool, error) {
 	res, b, _ := self.Get(k)
-	if res != nil || b{
+	if res != nil || b {
 		err := fmt.Errorf("%s is already in Database", string(k))
 		return false, err
 	}
@@ -473,18 +474,18 @@ func (self *Node) Update(updatekey []byte, updatevalue []byte) (newnode *Node, e
 	return self, err
 }
 
-func (self *HashDB) Close()(bool, error) {
+func (self *HashDB) Close() (bool, error) {
 	return true, nil
 }
 
-func (self *HashDB)StartBuffer()(bool, error){
+func (self *HashDB) StartBuffer() (bool, error) {
 	return true, nil
 }
 
-func(self *HashDB)FlushBuffer()(bool, error){
+func (self *HashDB) FlushBuffer() (bool, error) {
 	return true, nil
 }
 
-func (self *HashDB)Print(){
+func (self *HashDB) Print() {
 	return
 }

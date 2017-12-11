@@ -21,8 +21,8 @@ import (
 	"fmt"
 	//"strings"
 	//"sync"
-	"testing"
 	common "github.com/ethereum/go-ethereum/swarmdb"
+	"testing"
 )
 
 type testCase struct {

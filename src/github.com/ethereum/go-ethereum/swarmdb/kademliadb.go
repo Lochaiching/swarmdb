@@ -48,7 +48,7 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 	var mergedBodycontent []byte
 	mergedBodycontent = make([]byte, chunkSize)
 	copy(mergedBodycontent[:], metadataBody)
-	copy(mergedBodycontent[512:576], contentPrefix)
+	copy(mergedBodycontent[512:544], contentPrefix)
 	copy(mergedBodycontent[577:], value) // expected to be the encrypted body content
 
 	log.Debug("Merged Body Content: [%v]", mergedBodycontent)
@@ -57,7 +57,7 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 
 func (self *KademliaDB) Put(k []byte, v []byte) ([]byte, error) {
 	sdata := self.buildSdata(k, v)
-	hashVal := sdata[512:576]
+	hashVal := sdata[512:544] // 32 bytes
 	_ = self.swarmdb.StoreKDBChunk(hashVal, sdata)
 	return hashVal, nil
 }

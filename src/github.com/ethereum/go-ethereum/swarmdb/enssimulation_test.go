@@ -1,10 +1,10 @@
 package common_test
 
 import (
-	"fmt"
 	"bytes"
-	"testing" 
+	"fmt"
 	common "github.com/ethereum/go-ethereum/swarmdb"
+	"testing"
 )
 
 func TestENSSimulation(t *testing.T) {
@@ -18,7 +18,7 @@ func TestENSSimulation(t *testing.T) {
 
 	val, err := store.GetIndexRootHash(indexName)
 	if err != nil {
-	} 
+	}
 	if bytes.Compare(val, roothash) != 0 {
 		t.Fatal("Err1", indexName, roothash, val)
 	} else {

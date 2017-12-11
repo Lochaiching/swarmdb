@@ -22,6 +22,7 @@ func getSwarmDB(t *testing.T) (a common.SwarmDB) {
 	swarmdb := common.NewSwarmDB()
 	return *swarmdb
 }
+
 // ./bplus_test.go:26:26: cannot use "github.com/ethereum/go-ethereum/swarmdb/common".NewSwarmDB() (type *"github.com/ethereum/go-ethereum/swarmdb/common".SwarmDB) as type "github.com/ethereum/go-ethereum/swarmdb/common".SwarmDB in return argument
 func TestPutInteger(t *testing.T) {
 

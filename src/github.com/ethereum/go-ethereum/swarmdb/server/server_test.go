@@ -25,7 +25,6 @@ func testTCPIPServer(t *testing.T, f func(*server.TCPIPServer)) {
 	f(svr)
 }
 
-<<<<<<< HEAD:src/github.com/ethereum/go-ethereum/swarmdb/server/server_test.go
 func TestCreateTable(t *testing.T) {
 	testTCPIPServer(t, func(svr *server.TCPIPServer) {
 		// send JSON messages into TCPIPServer 

@@ -1,14 +1,12 @@
 package common
 
 import (
-	//	"fmt"
-	"strconv"
-	"encoding/json"
-	//	"sync"
 	"bytes"
-	// leaf "github.com/ethereum/go-ethereum/swarmdb/leaf"
+	"encoding/json"
+	//"os"
+	"fmt"
+	"strconv"
 )
-
 
 func NewSwarmDB() *SwarmDB {
 	sd := new(SwarmDB)
@@ -39,7 +37,6 @@ func NewSwarmDB() *SwarmDB {
 	return sd
 }
 
-
 // DBChunkStore  API
 func (self *SwarmDB) RetrieveKDBChunk(key []byte) (val []byte, err error) {
 	return self.dbchunkstore.RetrieveKChunk(key)
@@ -63,15 +60,16 @@ func (self *SwarmDB) StoreIndexRootHash(indexName []byte, roothash []byte) (err 
 }
 
 // Table
-func (self SwarmDB) NewTable(tablename string) *Table {
+func (self SwarmDB) NewTable(ownerID string, tablename string) *Table {
 	t := new(Table)
 	t.swarmdb = self
+	t.ownerID = ownerID
 	t.tablename = tablename
 	t.indexes = make(map[string]*IndexInfo)
 	return t
 }
 
-func (t *Table) CreateTable(tablename string, option []TableOption) (err error) {
+func (t *Table) CreateTable(option []TableOption) (err error) {
 	buf := make([]byte, 4096)
 	for i, columninfo := range option {
 		copy(buf[2048+i*64:], columninfo.Index)
@@ -80,16 +78,15 @@ func (t *Table) CreateTable(tablename string, option []TableOption) (err error) 
 		copy(buf[2048+i*64+28:], strconv.Itoa(columninfo.KeyType))
 		copy(buf[2048+i*64+30:], columninfo.TreeType)
 	}
-	// need to store KDB??
 	swarmhash, err := t.swarmdb.StoreDBChunk(buf)
 	if err != nil {
 		return
 	}
-	err = t.swarmdb.StoreIndexRootHash([]byte(tablename), []byte(swarmhash))
+	err = t.swarmdb.StoreIndexRootHash([]byte(t.tablename), []byte(swarmhash))
 	return err
 }
 
-func (t *Table) OpenTable(tablename string) (err error) {
+func (t *Table) OpenTable() (err error) {
 	t.indexes = make(map[string]*IndexInfo)
 	/// get Table RootHash to  retrieve the table descriptor
 	roothash, err := t.swarmdb.GetIndexRootHash([]byte(t.tablename))
@@ -149,12 +146,18 @@ func (t *Table) Put(value string) (err error) {
 		//return err
 	}
 	pvalue := evalue.(map[string]interface{})[t.primary]
-	
-	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tablename), []byte(t.primary))
-	khash, err := t.swarmdb.kaddb.Put([]byte(pvalue.(string)), []byte(value))
 
+	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tablename), []byte(t.primary))
+	fmt.Printf("KADDB Open - OwnerID: [%s] Table: [%s] Primary: %v => (%v)\n", t.ownerID, t.tablename, t.primary, pvalue.(string))
+	khash, err := t.swarmdb.kaddb.Put([]byte(pvalue.(string)), []byte(value))
 	// PRIMARY INDEX ONLY -- need to put every indexes but currently added only for the primary index
+	fmt.Printf(" primary: %v dbaccess: %v  k: %v v(%d bytes): %v\n", t.primary, t.indexes[t.primary].dbaccess, pvalue.(string), len(khash), khash)
 	_, err = t.indexes[t.primary].dbaccess.Put([]byte(pvalue.(string)), []byte(khash))
+	switch x := t.indexes[t.primary].dbaccess.(type) {
+	case (*Tree):
+		fmt.Printf("B+ tree Print\n")
+		x.Print()
+	}
 	return err
 }
 
@@ -254,4 +257,3 @@ func (t *Table) updateTableInfo() (err error) {
 	err = t.swarmdb.StoreIndexRootHash([]byte(t.tablename), []byte(swarmhash))
 	return err
 }
-

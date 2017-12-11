@@ -261,8 +261,9 @@ func parseData(data string) (*common.RequestOption, error) {
 }
 
 func (svr *TCPIPServer) NewConnection() (err error){
+	ownerID := "owner1"
 	tableName := "testtable"
-	svr.swarmdb.NewTable(tableName)
+	svr.swarmdb.NewTable(ownerID, tableName)
 	// svr.table = table
 
 	return nil

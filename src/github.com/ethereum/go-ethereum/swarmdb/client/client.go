@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/swarmdb/common"
+	common "github.com/ethereum/go-ethereum/swarmdb"
 	"github.com/xwb1989/sqlparser"
 	"strings"
 )
@@ -51,17 +51,17 @@ func CreateTable(treetype string, table string, index string, columntype map[str
 	var primarycol common.TableOption
 	primarycol.TreeType = treetype
 	primarycol.Index = index
-	primarycol.IndexType = columntype[index]
+	//primarycol.IndexType = columntype[index]
 	primarycol.Primary = 1
 	req.TableOptions = append(req.TableOptions, primarycol)
 
 	//secondary key calls
-	for col, coltype := range columntype {
+	for col, _ := range columntype {
 		if col != index {
 			var secondarycol common.TableOption
 			secondarycol.TreeType = treetype
 			secondarycol.Index = col
-			secondarycol.IndexType = coltype
+			//secondarycol.IndexType = coltype
 			secondarycol.Primary = 0
 			req.TableOptions = append(req.TableOptions, secondarycol)
 		}

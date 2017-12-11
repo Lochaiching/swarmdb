@@ -3,8 +3,8 @@ package common_test
 import (
 	//"errors"
 	"fmt"
-	"testing"
 	"math/rand"
+	"testing"
 
 	common "github.com/ethereum/go-ethereum/swarmdb"
 )
@@ -49,8 +49,5 @@ func TestPutInteger(t *testing.T) {
 		t.Fatal(h, err2)
 	}
 	fmt.Printf("Get(1): [%s]\n", string(h))
-	
+
 }
-
-
-

@@ -4,13 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	//storage "github.com/ethereum/go-ethereum/swarmdb/storage"
-	ethcommon "github.com/ethereum/go-ethereum/common"
 	"database/sql"
-	"sync"
-	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"fmt"
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"math"
 	"math/big"
+	"sync"
 	"time"
 )
 
@@ -40,12 +40,11 @@ type DBChunkstore struct {
 	launchDT time.Time
 	lwriteDT time.Time
 	logDT    time.Time
-
 }
 
 type ENSSimulation struct {
-	filepath  string
-	db        *sql.DB
+	filepath string
+	db       *sql.DB
 }
 
 type KademliaDB struct {
@@ -56,13 +55,11 @@ type KademliaDB struct {
 	column    []byte
 }
 
-
 type SwarmDB struct {
 	tables       map[string]map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
-	kaddb       *KademliaDB
-
+	kaddb        *KademliaDB
 }
 
 type IndexInfo struct {
@@ -90,10 +87,8 @@ type DBChunkstorage interface {
 	StoreDBChunk(val []byte) (key []byte, err error)
 }
 
-
 type Database interface {
-
-	GetRootHash() ([]byte, error) 
+	GetRootHash() ([]byte, error)
 
 	// Insert: adds key-value pair (value is an entire recrod)
 	// ok - returns true if new key added
@@ -238,7 +233,6 @@ type TableOption struct {
 	Primary  int    `json:"primary,omitempty"`
 }
 
-
 type TableNotExistError struct {
 }
 
@@ -295,21 +289,19 @@ func (t *BufferOverflowError) Error() string {
 	return fmt.Sprintf("Buffer overflow error")
 }
 
-type RequestFormatError struct{
+type RequestFormatError struct {
 }
 
 func (t *RequestFormatError) Error() string {
 	return fmt.Sprintf("Request format error")
 }
 
-type NoColumnError struct{
+type NoColumnError struct {
 }
 
-func (t *NoColumnError) Error() string{
+func (t *NoColumnError) Error() string {
 	return fmt.Sprintf("No column --- in the table")
 }
-
-
 
 func (self SwarmDB) RetrieveDBChunk(key []byte) (val []byte, err error) {
 	val, err = self.dbchunkstore.RetrieveChunk(key)
@@ -320,4 +312,3 @@ func (self SwarmDB) StoreDBChunk(val []byte) (key []byte, err error) {
 	key, err = self.dbchunkstore.StoreChunk(val)
 	return key, err
 }
-

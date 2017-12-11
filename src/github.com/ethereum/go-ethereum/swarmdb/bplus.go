@@ -19,12 +19,13 @@ type Tree struct {
 	last  *d
 	r     interface{}
 	ver   int64
-	
+
 	swarmdb  DBChunkstorage
 	buffered bool
 	keyType  KeyType
 	hashid   []byte
 }
+
 const (
 	kx             = 3
 	kd             = 3
@@ -135,7 +136,6 @@ func (p *btEpool) get(err error, hit bool, i int, k []byte /*K*/, q *d, t *Tree,
 	x.err, x.hit, x.i, x.k, x.q, x.t, x.ver = err, hit, i, k, q, t, ver
 	return x
 }
-
 
 var ( // R/O zero values
 	zd  d
@@ -868,7 +868,7 @@ func (q *x) print(keytype KeyType, level int) {
 	fmt.Printf("XNode %x [c=%d] (LEVEL %d) [dirty=%v|notloaded=%v]\n", q.hashid, q.c, level, q.dirty, q.notloaded)
 	for i := 0; i <= q.c; i++ {
 		print_spaces(level + 1)
-		fmt.Printf("Child %d|%v\n", i, level+1) 
+		fmt.Printf("Child %d|%v\n", i, level+1)
 		switch z := q.x[i].ch.(type) {
 		case *x:
 			z.print(keytype, level+1)
@@ -954,7 +954,7 @@ func (t *Tree) Seek(key []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err err
 }
 
 func (t *Tree) Put(key []byte /*K*/, v []byte /*V*/) (okresult bool, err error) {
-
+	fmt.Printf(" -- B+ Tree Put: %s => %s\n", KeyToString(t.keyType, key), ValueToString(v))
 	k := make([]byte, K_SIZE)
 	copy(k, key)
 
