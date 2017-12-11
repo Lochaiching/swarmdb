@@ -1,6 +1,7 @@
 package syslog
 
 import (
+	"fmt"
 	"log/syslog"
 )
 
