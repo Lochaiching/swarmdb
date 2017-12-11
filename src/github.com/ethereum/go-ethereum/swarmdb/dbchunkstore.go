@@ -17,6 +17,12 @@ import (
 	"time"
 )
 
+var (
+    netCounter NetstatFile
+)
+
+
+
 type DBChunk struct {
 	Key         []byte // 32
 	Val         []byte // 4096
@@ -28,14 +34,7 @@ type DBChunk struct {
 	StoreDT     int64
 }
 
-type netstatFile struct {
-	NodeID        string
-	WalletAddress string
-	Claims        map[string]string
-	LaunchDT      time.Time
-	LWriteDT      time.Time
-	LogDT         time.Time
-}
+
 
 type ChunkStat struct {
 	CurrentTS   int64 `json:"CurrentTS`
@@ -45,13 +44,20 @@ type ChunkStat struct {
 }
 
 func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
-	var file = &netstatFile{
-		NodeID:        self.nodeid,
-		WalletAddress: self.farmer.Hex(),
-		Claims:        make(map[string]string),
-		LaunchDT:      self.launchDT,
-		LogDT:         time.Now(),
-	}
+
+    fmt.Printf("self = %v\n", self)
+    var netStat = self.netstat
+    fmt.Printf("%v\n", netStat)
+
+    var file = &NetstatFile{
+        NodeID:        netCounter.NodeID,
+        WalletAddress: self.farmer.Hex(),
+        Claims:        make(map[string]string),
+        LaunchDT:      netCounter.LaunchDT,
+        LReadDT:       netCounter.LReadDT,
+        LWriteDT:      netCounter.LWriteDT,
+        LogDT:         time.Now(),
+    }
 	for ticket, reward := range self.claims {
 		file.Claims[ticket] = reward.String()
 	}
@@ -59,17 +65,19 @@ func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
 }
 
 func (self *DBChunkstore) UnmarshalJSON(data []byte) error {
-	var file netstatFile
+	var file NetstatFile
 	err := json.Unmarshal(data, &file)
 	if err != nil {
 		fmt.Println(err)
 		return err
 	}
-
-	self.launchDT = file.LaunchDT
-	self.logDT = file.LogDT
-	self.lwriteDT = file.LWriteDT
-	self.nodeid = file.NodeID
+    
+	netCounter.LaunchDT = file.LaunchDT
+    netCounter.LReadDT = file.LReadDT
+	netCounter.LWriteDT = file.LWriteDT
+	netCounter.LogDT = file.LogDT
+    netCounter.NodeID = file.NodeID
+    
 	self.farmer = ethcommon.HexToAddress(file.WalletAddress)
 
 	var ok bool
@@ -139,27 +147,28 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 		return nil, err
 	}
 
-	walletAddr := ethcommon.HexToAddress("0x56ad284968f2c2edb44c1380411c2c3b12b26c3f")
+    nodeid := "abcd"
+    userWallet := "0x56ad284968f2c2edb44c1380411c2c3b12b26c3f"
+	walletAddr := ethcommon.HexToAddress(userWallet)
 
-	self = &DBChunkstore{
-		db:       db,
-		km:       &km,
-		filepath: path,
-		statpath: "netstat.json",
-		nodeid:   "1234",
-		farmer:   walletAddr,
-		claims:   claims,
-		chunkR:   0,
-		chunkW:   0,
-		chunkS:   0,
-		chunkRL:  0,
-		chunkWL:  0,
-		chunkSL:  0,
-		launchDT: time.Now(),
-		lwriteDT: time.Now(),
-		logDT:    time.Now(),
-	}
+    netCounter.LaunchDT = time.Now()
+    netCounter.NodeID = nodeid
 
+    netstat := NetstatFile{
+        NodeID: netCounter.NodeID,
+        WalletAddress: userWallet,
+        LaunchDT: netCounter.LaunchDT,
+    }
+    
+    self = &DBChunkstore{
+        db:       db,
+        km:       &km,
+        farmer:   walletAddr,
+        claims:   claims,
+        netstat:  &netstat,
+        filepath: path,
+        statpath: "netstat.json",
+    }
 	return
 }
 
@@ -174,8 +183,13 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 
 	}
 
-	self = &DBChunkstore{}
-	err = json.Unmarshal(data, self)
+    self = new(DBChunkstore)
+    self.netstat = new(NetstatFile)
+    err = json.Unmarshal(data, &self)
+	//err = json.Unmarshal(data, self.netstat)
+    //self.farmer = ethcommon.HexToAddress(self.netstat.WalletAddress)
+    fmt.Printf("Local netStat: %v", netCounter)
+
 	if err != nil {
 		fmt.Printf("Error in Parsing netStat new Log created\n => %s\n", err)
 		self, _ = NewDBChunkStore(path)
@@ -229,6 +243,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 		return (err2)
 	}
 	stmt.Close()
+    netCounter.LWriteDT = time.Now()
 	return nil
 }
 
@@ -260,7 +275,7 @@ func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
 		return k, err2
 	}
 	stmt.Close()
-	self.lwriteDT = time.Now()
+    netCounter.LWriteDT = time.Now()
 	return k, nil
 }
 
@@ -293,6 +308,7 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 		decVal = bytes.TrimRight(decVal, "\x00")
 		return decVal, nil
 	}
+    netCounter.LReadDT = time.Now()
 	return val, nil
 }
 
@@ -322,6 +338,7 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 		decVal := self.km.DecryptData(val)
 		return decVal, nil
 	}
+    netCounter.LReadDT = time.Now()
 	return val, nil
 }
 
@@ -416,6 +433,7 @@ func (self *DBChunkstore) ScanAll() (err error) {
 		return err2
 	}
 	stmt.Close()
+    netCounter.LReadDT = time.Now()
 	return nil
 }
 
