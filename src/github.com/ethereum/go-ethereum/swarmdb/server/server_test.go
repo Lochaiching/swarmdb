@@ -25,6 +25,7 @@ func testTCPIPServer(t *testing.T, f func(*server.TCPIPServer)) {
 	f(svr)
 }
 
+<<<<<<< HEAD:src/github.com/ethereum/go-ethereum/swarmdb/server/server_test.go
 func TestCreateTable(t *testing.T) {
 	testTCPIPServer(t, func(svr *server.TCPIPServer) {
 		// send JSON messages into TCPIPServer 
@@ -42,6 +43,19 @@ func TestCreateTable(t *testing.T) {
 		fmt.Printf("Get %s %v \n", string(res), err)
 		fres, ferr := svr.Get("testindex1", "value2", "testconnection")
 		fmt.Printf("Get %s %v \n", string(fres), ferr)
+		fberr := svr.StartBuffer("testconnection")
+		if fberr == nil{
+			fmt.Printf("StartBuffer \n")
+		}else {
+			fmt.Printf("StartBuffer err = %v\n", fberr)
+		}
+			
+		fberr = svr.FlushBuffer("testconnection")
+		if fberr == nil{
+			fmt.Printf("FlushBuffer \n")
+		}else {
+			fmt.Printf("FlushBuffer err = %v\n", fberr)
+		}
 		//svr.CloseTable()
 */
 	})
