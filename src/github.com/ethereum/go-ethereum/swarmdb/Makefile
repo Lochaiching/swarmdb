@@ -4,35 +4,35 @@
 all:
 	@echo "test all."
 	@echo "test enssimulation."
-	-go test ../swarm/storage/enssimulation_test.go
+	-go test ./enssimulation_test.go
 	@echo "test dbchunkstore."
-	-go test ../swarm/storage/dbchunkstore_test.go
+	-go test ./dbchunkstore_test.go
 	@echo "test server."
-	-go test ../swarm/api/tcpip/server_test.go
+	-go test ./server/server_test.go
 	@echo "test keymanager."
 	-go test ./keymanager/keymanager_test.go
 	@echo "test bplus."
-	-go test ./tree/bplus_test.go
+	-go test ./bplus_test.go
 	@echo "test client."
 	-go test ./client/client_test.go
 	@echo "test kademliadb."
-	-go test ./leaf/kademliadb_test.go
+	-go test ./kademliadb_test.go
 	@echo "test hashdb."
-	-go test ./tree/hashdb_test.go
+	-go test ./hashdb_test.go
 	@echo "test netstat."
 	-go test ../swarm/storage/netStat_test.go
 
 enssimulation:
 	@echo "test enssimulation."
-	go test ../swarm/storage/enssimulation_test.go
+	go test ./enssimulation_test.go
 
 dbchunkstore:
 	@echo "test dbchunkstore."
-	go test ../swarm/storage/dbchunkstore_test.go
+	go test ./dbchunkstore_test.go
 
 server:
 	@echo "test server."
-	go test ../swarm/api/tcpip/server.go ../swarm/api/tcpip/server_test.go
+	go test ../swarm/api/tcpip/server_test.go
 
 keymanager:
 	@echo "test keymanager."
@@ -40,7 +40,7 @@ keymanager:
 
 bplus:
 	@echo "test bplus."
-	go test ./tree/bplus_test.go
+	go test bplus_test.go
 
 client:
 	@echo "test client."
@@ -48,11 +48,11 @@ client:
 
 kademliadb:
 	@echo "test kademliadb."
-	go test ./leaf/kademliadb_test.go
+	go test kademliadb_test.go
 
 hashdb:
 	@echo "test hashdb."
-	go test ./tree/hashdb_test.go
+	go test hashdb_test.go
 
 netstat:
 	@echo "test netstat."

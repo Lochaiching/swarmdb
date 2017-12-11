@@ -3,9 +3,93 @@ package common
 import (
 	"crypto/sha256"
 	"encoding/binary"
+	//storage "github.com/ethereum/go-ethereum/swarmdb/storage"
+	ethcommon "github.com/ethereum/go-ethereum/common"
+	"database/sql"
+	"sync"
+	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"fmt"
 	"math"
+	"math/big"
+	"time"
 )
+
+type DBChunkstore struct {
+	db *sql.DB
+	km *keymanager.KeyManager
+
+	//file directory
+	filepath string
+	statpath string
+
+	//persisted fields
+	nodeid string
+	farmer ethcommon.Address
+	claims map[string]*big.Int
+
+	//persisted stats
+	chunkR int64
+	chunkW int64
+	chunkS int64
+
+	//temp fields
+	chunkRL int64
+	chunkWL int64
+	chunkSL int64
+
+	launchDT time.Time
+	lwriteDT time.Time
+	logDT    time.Time
+
+}
+
+type ENSSimulation struct {
+	filepath  string
+	db        *sql.DB
+}
+
+type KademliaDB struct {
+	swarmdb   *SwarmDB
+	mutex     sync.Mutex
+	owner     []byte
+	tableName []byte
+	column    []byte
+}
+
+
+type SwarmDB struct {
+	tables       map[string]map[string]*Table
+	dbchunkstore *DBChunkstore // Sqlite3 based
+	ens          ENSSimulation
+	kaddb       *KademliaDB
+
+}
+
+type IndexInfo struct {
+	indexname string
+	indextype string
+	roothash  []byte
+	dbaccess  Database
+	active    int
+	primary   int
+	keytype   int
+}
+
+type Table struct {
+	swarmdb   SwarmDB
+	tablename string
+	ownerID   string
+	roothash  []byte
+	indexes   map[string]*IndexInfo
+	primary   string
+	counter   int //// not supported yet.
+}
+
+type DBChunkstorage interface {
+	RetrieveDBChunk(key []byte) (val []byte, err error)
+	StoreDBChunk(val []byte) (key []byte, err error)
+}
+
 
 type Database interface {
 
@@ -224,3 +308,16 @@ type NoColumnError struct{
 func (t *NoColumnError) Error() string{
 	return fmt.Sprintf("No column --- in the table")
 }
+
+
+
+func (self SwarmDB) RetrieveDBChunk(key []byte) (val []byte, err error) {
+	val, err = self.dbchunkstore.RetrieveChunk(key)
+	return val, err
+}
+
+func (self SwarmDB) StoreDBChunk(val []byte) (key []byte, err error) {
+	key, err = self.dbchunkstore.StoreChunk(val)
+	return key, err
+}
+

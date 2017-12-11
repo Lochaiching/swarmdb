@@ -1,19 +1,12 @@
-package swarmdb
+package common
 
 import (
-	//	"encoding/binary"
 	"fmt"
-	//	"github.com/ethereum/go-ethereum/common"
-	//	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/swarm/api"
-	//"github.com/ethereum/go-ethereum/swarm/storage"
-	//	"io"
-	//	"reflect"
+	// "github.com/ethereum/go-ethereum/swarmdb/common"
 	"crypto/sha256"
 	"strconv"
-	//"strings"
-	"sync"
+	//"sync"
 	"time"
 )
 
@@ -21,17 +14,9 @@ const (
 	chunkSize = 4096
 )
 
-type KademliaDB struct {
-	api       *api.Api
-	mutex     sync.Mutex
-	owner     []byte
-	tableName []byte
-	column    []byte
-}
-
-func NewKademliaDB(api *api.Api) (*KademliaDB, error) {
+func NewKademliaDB(swarmdb *SwarmDB) (*KademliaDB, error) {
 	kd := new(KademliaDB)
-	kd.api = api
+	kd.swarmdb = swarmdb
 	return kd, nil
 }
 
@@ -73,7 +58,7 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 func (self *KademliaDB) Put(k []byte, v []byte) ([]byte, error) {
 	sdata := self.buildSdata(k, v)
 	hashVal := sdata[512:576]
-	_ = self.api.StoreKDBChunk(hashVal, sdata)
+	_ = self.swarmdb.StoreKDBChunk(hashVal, sdata)
 	return hashVal, nil
 }
 
@@ -88,7 +73,7 @@ func (self *KademliaDB) GetByKey(k []byte) ([]byte, bool, error) {
 }
 
 func (self *KademliaDB) Get(h []byte) ([]byte, bool, error) {
-	contentReader, err := self.api.RetrieveKDBChunk(h)
+	contentReader, err := self.swarmdb.RetrieveKDBChunk(h)
 	if err != nil {
 		log.Debug("key not found %s: %s", h, err)
 		return nil, false, fmt.Errorf("key not found: %s", err)

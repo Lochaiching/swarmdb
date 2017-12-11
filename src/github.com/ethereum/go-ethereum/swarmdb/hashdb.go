@@ -1,15 +1,14 @@
-package swarmdb
+package common
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
-	sdbcommon "github.com/ethereum/go-ethereum/swarmdb/common"
+	// ethcommon "github.com/ethereum/go-ethereum/common"
+	// common "github.com/ethereum/go-ethereum/swarmdb/common"
+	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/swarm/storage"
-	"github.com/ethereum/go-ethereum/swarm/api"
 	"io"
 	"reflect"
 	"strconv"
@@ -25,7 +24,7 @@ type hashNode Node
 
 type HashDB struct {
 	rootnode *Node
-	api      *api.Api
+	swarmdb  SwarmDB
 	mutex    sync.Mutex
 }
 
@@ -45,8 +44,8 @@ func (self *HashDB) GetRootHash() ([]byte, error) {
 	return self.rootnode.NodeHash, nil
 }
 
-func NewHashDB(rootnode []byte, api *api.Api) (*HashDB, error) {
-fmt.Println("In NewHashDB")
+func NewHashDB(rootnode []byte, swarmdb SwarmDB) (*HashDB, error) {
+	fmt.Println("In NewHashDB")
 	hd := new(HashDB)
 	n := NewNode(nil, nil)
 	if rootnode == nil{
@@ -55,8 +54,8 @@ fmt.Println("In NewHashDB")
 		n.NodeHash = rootnode
 	}
 	hd.rootnode = n
-	hd.api = api
-fmt.Println("NewHashDB = ", hd)
+	hd.swarmdb = swarmdb
+	fmt.Println("NewHashDB = ", hd)
 	return hd, nil
 }
 
@@ -136,7 +135,7 @@ func (self *HashDB)Open(owner, tablename, columnname []byte)(bool, error){
 }
 
 func (self *HashDB)Put(k, v[]byte) (bool, error){
-	self.rootnode.Add(k, v, self.api)
+	self.rootnode.Add(k, v, self.swarmdb)
 	return true, nil
 }
 
@@ -144,15 +143,15 @@ func (self *HashDB) GetRootNode() []byte {
 	return self.rootnode.NodeHash
 }
 
-func (self *Node) Add(k []byte, v Val, api *api.Api) {
+func (self *Node) Add(k []byte, v Val, swarmdb SwarmDB) {
 	log.Debug(fmt.Sprintf("HashDB Add ", self))
 	self.Version++
 	self.NodeKey = []byte("0")
-	self.add(NewNode(k, v), self.Version, self.NodeKey, api)
+	self.add(NewNode(k, v), self.Version, self.NodeKey, swarmdb)
 	return
 }
 
-func (self *Node) add(addnode *Node, version int, nodekey []byte, api *api.Api) (newnode *Node) {
+func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmDB) (newnode *Node) {
 	kh := keyhash(addnode.Key)
 	bin := hashbin(kh, self.Level)
 	log.Debug(fmt.Sprintf("hashdb add ", string(addnode.Key), bin, self.Version, string(self.NodeKey)))
@@ -160,7 +159,7 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, api *api.Api) 
 
 	log.Debug(fmt.Sprintf("hashdb add Next %v %v %v", self.Next, self.Root, self.Loaded))
 	if self.Loaded == false {
-		self.load(api)
+		self.load(swarmdb)
 		self.Loaded = true
 	}
 	log.Debug(fmt.Sprintf("hashdb add Next!! %v %v %v %v", self.Next, self.Root, self.Loaded, self.Bin[bin]))
@@ -170,9 +169,9 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, api *api.Api) 
 			log.Debug(fmt.Sprintf("hashdb add bin not nil %d %v", bin, self.Bin[bin].NodeHash))
 			newnodekey := string(self.NodeKey) + "|" + strconv.Itoa(bin)
 			if self.Bin[bin].Loaded == false {
-				self.Bin[bin].load(api)
+				self.Bin[bin].load(swarmdb)
 			}
-			self.Bin[bin] = self.Bin[bin].add(addnode, version, []byte(newnodekey), api)
+			self.Bin[bin] = self.Bin[bin].add(addnode, version, []byte(newnodekey), swarmdb)
 			var str string
 			for i, b := range self.Bin {
 				if b != nil {
@@ -195,9 +194,9 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, api *api.Api) 
 			log.Debug(fmt.Sprintf("hashdb add bin leaf Key %v %s %s %v", sdata, addnode.Key, addnode.Value, addnode.Key))
 			//rd := bytes.NewReader(sdata)
 			//wg := &sync.WaitGroup{}
-			//dhash, _ := api.Store(rd, int64(len(sdata)), wg, nil)
-			//dhash, _ := api.Store(rd, int64(len(sdata)), wg)
-			dhash, _ := api.StoreDBChunk(sdata)
+			//dhash, _ := swarmdb.Store(rd, int64(len(sdata)), wg, nil)
+			//dhash, _ := swarmdb.Store(rd, int64(len(sdata)), wg)
+			dhash, _ := swarmdb.StoreDBChunk(sdata)
 			//wg.Wait()
 			addnode.NodeHash = dhash
 			log.Debug(fmt.Sprintf("hashdb add bin leaf %d %v", bin, dhash))
@@ -217,8 +216,8 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, api *api.Api) 
 			log.Debug(fmt.Sprintf("hashdb add bin leaf Key %v %s %s %v", sdata, addnode.Key, addnode.Value, addnode.Key))
 			//rd := bytes.NewReader(sdata)
 			//wg := &sync.WaitGroup{}
-			//dhash, _ := api.Store(rd, int64(len(sdata)), wg)
-			dhash, _ := api.StoreDBChunk(sdata)
+			//dhash, _ := swarmdb.Store(rd, int64(len(sdata)), wg)
+			dhash, _ := swarmdb.StoreDBChunk(sdata)
 			//wg.Done()
 			addnode.NodeHash = dhash
 			addnode.Next = false
@@ -229,15 +228,9 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, api *api.Api) 
 		n := newRootNode(self.Key, self.Value, self.Level, version, self.NodeKey)
 		n.Next = true
 		n.Root = self.Root
-		n.add(addnode, version, self.NodeKey, api)
-		n.NodeHash = self.storeBinToNetwork(api)
-		//api.ldb.Put([]byte(n.NodeKey), n.NodeHash)
-/*
-		if n.Root {
-			api.ldb.Put([]byte("RootNode"), n.NodeHash)
-			fmt.Println("store rootnode ", self.NodeHash)
-		}
-*/
+		n.add(addnode, version, self.NodeKey, swarmdb)
+		n.NodeHash = self.storeBinToNetwork(swarmdb)
+		//swarmdb.Put([]byte(n.NodeKey), n.NodeHash)
 		n.Loaded = true
 		return n
 	}
@@ -247,12 +240,7 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, api *api.Api) 
 			svalue = svalue + "|" + strconv.Itoa(i)
 		}
 	}
-	self.NodeHash = self.storeBinToNetwork(api)
-/*
-	if self.Root {
-		api.ldb.Put([]byte("RootNode"), self.NodeHash)
-	}
-*/
+	self.NodeHash = self.storeBinToNetwork(swarmdb)
 	self.Loaded = true
 	return self
 }
@@ -281,7 +269,7 @@ func convertToByte(a Val) []byte {
 	return nil
 }
 
-func (self *Node) storeBinToNetwork(api *api.Api) []byte {
+func (self *Node) storeBinToNetwork(swarmdb SwarmDB) []byte {
 	storedata := make([]byte, 66*64)
 
 	if self.Next || self.Root {
@@ -304,32 +292,31 @@ func (self *Node) storeBinToNetwork(api *api.Api) []byte {
 	}
 	//rd := bytes.NewReader(storedata)
 	//wg := &sync.WaitGroup{}
-	//adhash, _ := api.Store(rd, int64(len(storedata)), wg, nil)
-	adhash, _ := api.StoreDBChunk(storedata)
+	adhash, _ := swarmdb.StoreDBChunk(storedata)
 	//wg.Wait()
 	return adhash
 }
 
 func (self *HashDB)Get(k []byte)([]byte, bool, error){
-	ret := self.rootnode.Get(k, self.api) 
+	ret := self.rootnode.Get(k, self.swarmdb) 
 	b := true
 	if ret == nil{
 		b = false
-		var err *sdbcommon.KeyNotFoundError
+		var err *KeyNotFoundError
 		return nil, b, err
 	}
 	value := convertToByte(ret)
 	return value, b, nil
 }
 
-func (self *Node) Get(k []byte, api *api.Api) Val {
+func (self *Node) Get(k []byte, swarmdb SwarmDB) Val {
 	kh := keyhash(k)
 	bin := hashbin(kh, self.Level)
 	log.Trace(fmt.Sprintf("hashdb Node Get: %d '%v %v'", bin, k, kh))
 
 	if self.Loaded == false {
 		log.Trace(fmt.Sprintf("hashdb Node Get NodeHash: %v", self.NodeHash))
-		self.load(api)
+		self.load(swarmdb)
 		self.Loaded = true
 	}
 
@@ -339,11 +326,11 @@ func (self *Node) Get(k []byte, api *api.Api) Val {
 	}
 	if self.Bin[bin].Loaded == false {
 		log.Trace(fmt.Sprintf("hashdb Node Get loaded false: %v' %d", bin, self.Bin[bin].NodeHash))
-		self.Bin[bin].load(api)
+		self.Bin[bin].load(swarmdb)
 	}
 	if self.Bin[bin].Next {
 		log.Trace(fmt.Sprintf("hashdb Node Get next: %v'", bin))
-		return self.Bin[bin].Get(k, api)
+		return self.Bin[bin].Get(k, swarmdb)
 	} else {
 		log.Trace(fmt.Sprintf("hashdb Node Get fin: %v %s %v %v'", k, k, self.Bin[bin].Value, self.Bin[bin].Value))
 		if compareVal(k, self.Bin[bin].Key) == 0 {
@@ -353,14 +340,9 @@ func (self *Node) Get(k []byte, api *api.Api) Val {
 	return nil
 }
 
-func (self *Node) load(api *api.Api) {
-	log.Trace(fmt.Sprintf("hashdb Node Get load: %v %s", self.NodeHash, common.Bytes2Hex(self.NodeHash)))
-/*
-	//reader := api.Retrieve(self.NodeHash)
-	buf := make([]byte, 4096)
-	offset, err := reader.Read(buf)
-*/
-	buf, err := api.RetrieveDBChunk(self.NodeHash)
+func (self *Node) load(swarmdb SwarmDB) {
+	//log.Trace(fmt.Sprintf("hashdb Node Get load: %v %s", self.NodeHash, Bytes2Hex(self.NodeHash)))
+	buf, err := swarmdb.RetrieveDBChunk(self.NodeHash)
 	lf := int64(binary.LittleEndian.Uint64(buf[0:8]))
 	//log.Trace(fmt.Sprintf("hashdb Node Get load: %d '%v %v'", offset, buf, err))
 	if err != nil && err != io.EOF {

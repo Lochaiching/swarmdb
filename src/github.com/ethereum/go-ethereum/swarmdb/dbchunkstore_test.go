@@ -1,14 +1,14 @@
-package storage
+package common_test
 
 import (
 	"bytes"
 	"fmt"
-	"github.com/ethereum/go-ethereum/swarm/storage"
+	common "github.com/ethereum/go-ethereum/swarmdb"
 	"testing"
 )
 
 func TestDBChunkStore(t *testing.T) {
-	store, err := storage.NewDBChunkStore("chunks.db")
+	store, err := common.NewDBChunkStore("chunks.db")
 	if err != nil {
 		t.Fatal("Failure to open NewDBChunkStore")
 	}

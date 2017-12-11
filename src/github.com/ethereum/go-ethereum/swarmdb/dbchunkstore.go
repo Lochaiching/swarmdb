@@ -1,4 +1,4 @@
-package storage
+package common
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/swarmdb/common"
+	// "github.com/ethereum/go-ethereum/swarmdb/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
@@ -17,33 +17,6 @@ import (
 	"time"
 )
 
-type DBChunkstore struct {
-	db *sql.DB
-	km *keymanager.KeyManager
-
-	//file directory
-	filepath string
-	statpath string
-
-	//persisted fields
-	nodeid string
-	farmer ethcommon.Address
-	claims map[string]*big.Int
-
-	//persisted stats
-	chunkR int64
-	chunkW int64
-	chunkS int64
-
-	//temp fields
-	chunkRL int64
-	chunkWL int64
-	chunkSL int64
-
-	launchDT time.Time
-	lwriteDT time.Time
-	logDT    time.Time
-}
 
 type DBChunk struct {
 	Key         []byte // 32
@@ -360,7 +333,7 @@ func valid_type(typ string) (valid bool) {
 	return false
 }
 
-func (self *DBChunkstore) PrintDBChunk(keytype common.KeyType, hashid []byte, c []byte) {
+func (self *DBChunkstore) PrintDBChunk(keytype KeyType, hashid []byte, c []byte) {
 	nodetype := string(c[4096-65 : 4096-64])
 	if valid_type(nodetype) {
 		fmt.Printf("Chunk %x ", hashid)
@@ -375,12 +348,12 @@ func (self *DBChunkstore) PrintDBChunk(keytype common.KeyType, hashid []byte, c 
 			n := make([]byte, 32)
 			copy(p, c[4096-64:4096-32])
 			copy(n, c[4096-64:4096-32])
-			if common.IsHash(p) {
+			if IsHash(p) {
 				fmt.Printf(" PREV: %x ", p)
 			} else {
 				fmt.Printf(" PREV: *NULL* ", p)
 			}
-			if common.IsHash(n) {
+			if IsHash(n) {
 				fmt.Printf("\tNEXT: %x ", n)
 			} else {
 				fmt.Printf("\tNEXT: *NULL* ", p)
@@ -395,9 +368,9 @@ func (self *DBChunkstore) PrintDBChunk(keytype common.KeyType, hashid []byte, c 
 	for i := 0; i < 32; i++ {
 		copy(k, c[i*64:i*64+32])
 		copy(v, c[i*64+32:i*64+64])
-		if common.EmptyBytes(k) && common.EmptyBytes(v) {
+		if EmptyBytes(k) && EmptyBytes(v) {
 		} else {
-			fmt.Printf(" %d:\t%s\t%s\n", i, common.KeyToString(keytype, k), common.ValueToString(v))
+			fmt.Printf(" %d:\t%s\t%s\n", i, KeyToString(keytype, k), ValueToString(v))
 		}
 	}
 	fmt.Printf("\n")

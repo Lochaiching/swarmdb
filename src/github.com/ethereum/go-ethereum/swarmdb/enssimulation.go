@@ -1,4 +1,4 @@
-package storage
+package common
 
 import (
 	"database/sql"
@@ -6,10 +6,6 @@ import (
 	// "time"
 )
 
-type ENSSimulation struct {
-	filepath  string
-	db        *sql.DB
-}
 
 func NewENSSimulation(path string) (ens ENSSimulation, err error) {
 	db, err := sql.Open("sqlite3", path)

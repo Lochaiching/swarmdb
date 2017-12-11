@@ -1,14 +1,10 @@
-package swarmdb
+package common_test
 
 import (
-	// "encoding/binary"
 	"bytes"
-	// "strings"
 	"fmt"
 	"github.com/cznic/mathutil"
-	"github.com/ethereum/go-ethereum/swarm/api"
-	"github.com/ethereum/go-ethereum/swarmdb/common"
-	"github.com/ethereum/go-ethereum/swarmdb/tree"
+	"github.com/ethereum/go-ethereum/swarmdb"
 	"math"
 	"math/rand"
 	"testing"
@@ -22,15 +18,16 @@ func rng() *mathutil.FC32 {
 	return x
 }
 
-func getAPI(t *testing.T) (a *api.Api) {
-	return api.NewApi(nil, nil)
+func getSwarmDB(t *testing.T) (a common.SwarmDB) {
+	swarmdb := common.NewSwarmDB()
+	return *swarmdb
 }
-
+// ./bplus_test.go:26:26: cannot use "github.com/ethereum/go-ethereum/swarmdb/common".NewSwarmDB() (type *"github.com/ethereum/go-ethereum/swarmdb/common".SwarmDB) as type "github.com/ethereum/go-ethereum/swarmdb/common".SwarmDB in return argument
 func TestPutInteger(t *testing.T) {
 
 	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
 	hashid := make([]byte, 32)
-	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
+	r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_INTEGER)
 
 	// write 20 values into B-tree (only kept in memory)
 	r.StartBuffer()
@@ -46,7 +43,7 @@ func TestPutInteger(t *testing.T) {
 	// r.Print()
 
 	hashid, _ = r.GetRootHash()
-	s := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
+	s := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_INTEGER)
 
 	g, ok, err := s.Get(common.IntToByte(8))
 	if !ok || err != nil {
@@ -75,7 +72,7 @@ func aTestPutString(t *testing.T) {
 	fmt.Printf("---- TestPutString: generate 20 strings and enumerate them\n")
 
 	hashid := make([]byte, 32)
-	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
+	r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_STRING)
 
 	r.StartBuffer()
 	vals := rand.Perm(20)
@@ -91,7 +88,7 @@ func aTestPutString(t *testing.T) {
 	// r.Print()
 
 	hashid, _ = r.GetRootHash()
-	s := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
+	s := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_STRING)
 	g, _, _ := s.Get([]byte("000008"))
 	fmt.Printf("Get(000008): %v\n", string(g))
 
@@ -113,7 +110,7 @@ func aTestPutFloat(t *testing.T) {
 	fmt.Printf("---- TestPutFloat: generate 20 floats and enumerate them\n")
 
 	hashid := make([]byte, 32)
-	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_FLOAT)
+	r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_FLOAT)
 
 	r.StartBuffer()
 	vals := rand.Perm(20)
@@ -129,7 +126,7 @@ func aTestPutFloat(t *testing.T) {
 	// r.Print()
 
 	hashid, _ = r.GetRootHash()
-	s := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_FLOAT)
+	s := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_FLOAT)
 	// ENUMERATOR
 	res, _, _ := s.Seek(common.FloatToByte(3.14159))
 	records := 0
@@ -141,7 +138,7 @@ func aTestPutFloat(t *testing.T) {
 
 func aTestSetGetString(t *testing.T) {
 	hashid := make([]byte, 32)
-	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
+	r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_STRING)
 
 	// put
 	key := []byte("42")
@@ -160,7 +157,7 @@ func aTestSetGetString(t *testing.T) {
 	hashid, _ = r.GetRootHash()
 
 	// r2 put
-	r2 := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
+	r2 := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_STRING)
 	val2 := common.SHA256("278")
 	r2.Put(key, val2)
 	//r2.Print()
@@ -176,7 +173,7 @@ func aTestSetGetString(t *testing.T) {
 	hashid, _ = r2.GetRootHash()
 
 	// r3 put
-	r3 := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_STRING)
+	r3 := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_STRING)
 	key2 := []byte("420")
 	val3 := common.SHA256("bbb")
 	r3.Put(key2, val3)
@@ -198,7 +195,7 @@ func aTestSetGetInt(t *testing.T) {
 	const N = 4
 	hashid := make([]byte, 32)
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
+		r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_INTEGER)
 
 		a := make([]int, N)
 		for i := range a {
@@ -256,7 +253,7 @@ func aTestSetGetInt(t *testing.T) {
 
 func aTestDelete0(t *testing.T) {
 	hashid := make([]byte, 32)
-	r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
+	r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_INTEGER)
 
 	key0 := common.IntToByte(0)
 	key1 := common.IntToByte(1)
@@ -322,7 +319,7 @@ func aTestDelete1(t *testing.T) {
 	hashid := make([]byte, 32)
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
+		r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_INTEGER)
 		a := make([]int, N)
 		for i := range a {
 			a[i] = (i ^ x) << 1
@@ -345,7 +342,7 @@ func aTestDelete2(t *testing.T) {
 	const N = 100
 	hashid := make([]byte, 32)
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := swarmdb.NewBPlusTreeDB(getAPI(t), hashid, common.KT_INTEGER)
+		r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.KT_INTEGER)
 		a := make([]int, N)
 		rng := rng()
 		for i := range a {
