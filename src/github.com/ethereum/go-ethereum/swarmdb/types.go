@@ -14,6 +14,7 @@ import (
 	"time"
 )
 
+/*
 type DBChunkstore struct {
 	db *sql.DB
 	km *keymanager.KeyManager
@@ -40,6 +41,30 @@ type DBChunkstore struct {
 	launchDT time.Time
 	lwriteDT time.Time
 	logDT    time.Time
+}
+
+*/
+
+
+type NetstatFile struct {
+    NodeID        string
+    WalletAddress string
+    Claims        map[string]string
+    LaunchDT      time.Time
+    LReadDT       time.Time
+    LWriteDT      time.Time
+    LogDT         time.Time
+}
+
+
+type DBChunkstore struct {
+    db *sql.DB
+    km *keymanager.KeyManager
+    farmer ethcommon.Address
+    claims map[string]*big.Int
+    netstat *NetstatFile
+    filepath string
+    statpath string
 }
 
 type ENSSimulation struct {
