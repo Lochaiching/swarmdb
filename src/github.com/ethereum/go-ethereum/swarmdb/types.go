@@ -8,6 +8,7 @@ import (
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
+	"github.com/ethereum/go-ethereum/swarmdb/log"
 	"math"
 	"math/big"
 	"strconv"
@@ -18,9 +19,12 @@ import (
 type NetstatFile struct {
 	NodeID        string
 	WalletAddress string
-	Claims        map[string]string
-	ChunkStats    map[string]string
-	CStat         map[string]*big.Int
+	Ticket        map[string]string
+	ChunkStat     map[string]string
+	ByteStat      map[string]string
+	CStat         map[string]*big.Int `json:"-"`
+	BStat         map[string]*big.Int `json:"-"`
+	Claim         map[string]*big.Int `json:"-"`
 	LaunchDT      time.Time
 	LReadDT       time.Time
 	LWriteDT      time.Time
@@ -31,7 +35,6 @@ type DBChunkstore struct {
 	db       *sql.DB
 	km       *keymanager.KeyManager
 	farmer   ethcommon.Address
-	claims   map[string]*big.Int
 	netstat  *NetstatFile
 	filepath string
 	statpath string
@@ -51,6 +54,7 @@ type KademliaDB struct {
 }
 
 type SwarmDB struct {
+	Logger       *swarmdblog.Logger
 	tables       map[string]map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
