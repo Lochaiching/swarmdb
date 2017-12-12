@@ -257,12 +257,11 @@ func (t *Tree) FlushBuffer() (ok bool, err error) {
 		new_hashid, changed := t.SWARMPut()
 		if changed {
 			t.hashid = new_hashid
-			// swarmdb.StoreIndexRootHash(t.tableName, []byte(new_hashid))
 			return true, nil
 		}
 	} else {
-		var nberr *NoBufferError
-		return false, nberr
+		//var nberr *NoBufferError
+		//return false, nberr
 	}
 	return true, nil
 }
@@ -275,8 +274,6 @@ func (t *Tree) check_flush() (ok bool) {
 	new_hashid, changed := t.SWARMPut()
 	if changed {
 		t.hashid = new_hashid
-		// fmt.Printf("check_flush changed new hash => %x\n", new_hashid)
-		// swarmdb.StoreIndexRootHash(t.tableName, []byte(new_hashid))
 		return true
 	}
 	return false
@@ -333,12 +330,14 @@ func (t *Tree) SWARMGet() (success bool) {
 	}
 	nodetype := get_chunk_nodetype(buf)
 	childtype := get_chunk_childtype(buf)
+	//fmt.Printf(" NODETYPE %v CHIDTYPE %v\n", nodetype, childtype)
 	// t.swarmdb.PrintDBChunk(t.keyType, t.hashid, buf)
 	if nodetype == "X" {
 		// create X node
 		t.r = btXPool.Get().(*x)
 		switch z := t.r.(type) {
 		case (*x):
+			z.hashid = t.hashid
 			for i := 0; i < KEYS_PER_CHUNK; i++ {
 				k := buf[i*KV_SIZE : i*KV_SIZE+K_SIZE]
 				hashid := buf[i*KV_SIZE+K_SIZE : i*KV_SIZE+KV_SIZE]
@@ -367,6 +366,7 @@ func (t *Tree) SWARMGet() (success bool) {
 		t.r = btDPool.Get().(*d)
 		switch z := t.r.(type) {
 		case (*d):
+			z.hashid = t.hashid
 			for i := 0; i < KEYS_PER_CHUNK; i++ {
 				k := buf[i*KV_SIZE : i*KV_SIZE+K_SIZE]
 				hashid := buf[i*KV_SIZE+K_SIZE : i*KV_SIZE+KV_SIZE]
@@ -416,33 +416,34 @@ func (q *x) SWARMGet(swarmdb DBChunkstorage) (changed bool) {
 	}
 
 	childtype := get_chunk_childtype(buf)
-	fmt.Printf("CHILDTYPE (%x) = [%s]\n", q.hashid, childtype)
 	for i := 0; i < KEYS_PER_CHUNK; i++ {
 		if i < 2*kx+2 {
 			k := buf[i*KV_SIZE : i*KV_SIZE+K_SIZE]
 			hashid := buf[i*KV_SIZE+K_SIZE : i*KV_SIZE+KV_SIZE]
-			if childtype == "X" {
-				// X|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
-				x := btXPool.Get().(*x)
-				q.x[i].ch = x
-				q.x[i].k = k
-				x.notloaded = true
-				x.hashid = hashid
-				fmt.Printf(" LOAD-X|%d|%s\n", i, x.hashid)
-			} else if childtype == "D" {
-				q.c++
-				// D|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
-				x := btDPool.Get().(*d)
-				q.x[i].ch = x
-				q.x[i].k = []byte(k)
-				x.notloaded = true
-				x.hashid = hashid
-				//fmt.Printf(" LOAD-D1|%d|%s\n", i, x.hashid)
+			if valid_hashid(hashid) {
+				if childtype == "X" {
+					// X|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
+					x := btXPool.Get().(*x)
+					q.x[i].ch = x
+					q.x[i].k = k
+					x.notloaded = true
+					x.hashid = hashid
+					//fmt.Printf(" LOAD-X|%d|%x\n", i, x.hashid)
+				} else if childtype == "D" {
+					q.c++
+					// D|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
+					x := btDPool.Get().(*d)
+					q.x[i].ch = x
+					q.x[i].k = []byte(k)
+					x.notloaded = true
+					x.hashid = hashid
+					//fmt.Printf(" LOAD-D1|%d|%x\n", i, x.hashid)
+				}
 			}
 		}
 	}
 	q.notloaded = false
-	fmt.Printf("SWARMGet X: [%x]\n", q.hashid)
+	//fmt.Printf("SWARMGet X: [%x]\n", q.hashid)
 	return true
 }
 
@@ -462,6 +463,7 @@ func (q *d) SWARMGet(swarmdb DBChunkstorage) (changed bool) {
 	for i := 0; i < KEYS_PER_CHUNK; i++ {
 		k := buf[i*KV_SIZE : i*KV_SIZE+K_SIZE]
 		hashid := buf[i*KV_SIZE+K_SIZE : i*KV_SIZE+KV_SIZE]
+		//fmt.Printf(" LOAD-C|%d (%d)|%x|%v\n", i, 2*kd+1, hashid, valid_hashid(hashid))
 		if valid_hashid(hashid) && (i < 2*kd+1) {
 			q.c++
 			q.d[i].k = k
@@ -539,7 +541,6 @@ func (q *x) SWARMPut(swarmdb DBChunkstorage, keytype KeyType) (new_hashid []byte
 		return q.hashid, false
 	}
 	q.hashid = new_hashid
-	// fmt.Printf("Stored X: %x [%v]\n", q.hashid)
 	// swarmdb.PrintDBChunk(keytype, q.hashid, sdata)
 	return new_hashid, true
 }
@@ -567,6 +568,7 @@ func (q *d) SWARMPut(swarmdb DBChunkstorage, keytype KeyType) (new_hashid []byte
 
 	sdata := make([]byte, CHUNK_SIZE)
 	for i := 0; i < q.c; i++ {
+		// fmt.Printf("STORE-C|%d|%s|%x\n", i, KeyToString(keytype, q.d[i].k), q.d[i].v)
 		copy(sdata[i*KV_SIZE:], q.d[i].k)        // max 32 bytes
 		copy(sdata[i*KV_SIZE+K_SIZE:], q.d[i].v) // max 32 bytes
 	}
@@ -581,13 +583,12 @@ func (q *d) SWARMPut(swarmdb DBChunkstorage, keytype KeyType) (new_hashid []byte
 	set_chunk_nodetype(sdata, "D")
 	set_chunk_childtype(sdata, "C")
 	new_hashid, err := swarmdb.StoreDBChunk(sdata)
-
 	if err != nil {
 		return q.hashid, false
 	}
 	q.hashid = new_hashid
-	// fmt.Printf("Stored D: %x\n", q.hashid)
-	// swarmdb.PrintDBChunk(keytype, q.hashid, sdata)
+	
+	//swarmdb.PrintDBChunk(keytype, q.hashid, sdata)
 	return new_hashid, true
 }
 
@@ -743,7 +744,7 @@ func (t *Tree) find(q interface{}, k []byte /*K*/) (i int, ok bool) {
 			// fmt.Printf("l %d h %d c:%d\n", l, h, x.c)
 			m := (l + h) >> 1
 			mk = x.x[m].k
-			//fmt.Printf(" x: m=%d t.cmp( k=%v,  mk=%v) = %d \n", m, k, mk, t.cmp(k, mk))
+			//fmt.Printf(" x node (c=%d): m=%d t.cmp( k=(%s),  mk=(%s)) = %d \n", x.c, m, KeyToString(t.keyType, k), KeyToString(t.keyType, mk), t.cmp(k, mk))
 			switch cmp := t.cmp(k, mk); {
 			case cmp > 0:
 				l = m + 1
@@ -758,7 +759,7 @@ func (t *Tree) find(q interface{}, k []byte /*K*/) (i int, ok bool) {
 		for l <= h {
 			m := (l + h) >> 1
 			mk = x.d[m].k
-			//fmt.Printf(" d: m=%d t.cmp( k=%v,  mk=%v) = %d \n", m, k, mk, t.cmp(k, mk))
+			//fmt.Printf(" d node (c=%d): m=%d t.cmp( k=(%s),  mk=(%s)) = %d \n", x.c, m,  KeyToString(t.keyType, k), KeyToString(t.keyType, mk), t.cmp(k, mk))
 			switch cmp := t.cmp(k, mk); {
 			case cmp > 0:
 				l = m + 1
@@ -796,6 +797,7 @@ func (t *Tree) Get(key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
 
 	k := make([]byte, K_SIZE)
 	copy(k, key)
+
 	for {
 		checkload(t.swarmdb, q)
 
@@ -809,16 +811,17 @@ func (t *Tree) Get(key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
 				q = x.x[i+1].ch
 				continue
 			case *d: // data node -- EXACT match
-				// kaddb.Get(t.dpa, x.d[i].v)
+				// fmt.Printf("*************** EUREKA %v\n", x.d[i].v)
 				return x.d[i].v, true, nil
 			}
 		}
 		// descend down the tree using the binary search
-
 		switch x := q.(type) {
 		case *x:
+			//fmt.Printf(" X not FOUND (%d) i:%d k:[%s]\n", i, t.keyType, KeyToString(t.keyType, k))
 			q = x.x[i].ch
 		default:
+			//fmt.Printf(" D not FOUND (%d) i:%d k:[%s]\n", i, t.keyType, KeyToString(t.keyType, k))
 			return zk, false, nil
 		}
 	}
@@ -854,10 +857,10 @@ func (t *Tree) Print() {
 
 	switch x := q.(type) {
 	case *x: // intermediate node -- descend on the next pass
-		fmt.Printf("ROOT Node %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
+		fmt.Printf("ROOT Node (X) [%x] [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
 		x.print(t.keyType, 0)
 	case *d: // data node -- EXACT match
-		fmt.Printf("ROOT Node %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
+		fmt.Printf("ROOT Node (D) [%x] [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
 		x.print(t.keyType, 0)
 	}
 	return
@@ -865,17 +868,20 @@ func (t *Tree) Print() {
 
 func (q *x) print(keytype KeyType, level int) {
 	print_spaces(level)
-	fmt.Printf("XNode %x [c=%d] (LEVEL %d) [dirty=%v|notloaded=%v]\n", q.hashid, q.c, level, q.dirty, q.notloaded)
-	for i := 0; i <= q.c; i++ {
-		print_spaces(level + 1)
-		fmt.Printf("Child %d|%v\n", i, level+1)
-		switch z := q.x[i].ch.(type) {
-		case *x:
-			z.print(keytype, level+1)
-		case *d:
-			z.print(keytype, level+1)
+	fmt.Printf("XNode (%x) [c=%d] (LEVEL %d) [dirty=%v|notloaded=%v]\n", q.hashid, q.c, level, q.dirty, q.notloaded)
+	if q.notloaded == false {
+		for i := 0; i <= q.c; i++ {
+			print_spaces(level + 1)
+			fmt.Printf("Child %d|%v (k:%v)\n", i, level+1, KeyToString(keytype, q.x[i].k))
+			switch z := q.x[i].ch.(type) {
+			case *x:
+				z.print(keytype, level+1)
+			case *d:
+				z.print(keytype, level+1)
+			}
 		}
 	}
+
 	return
 }
 
@@ -892,8 +898,9 @@ func (q *d) print(keytype KeyType, level int) {
 func (t *Tree) overflow(p *x, q *d, pi, i int, k []byte /*K*/, v []byte /*V*/) {
 	t.ver++
 	l, r := p.siblings(pi)
-
+	
 	if l != nil && l.c < 2*kd && i != 0 {
+		l.dirty = true
 		l.mvL(q, 1)
 		t.insert(q, i-1, k, v)
 		p.x[pi-1].k = q.d[0].k
@@ -901,6 +908,7 @@ func (t *Tree) overflow(p *x, q *d, pi, i int, k []byte /*K*/, v []byte /*V*/) {
 	}
 
 	if r != nil && r.c < 2*kd {
+		r.dirty = true
 		if i < 2*kd {
 			q.mvR(r, 1)
 			t.insert(q, i, k, v)
@@ -954,7 +962,7 @@ func (t *Tree) Seek(key []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err err
 }
 
 func (t *Tree) Put(key []byte /*K*/, v []byte /*V*/) (okresult bool, err error) {
-	fmt.Printf(" -- B+ Tree Put: %s => %s\n", KeyToString(t.keyType, key), ValueToString(v))
+	// fmt.Printf(" -- B+ Tree Put: %s => %s\n", KeyToString(t.keyType, key), ValueToString(v))
 	k := make([]byte, K_SIZE)
 	copy(k, key)
 

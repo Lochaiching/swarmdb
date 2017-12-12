@@ -11,6 +11,7 @@ import (
 	"math"
 	"math/big"
 	"sync"
+	"strconv"
 	"time"
 )
 
@@ -68,6 +69,7 @@ type IndexInfo struct {
 }
 
 type Table struct {
+	buffered  bool
 	swarmdb   SwarmDB
 	tablename string
 	ownerID   string
@@ -80,6 +82,7 @@ type Table struct {
 type DBChunkstorage interface {
 	RetrieveDBChunk(key []byte) (val []byte, err error)
 	StoreDBChunk(val []byte) (key []byte, err error)
+	PrintDBChunk(keytype KeyType, hashid []byte, c []byte)
 }
 
 type Database interface {
@@ -151,6 +154,28 @@ const (
 	TT_FULLTEXT   = 3
 	TT_FRACTALTREE    = 4
 )
+
+func convertStringToKey(keyType KeyType, key string) (k []byte) {
+	k = make([]byte, 32)
+	switch ( keyType ) {
+	case KT_INTEGER:
+		// convert using atoi to int
+		i, _ := strconv.Atoi(key)
+		k8 := IntToByte(i)  // 8 byte
+		copy(k, k8) // 32 byte
+	case KT_STRING:
+		copy(k, []byte(key))
+	case KT_FLOAT:
+		f, _ := strconv.ParseFloat(key, 64)
+		k8 := FloatToByte(f) // 8 byte
+			copy(k, k8) // 32 byte
+	case KT_BLOB:
+		// TODO: do this correctly with JSON treatment of binary 
+		copy(k, []byte(key))
+	}
+	return k
+}
+	
 
 func KeyToString(keytype KeyType, k []byte) (out string) {
 	switch keytype {
@@ -307,12 +332,3 @@ func (t *NoColumnError) Error() string {
 	return fmt.Sprintf("No column --- in the table")
 }
 
-func (self SwarmDB) RetrieveDBChunk(key []byte) (val []byte, err error) {
-	val, err = self.dbchunkstore.RetrieveChunk(key)
-	return val, err
-}
-
-func (self SwarmDB) StoreDBChunk(val []byte) (key []byte, err error) {
-	key, err = self.dbchunkstore.StoreChunk(val)
-	return key, err
-}

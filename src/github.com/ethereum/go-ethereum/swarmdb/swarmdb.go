@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	//"os"
 	"fmt"
-	"strconv"
+	// "strconv"
 )
 
 func NewSwarmDB() *SwarmDB {
@@ -46,8 +46,18 @@ func (self *SwarmDB) StoreKDBChunk(key []byte, val []byte) (err error) {
 	return self.dbchunkstore.StoreKChunk(key, val)
 }
 
-func (self *SwarmDB) PrintDBChunk(keytype KeyType, hashid []byte, c []byte) {
+func (self SwarmDB) PrintDBChunk(keytype KeyType, hashid []byte, c []byte) {
 	self.dbchunkstore.PrintDBChunk(keytype, hashid, c)
+}
+
+func (self SwarmDB) RetrieveDBChunk(key []byte) (val []byte, err error) {
+	val, err = self.dbchunkstore.RetrieveChunk(key)
+	return val, err
+}
+
+func (self SwarmDB) StoreDBChunk(val []byte) (key []byte, err error) {
+	key, err = self.dbchunkstore.StoreChunk(val)
+	return key, err
 }
 
 // ENSSimulation  API
@@ -96,8 +106,10 @@ func (t *Table) OpenTable() (err error) {
 	/// get Table RootHash to  retrieve the table descriptor
 	roothash, err := t.swarmdb.GetIndexRootHash([]byte(t.tablename))
 	if err != nil {
+		fmt.Printf("FAILED roothash\n")
 		return err
 	}
+	//fmt.Printf("Retrieve Root HASH: %v\n", roothash)
 	setprimary := false
 	indexdata, err := t.swarmdb.RetrieveDBChunk(roothash)
 	if err != nil {
@@ -105,7 +117,6 @@ func (t *Table) OpenTable() (err error) {
 	}
 	indexbuf := indexdata
 	for i := 2048; i < 4096; i = i + 64 {
-		//    if
 		buf := make([]byte, 64)
 		copy(buf, indexbuf[i:i+64])
 		if buf[0] == 0 {
@@ -119,7 +130,10 @@ func (t *Table) OpenTable() (err error) {
                 indexinfo.roothash =  buf[32:]
 		switch indexinfo.treetype {
 		case TT_BPLUSTREE:
-			indexinfo.dbaccess = NewBPlusTreeDB(t.swarmdb, indexinfo.roothash, KeyType(indexinfo.keytype))
+			//fmt.Printf("Opening BPlus %s (primary %v, keytype %d)  = %v\n", indexinfo.indexname, indexinfo.primary, indexinfo.keytype,  indexinfo.roothash)
+			bplustree := NewBPlusTreeDB(t.swarmdb, indexinfo.roothash, KeyType(indexinfo.keytype))
+			// bplustree.Print()
+			indexinfo.dbaccess = bplustree
 			if err != nil {
 				return err
 			}
@@ -142,28 +156,6 @@ func (t *Table) OpenTable() (err error) {
 	return nil
 }
 
-//Owner: X Table: contacts Index: Email Key: rodney@wolk.com VAL: { age: 20, loc: "sm", email: "rodney@wolk.com" }
-func convertStringToKey(keyType KeyType, key string) (k []byte) {
-	k = make([]byte, 32)
-	switch ( keyType ) {
-	case KT_INTEGER:
-		// convert using atoi to int
-		i, _ := strconv.Atoi(key)
-		k8 := IntToByte(i)  // 8 byte
-		copy(k, k8) // 32 byte
-	case KT_STRING:
-		copy(k, []byte(k))
-	case KT_FLOAT:
-		f, _ := strconv.ParseFloat(key, 64)
-		k8 := FloatToByte(f) // 8 byte
-			copy(k, k8) // 32 byte
-	case KT_BLOB:
-		// TODO: do this correctly with JSON treatment of binary 
-		copy(k, []byte(key))
-	}
-	return k
-}
-	
 func (t *Table) Put(value string) (err error) {
 	/// store value to kdb and get a hash
 	var evalue interface{}
@@ -173,19 +165,44 @@ func (t *Table) Put(value string) (err error) {
 
 	// TODO: make this robust!
 	pvalue := evalue.(map[string]interface{})[t.primary]
-	k := convertStringToKey(t.indexes[t.primary].keytype, pvalue.(string))
+	if pvalue == nil {
+		return fmt.Errorf("No primary key %s specified in input", t.primary)
+	} else {
+	}
+	k := make([]byte, 32)
+	switch svalue := pvalue.(type) {
+	case (string):
+		k = convertStringToKey(t.indexes[t.primary].keytype, svalue) 
+		// fmt.Printf("Primary %s KeyType: %v => %s so k:[%s]\n", t.primary, t.indexes[t.primary].keytype, svalue, k)
+	default:
+		fmt.Printf("Unknown Type: %v\n", pvalue)
+		
+	}
 
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tablename), []byte(t.primary))
-	fmt.Printf("KADDB Open - OwnerID: [%s] Table: [%s] Primary: %v => (%v)\n", t.ownerID, t.tablename, t.primary, pvalue.(string))
 	khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
-	// PRIMARY INDEX ONLY -- need to put every indexes but currently added only for the primary index
-	fmt.Printf(" primary: %v dbaccess: %v  k: %v v(%d bytes): %v\n", t.primary, t.indexes[t.primary].dbaccess, pvalue.(string), len(khash), khash)
+	// fmt.Printf("KADDB Key: %s => (value: %s)  hash(%v)", k, value, khash)
 	_, err = t.indexes[t.primary].dbaccess.Put(k, []byte(khash))
-	/*switch x := t.indexes[t.primary].dbaccess.(type) {
+	if err != nil {
+	}
+	if t.buffered {
+		//fmt.Printf("Buffered\n");
+	} else {
+		err = t.FlushBuffer()
+		if ( err != nil ) {
+			fmt.Printf("flushing err %v\n");
+		} else {
+			
+		}
+	}
+	/*
+	switch x := t.indexes[t.primary].dbaccess.(type) {
 	case (*Tree):
-		 fmt.Printf("B+ tree Print\n")
-		x.Print()
-	}*/
+		//fmt.Printf("B+ tree Print (%s)\n", value)
+		//x.Print()
+		//fmt.Printf("-------\n\n");
+	}
+	 */
 	return err
 }
 
@@ -217,15 +234,18 @@ func (t *Table) Get(key string) ([]byte, error) {
 		var cerr *NoColumnError
 		return nil, cerr
 	}
-	k := convertStringToKey(t.indexes[t.primary].keytype, key)
 
-	_, _, err := t.indexes[index].dbaccess.Get(k)
+	//fmt.Printf(" GET: primary %s => keytype: %d\n", index, t.indexes[t.primary].keytype)
+	k := convertStringToKey(t.indexes[t.primary].keytype, key)
+	//fmt.Printf(" k: %v\n", k)
+	
+	v, _, err := t.indexes[index].dbaccess.Get(k)
 	if err != nil {
 		return nil, err
 	}
-
+	//fmt.Printf(" GET RESULTv: %v\n", v)
 	// get value from kdb
-	kres, _, _ := t.swarmdb.kaddb.GetByKey([]byte(key))
+	kres, _, _ := t.swarmdb.kaddb.Get(v)
 	fres := bytes.Trim(kres, "\x00")
 	return fres, err
 }
@@ -247,6 +267,12 @@ func (t *Table) Delete(key string) (ok bool, err error) {
 }
 
 func (t *Table) StartBuffer() (err error) {
+	if t.buffered  {
+		t.FlushBuffer()
+	} else {
+		t.buffered = true
+	}
+
 	for _, ip := range t.indexes {
 		_, err := ip.dbaccess.StartBuffer()
 		if err != nil {
@@ -257,21 +283,29 @@ func (t *Table) StartBuffer() (err error) {
 }
 
 func (t *Table) FlushBuffer() (err error) {
+
 	for _, ip := range t.indexes {
 		_, err := ip.dbaccess.FlushBuffer()
 		if err != nil {
+			fmt.Printf(" ERR1 %v\n", err)
 			return err
 		}
 		roothash, err := ip.dbaccess.GetRootHash()
 		indexname := t.tablename + ":" + ip.indexname
 		ip.roothash = roothash
 		err = t.swarmdb.StoreIndexRootHash([]byte(indexname), roothash)
+		//fmt.Printf(" index: %s => %v\n", indexname, roothash)
 		if err != nil {
+			fmt.Printf(" ERR2 %v\n", err)
 			return err
 		}
 	}
 	err = t.updateTableInfo()
-	return err
+	if err != nil {
+		fmt.Printf(" err %v \n", err)
+		return err;
+	}
+	return nil
 }
 
 func (t *Table) updateTableInfo() (err error) {
@@ -296,8 +330,13 @@ func (t *Table) updateTableInfo() (err error) {
 	}
 	swarmhash, err := t.swarmdb.StoreDBChunk(buf)
 	if err != nil {
-		return
+		return err
 	}
 	err = t.swarmdb.StoreIndexRootHash([]byte(t.tablename), []byte(swarmhash))
-	return err
+	if err != nil {
+		return err
+	} else {
+		// fmt.Printf("Store [%s] => [%v]\n", t.tablename, swarmhash)
+	}
+	return nil
 }

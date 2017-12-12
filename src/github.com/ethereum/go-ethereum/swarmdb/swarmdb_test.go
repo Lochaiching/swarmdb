@@ -4,6 +4,7 @@ import (
 	"fmt"
 	common "github.com/ethereum/go-ethereum/swarmdb"
 	"testing"
+	//"os"
 	// "bytes"
 	"strings"
 	"github.com/cznic/mathutil"
@@ -34,7 +35,10 @@ func getSWARMDBTable(ownerID string, tableName string, primaryKey string, primar
 	}
 
 	// OpenTable
-	tbl.OpenTable()
+	err := tbl.OpenTable()
+	if ( err != nil ) {
+		fmt.Print("OPENTABLE ERR %v\n", err)
+	}
 	return tbl
 }
 
@@ -138,7 +142,7 @@ func aTestPutString(t *testing.T) {
 
 }
 
-func TestPutFloat(t *testing.T) {
+func aTestPutFloat(t *testing.T) {
 	fmt.Printf("---- TestPutFloat: generate 20 floats and enumerate them\n")
 
 	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_FLOAT, TEST_TABLE_TREETYPE, common.KT_FLOAT, true)
@@ -148,7 +152,7 @@ func TestPutFloat(t *testing.T) {
 	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
 		f := float64(i) + .3141519
-		v := fmt.Sprintf(`{"%s":"%s", "val":"valueof%06x"}`, TEST_PKEY_FLOAT, f, f)
+		v := fmt.Sprintf(`{"%s":"%f", "val":"valueof%06x"}`, TEST_PKEY_FLOAT, f, i)
 		// fmt.Printf("Insert %d %v %v\n", i, common.KeyToString(common.KT_FLOAT, k), string(v))
 		r.Put(v)
 	}
@@ -156,9 +160,9 @@ func TestPutFloat(t *testing.T) {
 	r.FlushBuffer()
 }
 
-func TestSetGetString(t *testing.T) {
+func aTestSetGetString(t *testing.T) {
 
-	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_FLOAT, TEST_TABLE_TREETYPE, common.KT_FLOAT, true)
+	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_TREETYPE, common.KT_FLOAT, true)
 
 	// put
 	key := "88"
@@ -172,7 +176,7 @@ func TestSetGetString(t *testing.T) {
 	}
 
 	// r2 put
-	r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_FLOAT, TEST_TABLE_TREETYPE, common.KT_FLOAT, false)
+	r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_TREETYPE, common.KT_FLOAT, false)
 	val2 := fmt.Sprintf(`{"%s":"%s", "val":"newvalueof%06x"}`, TEST_PKEY_STRING, key, key)
 	r2.Put(val2)
 
@@ -183,7 +187,7 @@ func TestSetGetString(t *testing.T) {
 	}
 
 	// r3 put
-	r3 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_FLOAT, TEST_TABLE_TREETYPE, common.KT_FLOAT, false)
+	r3 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_TREETYPE, common.KT_FLOAT, false)
 	key2 := "420"
 	val3 := fmt.Sprintf(`{"%s":"%s", "val":"valueof%06x"}`, TEST_PKEY_STRING, key2, key2)
 	r3.Put(val3)
@@ -196,7 +200,7 @@ func TestSetGetString(t *testing.T) {
 	fmt.Printf("PASS\n")
 }
 
-func TestSetGetInt(t *testing.T) {
+func aTestSetGetInt(t *testing.T) {
 	const N = 4
 
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
@@ -254,7 +258,7 @@ func TestSetGetInt(t *testing.T) {
 	}
 }
 
-func TestDelete0(t *testing.T) {
+func aTestDelete0(t *testing.T) {
 
 	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_TREETYPE, common.KT_INTEGER, true)
 
@@ -317,7 +321,7 @@ func TestDelete0(t *testing.T) {
 	}
 }
 
-func TestDelete1(t *testing.T) {
+func aTestDelete1(t *testing.T) {
 
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
@@ -343,7 +347,7 @@ func TestDelete1(t *testing.T) {
 	}
 }
 
-func TestDelete2(t *testing.T) {
+func aTestDelete2(t *testing.T) {
 	const N = 100
 
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
