@@ -14,9 +14,9 @@ func TestENSSimulation(t *testing.T) {
 	}
 	indexName := []byte("contact")
 	roothash := []byte("contactroothash")
-	store.StoreIndexRootHash(indexName, roothash)
+	store.StoreRootHash(indexName, roothash)
 
-	val, err := store.GetIndexRootHash(indexName)
+	val, err := store.GetRootHash(indexName)
 	if err != nil {
 	}
 	if bytes.Compare(val, roothash) != 0 {

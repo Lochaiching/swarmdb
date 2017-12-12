@@ -114,7 +114,7 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 
 	claims := make(map[string]*big.Int)
 	chunkstat := make(map[string]*big.Int)
-    chunkstat["ChunkR"], chunkstat["ChunkW"], chunkstat["ChunkS"], chunkstat["ChunkRL"], chunkstat["ChunkWL"], chunkstat["ChunkSL"] = big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0)
+	chunkstat["ChunkR"], chunkstat["ChunkW"], chunkstat["ChunkS"], chunkstat["ChunkRL"], chunkstat["ChunkWL"], chunkstat["ChunkSL"] = big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0)
 
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
@@ -369,7 +369,7 @@ func valid_type(typ string) (valid bool) {
 	return false
 }
 
-func (self *DBChunkstore) PrintDBChunk(keytype KeyType, hashid []byte, c []byte) {
+func (self *DBChunkstore) PrintDBChunk(columnType ColumnType, hashid []byte, c []byte) {
 	nodetype := string(c[4096-65 : 4096-64])
 	if valid_type(nodetype) {
 		fmt.Printf("Chunk %x ", hashid)
@@ -406,7 +406,7 @@ func (self *DBChunkstore) PrintDBChunk(keytype KeyType, hashid []byte, c []byte)
 		copy(v, c[i*64+32:i*64+64])
 		if EmptyBytes(k) && EmptyBytes(v) {
 		} else {
-			fmt.Printf(" %d:\t%s\t%s\n", i, KeyToString(keytype, k), ValueToString(v))
+			fmt.Printf(" %d:\t%s\t%s\n", i, KeyToString(columnType, k), ValueToString(v))
 		}
 	}
 	fmt.Printf("\n")
