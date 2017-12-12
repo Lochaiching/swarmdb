@@ -11,35 +11,32 @@ import (
 	"math"
 	"math/big"
 	"sync"
+	"strconv"
 	"time"
 )
 
+
+type NetstatFile struct {
+    NodeID        string
+    WalletAddress string
+    Claims        map[string]string
+    ChunkStats    map[string]string
+    CStat         map[string]*big.Int
+    LaunchDT      time.Time
+    LReadDT       time.Time
+    LWriteDT      time.Time
+    LogDT         time.Time
+}
+
+
 type DBChunkstore struct {
-	db *sql.DB
-	km *keymanager.KeyManager
-
-	//file directory
-	filepath string
-	statpath string
-
-	//persisted fields
-	nodeid string
-	farmer ethcommon.Address
-	claims map[string]*big.Int
-
-	//persisted stats
-	chunkR int64
-	chunkW int64
-	chunkS int64
-
-	//temp fields
-	chunkRL int64
-	chunkWL int64
-	chunkSL int64
-
-	launchDT time.Time
-	lwriteDT time.Time
-	logDT    time.Time
+    db *sql.DB
+    km *keymanager.KeyManager
+    farmer ethcommon.Address
+    claims map[string]*big.Int
+    netstat *NetstatFile
+    filepath string
+    statpath string
 }
 
 type ENSSimulation struct {
@@ -64,15 +61,15 @@ type SwarmDB struct {
 
 type IndexInfo struct {
 	indexname string
-	indextype string
+	treetype TreeType
 	roothash  []byte
 	dbaccess  Database
-	active    int
-	primary   int
-	keytype   int
+	primary   uint8
+	keytype   KeyType
 }
 
 type Table struct {
+	buffered  bool
 	swarmdb   SwarmDB
 	tablename string
 	ownerID   string
@@ -85,6 +82,7 @@ type Table struct {
 type DBChunkstorage interface {
 	RetrieveDBChunk(key []byte) (val []byte, err error)
 	StoreDBChunk(val []byte) (key []byte, err error)
+	PrintDBChunk(keytype KeyType, hashid []byte, c []byte)
 }
 
 type Database interface {
@@ -139,7 +137,7 @@ type OrderedDatabaseCursor interface {
 	Prev() (k []byte /*K*/, v []byte /*V*/, err error)
 }
 
-type KeyType int
+type KeyType uint8
 
 const (
 	KT_INTEGER = 1
@@ -147,6 +145,37 @@ const (
 	KT_FLOAT   = 3
 	KT_BLOB    = 4
 )
+
+type TreeType uint8
+
+const (
+	TT_HASHTREE = 1
+	TT_BPLUSTREE  = 2
+	TT_FULLTEXT   = 3
+	TT_FRACTALTREE    = 4
+)
+
+func convertStringToKey(keyType KeyType, key string) (k []byte) {
+	k = make([]byte, 32)
+	switch ( keyType ) {
+	case KT_INTEGER:
+		// convert using atoi to int
+		i, _ := strconv.Atoi(key)
+		k8 := IntToByte(i)  // 8 byte
+		copy(k, k8) // 32 byte
+	case KT_STRING:
+		copy(k, []byte(key))
+	case KT_FLOAT:
+		f, _ := strconv.ParseFloat(key, 64)
+		k8 := FloatToByte(f) // 8 byte
+			copy(k, k8) // 32 byte
+	case KT_BLOB:
+		// TODO: do this correctly with JSON treatment of binary 
+		copy(k, []byte(key))
+	}
+	return k
+}
+	
 
 func KeyToString(keytype KeyType, k []byte) (out string) {
 	switch keytype {
@@ -227,8 +256,8 @@ type RequestOption struct {
 }
 
 type TableOption struct {
-	TreeType string `json:"treetype,omitempty"` //BT or HD
-	Index    string `json:"index,omitempty"` //Column Name
+	TreeType string `json:"treetype,omitempty"` //BT or HD (IT_BTREE)
+	Index    string `json:"index,omitempty"` //Column Name e.g. "accountID"
 	KeyType  int    `json:"keytype,omitempty"` //INTEGER, STRING, etc ..
 	Primary  int    `json:"primary,omitempty" //1 - Primary 0 - not Primary`
 }
@@ -303,12 +332,3 @@ func (t *NoColumnError) Error() string {
 	return fmt.Sprintf("No column --- in the table")
 }
 
-func (self SwarmDB) RetrieveDBChunk(key []byte) (val []byte, err error) {
-	val, err = self.dbchunkstore.RetrieveChunk(key)
-	return val, err
-}
-
-func (self SwarmDB) StoreDBChunk(val []byte) (key []byte, err error) {
-	key, err = self.dbchunkstore.StoreChunk(val)
-	return key, err
-}

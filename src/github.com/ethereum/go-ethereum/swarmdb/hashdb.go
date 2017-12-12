@@ -39,6 +39,7 @@ type Node struct {
 	NodeKey  []byte //for disk/(net?)DB. Currently, it's bin data but it will be the hash
 	NodeHash []byte //for disk/(net?)DB. Currently, it's bin data but it will be the hash
 	Loaded   bool
+	Buffered bool	
 }
 
 func (self *HashDB) GetRootHash() ([]byte, error) {
@@ -46,7 +47,6 @@ func (self *HashDB) GetRootHash() ([]byte, error) {
 }
 
 func NewHashDB(rootnode []byte, swarmdb SwarmDB) (*HashDB, error) {
-	fmt.Println("In NewHashDB")
 	hd := new(HashDB)
 	n := NewNode(nil, nil)
 	n.Root = true
@@ -56,7 +56,6 @@ func NewHashDB(rootnode []byte, swarmdb SwarmDB) (*HashDB, error) {
 	}
 	hd.rootnode = n
 	hd.swarmdb = swarmdb
-	fmt.Println("NewHashDB = ", hd)
 	return hd, nil
 }
 
@@ -91,7 +90,8 @@ func NewNode(k []byte, val Val) *Node {
 		Version:  0,
 		NodeKey:  nil,
 		NodeHash: nil,
-		Loaded:   true,
+		Loaded:   false,
+		Buffered:   true,
 	}
 	return node
 }
@@ -187,7 +187,8 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmD
 			log.Debug(fmt.Sprintf("hashdb add bin nil %d", bin))
 			addnode.Level = self.Level + 1
 			addnode.NodeKey = []byte(string(self.NodeKey) + "|" + strconv.Itoa(bin))
-			sdata := make([]byte, 64*4)
+			//sdata := make([]byte, 64*4)
+			sdata := make([]byte, 4096)
 			a := convertToByte(addnode.Value)
 			copy(sdata[64:], convertToByte(addnode.Value))
 			log.Debug(fmt.Sprintf("hashdb add bin leaf Value %v %s %s %v a = %s a = %v", sdata, addnode.Key, addnode.Value, addnode.Value, a, a))
@@ -209,7 +210,8 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmD
 			return self
 		}
 		if len(self.Key) == 0 {
-			sdata := make([]byte, 64*4)
+			//sdata := make([]byte, 64*4)
+			sdata := make([]byte, 4096)
 			a := convertToByte(addnode.Value)
 			copy(sdata[64:], convertToByte(addnode.Value))
 			log.Debug(fmt.Sprintf("hashdb add bin leaf Value %v %s %s %v a = %s a = %v", sdata, addnode.Key, addnode.Value, addnode.Value, a, a))
@@ -249,7 +251,16 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmD
 func compareVal(a, b Val) int {
 	if va, ok := a.([]byte); ok {
 		if vb, ok := b.([]byte); ok {
-			return bytes.Compare(va, vb)
+/*
+			bufa := make([]byte, 32)
+			bufb := make([]byte, 32)
+			copy(bufa, va[0:32])
+			copy(bufb, vb[0:32])
+			if bytes.Compare(bufa, bufb) == 0{
+				return 0
+			}
+*/
+			return bytes.Compare(bytes.Trim(va, "\x00"), bytes.Trim(vb, "\x00"))
 		}
 	}
 	return 100
@@ -279,16 +290,11 @@ func (self *Node) storeBinToNetwork(swarmdb SwarmDB) []byte {
 		binary.LittleEndian.PutUint64(storedata[0:8], uint64(0))
 	}
 	binary.LittleEndian.PutUint64(storedata[9:32], uint64(self.Level))
-	//fmt.Println(storedata)
 
 	for i, bin := range self.Bin {
 		//copy(storedata[64+i*32:], bin.NodeHash[0:32])
 		if bin != nil {
-			//fmt.Println(string(bin.NodeKey))
 			copy(storedata[64+i*32:], bin.NodeHash)
-			//fmt.Printf("storing bin hash %v %s %d \n", bin.NodeHash, bin.NodeHash, len(bin.NodeHash))
-			//h := fmt.Sprintf("%s", bin.NodeHash)
-			//fmt.Printf("storing bin hash2 %v %s %d \n", h, h, len(h))
 		}
 	}
 	//rd := bytes.NewReader(storedata)
@@ -322,20 +328,20 @@ func (self *Node) Get(k []byte, swarmdb SwarmDB) Val {
 	}
 
 	if self.Bin[bin] == nil {
-		log.Trace(fmt.Sprintf("hashdb Node Get bin nil: %v'", bin))
+		log.Trace(fmt.Sprintf("hashdb Node Get bin nil: %v'\n", bin))
 		return nil
 	}
 	if self.Bin[bin].Loaded == false {
-		log.Trace(fmt.Sprintf("hashdb Node Get loaded false: %v' %d", bin, self.Bin[bin].NodeHash))
 		self.Bin[bin].load(swarmdb)
 	}
 	if self.Bin[bin].Next {
-		log.Trace(fmt.Sprintf("hashdb Node Get next: %v'", bin))
 		return self.Bin[bin].Get(k, swarmdb)
 	} else {
-		log.Trace(fmt.Sprintf("hashdb Node Get fin: %v %s %v %v'", k, k, self.Bin[bin].Value, self.Bin[bin].Value))
 		if compareVal(k, self.Bin[bin].Key) == 0 {
 			return self.Bin[bin].Value
+		}else{
+		err := fmt.Errorf("%s is not exist", string(k))
+			return err
 		}
 	}
 	return nil
@@ -380,7 +386,10 @@ func (self *Node) load(swarmdb SwarmDB) {
 				break
 			}
 		}
-		log.Trace(fmt.Sprintf("hashdb Node Get load index: %d pos = %d", bytes.Index(buf[96:], eb), pos))
+		if pos == 96 && bytes.Compare(buf[96:96+32], emptybyte) != 0{
+			pos = 96+32
+		}
+		log.Trace(fmt.Sprintf("hashdb Node Get load index: %d pos = %d", bytes.Index(buf[96:96+32], eb), pos))
 		self.Key = buf[96:pos]
 		self.Value = buf[64:96]
 		self.Next = false
