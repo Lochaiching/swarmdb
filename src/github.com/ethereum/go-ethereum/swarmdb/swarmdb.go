@@ -86,19 +86,28 @@ func (t *Table) CreateTable(option []TableOption) (err error) {
 	return err
 }
 
+func (t *Table) SetPrimary( p string) (err error) {
+	t.primary = p
+	return nil
+}
+
 func (t *Table) OpenTable() (err error) {
 	t.indexes = make(map[string]*IndexInfo)
 	/// get Table RootHash to  retrieve the table descriptor
 	roothash, err := t.swarmdb.GetIndexRootHash([]byte(t.tablename))
 	if err != nil {
+		fmt.Printf("Error retrieving Index Root Hash for table [%s]: %s", t.tablename, err)
 		return err
 	}
 	setprimary := false
 	indexdata, err := t.swarmdb.RetrieveDBChunk(roothash)
 	if err != nil {
+		fmt.Printf("Error retrieving Index Root Hash: %s", err)
 		return err
 	}
 	indexbuf := indexdata
+	fmt.Printf("index data is: [%s]", indexdata)
+	//Rodney: Need to put something in place to make sure we appropriately handle EMPTY indexdata/buf
 	for i := 2048; i < 4096; i = i + 64 {
 		//    if
 		buf := make([]byte, 64)
@@ -125,6 +134,7 @@ func (t *Table) OpenTable() (err error) {
 				return err
 			}
 		}
+		fmt.Printf("IndexInfo.IndexName [%s]", indexinfo.indexname)
 		t.indexes[indexinfo.indexname] = indexinfo
 		if indexinfo.primary == 1 {
 			if !setprimary {
@@ -135,6 +145,7 @@ func (t *Table) OpenTable() (err error) {
 			}
 		}
 	}
+	fmt.Printf("table after OpenTable: primary key [%v] number of indeces (%b) \n", t.primary, len(t.indexes))
 	return nil
 }
 
@@ -145,6 +156,7 @@ func (t *Table) Put(value string) (err error) {
 	if err := json.Unmarshal([]byte(value), &evalue); err != nil {
 		//return err
 	}
+	fmt.Printf("\nVALUE passedin to PUT is [%s] t primary is [%s]\n", evalue, t.primary)
 	pvalue := evalue.(map[string]interface{})[t.primary]
 
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tablename), []byte(t.primary))
