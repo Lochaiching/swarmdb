@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	//"os"
 	"fmt"
-	// "strconv"
+//	"strconv"
 )
 
 func NewSwarmDB() *SwarmDB {
@@ -90,7 +90,7 @@ func (t *Table) CreateTable(option []TableOption) (err error) {
 		b[0] = byte(columninfo.KeyType)
 		copy(buf[2048+i*64+28:], b) // strconv.Itoa(columninfo.KeyType))
 
-		b[0] = byte(columninfo.TreeType)
+		b[0] = ([]byte(columninfo.TreeType))[0]
 		copy(buf[2048+i*64+30:], b) // columninfo.TreeType)
 	}
 	swarmhash, err := t.swarmdb.StoreDBChunk(buf)
