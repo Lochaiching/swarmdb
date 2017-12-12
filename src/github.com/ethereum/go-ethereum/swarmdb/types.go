@@ -259,6 +259,7 @@ func SHA256(inp string) (k []byte) {
 	return k
 }
 
+
 type TableNotExistError struct {
 }
 

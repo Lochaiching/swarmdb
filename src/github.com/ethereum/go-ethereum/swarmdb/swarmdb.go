@@ -102,21 +102,28 @@ func (t *Table) CreateTable(columns []Column) (err error) {
 	return err
 }
 
+func (t *Table) SetPrimary( p string) (err error) {
+	t.primaryColumnName = p
+	return nil
+}
+
 func (t *Table) OpenTable() (err error) {
 	t.columns = make(map[string]*ColumnInfo)
 	/// get Table RootHash to  retrieve the table descriptor
 	roothash, err := t.swarmdb.GetRootHash([]byte(t.tableName))
 	if err != nil {
-		fmt.Printf("FAILED roothash\n")
+		fmt.Printf("Error retrieving Index Root Hash for table [%s]: %s", t.tableName, err)
 		return err
 	}
 	//fmt.Printf("Retrieve Root HASH: %v\n", roothash)
 	setprimary := false
 	columndata, err := t.swarmdb.RetrieveDBChunk(roothash)
 	if err != nil {
+		fmt.Printf("Error retrieving Index Root Hash: %s", err)
 		return err
 	}
 	columnbuf := columndata
+
 	for i := 2048; i < 4096; i = i + 64 {
 		buf := make([]byte, 64)
 		copy(buf, columnbuf[i:i+64])
@@ -153,6 +160,7 @@ func (t *Table) OpenTable() (err error) {
 			}
 		}
 	}
+	
 	return nil
 }
 
