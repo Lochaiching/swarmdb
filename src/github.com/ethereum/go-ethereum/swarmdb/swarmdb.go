@@ -73,10 +73,15 @@ func (t *Table) CreateTable(option []TableOption) (err error) {
 	buf := make([]byte, 4096)
 	for i, columninfo := range option {
 		copy(buf[2048+i*64:], columninfo.Index)
-		copy(buf[2048+i*64+26:], strconv.Itoa(columninfo.Primary))
-		copy(buf[2048+i*64+27:], "9")
-		copy(buf[2048+i*64+28:], strconv.Itoa(columninfo.KeyType))
-		copy(buf[2048+i*64+30:], columninfo.TreeType)
+		b := make([]byte, 1)
+		b[0] = byte(columninfo.Primary)
+		copy(buf[2048+i*64+26:], b) // strconv.Itoa(columninfo.Primary))
+
+		b[0] = byte(columninfo.KeyType)
+		copy(buf[2048+i*64+28:], b) // strconv.Itoa(columninfo.KeyType))
+
+		b[0] = byte(columninfo.TreeType)
+		copy(buf[2048+i*64+30:], b) // columninfo.TreeType)
 	}
 	swarmhash, err := t.swarmdb.StoreDBChunk(buf)
 	if err != nil {
@@ -108,18 +113,17 @@ func (t *Table) OpenTable() (err error) {
 		}
                 indexinfo := new(IndexInfo)
                 indexinfo.indexname = string(bytes.Trim(buf[:25], "\x00"))
-                indexinfo.primary, _ = strconv.Atoi(string(buf[26:27]))
-                indexinfo.active, _ = strconv.Atoi(string(buf[27:28]))
-                indexinfo.keytype, _ = strconv.Atoi(string(buf[28:29]))
-                indexinfo.indextype = string(buf[30:32])
+                indexinfo.primary = uint8(buf[26])
+                indexinfo.keytype = KeyType(buf[28])  //:29
+                indexinfo.treetype = TreeType(buf[30])
                 indexinfo.roothash =  buf[32:]
-		switch indexinfo.indextype {
-		case "BT":
+		switch indexinfo.treetype {
+		case TT_BPLUSTREE:
 			indexinfo.dbaccess = NewBPlusTreeDB(t.swarmdb, indexinfo.roothash, KeyType(indexinfo.keytype))
 			if err != nil {
 				return err
 			}
-		case "HD":
+		case TT_HASHTREE:
 			indexinfo.dbaccess, err = NewHashDB(indexinfo.roothash, t.swarmdb)
 			if err != nil {
 				return err
@@ -139,20 +143,44 @@ func (t *Table) OpenTable() (err error) {
 }
 
 //Owner: X Table: contacts Index: Email Key: rodney@wolk.com VAL: { age: 20, loc: "sm", email: "rodney@wolk.com" }
+func convertStringToKey(keyType KeyType, key string) (k []byte) {
+	k = make([]byte, 32)
+	switch ( keyType ) {
+	case KT_INTEGER:
+		// convert using atoi to int
+		i, _ := strconv.Atoi(key)
+		k8 := IntToByte(i)  // 8 byte
+		copy(k, k8) // 32 byte
+	case KT_STRING:
+		copy(k, []byte(k))
+	case KT_FLOAT:
+		f, _ := strconv.ParseFloat(key, 64)
+		k8 := FloatToByte(f) // 8 byte
+			copy(k, k8) // 32 byte
+	case KT_BLOB:
+		// TODO: do this correctly with JSON treatment of binary 
+		copy(k, []byte(key))
+	}
+	return k
+}
+	
 func (t *Table) Put(value string) (err error) {
 	/// store value to kdb and get a hash
 	var evalue interface{}
 	if err := json.Unmarshal([]byte(value), &evalue); err != nil {
 		//return err
 	}
+
+	// TODO: make this robust!
 	pvalue := evalue.(map[string]interface{})[t.primary]
+	k := convertStringToKey(t.indexes[t.primary].keytype, pvalue.(string))
 
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tablename), []byte(t.primary))
 	fmt.Printf("KADDB Open - OwnerID: [%s] Table: [%s] Primary: %v => (%v)\n", t.ownerID, t.tablename, t.primary, pvalue.(string))
-	khash, err := t.swarmdb.kaddb.Put([]byte(pvalue.(string)), []byte(value))
+	khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
 	// PRIMARY INDEX ONLY -- need to put every indexes but currently added only for the primary index
 	fmt.Printf(" primary: %v dbaccess: %v  k: %v v(%d bytes): %v\n", t.primary, t.indexes[t.primary].dbaccess, pvalue.(string), len(khash), khash)
-	_, err = t.indexes[t.primary].dbaccess.Put([]byte(pvalue.(string)), []byte(khash))
+	_, err = t.indexes[t.primary].dbaccess.Put(k, []byte(khash))
 	/*switch x := t.indexes[t.primary].dbaccess.(type) {
 	case (*Tree):
 		 fmt.Printf("B+ tree Print\n")
@@ -161,7 +189,7 @@ func (t *Table) Put(value string) (err error) {
 	return err
 }
 
-func (t *Table) Insert(key, value string) error {
+func (t *Table) Insert(key string, value string) error {
 	index := t.primary
 	/// store value to kdb and get a hash
 	_, b, err := t.indexes[index].dbaccess.Get([]byte(key))
@@ -174,12 +202,12 @@ func (t *Table) Insert(key, value string) error {
 	}
 
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tablename), []byte(index))
-
-	khash, err := t.swarmdb.kaddb.Put([]byte(key), []byte(key))
+	k := convertStringToKey(t.indexes[t.primary].keytype, key)
+	khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
 	if err != nil {
 		return err
 	}
-	_, err = t.indexes[index].dbaccess.Insert([]byte(key), []byte(khash))
+	_, err = t.indexes[index].dbaccess.Insert(k, []byte(khash))
 	return err
 }
 
@@ -189,7 +217,9 @@ func (t *Table) Get(key string) ([]byte, error) {
 		var cerr *NoColumnError
 		return nil, cerr
 	}
-	_, _, err := t.indexes[index].dbaccess.Get([]byte(key))
+	k := convertStringToKey(t.indexes[t.primary].keytype, key)
+
+	_, _, err := t.indexes[index].dbaccess.Get(k)
 	if err != nil {
 		return nil, err
 	}
@@ -200,14 +230,20 @@ func (t *Table) Get(key string) ([]byte, error) {
 	return fres, err
 }
 
-func (t *Table) Delete(key string) (err error) {
+
+func (t *Table) Delete(key string) (ok bool, err error) {
+	k := convertStringToKey(t.indexes[t.primary].keytype, key)
+	ok = false
 	for _, ip := range t.indexes {
-		_, err := ip.dbaccess.Delete([]byte(key))
+		ok2, err := ip.dbaccess.Delete(k)
 		if err != nil {
-			return err
+			return ok2, err
+		}
+		if ok2 {
+			ok = true
 		}
 	}
-	return nil
+	return ok, nil
 }
 
 func (t *Table) StartBuffer() (err error) {
@@ -242,11 +278,19 @@ func (t *Table) updateTableInfo() (err error) {
 	buf := make([]byte, 4096)
 	i := 0
 	for idx, ivalue := range t.indexes {
+		b := make([]byte, 1)
+
                 copy(buf[2048+i*64:], idx)
-                copy(buf[2048+i*64+26:], strconv.Itoa(ivalue.primary))
-                copy(buf[2048+i*64+27:], strconv.Itoa(ivalue.active))
-                copy(buf[2048+i*64+28:], strconv.Itoa(ivalue.keytype))
-                copy(buf[2048+i*64+30:], ivalue.indextype)
+		
+		b[0] = byte(ivalue.primary)
+                copy(buf[2048+i*64+26:], b)
+
+		b[0] = byte(ivalue.keytype)
+                copy(buf[2048+i*64+28:], b) // byte(ivalue.keytype)
+
+		b[0] = byte(ivalue.treetype)
+                copy(buf[2048+i*64+30:], b)
+
                 copy(buf[2048+i*64+32:], ivalue.roothash)
 		i++
 	}

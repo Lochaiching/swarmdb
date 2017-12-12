@@ -64,12 +64,11 @@ type SwarmDB struct {
 
 type IndexInfo struct {
 	indexname string
-	indextype string
+	treetype TreeType
 	roothash  []byte
 	dbaccess  Database
-	active    int
-	primary   int
-	keytype   int
+	primary   uint8
+	keytype   KeyType
 }
 
 type Table struct {
@@ -139,13 +138,22 @@ type OrderedDatabaseCursor interface {
 	Prev() (k []byte /*K*/, v []byte /*V*/, err error)
 }
 
-type KeyType int
+type KeyType uint8
 
 const (
 	KT_INTEGER = 1
 	KT_STRING  = 2
 	KT_FLOAT   = 3
 	KT_BLOB    = 4
+)
+
+type TreeType uint8
+
+const (
+	TT_HASHTREE = 1
+	TT_BPLUSTREE  = 2
+	TT_FULLTEXT   = 3
+	TT_FRACTALTREE    = 4
 )
 
 func KeyToString(keytype KeyType, k []byte) (out string) {
@@ -227,9 +235,9 @@ type RequestOption struct {
 }
 
 type TableOption struct {
-	TreeType string `json:"treetype,omitempty"`
-	Index    string `json:"index,omitempty"`
-	KeyType  int    `json:"keytype,omitempty"`
+	Index    string `json:"index,omitempty"`  // e.g. "accountID"
+	TreeType TreeType `json:"treetype,omitempty"`  // IT_BTREE
+	KeyType  KeyType    `json:"keytype,omitempty"`
 	Primary  int    `json:"primary,omitempty"`
 }
 
