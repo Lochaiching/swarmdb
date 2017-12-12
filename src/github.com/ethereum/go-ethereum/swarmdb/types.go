@@ -14,42 +14,13 @@ import (
 	"time"
 )
 
-/*
-type DBChunkstore struct {
-	db *sql.DB
-	km *keymanager.KeyManager
-
-	//file directory
-	filepath string
-	statpath string
-
-	//persisted fields
-	nodeid string
-	farmer ethcommon.Address
-	claims map[string]*big.Int
-
-	//persisted stats
-	chunkR int64
-	chunkW int64
-	chunkS int64
-
-	//temp fields
-	chunkRL int64
-	chunkWL int64
-	chunkSL int64
-
-	launchDT time.Time
-	lwriteDT time.Time
-	logDT    time.Time
-}
-
-*/
-
 
 type NetstatFile struct {
     NodeID        string
     WalletAddress string
     Claims        map[string]string
+    ChunkStats    map[string]string
+    CStat         map[string]*big.Int
     LaunchDT      time.Time
     LReadDT       time.Time
     LWriteDT      time.Time
