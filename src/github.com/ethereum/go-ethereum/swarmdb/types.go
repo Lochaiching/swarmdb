@@ -17,25 +17,24 @@ import (
 )
 
 type NetstatFile struct {
-    NodeID        string
-    WalletAddress string
-    Ticket        map[string]string
-    ChunkStat     map[string]string
-    ByteStat      map[string]string
-    CStat         map[string]*big.Int `json:"-"`
-    BStat         map[string]*big.Int `json:"-"`
-    Claim         map[string]*big.Int `json:"-"`
-    LaunchDT      time.Time
-    LReadDT       time.Time
-    LWriteDT      time.Time
-    LogDT         time.Time
+	NodeID        string
+	WalletAddress string
+	Ticket        map[string]string
+	ChunkStat     map[string]string
+	ByteStat      map[string]string
+	CStat         map[string]*big.Int `json:"-"`
+	BStat         map[string]*big.Int `json:"-"`
+	Claim         map[string]*big.Int `json:"-"`
+	LaunchDT      time.Time
+	LReadDT       time.Time
+	LWriteDT      time.Time
+	LogDT         time.Time
 }
 
 type DBChunkstore struct {
 	db       *sql.DB
 	km       *keymanager.KeyManager
 	farmer   ethcommon.Address
-	claim   map[string]*big.Int
 	netstat  *NetstatFile
 	filepath string
 	statpath string
@@ -263,7 +262,6 @@ func SHA256(inp string) (k []byte) {
 	k = h.Sum(nil)
 	return k
 }
-
 
 type TableNotExistError struct {
 }
