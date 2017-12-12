@@ -33,7 +33,7 @@ type DBChunk struct {
 	StoreDT     int64
 }
 
-type ChunkStat struct {
+type ChunkStats struct {
 	CurrentTS   int64 `json:"CurrentTS`
 	ChunkRead   int64 `json:"ChunkRead`
 	ChunkWrite  int64 `json:"ChunkWrite`
@@ -45,8 +45,9 @@ func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
 	var file = &NetstatFile{
 		NodeID:        netCounter.NodeID,
 		WalletAddress: self.farmer.Hex(),
-		Claims:        make(map[string]string),
-		ChunkStats:    make(map[string]string),
+		Ticket:        make(map[string]string),
+		ChunkStat:     make(map[string]string),
+		ByteStat:      make(map[string]string),
 		LaunchDT:      netCounter.LaunchDT,
 		LReadDT:       netCounter.LReadDT,
 		LWriteDT:      netCounter.LWriteDT,
@@ -55,11 +56,15 @@ func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
 
 	for chuckcol, chuckval := range netCounter.CStat {
 		fmt.Printf("[%v] => %v\n", chuckcol, chuckval)
-		file.ChunkStats[chuckcol] = chuckval.String()
+		file.ChunkStat[chuckcol] = chuckval.String()
 	}
 
-	for ticket, reward := range self.claims {
-		file.Claims[ticket] = reward.String()
+	for bytecol, byteval := range netCounter.BStat {
+		file.ByteStat[bytecol] = byteval.String()
+	}
+
+	for ticket, reward := range self.claim {
+		file.Ticket[ticket] = reward.String()
 	}
 	return json.Marshal(file)
 }
@@ -81,23 +86,34 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) error {
 	self.farmer = ethcommon.HexToAddress(file.WalletAddress)
 
 	var ok bool
-	for ticket, reward := range file.Claims {
-		self.claims[ticket], ok = new(big.Int).SetString(reward, 10)
+	for ticket, reward := range file.Ticket {
+		self.claim[ticket], ok = new(big.Int).SetString(reward, 10)
 		if !ok {
 			return fmt.Errorf("Ticket %v amount set: unable to convert string to big integer: %v", ticket, reward)
 		}
 	}
 
-	prevchunkstat := make(map[string]*big.Int)
+	chunkstat := make(map[string]*big.Int)
+	bytestat := make(map[string]*big.Int)
 
-	for chuckcol, chuckval := range file.ChunkStats {
-		prevchunkstat[chuckcol], ok = new(big.Int).SetString(chuckval, 10)
+	for chuckcol, chuckval := range file.ChunkStat {
+		chunkstat[chuckcol], ok = new(big.Int).SetString(chuckval, 10)
 		if !ok {
 			return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", chuckcol, chuckval)
 		}
 
 	}
-	netCounter.CStat = prevchunkstat
+
+	for bytecol, byteval := range file.ByteStat {
+		bytestat[bytecol], ok = new(big.Int).SetString(byteval, 10)
+		if !ok {
+			return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", bytecol, byteval)
+		}
+
+	}
+
+	netCounter.CStat = chunkstat
+	netCounter.BStat = bytestat
 	return nil
 }
 
@@ -112,9 +128,10 @@ func (self *DBChunkstore) Save() (err error) {
 
 func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 
-	claims := make(map[string]*big.Int)
-	chunkstat := make(map[string]*big.Int)
-	chunkstat["ChunkR"], chunkstat["ChunkW"], chunkstat["ChunkS"], chunkstat["ChunkRL"], chunkstat["ChunkWL"], chunkstat["ChunkSL"] = big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0)
+	claim := make(map[string]*big.Int)
+
+	chunkstat := map[string]*big.Int{"ChunkR": big.NewInt(0), "ChunkW": big.NewInt(0), "ChunkS": big.NewInt(0), "ChunkRL": big.NewInt(0), "ChunkWL": big.NewInt(0), "ChunkSL": big.NewInt(0)}
+	bytestat := map[string]*big.Int{"ByteR": big.NewInt(0), "ByteW": big.NewInt(0), "ByteS": big.NewInt(0), "ByteRL": big.NewInt(0), "ByteWL": big.NewInt(0), "ByteSL": big.NewInt(0)}
 
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
@@ -168,6 +185,7 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 	netCounter.LaunchDT = time.Now()
 	netCounter.NodeID = nodeid
 	netCounter.CStat = chunkstat
+	netCounter.BStat = bytestat
 
 	netstat := NetstatFile{
 		NodeID:        netCounter.NodeID,
@@ -179,7 +197,7 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 		db:       db,
 		km:       &km,
 		farmer:   walletAddr,
-		claims:   claims,
+		claim:    claim,
 		netstat:  &netstat,
 		filepath: path,
 		statpath: "netstat.json",
@@ -471,9 +489,9 @@ func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 	}
 	defer rows.Close()
 
-	var result []ChunkStat
+	var result []ChunkStats
 	for rows.Next() {
-		c := ChunkStat{}
+		c := ChunkStats{}
 		err2 := rows.Scan(&c.CurrentTS, &c.ChunkRead, &c.ChunkWrite, &c.ChunkStored)
 		if err2 != nil {
 			fmt.Printf("ERROR:%s\n", err2)
