@@ -8,6 +8,7 @@ import (
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
+	"github.com/ethereum/go-ethereum/swarmdb/log"
 	"math"
 	"math/big"
 	"strconv"
@@ -51,6 +52,7 @@ type KademliaDB struct {
 }
 
 type SwarmDB struct {
+	Logger       *swarmdblog.Logger
 	tables       map[string]map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
