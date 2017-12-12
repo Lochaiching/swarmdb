@@ -227,10 +227,10 @@ type RequestOption struct {
 }
 
 type TableOption struct {
-	TreeType string `json:"treetype,omitempty"`
-	Index    string `json:"index,omitempty"`
-	KeyType  int    `json:"keytype,omitempty"`
-	Primary  int    `json:"primary,omitempty"`
+	TreeType string `json:"treetype,omitempty"` //BT or HD
+	Index    string `json:"index,omitempty"` //Column Name
+	KeyType  int    `json:"keytype,omitempty"` //INTEGER, STRING, etc ..
+	Primary  int    `json:"primary,omitempty" //1 - Primary 0 - not Primary`
 }
 
 type TableNotExistError struct {
