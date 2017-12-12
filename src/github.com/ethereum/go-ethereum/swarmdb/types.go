@@ -10,33 +10,31 @@ import (
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"math"
 	"math/big"
-	"sync"
 	"strconv"
+	"sync"
 	"time"
 )
 
-
 type NetstatFile struct {
-    NodeID        string
-    WalletAddress string
-    Claims        map[string]string
-    ChunkStats    map[string]string
-    CStat         map[string]*big.Int
-    LaunchDT      time.Time
-    LReadDT       time.Time
-    LWriteDT      time.Time
-    LogDT         time.Time
+	NodeID        string
+	WalletAddress string
+	Claims        map[string]string
+	ChunkStats    map[string]string
+	CStat         map[string]*big.Int
+	LaunchDT      time.Time
+	LReadDT       time.Time
+	LWriteDT      time.Time
+	LogDT         time.Time
 }
 
-
 type DBChunkstore struct {
-    db *sql.DB
-    km *keymanager.KeyManager
-    farmer ethcommon.Address
-    claims map[string]*big.Int
-    netstat *NetstatFile
-    filepath string
-    statpath string
+	db       *sql.DB
+	km       *keymanager.KeyManager
+	farmer   ethcommon.Address
+	claims   map[string]*big.Int
+	netstat  *NetstatFile
+	filepath string
+	statpath string
 }
 
 type ENSSimulation struct {
@@ -59,30 +57,46 @@ type SwarmDB struct {
 	kaddb        *KademliaDB
 }
 
-type IndexInfo struct {
-	indexname string
-	treetype TreeType
-	roothash  []byte
-	dbaccess  Database
-	primary   uint8
-	keytype   KeyType
+type Column struct {
+	ColumnName string     `json:"columnname,omitempty"` // e.g. "accountID"
+	IndexType  IndexType  `json:"indextype,omitempty"`  // IT_BTREE
+	ColumnType ColumnType `json:"columntype,omitempty"`
+	Primary    int        `json:"primary,omitempty"`
+}
+
+type RequestOption struct {
+	RequestType string   `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
+	Owner       string   `json:"owner,omitempty"`
+	Table       string   `json:"table,omitempty"` //"contacts"
+	Index       string   `json:"index,omitempty"`
+	Key         string   `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
+	Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
+	Columns     []Column `json:"columns",omitempty"`
+}
+
+type ColumnInfo struct {
+	columnName string
+	indexType  IndexType
+	roothash   []byte
+	dbaccess   Database
+	primary    uint8
+	columnType ColumnType
 }
 
 type Table struct {
-	buffered  bool
-	swarmdb   SwarmDB
-	tablename string
-	ownerID   string
-	roothash  []byte
-	indexes   map[string]*IndexInfo
-	primary   string
-	counter   int //// not supported yet.
+	buffered          bool
+	swarmdb           SwarmDB
+	tableName         string
+	ownerID           string
+	roothash          []byte
+	columns           map[string]*ColumnInfo
+	primaryColumnName string
 }
 
 type DBChunkstorage interface {
 	RetrieveDBChunk(key []byte) (val []byte, err error)
 	StoreDBChunk(val []byte) (key []byte, err error)
-	PrintDBChunk(keytype KeyType, hashid []byte, c []byte)
+	PrintDBChunk(columnType ColumnType, hashid []byte, c []byte)
 }
 
 type Database interface {
@@ -137,56 +151,55 @@ type OrderedDatabaseCursor interface {
 	Prev() (k []byte /*K*/, v []byte /*V*/, err error)
 }
 
-type KeyType uint8
+type ColumnType uint8
 
 const (
-	KT_INTEGER = 1
-	KT_STRING  = 2
-	KT_FLOAT   = 3
-	KT_BLOB    = 4
+	CT_INTEGER = 1
+	CT_STRING  = 2
+	CT_FLOAT   = 3
+	CT_BLOB    = 4
 )
 
-type TreeType uint8
+type IndexType uint8
 
 const (
-	TT_HASHTREE = 1
-	TT_BPLUSTREE  = 2
-	TT_FULLTEXT   = 3
-	TT_FRACTALTREE    = 4
+	IT_HASHTREE    = 1
+	IT_BPLUSTREE   = 2
+	IT_FULLTEXT    = 3
+	IT_FRACTALTREE = 4
 )
 
-func convertStringToKey(keyType KeyType, key string) (k []byte) {
+func convertStringToKey(columnType ColumnType, key string) (k []byte) {
 	k = make([]byte, 32)
-	switch ( keyType ) {
-	case KT_INTEGER:
+	switch columnType {
+	case CT_INTEGER:
 		// convert using atoi to int
 		i, _ := strconv.Atoi(key)
-		k8 := IntToByte(i)  // 8 byte
-		copy(k, k8) // 32 byte
-	case KT_STRING:
+		k8 := IntToByte(i) // 8 byte
+		copy(k, k8)        // 32 byte
+	case CT_STRING:
 		copy(k, []byte(key))
-	case KT_FLOAT:
+	case CT_FLOAT:
 		f, _ := strconv.ParseFloat(key, 64)
 		k8 := FloatToByte(f) // 8 byte
-			copy(k, k8) // 32 byte
-	case KT_BLOB:
-		// TODO: do this correctly with JSON treatment of binary 
+		copy(k, k8)          // 32 byte
+	case CT_BLOB:
+		// TODO: do this correctly with JSON treatment of binary
 		copy(k, []byte(key))
 	}
 	return k
 }
-	
 
-func KeyToString(keytype KeyType, k []byte) (out string) {
-	switch keytype {
-	case KT_BLOB:
+func KeyToString(columnType ColumnType, k []byte) (out string) {
+	switch columnType {
+	case CT_BLOB:
 		return fmt.Sprintf("%v", k)
-	case KT_STRING:
+	case CT_STRING:
 		return fmt.Sprintf("%s", string(k))
-	case KT_INTEGER:
+	case CT_INTEGER:
 		a := binary.BigEndian.Uint64(k)
 		return fmt.Sprintf("%d [%x]", a, k)
-	case KT_FLOAT:
+	case CT_FLOAT:
 		bits := binary.BigEndian.Uint64(k)
 		f := math.Float64frombits(bits)
 		return fmt.Sprintf("%f", f)
@@ -211,6 +224,7 @@ func EmptyBytes(hashid []byte) (valid bool) {
 	}
 	return valid
 }
+
 func IsHash(hashid []byte) (valid bool) {
 	cnt := 0
 	for i := 0; i < len(hashid); i++ {
@@ -243,23 +257,6 @@ func SHA256(inp string) (k []byte) {
 	h.Write([]byte(inp))
 	k = h.Sum(nil)
 	return k
-}
-
-type RequestOption struct {
-	RequestType  string        `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	Owner        string        `json:"owner,omitempty"`
-	Table        string        `json:"table,omitempty"` //"contacts"
-	Index        string        `json:"index,omitempty"`
-	Key          string        `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
-	Value        string        `json:"value,omitempty"` //value of val, usually the whole json record
-	TableOptions []TableOption `json:"tableoptions",omitempty"`
-}
-
-type TableOption struct {
-	Index    string `json:"index,omitempty"`  // e.g. "accountID"
-	TreeType TreeType `json:"treetype,omitempty"`  // IT_BTREE
-	KeyType  KeyType    `json:"keytype,omitempty"`
-	Primary  int    `json:"primary,omitempty"`
 }
 
 type TableNotExistError struct {
@@ -331,4 +328,3 @@ type NoColumnError struct {
 func (t *NoColumnError) Error() string {
 	return fmt.Sprintf("No column --- in the table")
 }
-
