@@ -22,6 +22,7 @@ const (
 )
 
 func getSWARMDBTable(ownerID string, tableName string, primaryKeyName string, primaryIndexType common.IndexType, primaryColumnType common.ColumnType, create bool) (tbl *common.Table) {
+
 	swarmdb := common.NewSwarmDB()
 
 	tbl = swarmdb.NewTable(ownerID, tableName)
