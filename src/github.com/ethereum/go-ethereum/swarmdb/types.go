@@ -199,7 +199,7 @@ func convertStringToIndexType(in string) (out IndexType, err error) {
 	case "fractaltree":
 		return IT_FRACTALTREE, nil
 	}
-	return out, fmt.Errorf("not found") //KeyNotFoundError?
+	return out, fmt.Errorf("index %s not found", in) //KeyNotFoundError?
 }
 
 //used in client.go for user input
@@ -214,7 +214,7 @@ func convertStringToColumnType(in string) (out ColumnType, err error) {
 	case "blob":
 		return CT_BLOB, nil
 	}
-	return out, fmt.Errorf("not found") //KeyNotFoundError?
+	return out, fmt.Errorf("columntype %s not found", in) //KeyNotFoundError?
 }
 
 func convertStringToKey(columnType ColumnType, key string) (k []byte) {
