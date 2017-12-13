@@ -3,7 +3,8 @@
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
 
-int wolkMain(void) {
+
+int testWolkSHA256() {
     if (initialize_enclave(&global_eid, "enclave.token", "enclave.signed.so") < 0) {
         std::cout << "Fail to initialize enclave." << std::endl;
         return 1;
@@ -26,4 +27,9 @@ int wolkMain(void) {
     printf("\nEND\n");
 
     return 0;
+}
+
+
+int wolkMain(void) {
+	testWolkSHA256();
 }
