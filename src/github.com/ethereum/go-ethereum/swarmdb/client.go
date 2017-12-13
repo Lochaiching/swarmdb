@@ -36,8 +36,8 @@ func CreateTable(indextype string, table string, primarykey string, columntype m
 	//primary key call
 	var primarycol Column
 	primarycol.ColumnName = primarykey
-	primarycol.IndexType = indextype
-	primarycol.ColumnType = columntype[primarykey]
+	primarycol.IndexType, _ = convertStringToIndexType(indextype)
+	primarycol.ColumnType, _ = convertStringToColumnType(columntype[primarykey])
 	primarycol.Primary = 1
 	req.Columns = append(req.Columns, primarycol)
 
@@ -46,7 +46,7 @@ func CreateTable(indextype string, table string, primarykey string, columntype m
 		if col != primarykey {
 			var secondarycol Column
 			secondarycol.ColumnName = col
-			secondarycol.IndexType = coltype
+			secondarycol.IndexType,_ = convertStringToIndexType(coltype)
 			secondarycol.Primary = 0
 			req.Columns = append(req.Columns, secondarycol)
 		}
