@@ -113,7 +113,7 @@ func (t *Table) CreateTable(columns []Column, bid float64, replication int, encr
 	}
 	copy(buf[4000:], FloatToByte(bid))
 	copy(buf[4008:], IntToByte(replication))
-	copy(buf[4016:], IntToByt(encrypted))
+	copy(buf[4016:], IntToByte(encrypted))
 	swarmhash, err := t.swarmdb.StoreDBChunk(buf)
 	if err != nil {
 		return
@@ -166,7 +166,7 @@ func (t *Table) OpenTable() (err error) {
 				return err
 			}
 		case IT_HASHTREE:
-			columninfo.dbaccess, err = NewHashDB(columninfo.roothash, t.swarmdb)
+			columninfo.dbaccess, err = NewHashDB(columninfo.roothash, t.swarmdb, ColumnType(columninfo.columnType))
 			if err != nil {
 				return err
 			}
