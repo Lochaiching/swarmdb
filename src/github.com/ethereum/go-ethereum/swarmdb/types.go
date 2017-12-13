@@ -78,6 +78,9 @@ type RequestOption struct {
 	Key         string   `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
 	Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Columns     []Column `json:"columns",omitempty"`
+	//Bid         float64  `json:"bid"`
+	//Replication int      `json:"replication",omitempty`
+	//Encrypt     int      `json:"encrypt"`
 }
 
 type ColumnInfo struct {
@@ -169,11 +172,42 @@ const (
 type IndexType uint8
 
 const (
+	IT_NONE        = 0
 	IT_HASHTREE    = 1
 	IT_BPLUSTREE   = 2
 	IT_FULLTEXT    = 3
 	IT_FRACTALTREE = 4
 )
+
+//used in client.go for user input
+func convertStringToIndexType(in string) (out IndexType, err error) {
+	switch in {
+	case "hashtree":
+		return IT_HASHTREE, nil
+	case "bplustree":
+		return IT_BPLUSTREE, nil
+	case "fulltext":
+		return IT_FULLTEXT, nil
+	case "fractaltree":
+		return IT_FRACTALTREE, nil
+	}
+	return out, fmt.Errorf("not found") //KeyNotFoundError?
+}
+
+//used in client.go for user input
+func convertStringToColumnType(in string) (out ColumnType, err error) {
+	switch in {
+	case "int":
+		return CT_INTEGER, nil
+	case "string":
+		return CT_STRING, nil
+	case "float":
+		return CT_FLOAT, nil
+	case "blob":
+		return CT_BLOB, nil
+	}
+	return out, fmt.Errorf("not found") //KeyNotFoundError?
+}
 
 func convertStringToKey(columnType ColumnType, key string) (k []byte) {
 	k = make([]byte, 32)
@@ -211,6 +245,7 @@ func KeyToString(columnType ColumnType, k []byte) (out string) {
 		return fmt.Sprintf("%f", f)
 	}
 	return "unknown key type"
+
 }
 
 func ValueToString(v []byte) (out string) {

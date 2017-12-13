@@ -670,15 +670,12 @@ func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
 	pi := -1
 	var p *x
 	q := t.r
-	if q == nil {
-		var kerr *KeyNotFoundError
-		return false, kerr
-	}
 	for {
 		checkload(t.swarmdb, q)
 		var i int
 		i, ok = t.find(q, k)
 		if ok {
+			
 			switch x := q.(type) {
 			case *x:
 				if x.c < kx && q != t.r {
@@ -698,6 +695,7 @@ func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
 				if q != t.r {
 					t.underflow(p, x, pi)
 				} else if t.c == 0 {
+
 					t.Clear()
 				}
 				x.dirty = true // we found the key and  actually deleted it!
@@ -716,8 +714,7 @@ func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
 			q = x.x[i].ch
 			x.dirty = true // optimization: this should really be if something is *actually* deleted
 		case *d:
-			var kerr *KeyNotFoundError
-			return false, kerr // we got to the bottom and key was not found
+			return false, nil  // we got to the bottom and key was not found
 		}
 	}
 }
@@ -741,10 +738,8 @@ func (t *Tree) find(q interface{}, k []byte /*K*/) (i int, ok bool) {
 	case *x:
 		h := x.c - 1
 		for l <= h {
-			// fmt.Printf("l %d h %d c:%d\n", l, h, x.c)
 			m := (l + h) >> 1
 			mk = x.x[m].k
-			//fmt.Printf(" x node (c=%d): m=%d t.cmp( k=(%s),  mk=(%s)) = %d \n", x.c, m, KeyToString(t.columnType, k), KeyToString(t.columnType, mk), t.cmp(k, mk))
 			switch cmp := t.cmp(k, mk); {
 			case cmp > 0:
 				l = m + 1
@@ -791,9 +786,9 @@ func checkload(swarmdb DBChunkstorage, q interface{}) {
 func (t *Tree) Get(key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
 
 	q := t.r
-	if q == nil {
-		return
-	}
+//	if q == nil {
+//		return
+//	}
 
 	k := make([]byte, K_SIZE)
 	copy(k, key)
@@ -1373,8 +1368,8 @@ func cmpFloat(a, b []byte) int {
 
 // ints are 64 bit / 8 byte
 func cmpInt64(a, b []byte) int {
-	ai := binary.LittleEndian.Uint64(a)
-	bi := binary.LittleEndian.Uint64(b)
+	ai := binary.BigEndian.Uint64(a)
+	bi := binary.BigEndian.Uint64(b)
 	if ai < bi {
 		return -1
 	} else if ai > bi {
