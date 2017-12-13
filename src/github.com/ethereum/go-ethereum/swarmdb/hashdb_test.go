@@ -27,7 +27,7 @@ func TestPutInteger(t *testing.T) {
 
 	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
 	hashid := make([]byte, 32)
-	r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t))
+	r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t), swarmdb.CT_INTEGER)
 
 	// write 20 values into B-tree (only kept in memory)
 	r.StartBuffer()
@@ -43,7 +43,7 @@ func TestPutInteger(t *testing.T) {
 	// r.Print()
 
 	hashid, _ = r.GetRootHash()
-	s, _ := swarmdb.NewHashDB(hashid, getSwarmDB(t))
+	s, _ := swarmdb.NewHashDB(hashid, getSwarmDB(t), swarmdb.CT_INTEGER)
 
 	g, ok, err := s.Get(swarmdb.IntToByte(8))
 	if !ok || err != nil {
@@ -64,7 +64,7 @@ func aTestPutString(t *testing.T) {
 	fmt.Printf("---- TestPutString: generate 20 strings and enumerate them\n")
 
 	hashid := make([]byte, 32)
-	r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t))
+	r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t), swarmdb.CT_STRING)
 
 	r.StartBuffer()
 	vals := rand.Perm(20)
@@ -80,7 +80,7 @@ func aTestPutString(t *testing.T) {
 	// r.Print()
 
 	hashid, _ = r.GetRootHash()
-	s, _ := swarmdb.NewHashDB(hashid, getSwarmDB(t))
+	s, _ := swarmdb.NewHashDB(hashid, getSwarmDB(t), swarmdb.CT_STRING)
 	g, _, _ := s.Get([]byte("000008"))
 	fmt.Printf("Get(000008): %v\n", string(g))
 
@@ -93,7 +93,7 @@ func aTestPutString(t *testing.T) {
 func aTestPutFloat(t *testing.T) {
 	fmt.Printf("---- TestPutFloat: generate 20 floats and enumerate them\n")
 
-	r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t))
+	r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t), swarmdb.CT_FLOAT)
 
 	r.StartBuffer()
 	vals := rand.Perm(20)
@@ -112,7 +112,7 @@ func aTestPutFloat(t *testing.T) {
 
 func aTestSetGetString(t *testing.T) {
 	hashid := make([]byte, 32)
-	r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t))
+	r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t), swarmdb.CT_FLOAT)
 
 	// put
 	key := []byte("42")
@@ -131,7 +131,7 @@ func aTestSetGetString(t *testing.T) {
 	hashid, _ = r.GetRootHash()
 
 	// r2 put
-	r2, _ := swarmdb.NewHashDB(hashid, getSwarmDB(t))
+	r2, _ := swarmdb.NewHashDB(hashid, getSwarmDB(t), swarmdb.CT_STRING)
 	val2 := swarmdb.SHA256("278")
 	r2.Put(key, val2)
 	//r2.Print()
@@ -147,7 +147,7 @@ func aTestSetGetString(t *testing.T) {
 	hashid, _ = r2.GetRootHash()
 
 	// r3 put
-	r3, _ := swarmdb.NewHashDB(hashid, getSwarmDB(t))
+	r3, _ := swarmdb.NewHashDB(hashid, getSwarmDB(t), swarmdb.CT_STRING)
 	key2 := []byte("420")
 	val3 := swarmdb.SHA256("bbb")
 	r3.Put(key2, val3)
@@ -168,7 +168,7 @@ func aTestSetGetString(t *testing.T) {
 func aTestSetGetInt(t *testing.T) {
 	const N = 4
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t))
+		r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t), swarmdb.CT_INTEGER)
 
 		a := make([]int, N)
 		for i := range a {
@@ -225,7 +225,7 @@ func aTestSetGetInt(t *testing.T) {
 }
 
 func aTestDelete0(t *testing.T) {
-	r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t))
+	r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t), swarmdb.CT_INTEGER)
 
 	key0 := swarmdb.IntToByte(0)
 	key1 := swarmdb.IntToByte(1)
@@ -290,7 +290,7 @@ func aTestDelete0(t *testing.T) {
 func aTestDelete1(t *testing.T) {
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t))
+		r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t), swarmdb.CT_INTEGER)
 		a := make([]int, N)
 		for i := range a {
 			a[i] = (i ^ x) << 1
@@ -312,7 +312,7 @@ func aTestDelete1(t *testing.T) {
 func aTestDelete2(t *testing.T) {
 	const N = 100
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t))
+		r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t), swarmdb.CT_INTEGER)
 		a := make([]int, N)
 		rng := rng()
 		for i := range a {

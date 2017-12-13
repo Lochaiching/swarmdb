@@ -7,7 +7,7 @@ import (
 	//"encoding/binary"
 	"encoding/json"
 	"fmt"
-	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
@@ -97,7 +97,7 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	self.farmer = ethcommon.HexToAddress(file.WalletAddress)
+	self.farmer = common.HexToAddress(file.WalletAddress)
 
 	var ok bool
 
@@ -196,7 +196,7 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 
 	nodeid := "abcd"
 	userWallet := "0x56ad284968f2c2edb44c1380411c2c3b12b26c3f"
-	walletAddr := ethcommon.HexToAddress(userWallet)
+	walletAddr := common.HexToAddress(userWallet)
 
 	netstat := NetstatFile{
 		NodeID:        nodeid,

@@ -3,7 +3,7 @@ package swarmdb_test
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/swarmdb/"
+	"github.com/ethereum/go-ethereum/swarmdb"
 	"testing"
 )
 
