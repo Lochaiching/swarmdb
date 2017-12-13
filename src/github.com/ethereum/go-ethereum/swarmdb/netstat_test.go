@@ -1,9 +1,10 @@
-package swarmdb
+package swarmdb_test
 
 import (
 	"fmt"
 	//"bytes"
 	"testing"
+    "github.com/ethereum/go-ethereum/swarmdb"
 )
 
 var (
