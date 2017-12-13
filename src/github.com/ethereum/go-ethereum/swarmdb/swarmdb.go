@@ -83,7 +83,7 @@ func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
 	return t
 }
 
-func (t *Table) CreateTable(columns []Column) (err error) {
+func (t *Table) CreateTable(columns []Column, bid float64, replication int64, encrypted bool) (err error) {
 	buf := make([]byte, 4096)
 	for i, columninfo := range columns {
 		copy(buf[2048+i*64:], columninfo.ColumnName)
@@ -106,7 +106,7 @@ func (t *Table) CreateTable(columns []Column) (err error) {
 }
 
 func (t *Table) OpenTable() (err error) {
-	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:OpenTable|%s", key))
+	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:OpenTable|%s"))
 	t.columns = make(map[string]*ColumnInfo)
 	/// get Table RootHash to  retrieve the table descriptor
 	roothash, err := t.swarmdb.GetRootHash([]byte(t.tableName))
@@ -289,7 +289,7 @@ func (t *Table) Delete(key string) (ok bool, err error) {
 }
 
 func (t *Table) StartBuffer() (err error) {
-	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:StartBuffer|%s", key))
+	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:StartBuffer|%s", t.primaryColumnName))
 	if t.buffered {
 		t.FlushBuffer()
 	} else {
@@ -306,7 +306,7 @@ func (t *Table) StartBuffer() (err error) {
 }
 
 func (t *Table) FlushBuffer() (err error) {
-	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:FlushBuffer|%s", key))
+	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:FlushBuffer|%s", t.primaryColumnName))
 
 	for _, ip := range t.columns {
 		_, err := ip.dbaccess.FlushBuffer()
