@@ -51,7 +51,7 @@ func TestPutInteger(t *testing.T) {
 	} else {
 		fmt.Printf("Get(8): [%s]\n", string(g))
 	}
-	h, ok2, err2 := s.Get(swarmdb.IntToByte(3))
+	h, ok2, err2 := s.Get(swarmdb.IntToByte(1))
 	if !ok2 || err2 != nil {
 		t.Fatal(h, err2)
 	}
