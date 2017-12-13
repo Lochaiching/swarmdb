@@ -36,6 +36,7 @@ func TestDBChunkStore(t *testing.T) {
 				fmt.Printf("[SUCCESS] writing #%v chunk to %v\n", j, testDBPath)
 			}
 		}
+		_ = store.Save()
 	})
 
 	t.Run("Scan", func(t *testing.T) {
@@ -45,6 +46,7 @@ func TestDBChunkStore(t *testing.T) {
 		} else {
 			fmt.Printf("[SUCCESS] ScanAll Operation\n")
 		}
+		_ = store.Save()
 	})
 
 	t.Run("Stat", func(t *testing.T) {
@@ -91,6 +93,7 @@ func TestLoadDBChunkStore(t *testing.T) {
 				fmt.Printf("[SUCCESS] writing #%v chunk to %v\n", j, testDBPath)
 			}
 		}
+		_ = store.Save()
 	})
 
 	t.Run("EScan", func(t *testing.T) {
@@ -100,6 +103,7 @@ func TestLoadDBChunkStore(t *testing.T) {
 		} else {
 			fmt.Printf("[SUCCESS] ScanAll Operation\n")
 		}
+		_ = store.Save()
 	})
 
 	t.Run("EStat", func(t *testing.T) {
@@ -109,6 +113,16 @@ func TestLoadDBChunkStore(t *testing.T) {
 		} else {
 			fmt.Printf("[SUCCESS] netStat optput: %s\n", res)
 		}
+	})
+
+	t.Run("EClaim", func(t *testing.T) {
+		err := store.ClaimAll()
+		if err != nil {
+			t.Fatal("[FAILURE] netStat Retrieval Error\n")
+		} else {
+			fmt.Printf("[SUCCESS] netStat optput\n")
+		}
+		_ = store.Save()
 	})
 
 	t.Run("ESave", func(t *testing.T) {

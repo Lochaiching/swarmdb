@@ -32,7 +32,7 @@ func NewENSSimulation(path string) (ens ENSSimulation, err error) {
 	return ens, nil
 }
 
-func (self *ENSSimulation) StoreIndexRootHash(indexName []byte, roothash []byte) (err error) {
+func (self *ENSSimulation) StoreRootHash(indexName []byte, roothash []byte) (err error) {
 	sql_add := `INSERT OR REPLACE INTO ens ( indexName, roothash, storeDT ) values(?, ?, CURRENT_TIMESTAMP)`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
@@ -47,7 +47,7 @@ func (self *ENSSimulation) StoreIndexRootHash(indexName []byte, roothash []byte)
 	return nil
 }
 
-func (self *ENSSimulation) GetIndexRootHash(indexName []byte) (val []byte, err error) {
+func (self *ENSSimulation) GetRootHash(indexName []byte) (val []byte, err error) {
 	sql := `SELECT roothash FROM ens WHERE indexName = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {

@@ -37,11 +37,11 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/swarm/api"
 	httpapi "github.com/ethereum/go-ethereum/swarm/api/http"
-	tcpapi "github.com/ethereum/go-ethereum/swarm/api/tcpip"
 	"github.com/ethereum/go-ethereum/swarm/fuse"
 	"github.com/ethereum/go-ethereum/swarm/network"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-	"github.com/ethereum/go-ethereum/swarmdb/database"
+	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
+	tcpapi "github.com/ethereum/go-ethereum/swarmdb/server"
 
 	//"github.com/syndtr/goleveldb/leveldb"
 	"reflect"
@@ -163,7 +163,8 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	//self.api = api.NewApi(self.dpa, self.dns, self.lstore.DbStore.getMHash())
 	self.api = api.NewApiTest(self.dpa, self.dns, self.ldb)
 	//Rodney commented at 17:08 PDT on 2017/12/08 to use just api -- self.swarmdb = swarmdb.NewSwarmDB(self.api, self.ldb)
-	self.swarmdb = swarmdb.NewSwarmDB(self.api)
+	//self.swarmdb = swarmdb.NewSwarmDB(self.api)
+	self.swarmdb = swarmdb.NewSwarmDB()
 	// Manifests for Smart Hosting
 	log.Debug(fmt.Sprintf("-> Web3 virtual server API"))
 
@@ -231,7 +232,7 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 	}
 	if true {
 		tcpaddr := net.JoinHostPort("127.0.0.1", "8503")
-		go tcpapi.StartTCPServer(self.swarmdb, &tcpapi.ServerConfig{
+		go tcpapi.StartTCPIPServer(self.swarmdb, &tcpapi.ServerConfig{
 			Addr: tcpaddr,
 			Port: "23456",
 		})

@@ -20,7 +20,7 @@ all:
 	@echo "test hashdb."
 	-go test ./hashdb_test.go
 	@echo "test netstat."
-	-go test ../swarm/storage/netStat_test.go
+	-go test ./netStat_test.go
 
 enssimulation:
 	@echo "test enssimulation."
@@ -56,4 +56,4 @@ hashdb:
 
 netstat:
 	@echo "test netstat."
-	go test ../swarm/storage/netStat_test.go
+	go test ./netStat_test.go
