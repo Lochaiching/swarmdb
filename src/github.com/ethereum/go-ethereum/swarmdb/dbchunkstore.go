@@ -243,6 +243,7 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 }
 
 func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
+	//TODO get OWNER from CHUNK or get it from swarmdb into dbchunkstore
 	if len(v) < minChunkSize {
 		return fmt.Errorf("chunk too small") // should be improved
 	}
