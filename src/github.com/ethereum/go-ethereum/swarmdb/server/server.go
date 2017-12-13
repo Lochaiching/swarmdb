@@ -22,8 +22,8 @@ type ServerConfig struct {
 }
 
 type IncomingInfo struct {
-	data    string
-	address string
+	Data    string
+	Address string
 }
 
 type Client struct {
@@ -95,8 +95,8 @@ func newClient(connection net.Conn) *Client {
 		writer:   writer,
 		//databases: make(map[string]map[string]*common.Database),
 	}
-	go client.read()
-	go client.write()
+	//go client.read()
+	//go client.write()
 	return client
 }
 
@@ -111,8 +111,8 @@ func (client *Client) read() {
 			////////
 		}
 		incoming := new(IncomingInfo)
-		incoming.data = line
-		incoming.address = client.conn.RemoteAddr().String()
+		incoming.Data = line
+		incoming.Address = client.conn.RemoteAddr().String()
 		//client.incoming <- line
 		client.incoming <- incoming
 		fmt.Printf("[%s]Read:%s", client.conn.RemoteAddr(), line)
@@ -139,6 +139,14 @@ func (svr *TCPIPServer) addClient(conn net.Conn) {
 	}()
 }
 
+func (svr *TCPIPServer) TestAddClient(owner string, tablename string, primary string) {
+	//testConn := svr.NewConnection()
+	client := newClient(nil)//testConn)	
+	client.table = svr.swarmdb.NewTable(owner, tablename);
+	//client.table.SetPrimary( primary )
+	svr.clients = append(svr.clients, client)
+}
+
 func (svr *TCPIPServer) listen() {
 	go func() {
 		for {
@@ -146,20 +154,20 @@ func (svr *TCPIPServer) listen() {
 			case conn := <-svr.conn:
 				svr.addClient(conn)
 			case data := <-svr.incoming:
-				svr.selectHandler(data)
+				svr.SelectHandler(data)
 			}
 		}
 	}()
 }
-func (svr *TCPIPServer) selectHandler(data *IncomingInfo) {
-/*
+func (svr *TCPIPServer) SelectHandler(data *IncomingInfo) {
 	var rerr *common.RequestFormatError
-	d, err := parseData(data.data)
+	d, err := parseData(data.Data)
 	if err != nil {
-		svr.outgoing <- err.Error()
+		//svr.outgoing <- err.Error()
 		return
 	}
 	switch d.RequestType {
+	/*
 	case "OpenClient":
 		if len(d.Owner) == 0{
 			svr.outgoing <- rerr.Error()
@@ -171,24 +179,28 @@ func (svr *TCPIPServer) selectHandler(data *IncomingInfo) {
 			resp = err.Error()
 		}
 		svr.outgoing <- resp
+	*/
 	case "OpenTable":
 		if len(d.Table) == 0{
 			svr.outgoing <- rerr.Error()
 			return
 		}
-		err := svr.table.OpenTable()
-		resp := "okay"
+		err := svr.clients[0].table.OpenTable()
+		//resp := "okay"
+		//fmt.Printf("Resp: %s ", resp)
 		if err != nil {
-			resp = err.Error()
+			//resp = err.Error()
 		}
-		svr.outgoing <- resp
+		//svr.outgoing <- resp
 	case "CloseTable":
 	case "CreateTable":
-		if len(d.Table) == 0 || len(d.TableOptions) == 0{
+		if len(d.Table) == 0 || len(d.Columns) == 0{
 			svr.outgoing <- rerr.Error()
 			return
 		}
-		svr.table.CreateTable(d.TableOptions)
+		svr.clients[0].table.CreateTable(d.Columns, d.Bid, d.Replication, d.Encrypted)
+		fmt.Printf("\nFinished Create")
+	/*
 	case "Insert":
 		if len(d.Index) == 0 || len(d.Key) == 0 || len(d.Value) == 0{
 			svr.outgoing <- rerr.Error()
@@ -199,27 +211,29 @@ func (svr *TCPIPServer) selectHandler(data *IncomingInfo) {
 			svr.outgoing <- rerr.Error()
 		}
 		svr.outgoing <- "okay"
+	*/
 	case "Put":
 		if len(d.Value) == 0{
 			svr.outgoing <- rerr.Error()
 			return
 		}
-		err := svr.table.Put(d.Value)
+		err := svr.clients[0].table.Put(d.Value)
                 if err != nil{
                         svr.outgoing <- err.Error()
                 }
-
 	case "Get":
-		if len(d.Index) == 0 || len(d.Key) == 0 {
-			svr.outgoing <- rerr.Error()
+		if len(d.Key) == 0 {
+		//	svr.outgoing <- rerr.Error()
 			return
 		}
-		ret, err:= svr.table.Get(d.Key)
+		ret, err:= svr.clients[0].table.Get(d.Key)
 		sret := string(ret)
+		fmt.Printf("\nResult of GET: %s\n", sret)
 		if err != nil{
 			sret = err.Error()
 		}
-		svr.outgoing <- sret
+		//svr.outgoing <- sret
+	/*
 	case "Delete":
 		if len(d.Key) == 0 {
 			svr.outgoing <- rerr.Error()
@@ -245,10 +259,10 @@ func (svr *TCPIPServer) selectHandler(data *IncomingInfo) {
 			ret = err.Error()
 		}
 		svr.outgoing <- ret
-	}
-	svr.outgoing <- "RequestType Error"
-	return
 */
+	}
+	//svr.outgoing <- "RequestType Error"
+	return
 }
 
 
@@ -264,6 +278,7 @@ func (svr *TCPIPServer) NewConnection() (err error){
 	ownerID := "owner1"
 	tableName := "testtable"
 	svr.swarmdb.NewTable(ownerID, tableName)
+	
 	// svr.table = table
 
 	return nil
