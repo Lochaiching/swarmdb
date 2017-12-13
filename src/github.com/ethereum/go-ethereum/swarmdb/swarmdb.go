@@ -2,11 +2,12 @@ package swarmdb
 
 import (
 	"bytes"
+	//	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
 	"reflect"
-	"strconv"
+	//"strconv"
 )
 
 func NewSwarmDB() *SwarmDB {
@@ -29,7 +30,7 @@ func NewSwarmDB() *SwarmDB {
 		sd.ens = ens
 	}
 
-	kaddb, err := NewKademliaDB(sd)
+	kaddb, err := NewKademliaDB(dbchunkstore)
 	if err != nil {
 	} else {
 		sd.kaddb = kaddb
@@ -111,9 +112,10 @@ func (t *Table) CreateTable(columns []Column, bid float64, replication int, encr
 		b[0] = byte(columninfo.IndexType)
 		copy(buf[2048+i*64+30:], b) // columninfo.IndexType)
 	}
-	copy(buf[4000:], FloatToByte(bid))
-	copy(buf[4008:], IntToByte(replication))
-	copy(buf[4016:], IntToByte(encrypted))
+	bidBytes := FloatToByte(bid)
+	copy(buf[4000:4008], bidBytes)
+	copy(buf[4008:4016], IntToByte(replication))
+	copy(buf[4016:4024], IntToByte(encrypted))
 	swarmhash, err := t.swarmdb.StoreDBChunk(buf)
 	if err != nil {
 		return
@@ -181,13 +183,9 @@ func (t *Table) OpenTable() (err error) {
 			}
 		}
 	}
-	t.bid, err = strconv.ParseFloat(string(bytes.Trim(columnbuf[4000:4031], "\x00")), 64)
-	if err != nil {
-		fmt.Printf("\nErr found in %s", err)
-	}
-	t.replication, _ = strconv.Atoi(string(bytes.Trim(columnbuf[4032:4063], "\x00")))
-	t.encrypted, _ = strconv.Atoi(string(columnbuf[4064]))
-	//fmt.Printf("\nT bid: %f | T.Rep: %d | T encrypted: %d", t.bid, t.replication, t.encrypted)
+	t.bid = BytesToFloat(columnbuf[4000:4008])
+	t.replication = BytesToInt64(columnbuf[4008:4016])
+	t.encrypted = BytesToInt64(columnbuf[4016:4024])
 	return nil
 }
 
