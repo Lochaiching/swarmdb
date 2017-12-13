@@ -18,6 +18,9 @@ const (
 	TEST_PKEY_INT        = "accountID"
 	TEST_PKEY_STRING     = "email"
 	TEST_PKEY_FLOAT      = "ts"
+	TEST_SKEY_INT        = "age"
+	TEST_SKEY_STRING     = "gender"
+	TEST_SKEY_FLOAT      = "weight"
 	TEST_TABLE_INDEXTYPE = common.IT_BPLUSTREE
 )
 
@@ -43,6 +46,53 @@ func getSWARMDBTable(ownerID string, tableName string, primaryKeyName string, pr
 	return tbl
 }
 
+func getSWARMDBTableSecondary(ownerID string, tableName string, primaryKeyName string, primaryIndexType common.IndexType, primaryColumnType common.ColumnType,
+	secondaryKeyName string, secondaryIndexType common.IndexType, secondaryColumnType common.ColumnType,
+	create bool) (swarmdb *common.SwarmDB) {
+
+	swarmdb = common.NewSwarmDB()
+
+	tbl := swarmdb.NewTable(ownerID, tableName)
+
+	// CreateTable
+	if create {
+		var option []common.Column
+		o := common.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
+		option = append(option, o)
+
+		s := common.Column{ColumnName: secondaryKeyName, Primary: 0, IndexType: secondaryIndexType, ColumnType: secondaryColumnType}
+		option = append(option, s)
+		tbl.CreateTable(option)
+	}
+
+	// OpenTable
+	err := tbl.OpenTable()
+	if err != nil {
+		fmt.Printf("OPENTABLE ERR %v\n", err)
+	}
+
+	putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
+	swarmdb.QueryInsert(putstr)
+
+	putstr = `{"email":"sourabh@wolk.com", "age": 45, "gender": "M", "weight": 210.5}`
+	swarmdb.QueryInsert(putstr)
+	// Put
+	for i := 1; i < 10; i++ {
+		g := "F"
+		w := float64(i) + .314159
+		putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
+			TEST_PKEY_STRING, i, i, g, w)
+		swarmdb.QueryInsert(putstr)
+		g = "M"
+		w = float64(i) + float64(0.414159)
+		putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
+			TEST_PKEY_STRING, i, i, g, w)
+		swarmdb.QueryInsert(putstr)
+	}
+
+	return swarmdb
+}
+
 func TestSetGetInt(t *testing.T) {
 	const N = 4
 
@@ -57,7 +107,7 @@ func TestSetGetInt(t *testing.T) {
 		for _, k := range a {
 			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
 			fmt.Printf("%s\n", val)
-			 r.Put(val)
+			r.Put(val)
 		}
 
 		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
@@ -78,7 +128,7 @@ func TestSetGetInt(t *testing.T) {
 				t.Fatal(i, k)
 			}
 		}
-		
+
 		r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
 		for _, k := range a {
 			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
@@ -95,7 +145,7 @@ func TestSetGetInt(t *testing.T) {
 			} else {
 				fmt.Printf("Get(%s) => %s\n", key, val)
 			}
-		} 
+		}
 	}
 }
 
@@ -131,6 +181,48 @@ func TestTable(t *testing.T) {
 	fmt.Printf("Get %s %v \n", string(fres), ferr)
 	//t.CloseTable()
 
+}
+
+func cTestTableSecondaryInt(t *testing.T) {
+	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING,
+		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, true)
+
+	// select * from table where age < 30
+	sql := fmt.Sprintf("select * from %s where %s < 30", TEST_TABLE, TEST_SKEY_INT)
+	rows, err := swarmdb.QuerySelect(sql)
+	if err != nil {
+	} else {
+		for i, row := range rows {
+			fmt.Printf("%d:%v\n", i, row)
+		}
+	}
+}
+
+func cTestTableSecondaryFloat(t *testing.T) {
+	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING,
+		TEST_SKEY_FLOAT, TEST_TABLE_INDEXTYPE, common.CT_FLOAT, true)
+	// select * from table where age < 30
+	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_FLOAT)
+	rows, err := swarmdb.QuerySelect(sql)
+	if err != nil {
+	} else {
+		for i, row := range rows {
+			fmt.Printf("%d:%v\n", i, row)
+		}
+	}
+}
+
+func cTestTableSecondaryString(t *testing.T) {
+	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING,
+		TEST_SKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING, true)
+	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_STRING)
+	rows, err := swarmdb.QuerySelect(sql)
+	if err != nil {
+	} else {
+		for i, row := range rows {
+			fmt.Printf("%d:%v\n", i, row)
+		}
+	}
 }
 
 func rng() *mathutil.FC32 {
