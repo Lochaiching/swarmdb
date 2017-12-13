@@ -1,11 +1,11 @@
-package client_test
+package common_test
 
 import (
 	"encoding/json"
 	"fmt"
 	"testing"
 	//"github.com/ethereum/go-ethereum/swarmdb/client"
-
+	"github.com/ethereum/go-ethereum/swarmdb/"
 )
 
 func TestCreateTable(t *testing.T) {
@@ -27,7 +27,7 @@ func TestCreateTable(t *testing.T) {
 		err := CreateTable(test[0].(string), test[1].(string), test[2].(string), test[3].(map[string]string))
 		if err != nil {
 			fmt.Printf("failed.\n")
-			//t.Fatal(err) //uncomment when ready 
+			//t.Fatal(err) //uncomment when ready
 		}
 		fmt.Printf("success.\n")
 	}
