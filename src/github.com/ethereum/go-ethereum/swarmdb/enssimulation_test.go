@@ -1,14 +1,14 @@
-package common_test
+package swarmdb_test
 
 import (
 	"bytes"
 	"fmt"
-	common "github.com/ethereum/go-ethereum/swarmdb"
+	"github.com/ethereum/go-ethereum/swarmdb"
 	"testing"
 )
 
 func TestENSSimulation(t *testing.T) {
-	store, err := common.NewENSSimulation("/tmp/ens.db")
+	store, err := swarmdb.NewENSSimulation("/tmp/ens.db")
 	if err != nil {
 		t.Fatal("failure to open ENSSimulation")
 	}

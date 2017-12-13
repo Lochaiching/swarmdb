@@ -1,4 +1,4 @@
-package common
+package swarmdb
 
 import (
 	"crypto/sha256"
@@ -72,9 +72,9 @@ type RequestOption struct {
 	RequestType string   `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
 	Owner       string   `json:"owner,omitempty"`
 	Table       string   `json:"table,omitempty"` //"contacts"
-	Encrypted   int    `json:"encrypted,omitempty"`
-	Bid	    float64  `json:"bid,omitempty"`
-	Replication int    `json:"replication,omitempty"`
+	Encrypted   int      `json:"encrypted,omitempty"`
+	Bid         float64  `json:"bid,omitempty"`
+	Replication int      `json:"replication,omitempty"`
 	Key         string   `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
 	Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Columns     []Column `json:"columns",omitempty"`
@@ -100,14 +100,14 @@ type Table struct {
 	roothash          []byte
 	columns           map[string]*ColumnInfo
 	primaryColumnName string
-	bid float64 
-	replication int
-	encrypted int
+	bid               float64
+	replication       int
+	encrypted         int
 }
 
 type Row struct {
-        primaryKeyValue interface{}
- 	cells   map[string]interface{}
+	primaryKeyValue interface{}
+	cells           map[string]interface{}
 }
 
 type DBChunkstorage interface {

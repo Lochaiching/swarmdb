@@ -1,4 +1,4 @@
-package common
+package swarmdb
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	// "github.com/ethereum/go-ethereum/swarmdb/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"

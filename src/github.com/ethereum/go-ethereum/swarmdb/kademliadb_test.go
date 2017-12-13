@@ -14,14 +14,12 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package common_test
+package swarmdb_test
 
 import (
 	"bytes"
 	"fmt"
-	//"strings"
-	//"sync"
-	common "github.com/ethereum/go-ethereum/swarmdb"
+	"github.com/ethereum/go-ethereum/swarmdb"
 	"testing"
 )
 
@@ -43,8 +41,8 @@ func TestKademliaChunkKeyGeneration(t *testing.T) {
 	tc.TableName = []byte(`email`)
 	tc.Column = []byte(`yob`)
 
-	swarmdb := common.NewSwarmDB()
-	kdb, err := common.NewKademliaDB(swarmdb)
+	swarmdb := swarmdb.NewSwarmDB()
+	kdb, err := swarmdb.NewKademliaDB(swarmdb)
 	if err != nil {
 		t.Fatal("Failed creating Kademlia")
 	}
@@ -66,8 +64,8 @@ func TestKademliaPutGetByKey(t *testing.T) {
 	tc.TableName = []byte(`email`)
 	tc.Column = []byte(`yob`)
 
-	swarmdb := common.NewSwarmDB()
-	kdb, err := common.NewKademliaDB(swarmdb)
+	swarmdb := swarmdb.NewSwarmDB()
+	kdb, err := swarmdb.NewKademliaDB(swarmdb)
 	if err != nil {
 		t.Fatal("Failed creating Kademlia")
 	}

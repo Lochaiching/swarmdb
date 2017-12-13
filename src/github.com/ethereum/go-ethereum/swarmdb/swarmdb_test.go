@@ -1,8 +1,8 @@
-package common_test
+package swarmdb_test
 
 import (
 	"fmt"
-	common "github.com/ethereum/go-ethereum/swarmdb"
+	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
 	"testing"
 	// "os"
 	// "bytes"
@@ -21,19 +21,19 @@ const (
 	TEST_SKEY_INT        = "age"
 	TEST_SKEY_STRING     = "gender"
 	TEST_SKEY_FLOAT      = "weight"
-	TEST_TABLE_INDEXTYPE = common.IT_BPLUSTREE
+	TEST_TABLE_INDEXTYPE = swarmdb.IT_BPLUSTREE
 )
 
-func getSWARMDBTable(ownerID string, tableName string, primaryKeyName string, primaryIndexType common.IndexType, primaryColumnType common.ColumnType, create bool) (tbl *common.Table) {
+func getSWARMDBTable(ownerID string, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType, create bool) (tbl *swarmdb.Table) {
 
-	swarmdb := common.NewSwarmDB()
+	swarmdb := swarmdb.NewSwarmDB()
 
 	tbl = swarmdb.NewTable(ownerID, tableName)
 
 	// CreateTable
 	if create {
-		var option []common.Column
-		o := common.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
+		var option []swarmdb.Column
+		o := swarmdb.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
 		option = append(option, o)
 		tbl.CreateTable(option)
 	}
@@ -46,21 +46,21 @@ func getSWARMDBTable(ownerID string, tableName string, primaryKeyName string, pr
 	return tbl
 }
 
-func getSWARMDBTableSecondary(ownerID string, tableName string, primaryKeyName string, primaryIndexType common.IndexType, primaryColumnType common.ColumnType,
-	secondaryKeyName string, secondaryIndexType common.IndexType, secondaryColumnType common.ColumnType,
-	create bool) (swarmdb *common.SwarmDB) {
+func getSWARMDBTableSecondary(ownerID string, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType,
+	secondaryKeyName string, secondaryIndexType swarmdb.IndexType, secondaryColumnType swarmdb.ColumnType,
+	create bool) (swarmdb *swarmdb.SwarmDB) {
 
-	swarmdb = common.NewSwarmDB()
+	swarmdb = swarmdb.NewSwarmDB()
 
 	tbl := swarmdb.NewTable(ownerID, tableName)
 
 	// CreateTable
 	if create {
-		var option []common.Column
-		o := common.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
+		var option []swarmdb.Column
+		o := swarmdb.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
 		option = append(option, o)
 
-		s := common.Column{ColumnName: secondaryKeyName, Primary: 0, IndexType: secondaryIndexType, ColumnType: secondaryColumnType}
+		s := swarmdb.Column{ColumnName: secondaryKeyName, Primary: 0, IndexType: secondaryIndexType, ColumnType: secondaryColumnType}
 		option = append(option, s)
 		tbl.CreateTable(option)
 	}
@@ -97,7 +97,7 @@ func TestSetGetInt(t *testing.T) {
 	const N = 4
 
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, true)
+		r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
 		a := make([]int, N)
 		for i := range a {
@@ -110,9 +110,9 @@ func TestSetGetInt(t *testing.T) {
 			r.Put(val)
 		}
 
-		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
+		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 		for i, k := range a {
-			key := fmt.Sprintf("%d", k) // common.IntToByte(k)
+			key := fmt.Sprintf("%d", k) // swarmdb.IntToByte(k)
 			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
 			v, err := s.Get(key)
 			if err != nil || strings.Compare(val, string(v)) != 0 {
@@ -122,20 +122,20 @@ func TestSetGetInt(t *testing.T) {
 			}
 
 			k |= 1
-			key = fmt.Sprintf("%d", k) // common.IntToByte(k)
+			key = fmt.Sprintf("%d", k) // swarmdb.IntToByte(k)
 			v, err = s.Get(key)
 			if len(v) > 0 {
 				t.Fatal(i, k)
 			}
 		}
 
-		r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
+		r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 		for _, k := range a {
 			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
 			r2.Put(val)
 		}
 
-		s2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
+		s2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 		for i, k := range a {
 			key := fmt.Sprintf("%d", k)
 			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
@@ -150,7 +150,7 @@ func TestSetGetInt(t *testing.T) {
 }
 
 func TestTable(t *testing.T) {
-	tbl := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING, true)
+	tbl := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 
 	putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
 	tbl.Put(putstr)
@@ -171,7 +171,7 @@ func TestTable(t *testing.T) {
 		tbl.Put(putstr)
 	}
 
-	tbl2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING, false)
+	tbl2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
 	// Get
 	res, err := tbl2.Get("rodney@wolk.com")
 	fmt.Printf("Get %s %v \n", string(res), err)
@@ -184,8 +184,8 @@ func TestTable(t *testing.T) {
 }
 
 func cTestTableSecondaryInt(t *testing.T) {
-	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING,
-		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, true)
+	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
 	// select * from table where age < 30
 	sql := fmt.Sprintf("select * from %s where %s < 30", TEST_TABLE, TEST_SKEY_INT)
@@ -199,8 +199,8 @@ func cTestTableSecondaryInt(t *testing.T) {
 }
 
 func cTestTableSecondaryFloat(t *testing.T) {
-	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING,
-		TEST_SKEY_FLOAT, TEST_TABLE_INDEXTYPE, common.CT_FLOAT, true)
+	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+		TEST_SKEY_FLOAT, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
 	// select * from table where age < 30
 	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_FLOAT)
 	rows, err := swarmdb.QuerySelect(sql)
@@ -213,8 +213,8 @@ func cTestTableSecondaryFloat(t *testing.T) {
 }
 
 func cTestTableSecondaryString(t *testing.T) {
-	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING,
-		TEST_SKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING, true)
+	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+		TEST_SKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_STRING)
 	rows, err := swarmdb.QuerySelect(sql)
 	if err != nil {
@@ -236,7 +236,7 @@ func rng() *mathutil.FC32 {
 // primary key is integer "accountID"
 func TestPutInteger(t *testing.T) {
 	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
-	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, true)
+	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
 	// write 20 values into B-tree (only kept in memory)
 	r.StartBuffer()
@@ -247,7 +247,7 @@ func TestPutInteger(t *testing.T) {
 	}
 	r.FlushBuffer()
 
-	s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
+	s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 
 	g, err := s.Get("8")
 	if err != nil {
@@ -266,7 +266,7 @@ func TestPutInteger(t *testing.T) {
 func TestPutString(t *testing.T) {
 	fmt.Printf("---- TestPutString: generate 20 strings and enumerate them\n")
 
-	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING, true)
+	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 
 	r.StartBuffer()
 	vals := rand.Perm(20)
@@ -278,7 +278,7 @@ func TestPutString(t *testing.T) {
 	// this writes B+tree to SWARM
 	r.FlushBuffer()
 
-	s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING, false)
+	s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
 	k := "t000008@wolk.com"
 	g, _ := s.Get(k)
 	fmt.Printf("Get(%s): %v\n", k, string(g))
@@ -292,7 +292,7 @@ func TestPutString(t *testing.T) {
 func TestPutFloat(t *testing.T) {
 	fmt.Printf("---- TestPutFloat: generate 20 floats and enumerate them\n")
 
-	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_FLOAT, TEST_TABLE_INDEXTYPE, common.CT_FLOAT, true)
+	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_FLOAT, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
 
 	r.StartBuffer()
 	vals := rand.Perm(20)
@@ -305,7 +305,7 @@ func TestPutFloat(t *testing.T) {
 	// this writes B+tree to SWARM
 	r.FlushBuffer()
 
-	s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_STRING, false)
+	s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
 	i := 4
 	f := float64(i) + .3141519
 	k := fmt.Sprintf("%f", f)
@@ -321,7 +321,7 @@ func TestPutFloat(t *testing.T) {
 
 func TestSetGetString(t *testing.T) {
 
-	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_FLOAT, true)
+	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
 
 	// put
 	key := "88"
@@ -337,7 +337,7 @@ func TestSetGetString(t *testing.T) {
 	}
 
 	// r2 put
-	r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_FLOAT, false)
+	r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, false)
 	val2 := fmt.Sprintf(`{"%s":"%s", "val":"newvalueof%06x"}`, TEST_PKEY_STRING, key, key)
 	r2.Put(val2)
 
@@ -350,7 +350,7 @@ func TestSetGetString(t *testing.T) {
 	}
 
 	// r3 put
-	r3 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, common.CT_FLOAT, false)
+	r3 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, false)
 	val3 := fmt.Sprintf(`{"%s":"%s", "val":"valueof%06x"}`, TEST_PKEY_STRING, key, key)
 	r3.Put(val3)
 
@@ -366,7 +366,7 @@ func TestSetGetString(t *testing.T) {
 
 func TestDelete0(t *testing.T) {
 
-	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, true)
+	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
 	key0 := "0"
 	key1 := "1"
@@ -431,7 +431,7 @@ func aTestDelete1(t *testing.T) {
 
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, true)
+		r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 		a := make([]int, N)
 		for i := range a {
 			a[i] = (i ^ x) << 1
@@ -441,7 +441,7 @@ func aTestDelete1(t *testing.T) {
 			r.Put(v)
 		}
 
-		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
+		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 		for i, k := range a {
 			key := fmt.Sprintf("%d", k)
 			fmt.Printf("attempt delete [%s]\n", key)
@@ -458,7 +458,7 @@ func aTestDelete2(t *testing.T) {
 	const N = 100
 
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, true)
+		r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 		a := make([]int, N)
 		rng := rng()
 		for i := range a {

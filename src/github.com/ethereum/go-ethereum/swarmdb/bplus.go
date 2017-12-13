@@ -1,10 +1,9 @@
-package common
+package swarmdb
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	// "github.com/ethereum/go-ethereum/swarmdb/common"
 	"io"
 	"math"
 	"strings"
@@ -675,7 +674,7 @@ func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
 		var i int
 		i, ok = t.find(q, k)
 		if ok {
-			
+
 			switch x := q.(type) {
 			case *x:
 				if x.c < kx && q != t.r {
@@ -714,7 +713,7 @@ func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
 			q = x.x[i].ch
 			x.dirty = true // optimization: this should really be if something is *actually* deleted
 		case *d:
-			return false, nil  // we got to the bottom and key was not found
+			return false, nil // we got to the bottom and key was not found
 		}
 	}
 }
@@ -786,9 +785,9 @@ func checkload(swarmdb DBChunkstorage, q interface{}) {
 func (t *Tree) Get(key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
 
 	q := t.r
-//	if q == nil {
-//		return
-//	}
+	//	if q == nil {
+	//		return
+	//	}
 
 	k := make([]byte, K_SIZE)
 	copy(k, key)

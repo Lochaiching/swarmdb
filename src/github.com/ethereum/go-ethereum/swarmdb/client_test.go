@@ -1,11 +1,10 @@
-package common_test
+package swarmdb_test
 
 import (
 	"encoding/json"
 	"fmt"
-	"testing"
-	//"github.com/ethereum/go-ethereum/swarmdb/client"
 	"github.com/ethereum/go-ethereum/swarmdb/"
+	"testing"
 )
 
 func TestCreateTable(t *testing.T) {

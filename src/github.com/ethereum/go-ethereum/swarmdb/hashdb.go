@@ -1,11 +1,9 @@
-package common
+package swarmdb
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	// ethcommon "github.com/ethereum/go-ethereum/common"
-	// common "github.com/ethereum/go-ethereum/swarmdb/common"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
@@ -21,11 +19,11 @@ const binnum = 64
 type Val interface{}
 
 type HashDB struct {
-	rootnode *Node
-	swarmdb  SwarmDB
-	buffered bool
-        columnType ColumnType
-	mutex    sync.Mutex
+	rootnode   *Node
+	swarmdb    SwarmDB
+	buffered   bool
+	columnType ColumnType
+	mutex      sync.Mutex
 }
 
 type Node struct {
@@ -39,7 +37,7 @@ type Node struct {
 	NodeKey  []byte //for disk/(net?)DB. Currently, it's bin data but it will be the hash
 	NodeHash []byte //for disk/(net?)DB. Currently, it's bin data but it will be the hash
 	Loaded   bool
-	Stored	bool	
+	Stored   bool
 }
 
 func (self *HashDB) GetRootHash() ([]byte, error) {
@@ -260,15 +258,15 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmD
 func compareVal(a, b Val) int {
 	if va, ok := a.([]byte); ok {
 		if vb, ok := b.([]byte); ok {
-/*
-			bufa := make([]byte, 32)
-			bufb := make([]byte, 32)
-			copy(bufa, va[0:32])
-			copy(bufb, vb[0:32])
-			if bytes.Compare(bufa, bufb) == 0{
-				return 0
-			}
-*/
+			/*
+				bufa := make([]byte, 32)
+				bufb := make([]byte, 32)
+				copy(bufa, va[0:32])
+				copy(bufb, vb[0:32])
+				if bytes.Compare(bufa, bufb) == 0{
+					return 0
+				}
+			*/
 			return bytes.Compare(bytes.Trim(va, "\x00"), bytes.Trim(vb, "\x00"))
 		}
 	}
@@ -309,7 +307,7 @@ func (self *Node) storeBinToNetwork(swarmdb SwarmDB) []byte {
 	//rd := bytes.NewReader(storedata)
 	//wg := &sync.WaitGroup{}
 	adhash, _ := swarmdb.StoreDBChunk(storedata)
-//fmt.Printf("add hash node %x\n", adhash) 
+	//fmt.Printf("add hash node %x\n", adhash)
 	//wg.Wait()
 	return adhash
 }
@@ -349,8 +347,8 @@ func (self *Node) Get(k []byte, swarmdb SwarmDB) Val {
 	} else {
 		if compareVal(k, self.Bin[bin].Key) == 0 {
 			return self.Bin[bin].Value
-		}else{
-		err := fmt.Errorf("%s is not exist", string(k))
+		} else {
+			err := fmt.Errorf("%s is not exist", string(k))
 			return err
 		}
 	}
@@ -396,8 +394,8 @@ func (self *Node) load(swarmdb SwarmDB) {
 				break
 			}
 		}
-		if pos == 96 && bytes.Compare(buf[96:96+32], emptybyte) != 0{
-			pos = 96+32
+		if pos == 96 && bytes.Compare(buf[96:96+32], emptybyte) != 0 {
+			pos = 96 + 32
 		}
 		log.Trace(fmt.Sprintf("hashdb Node Get load index: %d pos = %d", bytes.Index(buf[96:96+32], eb), pos))
 		self.Key = buf[96:pos]
@@ -503,29 +501,29 @@ func (self *HashDB) StartBuffer() (bool, error) {
 }
 
 func (self *HashDB) FlushBuffer() (bool, error) {
-	if self.buffered == false{
-	        //var err *NoBufferError
+	if self.buffered == false {
+		//var err *NoBufferError
 		//return false, err
 	}
 	_, err := self.rootnode.flushBuffer(self.swarmdb)
-	if err != nil{
+	if err != nil {
 		return false, err
 	}
 	self.buffered = false
 	return true, err
 }
 
-func (self *Node) flushBuffer(swarmdb SwarmDB)([]byte, error){
+func (self *Node) flushBuffer(swarmdb SwarmDB) ([]byte, error) {
 	//buf := make([]byte, 4096)
-	for _, bin := range self.Bin{
+	for _, bin := range self.Bin {
 		//fmt.Println("bin = ", bin)
-		if bin != nil{
+		if bin != nil {
 			if bin.Next == true && bin.Stored == false {
 				_, err := bin.flushBuffer(swarmdb)
-				if err != nil{
+				if err != nil {
 					return nil, err
 				}
-			}else if bin.Stored == false {
+			} else if bin.Stored == false {
 				sdata := make([]byte, 4096)
 				copy(sdata[64:], convertToByte(bin.Value))
 				copy(sdata[96:], bin.Key)
@@ -541,7 +539,7 @@ func (self *Node) flushBuffer(swarmdb SwarmDB)([]byte, error){
 	self.NodeHash = self.storeBinToNetwork(swarmdb)
 	self.Stored = true
 	return self.NodeHash, nil
-	
+
 }
 
 func (self *HashDB) Print() {
@@ -549,16 +547,16 @@ func (self *HashDB) Print() {
 	return
 }
 
-func (self *Node) print(swarmdb SwarmDB){
-       for _, bin := range self.Bin{
-		if bin != nil{
-       			if bin.Loaded == false {
-           			bin.load(swarmdb)
-              			bin.Loaded = true
+func (self *Node) print(swarmdb SwarmDB) {
+	for _, bin := range self.Bin {
+		if bin != nil {
+			if bin.Loaded == false {
+				bin.load(swarmdb)
+				bin.Loaded = true
 			}
-			if bin.Next != true{
+			if bin.Next != true {
 				fmt.Printf("leaf key = %v Value = %x\n", bin.Key, bin.Value)
-			}else{
+			} else {
 				bin.print(swarmdb)
 			}
 		}

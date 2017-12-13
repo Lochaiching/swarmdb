@@ -1,9 +1,8 @@
-package common
+package swarmdb
 
 import (
 	"fmt"
 	//"bytes"
-	common "github.com/ethereum/go-ethereum/swarmdb"
 	"testing"
 )
 
@@ -15,7 +14,7 @@ var (
 func TestDBChunkStore(t *testing.T) {
 
 	//General Connection
-	store, err := common.NewDBChunkStore(testDBPath)
+	store, err := swarmdb.NewDBChunkStore(testDBPath)
 	if err != nil {
 		t.Fatal("[FAILURE] to open DBChunkStore\n")
 	} else {
@@ -72,7 +71,7 @@ func TestDBChunkStore(t *testing.T) {
 func TestLoadDBChunkStore(t *testing.T) {
 
 	//Opening existing DB
-	store, err := common.LoadDBChunkStore(testDBPath)
+	store, err := swarmdb.LoadDBChunkStore(testDBPath)
 	if err != nil {
 		t.Fatal("[FAILURE] to open existing DBChunkStore\n")
 	} else {

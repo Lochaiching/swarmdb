@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
-	//common "github.com/ethereum/go-ethereum/swarmdb"
 	"github.com/xwb1989/sqlparser"
 	"strings"
 )

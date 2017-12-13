@@ -1,4 +1,4 @@
-package common_test
+package swarmdb_test
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 func PrintDocs(docs [][]byte) {
 }
 
-func getSwarmDB(t *testing.T) (a common.SwarmDB) {
-	swarmdb := common.NewSwarmDB()
+func getSwarmDB(t *testing.T) (a swarmdb.SwarmDB) {
+	swarmdb := swarmdb.NewSwarmDB()
 	return *swarmdb
 }
 
@@ -18,7 +18,7 @@ func TestPutString(t *testing.T) {
 	fmt.Printf("---- TestPutString: generate 20 strings and enumerate them\n")
 
 	hashid := make([]byte, 32)
-	r := common.NewFullTextIndex(getSwarmDB(t), hashid)
+	r := swarmdb.NewFullTextIndex(getSwarmDB(t), hashid)
 
 	r.StartBuffer()
 	k := []byte("game of thrones")
@@ -56,7 +56,7 @@ func TestPutString(t *testing.T) {
 	r.FlushBuffer()
 	hashid, _ = r.GetRootHash()
 
-	s := common.NewFullTextIndex(getSwarmDB(t), hashid)
+	s := swarmdb.NewFullTextIndex(getSwarmDB(t), hashid)
 
 	var words1 []string
 	words1 = append(words1, "game")

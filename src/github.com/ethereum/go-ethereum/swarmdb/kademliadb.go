@@ -1,12 +1,10 @@
-package common
+package swarmdb
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
-	// "github.com/ethereum/go-ethereum/swarmdb/common"
-	"crypto/sha256"
 	"strconv"
-	//"sync"
 	"time"
 )
 
