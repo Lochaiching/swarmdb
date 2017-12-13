@@ -1,4 +1,4 @@
-package swarmdb
+package swarmdb_test
 
 import (
 	"fmt"
