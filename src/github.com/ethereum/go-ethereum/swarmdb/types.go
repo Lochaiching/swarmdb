@@ -100,6 +100,11 @@ type Table struct {
 	primaryColumnName string
 }
 
+type Row struct {
+        primaryKeyValue interface{}
+ 	cells   map[string]interface{}
+}
+
 type DBChunkstorage interface {
 	RetrieveDBChunk(key []byte) (val []byte, err error)
 	StoreDBChunk(val []byte) (key []byte, err error)
