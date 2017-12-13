@@ -138,26 +138,10 @@ static sgx_status_t SGX_CDECL sgx_wolkSHA256(void* pms)
 	sgx_status_t status = SGX_SUCCESS;
 	uint8_t* _tmp_plaintext = ms->ms_plaintext;
 	uint8_t* _tmp_hash = ms->ms_hash;
-	size_t _tmp_hash_len = ms->ms_hash_len;
-	size_t _len_hash = _tmp_hash_len;
-	uint8_t* _in_hash = NULL;
 
-	CHECK_UNIQUE_POINTER(_tmp_hash, _len_hash);
 
-	if (_tmp_hash != NULL) {
-		if ((_in_hash = (uint8_t*)malloc(_len_hash)) == NULL) {
-			status = SGX_ERROR_OUT_OF_MEMORY;
-			goto err;
-		}
+	ms->ms_retval = wolkSHA256(_tmp_plaintext, ms->ms_plaintext_len, _tmp_hash, ms->ms_hash_len);
 
-		memset((void*)_in_hash, 0, _len_hash);
-	}
-	ms->ms_retval = wolkSHA256(_tmp_plaintext, ms->ms_plaintext_len, _in_hash, _tmp_hash_len);
-err:
-	if (_in_hash) {
-		memcpy(_tmp_hash, _in_hash, _len_hash);
-		free(_in_hash);
-	}
 
 	return status;
 }

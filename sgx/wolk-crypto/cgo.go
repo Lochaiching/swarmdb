@@ -17,6 +17,6 @@ func test() {
 }
 
 func main() {
-    C.sgx_seal()
+    C.wolkMain()
     //test()
 }
