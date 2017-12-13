@@ -45,8 +45,16 @@ type ChunkStats struct {
 
 func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
     logDT := time.Now()
+    self.netstat.CStat["ChunkRL"].Add(self.netstat.CStat["ChunkR"], self.netstat.CStat["ChunkRL"])
+    self.netstat.CStat["ChunkWL"].Add(self.netstat.CStat["ChunkW"], self.netstat.CStat["ChunkWL"])
+
+    err := self.GetChunkStored()
+    if err != nil {
+        fmt.Printf("ChunkStore parsing error\n")
+    }
+
+
     fileInfo, err := os.Stat(self.filepath)
-    //deltaCR := self.netstat.CStat["ByteCRK"]
     if err == nil {
         deltaBS := new(big.Int).SetInt64(fileInfo.Size())
         self.netstat.BStat["ByteS"].Sub(deltaBS, self.netstat.BStat["ByteSL"]) 
@@ -69,8 +77,8 @@ func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
 		file.ChunkStat[cc] = cv.String()
 	}
 
-	for bytecol, byteval := range self.netstat.BStat {
-		file.ByteStat[bytecol] = byteval.String()
+	for bc, bv := range self.netstat.BStat {
+		file.ByteStat[bc] = bv.String()
 	}
 
 	for ticket, reward := range self.netstat.Claim {
@@ -103,19 +111,23 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) error {
 	}
 
 	for cc, cv := range file.ChunkStat {
-		file.CStat[cc], ok = new(big.Int).SetString(cv, 10)
-		if !ok {
-			return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", cc, cv)
-		}
-	}
-
-	for bytecol, byteval := range file.ByteStat {
-        if bytecol == "ChunkR" || bytecol == "ChunkW" || bytecol == "ChunkS" {
-            file.BStat[bytecol] = big.NewInt(0)
+        if cc == "ChunkR" || cc == "ChunkW" || cc == "ChunkS" {
+            file.CStat[cc] = big.NewInt(0)
         }else{
-		    file.BStat[bytecol], ok = new(big.Int).SetString(byteval, 10)
+		    file.CStat[cc], ok = new(big.Int).SetString(cv, 10)
 		    if !ok {
-			    return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", bytecol, byteval)
+			    return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", cc, cv)
+		    }
+	    }
+    }
+
+	for bc, bv := range file.ByteStat {
+        if bc == "ByteW" || bc == "ByteR" {
+            file.BStat[bc] = big.NewInt(0)
+        }else{
+		    file.BStat[bc], ok = new(big.Int).SetString(bv, 10)
+		    if !ok {
+			    return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", bc, bv)
 		    }
 	    }
     }
@@ -281,7 +293,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 	stmt.Close()
 	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
-	self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
+	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
 	return nil
 }
 
@@ -312,7 +324,7 @@ func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
 	stmt.Close()
 	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
-	self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
+	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
 	return k, nil
 }
 
@@ -327,7 +339,6 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 	}
 	defer stmt.Close()
 
-	//rows, err := stmt.Query()
 	rows, err := stmt.Query(key)
 	if err != nil {
 		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
@@ -362,7 +373,6 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 	}
 	defer stmt.Close()
 
-	//rows, err := stmt.Query()
 	rows, err := stmt.Query(key)
 	if err != nil {
 		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
@@ -476,7 +486,6 @@ func (self *DBChunkstore) ScanAll() (err error) {
 	}
 	stmt.Close()
 	self.netstat.LReadDT = &ts
-    self.netstat.CStat["ChunkRL"].Add(self.netstat.CStat["ChunkRL"], new(big.Int).SetInt64(rcnt))
 	self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], new(big.Int).SetInt64(rcnt))
 	return nil
 }
@@ -490,6 +499,32 @@ func (self *DBChunkstore) ClaimAll() (err error) {
 	return nil
 }
 
+func (self *DBChunkstore) GetChunkStored() (err error) {
+    sql_chunkTally := `SELECT count(*) FROM chunk`
+    rows, err := self.db.Query(sql_chunkTally)
+    if err != nil {
+        return err
+    }
+    defer rows.Close()
+
+    var result []ChunkStats
+    chunkStored := int64(0)
+    for rows.Next() {
+        c := ChunkStats{}
+        err2 := rows.Scan(&c.ChunkStored)
+        if err2 != nil {
+            fmt.Printf("ERROR:%s\n", err2)
+            return err2
+        }
+        chunkStored += c.ChunkStored
+        //fmt.Printf("[stat] Time %v => Read:%v | Write:%v | Stored:%v\n", c.CurrentTS, c.ChunkRead, c.ChunkWrite, c.ChunkStored)
+        result = append(result, c)
+    }
+    rows.Close()
+    self.netstat.CStat["ChunkS"].Sub(new(big.Int).SetInt64(chunkStored), self.netstat.CStat["ChunkSL"])
+    self.netstat.CStat["ChunkSL"] = new(big.Int).SetInt64(chunkStored)
+    return nil
+}
 
 func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 	sql_chunkTally := `SELECT strftime('%s',statDT) as STS, sum(rcnt), sum(wcnt), sum(scnt) FROM netstat group by strftime('%s',statDT) order by STS DESC`
