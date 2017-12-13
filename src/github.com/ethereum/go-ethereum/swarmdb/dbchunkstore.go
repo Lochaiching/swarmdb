@@ -14,7 +14,6 @@ import (
 	"io/ioutil"
 	"math/big"
 	"os"
-	"strconv"
 	"time"
 )
 
@@ -45,6 +44,14 @@ type ChunkStats struct {
 }
 
 func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
+    logDT := time.Now()
+    fileInfo, err := os.Stat(self.filepath)
+    //deltaCR := self.netstat.CStat["ByteCRK"]
+    if err == nil {
+        deltaBS := new(big.Int).SetInt64(fileInfo.Size())
+        self.netstat.BStat["ByteS"].Sub(deltaBS, self.netstat.BStat["ByteSL"]) 
+        self.netstat.BStat["ByteSL"] = deltaBS
+    }
 
 	var file = &NetstatFile{
 		NodeID:        self.netstat.NodeID,
@@ -55,7 +62,7 @@ func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
 		LaunchDT:      self.netstat.LaunchDT,
 		LReadDT:       self.netstat.LReadDT,
 		LWriteDT:      self.netstat.LWriteDT,
-		LogDT:         time.Now(),
+		LogDT:         &logDT,
 	}
 
 	for cc, cv := range self.netstat.CStat {
@@ -103,15 +110,18 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) error {
 	}
 
 	for bytecol, byteval := range file.ByteStat {
-		file.BStat[bytecol], ok = new(big.Int).SetString(byteval, 10)
-		if !ok {
-			return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", bytecol, byteval)
-		}
-	}
+        if bytecol == "ChunkR" || bytecol == "ChunkW" || bytecol == "ChunkS" {
+            file.BStat[bytecol] = big.NewInt(0)
+        }else{
+		    file.BStat[bytecol], ok = new(big.Int).SetString(byteval, 10)
+		    if !ok {
+			    return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", bytecol, byteval)
+		    }
+	    }
+    }
 
 	self.netstat = &file
 	return nil
-
 }
 
 func (self *DBChunkstore) Save() (err error) {
@@ -124,7 +134,7 @@ func (self *DBChunkstore) Save() (err error) {
 }
 
 func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
-
+    ts := time.Now()
 	claim := make(map[string]*big.Int)
 	chunkstat := map[string]*big.Int{"ChunkR": big.NewInt(0), "ChunkW": big.NewInt(0), "ChunkS": big.NewInt(0), "ChunkRL": big.NewInt(0), "ChunkWL": big.NewInt(0), "ChunkSL": big.NewInt(0)}
 	bytestat := map[string]*big.Int{"ByteR": big.NewInt(0), "ByteW": big.NewInt(0), "ByteS": big.NewInt(0), "ByteRL": big.NewInt(0), "ByteWL": big.NewInt(0), "ByteSL": big.NewInt(0)}
@@ -179,10 +189,9 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 	walletAddr := ethcommon.HexToAddress(userWallet)
 
 	netstat := NetstatFile{
-
 		NodeID:        nodeid,
 		WalletAddress: userWallet,
-		LaunchDT:      time.Now(),
+		LaunchDT:      &ts,
 		CStat:         chunkstat,
 		BStat:         bytestat,
 		Claim:         claim,
@@ -202,6 +211,7 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 	var data []byte
 	defaultDBPath := "netstat.json"
+
 	data, err = ioutil.ReadFile(defaultDBPath)
 	if err != nil {
 		fmt.Printf("Error in Loading netStat from %s.. generating new Log instead\n", defaultDBPath)
@@ -243,6 +253,7 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 }
 
 func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
+    ts := time.Now()
 	if len(v) < minChunkSize {
 		return fmt.Errorf("chunk too small") // should be improved
 	}
@@ -268,13 +279,14 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 		return (err2)
 	}
 	stmt.Close()
-	self.netstat.LWriteDT = time.Now()
+	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
 	self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
 	return nil
 }
 
 func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
+    ts := time.Now()
 	if len(v) < minChunkSize {
 		return k, fmt.Errorf("chunk too small") // should be improved
 	}
@@ -298,13 +310,14 @@ func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
 		return k, err2
 	}
 	stmt.Close()
-	self.netstat.LWriteDT = time.Now()
+	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
 	self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
 	return k, nil
 }
 
 func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
+    ts := time.Now()
 	val = make([]byte, 8192)
 	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
@@ -333,12 +346,13 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 		decVal = bytes.TrimRight(decVal, "\x00")
 		return decVal, nil
 	}
-	self.netstat.LReadDT = time.Now()
+	self.netstat.LReadDT = &ts
 	self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
 	return val, nil
 }
 
 func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
+    ts := time.Now()
 	val = make([]byte, 8192)
 	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
@@ -364,7 +378,7 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 		decVal := self.km.DecryptData(val)
 		return decVal, nil
 	}
-	self.netstat.LReadDT = time.Now()
+	self.netstat.LReadDT = &ts
 	self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
 	return val, nil
 }
@@ -420,6 +434,7 @@ func (self *DBChunkstore) PrintDBChunk(columnType ColumnType, hashid []byte, c [
 }
 
 func (self *DBChunkstore) ScanAll() (err error) {
+    ts := time.Now()
 	sql_readall := `SELECT chunkKey, chunkVal,strftime('%s',storeDT) FROM chunk ORDER BY storeDT DESC`
 	rows, err := self.db.Query(sql_readall)
 	if err != nil {
@@ -427,7 +442,7 @@ func (self *DBChunkstore) ScanAll() (err error) {
 	}
 	defer rows.Close()
 
-	var rcnt int
+	var rcnt int64
 	var result []DBChunk
 	for rows.Next() {
 		c := DBChunk{}
@@ -460,13 +475,9 @@ func (self *DBChunkstore) ScanAll() (err error) {
 		return err2
 	}
 	stmt.Close()
-	self.netstat.LReadDT = time.Now()
-	n, ok := new(big.Int).SetString(strconv.FormatInt(int64(rcnt), 10), 10) // bad representation
-	if !ok {
-		fmt.Printf("\nError in updating counter\n")
-		return nil
-	}
-	self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], n)
+	self.netstat.LReadDT = &ts
+    self.netstat.CStat["ChunkRL"].Add(self.netstat.CStat["ChunkRL"], new(big.Int).SetInt64(rcnt))
+	self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], new(big.Int).SetInt64(rcnt))
 	return nil
 }
 
@@ -474,15 +485,11 @@ func (self *DBChunkstore) ClaimAll() (err error) {
 	fmt.Printf("netCounter: %v\n", netCounter)
 	fmt.Printf("self: %v\n", self)
 	ticket := "9f2018c7dc1e31fb6708fd6bd0f8975bf704e5a0e8465fbef2b5e7e5fc37c4d8"
-	n, ok := new(big.Int).SetString(strconv.FormatInt(int64(121), 10), 10) // bad representation
-	if !ok {
-		fmt.Printf("\nError in updating counter\n")
-		return nil
-	} else {
-		self.netstat.Claim[ticket] = n
-	}
+    reward := 121
+	self.netstat.Claim[ticket] =  new(big.Int).SetInt64(int64(reward))
 	return nil
 }
+
 
 func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 	sql_chunkTally := `SELECT strftime('%s',statDT) as STS, sum(rcnt), sum(wcnt), sum(scnt) FROM netstat group by strftime('%s',statDT) order by STS DESC`
