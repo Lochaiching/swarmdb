@@ -25,10 +25,10 @@ type NetstatFile struct {
 	CStat         map[string]*big.Int `json:"-"`
 	BStat         map[string]*big.Int `json:"-"`
 	Claim         map[string]*big.Int `json:"-"`
-	LaunchDT      time.Time
-	LReadDT       time.Time
-	LWriteDT      time.Time
-	LogDT         time.Time
+	LaunchDT      *time.Time
+	LReadDT       *time.Time
+	LWriteDT      *time.Time
+	LogDT         *time.Time
 }
 
 type DBChunkstore struct {
@@ -72,7 +72,9 @@ type RequestOption struct {
 	RequestType string   `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
 	Owner       string   `json:"owner,omitempty"`
 	Table       string   `json:"table,omitempty"` //"contacts"
-	Index       string   `json:"index,omitempty"`
+	Encrypted   bool     `json:"encrypted,omitempty"`
+	Bid	    float64  `json:"bid,omitempty"`
+	Replication int64    `json:"replication,omitempty"`
 	Key         string   `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
 	Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Columns     []Column `json:"columns",omitempty"`

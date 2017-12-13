@@ -94,7 +94,7 @@ func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
 	return t
 }
 
-func (t *Table) CreateTable(columns []Column) (err error) {
+func (t *Table) CreateTable(columns []Column, bid float64, replication int64, encrypted bool) (err error) {
 	buf := make([]byte, 4096)
 	for i, columninfo := range columns {
 		copy(buf[2048+i*64:], columninfo.ColumnName)
@@ -106,7 +106,7 @@ func (t *Table) CreateTable(columns []Column) (err error) {
 		copy(buf[2048+i*64+28:], b)
 
 		b[0] = byte(columninfo.IndexType)
-		copy(buf[2048+i*64+30:], b)
+		copy(buf[2048+i*64+30:], b) // columninfo.IndexType)
 	}
 	swarmhash, err := t.swarmdb.StoreDBChunk(buf)
 	if err != nil {
@@ -115,6 +115,7 @@ func (t *Table) CreateTable(columns []Column) (err error) {
 	err = t.swarmdb.StoreRootHash([]byte(t.tableName), []byte(swarmhash))
 	return err
 }
+
 
 func (t *Table) SetPrimary(p string) (err error) {
 	t.primaryColumnName = p
@@ -130,8 +131,6 @@ func (t *Table) OpenTable() (err error) {
 		fmt.Printf("Error retrieving Index Root Hash for table [%s]: %s", t.tableName, err)
 		return err
 	}
-	fmt.Printf("Retrieve Root HASH: %s => %x\n", t.tableName, roothash)
-
 	setprimary := false
 	columndata, err := t.swarmdb.RetrieveDBChunk(roothash)
 	if err != nil {
@@ -177,7 +176,6 @@ func (t *Table) OpenTable() (err error) {
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -223,7 +221,7 @@ func (t *Table) Put(value string) (err error) {
 
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName))
 	khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
-	fmt.Printf("KADDB Key: %x => (value: %s)  hash(%v)\n", k, value, khash)
+	//fmt.Printf("KADDB Key: %s => (value: %s)  hash(%v)\n", k, value, khash)
 	_, err = t.columns[t.primaryColumnName].dbaccess.Put(k, []byte(khash))
 	if err != nil {
 	}
@@ -280,7 +278,6 @@ func (t *Table) Get(key string) ([]byte, error) {
 		return nil, cerr
 	}
 
-	//fmt.Printf(" GET: primary %s => columnType: %d\n", primaryColumnName, t.columns[t.primaryColumnName].columnType)
 	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
 	//fmt.Printf(" k: %v\n", k)
 
