@@ -1,69 +1,55 @@
-package client
+package swarmdb
 
 import (
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
-	common "github.com/ethereum/go-ethereum/swarmdb"
+	//common "github.com/ethereum/go-ethereum/swarmdb"
 	"github.com/xwb1989/sqlparser"
 	"strings"
 )
 
-//func NewClient(gateway string) *Client {
-//	return &Client {
-//		Gateway: gateway,
-//	}
-//}
+/* from types.go:
+type Column struct {
+        ColumnName string     `json:"columnname,omitempty"` // e.g. "accountID"
+        IndexType  IndexType  `json:"indextype,omitempty"`  // IT_BTREE
+        ColumnType ColumnType `json:"columntype,omitempty"`
+        Primary    int        `json:"primary,omitempty"`
+}
 
-//type Client struct {
-//	Gateway string
-//}
-
-/*
 type RequestOption struct {
-	RequestType  string        `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	Owner        string        `json:"owner,omitempty"`
-	Table        string        `json:"table"`           //"contacts"
-	Key          string        `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
-	Value        string        `json:"value,omitempty"` //value of val, usually the whole json record
-	TableOptions []TableOption `json:"tableoptions",omitempty"`
-}
+        RequestType string   `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
+        Owner       string   `json:"owner,omitempty"`
+        Table       string   `json:"table,omitempty"` //"contacts"
+        Index       string   `json:"index,omitempty"`
+        Key         string   `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
+        Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
+        Columns     []Column `json:"columns",omitempty"`
+}*/
 
-//cursor?
-type TableOption struct {
-	TreeType  string `json:"treetype,omitempty"`
-	Index     string `json:"index"`
-	IndexType string `json:"indextype,omitempty"`
-	Primary   int    `json:"primary,omitempty"`
-}
-*/
-
-//index is primary key
-//where do you get treetype from?
 //columntypes exp: {"name":"string", "age":"int", "gender":"string"}
-func CreateTable(treetype string, table string, index string, columntype map[string]string) (err error) {
+func CreateTable(indextype string, table string, primarykey string, columntype map[string]string) (err error) {
 
-	var req common.RequestOption
+	var req RequestOption
 	req.RequestType = "CreateTable"
 	req.Table = table
 
 	//primary key call
-	var primarycol common.TableOption
-	primarycol.TreeType = treetype
-	primarycol.Index = index
-	//primarycol.IndexType = columntype[index]
+	var primarycol Column
+	primarycol.ColumnName = primarykey
+	primarycol.IndexType = indextype
+	primarycol.ColumnType = columntype[primarykey]
 	primarycol.Primary = 1
-	req.TableOptions = append(req.TableOptions, primarycol)
+	req.Columns = append(req.Columns, primarycol)
 
 	//secondary key calls
-	for col, _ := range columntype {
-		if col != index {
-			var secondarycol common.TableOption
-			secondarycol.TreeType = treetype
-			secondarycol.Index = col
-			//secondarycol.IndexType = coltype
+	for col, coltype := range columntype {
+		if col != primarykey {
+			var secondarycol Column
+			secondarycol.ColumnName = col
+			secondarycol.IndexType = coltype
 			secondarycol.Primary = 0
-			req.TableOptions = append(req.TableOptions, secondarycol)
+			req.Columns = append(req.Columns, secondarycol)
 		}
 	}
 
@@ -82,7 +68,7 @@ func CreateTable(treetype string, table string, index string, columntype map[str
 //key is most likely the primary key
 func AddRecord(owner string, table string, key string, value string) (err error) {
 
-	var req common.RequestOption
+	var req RequestOption
 	req.RequestType = "Insert" //does not allow duplicates...?
 	req.Owner = owner
 	req.Table = table
@@ -111,7 +97,7 @@ func GetRecord(owner string, table string, key string) (value string, err error)
 
 	//fmt.Printf("swarmdb.SWARMDB_get(%s, %s)\n", tbl_name, id)
 
-	var req common.RequestOption
+	var req RequestOption
 	req.RequestType = "Get"
 	req.Owner = owner
 	req.Table = table
@@ -134,7 +120,7 @@ func GetRecord(owner string, table string, key string) (value string, err error)
 //data should be a pointer not actual structure
 func Query(owner string, table string, sql string) (data []string, err error) {
 
-	var req common.RequestOption
+	var req RequestOption
 	req.RequestType = "Get"
 	req.Owner = owner
 	req.Table = table
@@ -264,13 +250,6 @@ func cleanValue(val string) string {
 	val = strings.Replace(val, `'`, "", -1)
 	val = strings.Replace(leftval, `"`, "", -1)
 	return val
-}
-*/
-
-//stub for looking up treetype of existing tables
-/*
-func GetTreeType(owner string, table string) (index string, err error) {
-	return "BT", nil
 }
 */
 

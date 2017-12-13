@@ -25,10 +25,10 @@ type NetstatFile struct {
 	CStat         map[string]*big.Int `json:"-"`
 	BStat         map[string]*big.Int `json:"-"`
 	Claim         map[string]*big.Int `json:"-"`
-	LaunchDT      time.Time
-	LReadDT       time.Time
-	LWriteDT      time.Time
-	LogDT         time.Time
+	LaunchDT      *time.Time
+	LReadDT       *time.Time
+	LWriteDT      *time.Time
+	LogDT         *time.Time
 }
 
 type DBChunkstore struct {
@@ -103,6 +103,11 @@ type Table struct {
 	bid float64 
 	replication int
 	encrypted int
+}
+
+type Row struct {
+        primaryKeyValue interface{}
+ 	cells   map[string]interface{}
 }
 
 type DBChunkstorage interface {
