@@ -46,11 +46,11 @@ type ENSSimulation struct {
 }
 
 type KademliaDB struct {
-	dbChunkstore   *DBChunkstore
-	mutex     sync.Mutex
-	owner     []byte
-	tableName []byte
-	column    []byte
+	dbChunkstore *DBChunkstore
+	mutex        sync.Mutex
+	owner        []byte
+	tableName    []byte
+	column       []byte
 }
 
 type SwarmDB struct {
@@ -101,8 +101,8 @@ type Table struct {
 	columns           map[string]*ColumnInfo
 	primaryColumnName string
 	bid               float64
-	replication       int
-	encrypted         int
+	replication       int64
+	encrypted         int64
 }
 
 type Row struct {
@@ -299,6 +299,17 @@ func FloatToByte(f float64) (k []byte) {
 	k = make([]byte, 8)
 	binary.BigEndian.PutUint64(k, bits)
 	return k
+}
+
+func BytesToFloat(b []byte) (f float64) {
+	bits := binary.BigEndian.Uint64(b)
+	f = math.Float64frombits(bits)
+	return f
+}
+
+func BytesToInt64(b []byte) (i int64) {
+	i = int64(binary.BigEndian.Uint64(b))
+	return i
 }
 
 func SHA256(inp string) (k []byte) {
