@@ -46,7 +46,7 @@ type ENSSimulation struct {
 }
 
 type KademliaDB struct {
-	swarmdb   *SwarmDB
+	dbChunkstore   *DBChunkstore
 	mutex     sync.Mutex
 	owner     []byte
 	tableName []byte

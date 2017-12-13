@@ -12,9 +12,9 @@ const (
 	chunkSize = 4096
 )
 
-func NewKademliaDB(swarmdb *SwarmDB) (*KademliaDB, error) {
+func NewKademliaDB(dbChunkstore *DBChunkstore) (*KademliaDB, error) {
 	kd := new(KademliaDB)
-	kd.swarmdb = swarmdb
+	kd.dbChunkstore = dbChunkstore
 	return kd, nil
 }
 
@@ -56,7 +56,7 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 func (self *KademliaDB) Put(k []byte, v []byte) ([]byte, error) {
 	sdata := self.buildSdata(k, v)
 	hashVal := sdata[512:544] // 32 bytes
-	_ = self.swarmdb.StoreKDBChunk(hashVal, sdata)
+	_ = self.dbChunkstore.StoreKChunk(hashVal, sdata)
 	return hashVal, nil
 }
 
@@ -71,7 +71,7 @@ func (self *KademliaDB) GetByKey(k []byte) ([]byte, bool, error) {
 }
 
 func (self *KademliaDB) Get(h []byte) ([]byte, bool, error) {
-	contentReader, err := self.swarmdb.RetrieveKDBChunk(h)
+	contentReader, err := self.dbChunkstore.RetrieveKChunk(h)
 	if err != nil {
 		log.Debug("key not found %s: %s", h, err)
 		return nil, false, fmt.Errorf("key not found: %s", err)
