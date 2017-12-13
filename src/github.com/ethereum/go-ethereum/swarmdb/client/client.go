@@ -1,10 +1,10 @@
-package client
+package swarmdb
 
 import (
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
-	common "github.com/ethereum/go-ethereum/swarmdb"
+	//common "github.com/ethereum/go-ethereum/swarmdb"
 	"github.com/xwb1989/sqlparser"
 	"strings"
 )
@@ -30,12 +30,12 @@ type RequestOption struct {
 //columntypes exp: {"name":"string", "age":"int", "gender":"string"}
 func CreateTable(indextype string, table string, primarykey string, columntype map[string]string) (err error) {
 
-	var req common.RequestOption
+	var req RequestOption
 	req.RequestType = "CreateTable"
 	req.Table = table
 
 	//primary key call
-	var primarycol common.Column
+	var primarycol Column
 	primarycol.ColumnName = primarykey
 	primarycol.IndexType = indextype
 	primarycol.ColumnType = columntype[primarykey]
@@ -45,7 +45,7 @@ func CreateTable(indextype string, table string, primarykey string, columntype m
 	//secondary key calls
 	for col, coltype := range columntype {
 		if col != primarykey {
-			var secondarycol common.Column
+			var secondarycol Column
 			secondarycol.ColumnName = col
 			secondarycol.IndexType = coltype
 			secondarycol.Primary = 0
@@ -68,7 +68,7 @@ func CreateTable(indextype string, table string, primarykey string, columntype m
 //key is most likely the primary key
 func AddRecord(owner string, table string, key string, value string) (err error) {
 
-	var req common.RequestOption
+	var req RequestOption
 	req.RequestType = "Insert" //does not allow duplicates...?
 	req.Owner = owner
 	req.Table = table
@@ -97,7 +97,7 @@ func GetRecord(owner string, table string, key string) (value string, err error)
 
 	//fmt.Printf("swarmdb.SWARMDB_get(%s, %s)\n", tbl_name, id)
 
-	var req common.RequestOption
+	var req RequestOption
 	req.RequestType = "Get"
 	req.Owner = owner
 	req.Table = table
@@ -120,7 +120,7 @@ func GetRecord(owner string, table string, key string) (value string, err error)
 //data should be a pointer not actual structure
 func Query(owner string, table string, sql string) (data []string, err error) {
 
-	var req common.RequestOption
+	var req RequestOption
 	req.RequestType = "Get"
 	req.Owner = owner
 	req.Table = table
@@ -252,8 +252,6 @@ func cleanValue(val string) string {
 	return val
 }
 */
-
-
 
 func SwarmDbUploadKademlia(owner string, table string, key string, content string) {
 	/*
