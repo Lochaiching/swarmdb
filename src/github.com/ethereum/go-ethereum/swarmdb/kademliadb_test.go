@@ -40,13 +40,12 @@ func TestKademliaChunkKeyGeneration(t *testing.T) {
 	tc.Owner = []byte(`0x728781e75735dc0962df3a51d7ef47e798a7107e`)
 	tc.TableName = []byte(`email`)
 	tc.Column = []byte(`yob`)
-
-	swarmdb := swarmdb.NewSwarmDB()
-	kdb, err := swarmdb.NewKademliaDB(swarmdb)
+	
+	dbchunkstore, err := swarmdb.NewDBChunkStore("/tmp/testchunk.db")
+	kdb, err := swarmdb.NewKademliaDB(dbchunkstore)
 	if err != nil {
 		t.Fatal("Failed creating Kademlia")
 	}
-
 	kdb.Open(tc.Owner, tc.TableName, tc.Column)
 	generatedKey := kdb.GenerateChunkKey(tc.Key)
 	expectedKey := []byte{232, 13, 189, 249, 19, 48, 66, 109, 189, 89, 16, 49, 191, 59, 245, 251, 210, 223, 121, 151, 165, 252, 232, 245, 156, 183, 4, 176, 14, 37, 155, 30}
@@ -64,8 +63,8 @@ func TestKademliaPutGetByKey(t *testing.T) {
 	tc.TableName = []byte(`email`)
 	tc.Column = []byte(`yob`)
 
-	swarmdb := swarmdb.NewSwarmDB()
-	kdb, err := swarmdb.NewKademliaDB(swarmdb)
+	dbchunkstore, err := swarmdb.NewDBChunkStore("/tmp/testchunk.db")
+	kdb, err := swarmdb.NewKademliaDB(dbchunkstore)
 	if err != nil {
 		t.Fatal("Failed creating Kademlia")
 	}
