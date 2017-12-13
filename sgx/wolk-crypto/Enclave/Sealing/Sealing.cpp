@@ -54,11 +54,6 @@ sgx_status_t unseal(sgx_sealed_data_t* sealed_data, size_t sealed_size, uint8_t*
 
 sgx_status_t wolkSHA256(uint8_t* plaintext, size_t plaintext_len, uint8_t* hash, size_t hash_len) {
 
-
-
-
-    const char ID_U[] = "SGXRAENCLAVE"; // 8e50e33484683bcf17591e95d7d391807d80024c7e7b7e4960d9a377bcb72ea9
-
     sgx_status_t sgx_ret = SGX_SUCCESS;
     sgx_sha_state_handle_t sha_context;
     sgx_sha256_hash_t key_material;
@@ -69,9 +64,7 @@ sgx_status_t wolkSHA256(uint8_t* plaintext, size_t plaintext_len, uint8_t* hash,
         return sgx_ret;
     }
 
-    //sgx_ret = sgx_sha256_update((uint8_t*)&ID_U, sizeof(ID_U)-1, sha_context);
-    sgx_ret = sgx_sha256_update((uint8_t*)&ID_U, sizeof(ID_U)-1, sha_context);
-
+    sgx_ret = sgx_sha256_update((uint8_t*)plaintext, plaintext_len, sha_context);
     if (sgx_ret != SGX_SUCCESS)
     {
         sgx_sha256_close(sha_context);
@@ -85,31 +78,7 @@ sgx_status_t wolkSHA256(uint8_t* plaintext, size_t plaintext_len, uint8_t* hash,
         return sgx_ret;
     }
 
-
-    //char enclaveString[32] = "Internal enclave";
-  //  uint8_t enclaveString[32]= "aaaaaaaaaa";
-  //  hash = (uint8_t*)malloc(32);
-   memcpy(hash, key_material, 32);
-
-
-
-
-
-
-//    char buffer[64] ;
-//    int j;
-//    int k;
-//    k=0;
-//    for(j = 0; j < 32; j++) {
-//    	k= k+2;
-//        sprintf(&buffer[k], "%02X", key_material[j]);
-//        printf("%02X", key_material[j]);
-//    }
-
-//    printf("\n");
-//    printf("%s", buffer);
-//    printf("\n");
-//    std::cout << buffer << std::endl;
+    memcpy(hash, key_material, 32);
 
     sgx_ret = sgx_sha256_close(sha_context);
 
