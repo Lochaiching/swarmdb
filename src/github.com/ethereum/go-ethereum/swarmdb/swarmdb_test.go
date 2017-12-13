@@ -22,20 +22,23 @@ const (
 	TEST_SKEY_STRING     = "gender"
 	TEST_SKEY_FLOAT      = "weight"
 	TEST_TABLE_INDEXTYPE = swarmdb.IT_BPLUSTREE
+	TEST_BID             = 7.07
+	TEST_REPLICATION     = 3
+	TEST_ENCRYPTED       = 1
 )
 
 func getSWARMDBTable(ownerID string, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType, create bool) (tbl *swarmdb.Table) {
 
-	swarmdb := swarmdb.NewSwarmDB()
+	swarmdbObj := swarmdb.NewSwarmDB()
 
-	tbl = swarmdb.NewTable(ownerID, tableName)
+	tbl = swarmdbObj.NewTable(ownerID, tableName)
 
 	// CreateTable
 	if create {
 		var option []swarmdb.Column
 		o := swarmdb.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
 		option = append(option, o)
-		tbl.CreateTable(option)
+		tbl.CreateTable(option, TEST_BID, TEST_REPLICATION, TEST_ENCRYPTED)
 	}
 
 	// OpenTable
@@ -48,11 +51,11 @@ func getSWARMDBTable(ownerID string, tableName string, primaryKeyName string, pr
 
 func getSWARMDBTableSecondary(ownerID string, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType,
 	secondaryKeyName string, secondaryIndexType swarmdb.IndexType, secondaryColumnType swarmdb.ColumnType,
-	create bool) (swarmdb *swarmdb.SwarmDB) {
+	create bool) (swarmdbObj *swarmdb.SwarmDB) {
 
-	swarmdb = swarmdb.NewSwarmDB()
+	swarmdbObj = swarmdb.NewSwarmDB()
 
-	tbl := swarmdb.NewTable(ownerID, tableName)
+	tbl := swarmdbObj.NewTable(ownerID, tableName)
 
 	// CreateTable
 	if create {
@@ -62,7 +65,7 @@ func getSWARMDBTableSecondary(ownerID string, tableName string, primaryKeyName s
 
 		s := swarmdb.Column{ColumnName: secondaryKeyName, Primary: 0, IndexType: secondaryIndexType, ColumnType: secondaryColumnType}
 		option = append(option, s)
-		tbl.CreateTable(option)
+		tbl.CreateTable(option, TEST_BID, TEST_REPLICATION, TEST_ENCRYPTED)
 	}
 
 	// OpenTable
@@ -72,25 +75,25 @@ func getSWARMDBTableSecondary(ownerID string, tableName string, primaryKeyName s
 	}
 
 	putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
-	swarmdb.QueryInsert(putstr)
+	swarmdbObj.QueryInsert(putstr)
 
 	putstr = `{"email":"sourabh@wolk.com", "age": 45, "gender": "M", "weight": 210.5}`
-	swarmdb.QueryInsert(putstr)
+	swarmdbObj.QueryInsert(putstr)
 	// Put
 	for i := 1; i < 10; i++ {
 		g := "F"
 		w := float64(i) + .314159
 		putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
 			TEST_PKEY_STRING, i, i, g, w)
-		swarmdb.QueryInsert(putstr)
+		swarmdbObj.QueryInsert(putstr)
 		g = "M"
 		w = float64(i) + float64(0.414159)
 		putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
 			TEST_PKEY_STRING, i, i, g, w)
-		swarmdb.QueryInsert(putstr)
+		swarmdbObj.QueryInsert(putstr)
 	}
 
-	return swarmdb
+	return swarmdbObj
 }
 
 func TestSetGetInt(t *testing.T) {
