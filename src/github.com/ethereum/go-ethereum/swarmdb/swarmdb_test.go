@@ -4,7 +4,7 @@ import (
 	"fmt"
 	common "github.com/ethereum/go-ethereum/swarmdb"
 	"testing"
-	//"os"
+	// "os"
 	// "bytes"
 	"github.com/cznic/mathutil"
 	"math"
@@ -41,6 +41,62 @@ func getSWARMDBTable(ownerID string, tableName string, primaryKeyName string, pr
 		fmt.Print("OPENTABLE ERR %v\n", err)
 	}
 	return tbl
+}
+
+func TestSetGetInt(t *testing.T) {
+	const N = 4
+
+	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
+		r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, true)
+
+		a := make([]int, N)
+		for i := range a {
+			a[i] = (i ^ x) << 1
+		}
+
+		for _, k := range a {
+			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
+			fmt.Printf("%s\n", val)
+			 r.Put(val)
+		}
+
+		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
+		for i, k := range a {
+			key := fmt.Sprintf("%d", k) // common.IntToByte(k)
+			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
+			v, err := s.Get(key)
+			if err != nil || strings.Compare(val, string(v)) != 0 {
+				t.Fatal(i, val, v)
+			} else {
+				fmt.Printf("Get(%s) => %s\n", key, val)
+			}
+
+			k |= 1
+			key = fmt.Sprintf("%d", k) // common.IntToByte(k)
+			v, err = s.Get(key)
+			if len(v) > 0 {
+				t.Fatal(i, k)
+			}
+		}
+		
+		r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
+		for _, k := range a {
+			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
+			r2.Put(val)
+		}
+
+		s2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
+		for i, k := range a {
+			key := fmt.Sprintf("%d", k)
+			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
+			v, err := s2.Get(key) //
+			if err != nil || strings.Compare(string(v), val) != 0 {
+				t.Fatal(i, v, val)
+			} else {
+				fmt.Printf("Get(%s) => %s\n", key, val)
+			}
+		} 
+	}
 }
 
 func TestTable(t *testing.T) {
@@ -113,7 +169,6 @@ func TestPutInteger(t *testing.T) {
 	}
 	fmt.Printf("Get(1): [%s]\n", string(h))
 	// s.Print()
-
 }
 
 func TestPutString(t *testing.T) {
@@ -217,69 +272,7 @@ func TestSetGetString(t *testing.T) {
 	fmt.Printf("PASS\n")
 }
 
-func aTestSetGetInt(t *testing.T) {
-	const N = 4
-
-	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, true)
-
-		a := make([]int, N)
-		for i := range a {
-			a[i] = (i ^ x) << 1
-		}
-		fmt.Printf("%v\n", a)
-		for _, k := range a {
-			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
-			r.Put(val)
-		}
-
-		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
-		for i, k := range a {
-			key := fmt.Sprintf("%d", k) // common.IntToByte(k)
-			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
-			v, err := s.Get(key)
-			if err != nil || strings.Compare(val, string(v)) != 0 {
-				t.Fatal(i, val, v)
-			} else {
-				fmt.Printf("Get(%s) => %s\n", key, val)
-			}
-
-			k |= 1
-			key = fmt.Sprintf("%d", k) // common.IntToByte(k)
-			v, err = s.Get(key)
-			if len(v) > 0 {
-				t.Fatal(i, k)
-			}
-		}
-
-		r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
-		for _, k := range a {
-			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
-			r2.Put(val)
-		}
-
-		s2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
-		for i, k := range a {
-			key := fmt.Sprintf("%d", k)
-			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
-			v, err := s2.Get(key) //
-			if err != nil || strings.Compare(string(v), val) != 0 {
-				t.Fatal(i, v, val)
-			} else {
-				fmt.Printf("Get(%s) => %s\n", key, val)
-			}
-
-			k |= 1
-			key = fmt.Sprintf("%d", k)
-			_, err = s2.Get(key)
-			if len(v) > 0 || err != nil {
-				t.Fatal(i, k)
-			}
-		}
-	}
-}
-
-func aTestDelete0(t *testing.T) {
+func TestDelete0(t *testing.T) {
 
 	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, true)
 
@@ -352,16 +345,17 @@ func aTestDelete1(t *testing.T) {
 			a[i] = (i ^ x) << 1
 		}
 		for _, k := range a {
-			v := fmt.Sprintf(`{"%s":"%d","val":"value%d"`, TEST_PKEY_INT, k, k)
+			v := fmt.Sprintf(`{"%s":"%d","val":"value%d"}`, TEST_PKEY_INT, k, k)
 			r.Put(v)
 		}
 
-		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, true)
+		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, common.CT_INTEGER, false)
 		for i, k := range a {
 			key := fmt.Sprintf("%d", k)
+			fmt.Printf("attempt delete [%s]\n", key)
 			ok, _ := s.Delete(key)
 			if !ok {
-				fmt.Printf("YIPE%s\n", k)
+				fmt.Printf("**** YIPES: [%s]\n", key)
 				t.Fatal(i, x, k)
 			}
 		}

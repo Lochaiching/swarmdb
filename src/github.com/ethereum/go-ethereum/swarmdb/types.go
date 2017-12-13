@@ -165,6 +165,7 @@ const (
 type IndexType uint8
 
 const (
+	IT_NONE        = 0
 	IT_HASHTREE    = 1
 	IT_BPLUSTREE   = 2
 	IT_FULLTEXT    = 3
