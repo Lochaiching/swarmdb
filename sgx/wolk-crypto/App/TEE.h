@@ -10,7 +10,7 @@
 extern "C" {  
 
 #endif  
-int sgx_seal(void);
+int wolkMain(void);
 
 #ifdef __cplusplus  
 }  

@@ -29,24 +29,39 @@ type RequestOption struct {
 //columntypes exp: {"name":"string", "age":"int", "gender":"string"}
 func CreateTable(indextype string, table string, primarykey string, columntype map[string]string) (err error) {
 
+	if len(table) == 0 {
+		return fmt.Errorf("no table name")
+	}
+	if len(primarykey) == 0 {
+		return fmt.Errorf("no primary key")
+	}
 	var req RequestOption
 	req.RequestType = "CreateTable"
 	req.Table = table
 
-	//primary key call
+	//primary key generation
 	var primarycol Column
 	primarycol.ColumnName = primarykey
-	primarycol.IndexType, _ = convertStringToIndexType(indextype)
+	primarycol.IndexType, err = convertStringToIndexType(indextype)
+	if err != nil {
+		return err
+	}
 	primarycol.ColumnType, _ = convertStringToColumnType(columntype[primarykey])
+	if err != nil {
+		return err
+	}
 	primarycol.Primary = 1
 	req.Columns = append(req.Columns, primarycol)
 
-	//secondary key calls
+	//secondary key generation
 	for col, coltype := range columntype {
 		if col != primarykey {
 			var secondarycol Column
 			secondarycol.ColumnName = col
-			secondarycol.IndexType,_ = convertStringToIndexType(coltype)
+			secondarycol.ColumnType, err = convertStringToColumnType(coltype)
+			if err != nil {
+				return err
+			}
 			secondarycol.Primary = 0
 			req.Columns = append(req.Columns, secondarycol)
 		}
@@ -66,6 +81,19 @@ func CreateTable(indextype string, table string, primarykey string, columntype m
 //value is a "record" in json format
 //key is most likely the primary key
 func AddRecord(owner string, table string, key string, value string) (err error) {
+
+	if len(owner) == 0 {
+		return fmt.Errorf("no owner")
+	}
+	if len(table) == 0 {
+		return fmt.Errorf("no table name")
+	}
+	if len(key) == 0 {
+		return fmt.Errorf("no key")
+	}
+	if len(value) == 0 {
+		return fmt.Errorf("no value")
+	}
 
 	var req RequestOption
 	req.RequestType = "Insert" //does not allow duplicates...?
@@ -94,7 +122,15 @@ func AddRecord(owner string, table string, key string, value string) (err error)
 //func GetRecord(tbl_name string, id string) (jsonrecord string, err error) {
 func GetRecord(owner string, table string, key string) (value string, err error) {
 
-	//fmt.Printf("swarmdb.SWARMDB_get(%s, %s)\n", tbl_name, id)
+	if len(owner) == 0 {
+		return value, fmt.Errorf("no owner")
+	}
+	if len(table) == 0 {
+		return value, fmt.Errorf("no table name")
+	}
+	if len(key) == 0 {
+		return value, fmt.Errorf("no key")
+	}
 
 	var req RequestOption
 	req.RequestType = "Get"
@@ -117,22 +153,31 @@ func GetRecord(owner string, table string, key string) (value string, err error)
 }
 
 //data should be a pointer not actual structure
-func Query(owner string, table string, sql string) (data []string, err error) {
+func Query(owner string, table string, query string) (data []string, err error) {
+
+	if len(owner) == 0 {
+		return data, fmt.Errorf("no owner")
+	}
+	if len(table) == 0 {
+		return data, fmt.Errorf("no table name")
+	}
+	if len(query) == 0 {
+		return data, fmt.Errorf("no query")
+	}
 
 	var req RequestOption
 	req.RequestType = "Get"
 	req.Owner = owner
 	req.Table = table
 
-	///here
-
 	//parse sql
-	stmt, err := sqlparser.Parse(sql)
+	stmt, err := sqlparser.Parse(query)
 	if err != nil {
 		fmt.Printf("sqlparser.Parse err: %v\n", err)
 		return data, err
 	}
 	node := stmt.(*sqlparser.Select)
+
 	//for i, e := range node.SelectExprs {
 	//	fmt.Printf("FIELD %d: %+v\n", i, sqlparser.String(e)) // stmt.(*sqlparser.Select).SelectExprs)
 	//}
