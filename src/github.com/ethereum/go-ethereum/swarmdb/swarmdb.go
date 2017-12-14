@@ -240,7 +240,7 @@ func (t *Table) Put(value string) (err error) {
 	k := make([]byte, 32)
 	// process primary key
 	for _, c := range t.columns {
-		fmt.Printf("\nProcessing a column %s and primary is %d", c.columnName, c.primary)
+		//fmt.Printf("\nProcessing a column %s and primary is %d", c.columnName, c.primary)
 		if c.primary > 0 {
 			if pvalue, ok := jsonrecord[t.primaryColumnName]; ok {
 				k, _ = convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, pvalue)
@@ -258,16 +258,16 @@ func (t *Table) Put(value string) (err error) {
 				//return fmt.Errorf("Column [%s] not found in [%+v]", c.columnName, jsonrecord)
 			}
 		}
-		fmt.Printf("\nOpening Table [%s] owned by: %s with primarykey of [%s] ", t.tableName, t.ownerID, t.primaryColumnName)
 		t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.bid, t.replication, t.encrypted)
-		fmt.Printf("\nT bid: %f | T.Rep: %d | T encrypted: %d", t.bid, t.replication, t.encrypted)
 		khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
 		if err != nil {
+			fmt.Errorf("\nKademlia Put Failed")
 			// TODO
 		}
 		_, err = t.columns[c.columnName].dbaccess.Put(k, []byte(khash))
 		if err != nil {
 			// TODO
+			fmt.Errorf("\nDB Put Failed")
 		}
 	}
 
