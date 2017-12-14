@@ -49,14 +49,11 @@ sgx_status_t unseal(sgx_sealed_data_t* sealed_data, size_t sealed_size, uint8_t*
     return status;
 }
 
-
-
-
-sgx_status_t sgxGetSha256(uint8_t* plaintext, size_t plaintext_len, uint8_t* hash, size_t hash_len) {
+sgx_status_t sgxGetSha256(uint8_t* src, size_t src_len, uint8_t* hash, size_t hash_len) {
 
     sgx_status_t sgx_ret = SGX_SUCCESS;
     sgx_sha_state_handle_t sha_context;
-    sgx_sha256_hash_t key_material;
+    sgx_sha256_hash_t sgx_hash;
 
     sgx_ret = sgx_sha256_init(&sha_context);
     if (sgx_ret != SGX_SUCCESS)
@@ -64,21 +61,21 @@ sgx_status_t sgxGetSha256(uint8_t* plaintext, size_t plaintext_len, uint8_t* has
         return sgx_ret;
     }
 
-    sgx_ret = sgx_sha256_update((uint8_t*)plaintext, plaintext_len, sha_context);
+    sgx_ret = sgx_sha256_update((uint8_t*)src, src_len, sha_context);
     if (sgx_ret != SGX_SUCCESS)
     {
         sgx_sha256_close(sha_context);
         return sgx_ret;
     }
 
-    sgx_ret = sgx_sha256_get_hash(sha_context, &key_material);
+    sgx_ret = sgx_sha256_get_hash(sha_context, &sgx_hash);
     if (sgx_ret != SGX_SUCCESS)
     {
         sgx_sha256_close(sha_context);
         return sgx_ret;
     }
 
-    memcpy(hash, key_material, 32);
+    memcpy(hash, sgx_hash, 32);
 
     sgx_ret = sgx_sha256_close(sha_context);
 
