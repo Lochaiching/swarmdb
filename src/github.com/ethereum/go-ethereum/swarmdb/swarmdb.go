@@ -259,7 +259,7 @@ func (t *Table) Put(value string) (err error) {
 			}
 		}
 		fmt.Printf("\nOpening Table [%s] owned by: %s with primarykey of [%s] ", t.tableName, t.ownerID, t.primaryColumnName)
-		t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName))
+		t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.bid, t.replication, t.encrypted)
 		fmt.Printf("\nT bid: %f | T.Rep: %d | T encrypted: %d", t.bid, t.replication, t.encrypted)
 		khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
 		if err != nil {
@@ -306,7 +306,7 @@ func (t *Table) Insert(key string, value string) error {
 		return err
 	}
 
-	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName))
+	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName), t.bid, t.replication, t.encrypted)
 	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
 	khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
 	if err != nil {
