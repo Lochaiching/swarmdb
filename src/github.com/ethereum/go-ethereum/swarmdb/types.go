@@ -51,6 +51,9 @@ type KademliaDB struct {
 	owner        []byte
 	tableName    []byte
 	column       []byte
+	bid          float64
+	replication  int64
+	encrypted    int64
 }
 
 type SwarmDB struct {
