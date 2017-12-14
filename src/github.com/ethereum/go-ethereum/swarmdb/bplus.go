@@ -14,6 +14,7 @@ import (
 type Tree struct {
 	c     int
 	cmp   Cmp
+	cmpPrimary  Cmp
 	first *d
 	last  *d
 	r     interface{}
@@ -22,6 +23,8 @@ type Tree struct {
 	swarmdb    DBChunkstorage
 	buffered   bool
 	columnType ColumnType
+	columnTypePrimary ColumnType
+	secondary  bool
 	hashid     []byte
 }
 
@@ -122,9 +125,10 @@ var (
 
 type btTpool struct{ sync.Pool }
 
-func (p *btTpool) get(cmp Cmp) *Tree {
+func (p *btTpool) get(cmp Cmp, cmpPrimary Cmp) *Tree {
 	x := p.Get().(*Tree)
 	x.cmp = cmp
+	x.cmpPrimary = cmpPrimary
 	return x
 }
 
@@ -225,22 +229,35 @@ func (l *d) mvR(r *d, c int) {
 
 // BPlusTree returns a newly created, empty Tree. The compare function is used
 // for key collation.
-
-func NewBPlusTreeDB(swarmdb SwarmDB, hashid []byte, columnType ColumnType) *Tree {
+func NewBPlusTreeDB(swarmdb SwarmDB, hashid []byte, columnType ColumnType, secondary bool, columnTypePrimary ColumnType) *Tree {
 	var t *Tree
+	cmpPrimary := cmpBytes
+	if secondary == true {
+		switch columnTypePrimary {
+		case CT_FLOAT:
+			cmpPrimary = cmpFloat
+		case CT_STRING:
+			cmpPrimary = cmpString
+		case CT_INTEGER:
+			cmpPrimary = cmpInt64
+		}
+	}
+
 	switch columnType {
 	case CT_BLOB:
-		t = btTPool.get(cmpBytes)
+		t = btTPool.get(cmpBytes, cmpPrimary)
 	case CT_FLOAT:
-		t = btTPool.get(cmpFloat)
+		t = btTPool.get(cmpFloat, cmpPrimary)
 	case CT_STRING:
-		t = btTPool.get(cmpString)
+		t = btTPool.get(cmpString, cmpPrimary)
 	case CT_INTEGER:
-		t = btTPool.get(cmpInt64)
+		t = btTPool.get(cmpInt64, cmpPrimary)
 	}
 	t.columnType = columnType
+	t.columnTypePrimary = columnType
 	t.hashid = hashid
 	t.swarmdb = swarmdb
+	t.secondary = secondary
 	t.SWARMGet()
 	return t
 }
