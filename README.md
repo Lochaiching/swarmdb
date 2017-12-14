@@ -1,4 +1,3 @@
-## swarm.wolk.com
 
 # How to Install SWARMDB
 
@@ -14,21 +13,6 @@ Test if it works
 
 Under construction
 
-# SWARMDB Interfaces
+#  Interfaces
 
-## Node.js Interface
-
-Under construction
-
-## Go Interface
-
-Under construction
-
-## HTTP Interface
-
-Under construction
-
-## JS CLI
-
-Under construction
-
+See the https://github.com/wolktoken/swarm.wolk.com/wiki for more
