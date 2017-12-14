@@ -1,4 +1,4 @@
-package common
+package swarmdb
 
 import (
 	"crypto/sha256"
@@ -25,10 +25,10 @@ type NetstatFile struct {
 	CStat         map[string]*big.Int `json:"-"`
 	BStat         map[string]*big.Int `json:"-"`
 	Claim         map[string]*big.Int `json:"-"`
-	LaunchDT      time.Time
-	LReadDT       time.Time
-	LWriteDT      time.Time
-	LogDT         time.Time
+	LaunchDT      *time.Time
+	LReadDT       *time.Time
+	LWriteDT      *time.Time
+	LogDT         *time.Time
 }
 
 type DBChunkstore struct {
@@ -46,11 +46,11 @@ type ENSSimulation struct {
 }
 
 type KademliaDB struct {
-	swarmdb   *SwarmDB
-	mutex     sync.Mutex
-	owner     []byte
-	tableName []byte
-	column    []byte
+	dbChunkstore *DBChunkstore
+	mutex        sync.Mutex
+	owner        []byte
+	tableName    []byte
+	column       []byte
 }
 
 type SwarmDB struct {
@@ -72,9 +72,9 @@ type RequestOption struct {
 	RequestType string   `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
 	Owner       string   `json:"owner,omitempty"`
 	Table       string   `json:"table,omitempty"` //"contacts"
-	Encrypted   bool     `json:"encrypted,omitempty"`
-	Bid	    float64  `json:"bid,omitempty"`
-	Replication int64    `json:"replication,omitempty"`
+	Encrypted   int      `json:"encrypted,omitempty"`
+	Bid         float64  `json:"bid,omitempty"`
+	Replication int      `json:"replication,omitempty"`
 	Key         string   `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
 	Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Columns     []Column `json:"columns",omitempty"`
@@ -100,6 +100,14 @@ type Table struct {
 	roothash          []byte
 	columns           map[string]*ColumnInfo
 	primaryColumnName string
+	bid               float64
+	replication       int64
+	encrypted         int64
+}
+
+type Row struct {
+	primaryKeyValue interface{}
+	cells           map[string]interface{}
 }
 
 type DBChunkstorage interface {
@@ -191,7 +199,7 @@ func convertStringToIndexType(in string) (out IndexType, err error) {
 	case "fractaltree":
 		return IT_FRACTALTREE, nil
 	}
-	return out, fmt.Errorf("not found") //KeyNotFoundError?
+	return out, fmt.Errorf("index %s not found", in) //KeyNotFoundError?
 }
 
 //used in client.go for user input
@@ -206,7 +214,7 @@ func convertStringToColumnType(in string) (out ColumnType, err error) {
 	case "blob":
 		return CT_BLOB, nil
 	}
-	return out, fmt.Errorf("not found") //KeyNotFoundError?
+	return out, fmt.Errorf("columntype %s not found", in) //KeyNotFoundError?
 }
 
 func convertStringToKey(columnType ColumnType, key string) (k []byte) {
@@ -291,6 +299,17 @@ func FloatToByte(f float64) (k []byte) {
 	k = make([]byte, 8)
 	binary.BigEndian.PutUint64(k, bits)
 	return k
+}
+
+func BytesToFloat(b []byte) (f float64) {
+	bits := binary.BigEndian.Uint64(b)
+	f = math.Float64frombits(bits)
+	return f
+}
+
+func BytesToInt64(b []byte) (i int64) {
+	i = int64(binary.BigEndian.Uint64(b))
+	return i
 }
 
 func SHA256(inp string) (k []byte) {

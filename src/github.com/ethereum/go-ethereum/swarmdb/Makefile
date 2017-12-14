@@ -14,13 +14,13 @@ all:
 	@echo "test bplus."
 	-go test ./bplus_test.go
 	@echo "test client."
-	-go test ./client/client_test.go
+	-go test ./client_test.go
 	@echo "test kademliadb."
 	-go test ./kademliadb_test.go
 	@echo "test hashdb."
 	-go test ./hashdb_test.go
 	@echo "test netstat."
-	-go test ./netStat_test.go
+	-go test ./netstat_test.go
 
 enssimulation:
 	@echo "test enssimulation."
@@ -44,7 +44,7 @@ bplus:
 
 client:
 	@echo "test client."
-	go test ./client/client_test.go
+	go test client_test.go
 
 kademliadb:
 	@echo "test kademliadb."
@@ -56,4 +56,4 @@ hashdb:
 
 netstat:
 	@echo "test netstat."
-	go test ./netStat_test.go
+	go test ./netstat_test.go

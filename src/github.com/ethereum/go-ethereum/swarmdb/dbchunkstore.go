@@ -1,4 +1,4 @@
-package common
+package swarmdb
 
 import (
 	"bytes"
@@ -7,14 +7,12 @@ import (
 	//"encoding/binary"
 	"encoding/json"
 	"fmt"
-	ethcommon "github.com/ethereum/go-ethereum/common"
-	// "github.com/ethereum/go-ethereum/swarmdb/common"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
 	"math/big"
 	"os"
-	"strconv"
 	"time"
 )
 
@@ -45,6 +43,21 @@ type ChunkStats struct {
 }
 
 func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
+	logDT := time.Now()
+	self.netstat.CStat["ChunkRL"].Add(self.netstat.CStat["ChunkR"], self.netstat.CStat["ChunkRL"])
+	self.netstat.CStat["ChunkWL"].Add(self.netstat.CStat["ChunkW"], self.netstat.CStat["ChunkWL"])
+
+	err := self.GetChunkStored()
+	if err != nil {
+		fmt.Printf("ChunkStore parsing error\n")
+	}
+
+	fileInfo, err := os.Stat(self.filepath)
+	if err == nil {
+		deltaBS := new(big.Int).SetInt64(fileInfo.Size())
+		self.netstat.BStat["ByteS"].Sub(deltaBS, self.netstat.BStat["ByteSL"])
+		self.netstat.BStat["ByteSL"] = deltaBS
+	}
 
 	var file = &NetstatFile{
 		NodeID:        self.netstat.NodeID,
@@ -55,20 +68,27 @@ func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
 		LaunchDT:      self.netstat.LaunchDT,
 		LReadDT:       self.netstat.LReadDT,
 		LWriteDT:      self.netstat.LWriteDT,
-		LogDT:         time.Now(),
+		LogDT:         &logDT,
 	}
 
 	for cc, cv := range self.netstat.CStat {
 		file.ChunkStat[cc] = cv.String()
+        if cc == "ChunkR" || cc == "ChunkW" || cc == "ChunkS" {
+            self.netstat.CStat[cc] = big.NewInt(0) 
+        }
 	}
 
-	for bytecol, byteval := range self.netstat.BStat {
-		file.ByteStat[bytecol] = byteval.String()
+	for bc, bv := range self.netstat.BStat {
+		file.ByteStat[bc] = bv.String()
+        if bc == "ByteR" || bc == "ByteS" || bc == "ByteW" { 
+            self.netstat.BStat[bc] = big.NewInt(0)
+        }
 	}
 
 	for ticket, reward := range self.netstat.Claim {
 		file.Ticket[ticket] = reward.String()
 	}
+
 	return json.Marshal(file)
 }
 
@@ -84,7 +104,7 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	self.farmer = ethcommon.HexToAddress(file.WalletAddress)
+	self.farmer = common.HexToAddress(file.WalletAddress)
 
 	var ok bool
 
@@ -96,22 +116,29 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) error {
 	}
 
 	for cc, cv := range file.ChunkStat {
-		file.CStat[cc], ok = new(big.Int).SetString(cv, 10)
-		if !ok {
-			return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", cc, cv)
+		if cc == "ChunkR" || cc == "ChunkW" || cc == "ChunkS" {
+			file.CStat[cc] = big.NewInt(0)
+		} else {
+			file.CStat[cc], ok = new(big.Int).SetString(cv, 10)
+			if !ok {
+				return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", cc, cv)
+			}
 		}
 	}
 
-	for bytecol, byteval := range file.ByteStat {
-		file.BStat[bytecol], ok = new(big.Int).SetString(byteval, 10)
-		if !ok {
-			return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", bytecol, byteval)
+	for bc, bv := range file.ByteStat {
+		if bc == "ByteW" || bc == "ByteR" {
+			file.BStat[bc] = big.NewInt(0)
+		} else {
+			file.BStat[bc], ok = new(big.Int).SetString(bv, 10)
+			if !ok {
+				return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", bc, bv)
+			}
 		}
 	}
 
 	self.netstat = &file
 	return nil
-
 }
 
 func (self *DBChunkstore) Save() (err error) {
@@ -123,8 +150,23 @@ func (self *DBChunkstore) Save() (err error) {
 	return ioutil.WriteFile(self.statpath, data, os.ModePerm)
 }
 
-func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
+func (self *DBChunkstore) Flush() (err error) {
+    data, err := json.Marshal(self)
+    if err != nil {
+        return err
+    }
+    netstatlog, err := os.OpenFile("netstat.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+    if err != nil {
+        return err
+    }
+    defer netstatlog.Close()
+    fmt.Fprintf(netstatlog, "%s\n",data)
+    return nil
+}
 
+
+func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
+	ts := time.Now()
 	claim := make(map[string]*big.Int)
 	chunkstat := map[string]*big.Int{"ChunkR": big.NewInt(0), "ChunkW": big.NewInt(0), "ChunkS": big.NewInt(0), "ChunkRL": big.NewInt(0), "ChunkWL": big.NewInt(0), "ChunkSL": big.NewInt(0)}
 	bytestat := map[string]*big.Int{"ByteR": big.NewInt(0), "ByteW": big.NewInt(0), "ByteS": big.NewInt(0), "ByteRL": big.NewInt(0), "ByteWL": big.NewInt(0), "ByteSL": big.NewInt(0)}
@@ -176,13 +218,12 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 
 	nodeid := "abcd"
 	userWallet := "0x56ad284968f2c2edb44c1380411c2c3b12b26c3f"
-	walletAddr := ethcommon.HexToAddress(userWallet)
+	walletAddr := common.HexToAddress(userWallet)
 
 	netstat := NetstatFile{
-
 		NodeID:        nodeid,
 		WalletAddress: userWallet,
-		LaunchDT:      time.Now(),
+		LaunchDT:      &ts,
 		CStat:         chunkstat,
 		BStat:         bytestat,
 		Claim:         claim,
@@ -202,6 +243,7 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 	var data []byte
 	defaultDBPath := "netstat.json"
+
 	data, err = ioutil.ReadFile(defaultDBPath)
 	if err != nil {
 		fmt.Printf("Error in Loading netStat from %s.. generating new Log instead\n", defaultDBPath)
@@ -243,6 +285,8 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 }
 
 func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
+	//TODO get OWNER from CHUNK or get it from swarmdb into dbchunkstore
+	ts := time.Now()
 	if len(v) < minChunkSize {
 		return fmt.Errorf("chunk too small") // should be improved
 	}
@@ -268,13 +312,14 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 		return (err2)
 	}
 	stmt.Close()
-	self.netstat.LWriteDT = time.Now()
+	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
-	self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
+	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
 	return nil
 }
 
 func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
+	ts := time.Now()
 	if len(v) < minChunkSize {
 		return k, fmt.Errorf("chunk too small") // should be improved
 	}
@@ -298,13 +343,14 @@ func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
 		return k, err2
 	}
 	stmt.Close()
-	self.netstat.LWriteDT = time.Now()
+	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
-	self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
+	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
 	return k, nil
 }
 
 func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
+	ts := time.Now()
 	val = make([]byte, 8192)
 	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
@@ -314,7 +360,6 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 	}
 	defer stmt.Close()
 
-	//rows, err := stmt.Query()
 	rows, err := stmt.Query(key)
 	if err != nil {
 		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
@@ -333,12 +378,13 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 		decVal = bytes.TrimRight(decVal, "\x00")
 		return decVal, nil
 	}
-	self.netstat.LReadDT = time.Now()
+	self.netstat.LReadDT = &ts
 	self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
 	return val, nil
 }
 
 func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
+	ts := time.Now()
 	val = make([]byte, 8192)
 	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
@@ -348,7 +394,6 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 	}
 	defer stmt.Close()
 
-	//rows, err := stmt.Query()
 	rows, err := stmt.Query(key)
 	if err != nil {
 		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
@@ -364,7 +409,7 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 		decVal := self.km.DecryptData(val)
 		return decVal, nil
 	}
-	self.netstat.LReadDT = time.Now()
+	self.netstat.LReadDT = &ts
 	self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
 	return val, nil
 }
@@ -420,6 +465,7 @@ func (self *DBChunkstore) PrintDBChunk(columnType ColumnType, hashid []byte, c [
 }
 
 func (self *DBChunkstore) ScanAll() (err error) {
+	ts := time.Now()
 	sql_readall := `SELECT chunkKey, chunkVal,strftime('%s',storeDT) FROM chunk ORDER BY storeDT DESC`
 	rows, err := self.db.Query(sql_readall)
 	if err != nil {
@@ -427,7 +473,7 @@ func (self *DBChunkstore) ScanAll() (err error) {
 	}
 	defer rows.Close()
 
-	var rcnt int
+	var rcnt int64
 	var result []DBChunk
 	for rows.Next() {
 		c := DBChunk{}
@@ -460,13 +506,8 @@ func (self *DBChunkstore) ScanAll() (err error) {
 		return err2
 	}
 	stmt.Close()
-	self.netstat.LReadDT = time.Now()
-	n, ok := new(big.Int).SetString(strconv.FormatInt(int64(rcnt), 10), 10) // bad representation
-	if !ok {
-		fmt.Printf("\nError in updating counter\n")
-		return nil
-	}
-	self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], n)
+	self.netstat.LReadDT = &ts
+	self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], new(big.Int).SetInt64(rcnt))
 	return nil
 }
 
@@ -474,13 +515,35 @@ func (self *DBChunkstore) ClaimAll() (err error) {
 	fmt.Printf("netCounter: %v\n", netCounter)
 	fmt.Printf("self: %v\n", self)
 	ticket := "9f2018c7dc1e31fb6708fd6bd0f8975bf704e5a0e8465fbef2b5e7e5fc37c4d8"
-	n, ok := new(big.Int).SetString(strconv.FormatInt(int64(121), 10), 10) // bad representation
-	if !ok {
-		fmt.Printf("\nError in updating counter\n")
-		return nil
-	} else {
-		self.netstat.Claim[ticket] = n
+	reward := 121
+	self.netstat.Claim[ticket] = new(big.Int).SetInt64(int64(reward))
+	return nil
+}
+
+func (self *DBChunkstore) GetChunkStored() (err error) {
+	sql_chunkTally := `SELECT count(*) FROM chunk`
+	rows, err := self.db.Query(sql_chunkTally)
+	if err != nil {
+		return err
 	}
+	defer rows.Close()
+
+	var result []ChunkStats
+	chunkStored := int64(0)
+	for rows.Next() {
+		c := ChunkStats{}
+		err2 := rows.Scan(&c.ChunkStored)
+		if err2 != nil {
+			fmt.Printf("ERROR:%s\n", err2)
+			return err2
+		}
+		chunkStored += c.ChunkStored
+		//fmt.Printf("[stat] Time %v => Read:%v | Write:%v | Stored:%v\n", c.CurrentTS, c.ChunkRead, c.ChunkWrite, c.ChunkStored)
+		result = append(result, c)
+	}
+	rows.Close()
+	self.netstat.CStat["ChunkS"].Sub(new(big.Int).SetInt64(chunkStored), self.netstat.CStat["ChunkSL"])
+	self.netstat.CStat["ChunkSL"] = new(big.Int).SetInt64(chunkStored)
 	return nil
 }
 

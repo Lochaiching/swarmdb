@@ -1,4 +1,4 @@
-package common_test
+package swarmdb_test
 
 import (
 	"bytes"
@@ -18,23 +18,22 @@ func rng() *mathutil.FC32 {
 	return x
 }
 
-func getSwarmDB(t *testing.T) (a common.SwarmDB) {
-	swarmdb := common.NewSwarmDB()
+func getSwarmDB(t *testing.T) (a swarmdb.SwarmDB) {
+	swarmdb := swarmdb.NewSwarmDB()
 	return *swarmdb
 }
 
-// ./bplus_test.go:26:26: cannot use "github.com/ethereum/go-ethereum/swarmdb/common".NewSwarmDB() (type *"github.com/ethereum/go-ethereum/swarmdb/common".SwarmDB) as type "github.com/ethereum/go-ethereum/swarmdb/common".SwarmDB in return argument
 func TestPutInteger(t *testing.T) {
 
 	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
 	hashid := make([]byte, 32)
-	r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_INTEGER)
+	r := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_INTEGER)
 
 	// write 20 values into B-tree (only kept in memory)
 	r.StartBuffer()
 	vals := rand.Perm(20)
 	for _, i := range vals {
-		k := common.IntToByte(i)
+		k := swarmdb.IntToByte(i)
 		v := []byte(fmt.Sprintf("valueof%06x", i))
 		// fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
 		r.Put(k, v)
@@ -44,15 +43,15 @@ func TestPutInteger(t *testing.T) {
 	// r.Print()
 
 	hashid, _ = r.GetRootHash()
-	s := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_INTEGER)
+	s := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_INTEGER)
 
-	g, ok, err := s.Get(common.IntToByte(8))
+	g, ok, err := s.Get(swarmdb.IntToByte(8))
 	if !ok || err != nil {
 		t.Fatal(g, err)
 	} else {
 		fmt.Printf("Get(8): [%s]\n", string(g))
 	}
-	h, ok2, err2 := s.Get(common.IntToByte(1))
+	h, ok2, err2 := s.Get(swarmdb.IntToByte(1))
 	if !ok2 || err2 != nil {
 		t.Fatal(h, err2)
 	}
@@ -63,7 +62,7 @@ func TestPutInteger(t *testing.T) {
 	res, _, _ := r.Seek([]byte("000004"))
 	records := 0
 	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
-		fmt.Printf(" *int*> %d: K: %s V: %v\n", records, common.KeyToString(common.CT_INTEGER, k), string(v))
+		fmt.Printf(" *int*> %d: K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_INTEGER, k), string(v))
 		records++
 	}
 	fmt.Printf("---- TestPutInteger DONE (%d records)\n", records)
@@ -73,7 +72,7 @@ func aTestPutString(t *testing.T) {
 	fmt.Printf("---- TestPutString: generate 20 strings and enumerate them\n")
 
 	hashid := make([]byte, 32)
-	r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_STRING)
+	r := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_STRING)
 
 	r.StartBuffer()
 	vals := rand.Perm(20)
@@ -89,7 +88,7 @@ func aTestPutString(t *testing.T) {
 	// r.Print()
 
 	hashid, _ = r.GetRootHash()
-	s := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_STRING)
+	s := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_STRING)
 	g, _, _ := s.Get([]byte("000008"))
 	fmt.Printf("Get(000008): %v\n", string(g))
 
@@ -101,7 +100,7 @@ func aTestPutString(t *testing.T) {
 	res, _, _ := r.Seek([]byte("000004"))
 	records := 0
 	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
-		fmt.Printf(" *string*> %d K: %s V: %v\n", records, common.KeyToString(common.CT_STRING, k), string(v))
+		fmt.Printf(" *string*> %d K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_STRING, k), string(v))
 		records++
 	}
 	fmt.Printf("---- TestPutString DONE (%d records)\n", records)
@@ -111,15 +110,15 @@ func aTestPutFloat(t *testing.T) {
 	fmt.Printf("---- TestPutFloat: generate 20 floats and enumerate them\n")
 
 	hashid := make([]byte, 32)
-	r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_FLOAT)
+	r := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_FLOAT)
 
 	r.StartBuffer()
 	vals := rand.Perm(20)
 	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
-		k := common.FloatToByte(float64(i) + .314159)
+		k := swarmdb.FloatToByte(float64(i) + .314159)
 		v := []byte(fmt.Sprintf("valueof%06x", i))
-		// fmt.Printf("Insert %d %v %v\n", i, common.KeyToString(common.CT_FLOAT, k), string(v))
+		// fmt.Printf("Insert %d %v %v\n", i, swarmdb.KeyToString(swarmdb.CT_FLOAT, k), string(v))
 		r.Put(k, v)
 	}
 	// this writes B+tree to SWARM
@@ -127,23 +126,23 @@ func aTestPutFloat(t *testing.T) {
 	// r.Print()
 
 	hashid, _ = r.GetRootHash()
-	s := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_FLOAT)
+	s := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_FLOAT)
 	// ENUMERATOR
-	res, _, _ := s.Seek(common.FloatToByte(3.14159))
+	res, _, _ := s.Seek(swarmdb.FloatToByte(3.14159))
 	records := 0
 	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
-		fmt.Printf(" *float*> %d: K: %s V: %v\n", records, common.KeyToString(common.CT_FLOAT, k), string(v))
+		fmt.Printf(" *float*> %d: K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_FLOAT, k), string(v))
 		records++
 	}
 }
 
 func aTestSetGetString(t *testing.T) {
 	hashid := make([]byte, 32)
-	r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_STRING)
+	r := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_STRING)
 
 	// put
 	key := []byte("42")
-	val := common.SHA256("314")
+	val := swarmdb.SHA256("314")
 	r.Put(key, val)
 
 	// check put with get
@@ -158,8 +157,8 @@ func aTestSetGetString(t *testing.T) {
 	hashid, _ = r.GetRootHash()
 
 	// r2 put
-	r2 := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_STRING)
-	val2 := common.SHA256("278")
+	r2 := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_STRING)
+	val2 := swarmdb.SHA256("278")
 	r2.Put(key, val2)
 	//r2.Print()
 
@@ -174,9 +173,9 @@ func aTestSetGetString(t *testing.T) {
 	hashid, _ = r2.GetRootHash()
 
 	// r3 put
-	r3 := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_STRING)
+	r3 := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_STRING)
 	key2 := []byte("420")
-	val3 := common.SHA256("bbb")
+	val3 := swarmdb.SHA256("bbb")
 	r3.Put(key2, val3)
 
 	// check put with get
@@ -196,7 +195,7 @@ func aTestSetGetInt(t *testing.T) {
 	const N = 4
 	hashid := make([]byte, 32)
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_INTEGER)
+		r := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_INTEGER)
 
 		a := make([]int, N)
 		for i := range a {
@@ -204,23 +203,23 @@ func aTestSetGetInt(t *testing.T) {
 		}
 		fmt.Printf("%v\n", a)
 		for _, k := range a {
-			r.Put(common.IntToByte(k), common.SHA256(fmt.Sprintf("%v", k^x)))
+			r.Put(swarmdb.IntToByte(k), swarmdb.SHA256(fmt.Sprintf("%v", k^x)))
 		}
 
 		for i, k := range a {
-			v, ok, err := r.Get(common.IntToByte(k))
+			v, ok, err := r.Get(swarmdb.IntToByte(k))
 			if !ok || err != nil {
 				t.Fatal(i, k, v, ok)
 			}
 
-			val := common.SHA256(fmt.Sprintf("%v", k^x))
+			val := swarmdb.SHA256(fmt.Sprintf("%v", k^x))
 			if bytes.Compare([]byte(val), v) != 0 {
 				t.Fatal(i, val, v)
 			}
 
 			k |= 1
 
-			_, ok, _ = r.Get(common.IntToByte(k))
+			_, ok, _ = r.Get(swarmdb.IntToByte(k))
 			if ok {
 				t.Fatal(i, k)
 			}
@@ -228,22 +227,22 @@ func aTestSetGetInt(t *testing.T) {
 		}
 
 		for _, k := range a {
-			r.Put(common.IntToByte(k), common.SHA256(fmt.Sprintf("%v", k^x+42)))
+			r.Put(swarmdb.IntToByte(k), swarmdb.SHA256(fmt.Sprintf("%v", k^x+42)))
 		}
 
 		for i, k := range a {
-			v, ok, err := r.Get(common.IntToByte(k))
+			v, ok, err := r.Get(swarmdb.IntToByte(k))
 			if !ok || err != nil {
 				t.Fatal(i, k, v, ok)
 			}
 
-			val := common.SHA256(fmt.Sprintf("%v", k^x+42))
+			val := swarmdb.SHA256(fmt.Sprintf("%v", k^x+42))
 			if bytes.Compare([]byte(val), v) != 0 {
 				t.Fatal(i, v, val)
 			}
 
 			k |= 1
-			_, ok, _ = r.Get(common.IntToByte(k))
+			_, ok, _ = r.Get(swarmdb.IntToByte(k))
 			if ok {
 				t.Fatal(i, k)
 			}
@@ -254,13 +253,13 @@ func aTestSetGetInt(t *testing.T) {
 
 func aTestDelete0(t *testing.T) {
 	hashid := make([]byte, 32)
-	r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_INTEGER)
+	r := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_INTEGER)
 
-	key0 := common.IntToByte(0)
-	key1 := common.IntToByte(1)
+	key0 := swarmdb.IntToByte(0)
+	key1 := swarmdb.IntToByte(1)
 
-	val0 := common.SHA256("0")
-	val1 := common.SHA256("1")
+	val0 := swarmdb.SHA256("0")
+	val1 := swarmdb.SHA256("1")
 
 	if ok, _ := r.Delete(key0); ok {
 		t.Fatal(ok)
@@ -320,17 +319,17 @@ func aTestDelete1(t *testing.T) {
 	hashid := make([]byte, 32)
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_INTEGER)
+		r := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_INTEGER)
 		a := make([]int, N)
 		for i := range a {
 			a[i] = (i ^ x) << 1
 		}
 		for _, k := range a {
-			r.Put(common.IntToByte(k), common.SHA256("0"))
+			r.Put(swarmdb.IntToByte(k), swarmdb.SHA256("0"))
 		}
 
 		for i, k := range a {
-			ok, _ := r.Delete(common.IntToByte(k))
+			ok, _ := r.Delete(swarmdb.IntToByte(k))
 			if !ok {
 				fmt.Printf("YIPE%s\n", k)
 				t.Fatal(i, x, k)
@@ -343,17 +342,17 @@ func aTestDelete2(t *testing.T) {
 	const N = 100
 	hashid := make([]byte, 32)
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := common.NewBPlusTreeDB(getSwarmDB(t), hashid, common.CT_INTEGER)
+		r := swarmdb.NewBPlusTreeDB(getSwarmDB(t), hashid, swarmdb.CT_INTEGER)
 		a := make([]int, N)
 		rng := rng()
 		for i := range a {
 			a[i] = (rng.Next() ^ x) << 1
 		}
 		for _, k := range a {
-			r.Put(common.IntToByte(k), common.SHA256("0"))
+			r.Put(swarmdb.IntToByte(k), swarmdb.SHA256("0"))
 		}
 		for i, k := range a {
-			ok, _ := r.Delete(common.IntToByte(k))
+			ok, _ := r.Delete(swarmdb.IntToByte(k))
 			if !ok {
 				t.Fatal(i, x, k)
 			}

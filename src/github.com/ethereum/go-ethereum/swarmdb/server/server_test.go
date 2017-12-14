@@ -1,11 +1,12 @@
 package server_test
 
 import (
+	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
 	common "github.com/ethereum/go-ethereum/swarmdb"
 	"github.com/ethereum/go-ethereum/swarmdb/server"
+	"io/ioutil"
+	"os"
 	"testing"
 )
 
@@ -26,36 +27,171 @@ func testTCPIPServer(t *testing.T, f func(*server.TCPIPServer)) {
 }
 
 func TestCreateTable(t *testing.T) {
-	testTCPIPServer(t, func(svr *server.TCPIPServer) {
-		// send JSON messages into TCPIPServer 
-/*
-		o := common.TableOption{Index: "testindex1", Primary: 1, TreeType: "BT", KeyType: 1}
-		var option []common.TableOption
-		option = append(option, o)
-		svr.NewConnection("owner1")
-		svr.CreateTable("testtable", option)
-		svr.OpenTable("testtable", "testconnection")
-		//svr.Put("testindex1", "key", "value", "testconnection")
-		putstr := `{"testindex1":"value2"}`
-		svr.Put(putstr, "testconnection")
-		res, err := svr.Get("testindex1", "key", "testconnection")
-		fmt.Printf("Get %s %v \n", string(res), err)
-		fres, ferr := svr.Get("testindex1", "value2", "testconnection")
-		fmt.Printf("Get %s %v \n", string(fres), ferr)
-		fberr := svr.StartBuffer("testconnection")
-		if fberr == nil{
-			fmt.Printf("StartBuffer \n")
-		}else {
-			fmt.Printf("StartBuffer err = %v\n", fberr)
-		}
-			
-		fberr = svr.FlushBuffer("testconnection")
-		if fberr == nil{
-			fmt.Printf("FlushBuffer \n")
-		}else {
-			fmt.Printf("FlushBuffer err = %v\n", fberr)
-		}
-		//svr.CloseTable()
-*/
-	})
+	swarmdb := common.NewSwarmDB()
+	svr := server.NewTCPIPServer(swarmdb, nil)
+	var testData server.IncomingInfo
+	var testColumn []common.Column
+	testColumn = make([]common.Column, 3)
+	testColumn[0].ColumnName = "email"
+	testColumn[0].Primary = 1                     // What if this is inconsistent?
+	testColumn[0].IndexType = common.IT_BPLUSTREE //  What if this is inconsistent?
+	testColumn[0].ColumnType = common.CT_STRING
+
+	testColumn[1].ColumnName = "yob"
+	testColumn[1].Primary = 0                     // What if this is inconsistent?
+	testColumn[1].IndexType = common.IT_BPLUSTREE //  What if this is inconsistent?
+	testColumn[1].ColumnType = common.CT_INTEGER
+
+	testColumn[2].ColumnName = "location"
+	testColumn[2].Primary = 0                     // What if this is inconsistent?
+	testColumn[2].IndexType = common.IT_BPLUSTREE //  What if this is inconsistent?
+	testColumn[2].ColumnType = common.CT_STRING
+
+	var testReqOption common.RequestOption
+
+	testReqOption.RequestType = "CreateTable"
+	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.Table = "contacts"
+	testReqOption.Bid = 7.07
+	testReqOption.Replication = 3
+	testReqOption.Encrypted = 1
+	testReqOption.Columns = testColumn
+
+	marshalTestReqOption, err := json.Marshal(testReqOption)
+	fmt.Printf("JSON --> %s", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+
+	}
+	testData.Data = string(marshalTestReqOption)
+	testData.Address = ""
+	svr.TestAddClient(testReqOption.Owner, testReqOption.Table, "email")
+	svr.SelectHandler(&testData)
+}
+
+func TestOpenTable(t *testing.T) {
+	swarmdb := common.NewSwarmDB()
+	svr := server.NewTCPIPServer(swarmdb, nil)
+	var testData server.IncomingInfo
+
+	var testReqOption common.RequestOption
+
+	testReqOption.RequestType = "OpenTable"
+	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.Table = "contacts"
+
+	marshalTestReqOption, err := json.Marshal(testReqOption)
+	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+	}
+	testData.Data = string(marshalTestReqOption)
+	testData.Address = ""
+	svr.TestAddClient(testReqOption.Owner, testReqOption.Table, "email")
+	svr.SelectHandler(&testData)
+}
+
+func OpenTable(svr *server.TCPIPServer, owner string, table string) {
+	var testReqOption common.RequestOption
+	var testData server.IncomingInfo
+
+	testReqOption.RequestType = "OpenTable"
+	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.Table = "contacts"
+
+	marshalTestReqOption, err := json.Marshal(testReqOption)
+	if err != nil {
+		fmt.Printf("error marshaling testReqOption: %s", err)
+	}
+	testData.Data = string(marshalTestReqOption)
+	testData.Address = ""
+	svr.TestAddClient(testReqOption.Owner, testReqOption.Table, "email")
+	svr.SelectHandler(&testData)
+}
+
+func TestPut(t *testing.T) {
+	swarmdb := common.NewSwarmDB()
+	svr := server.NewTCPIPServer(swarmdb, nil)
+	var testData server.IncomingInfo
+
+	var testReqOption common.RequestOption
+	testReqOption.RequestType = "Put"
+	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.Table = "contacts"
+	testReqOption.Key = "rodneytest1@wolk.com"
+	testReqOption.Value = `{"name": "Rodney", "age": 37, "email": "rodneytest1@wolk.com"}`
+
+	marshalTestReqOption, err := json.Marshal(testReqOption)
+	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+	}
+	OpenTable(svr, testReqOption.Owner, testReqOption.Table)
+	testData.Data = string(marshalTestReqOption)
+	testData.Address = ""
+	svr.TestAddClient(testReqOption.Owner, testReqOption.Table, "email")
+	svr.SelectHandler(&testData)
+}
+
+func TestGet(t *testing.T) {
+	swarmdb := common.NewSwarmDB()
+	svr := server.NewTCPIPServer(swarmdb, nil)
+	var testData server.IncomingInfo
+
+	var testReqOption common.RequestOption
+	testReqOption.RequestType = "Get"
+	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.Table = "contacts"
+	testReqOption.Key = "rodneytest1@wolk.com"
+
+	marshalTestReqOption, err := json.Marshal(testReqOption)
+	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+	}
+	OpenTable(svr, testReqOption.Owner, testReqOption.Table)
+	testData.Data = string(marshalTestReqOption)
+	testData.Address = ""
+	svr.TestAddClient(testReqOption.Owner, testReqOption.Table, "email")
+	svr.SelectHandler(&testData)
+}
+
+func TestPutGet(t *testing.T) {
+	swarmdb := common.NewSwarmDB()
+	svr := server.NewTCPIPServer(swarmdb, nil)
+	var testData server.IncomingInfo
+
+	var testReqOption common.RequestOption
+	testReqOption.RequestType = "Put"
+	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.Table = "contacts"
+	testReqOption.Key = "alinatest@wolk.com"
+	testReqOption.Value = `{"name": "Alina", "age": 35, "email": "alinatest@wolk.com"}`
+
+	marshalTestReqOption, err := json.Marshal(testReqOption)
+	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+	}
+	OpenTable(svr, testReqOption.Owner, testReqOption.Table)
+	testData.Data = string(marshalTestReqOption)
+	testData.Address = ""
+	svr.TestAddClient(testReqOption.Owner, testReqOption.Table, "email")
+	svr.SelectHandler(&testData)
+
+	testReqOption.RequestType = "Get"
+	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.Table = "contacts"
+	testReqOption.Key = "alinatest@wolk.com"
+
+	marshalTestReqOption, err = json.Marshal(testReqOption)
+	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+	}
+	OpenTable(svr, testReqOption.Owner, testReqOption.Table)
+	testData.Data = string(marshalTestReqOption)
+	testData.Address = ""
+	svr.TestAddClient(testReqOption.Owner, testReqOption.Table, "email")
+	svr.SelectHandler(&testData)
 }

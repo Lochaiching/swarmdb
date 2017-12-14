@@ -1,13 +1,13 @@
-package common
+package swarmdb
 
 import (
 	"bytes"
+	//	"encoding/binary"
 	"encoding/json"
-	//"os"
 	"fmt"
-	"reflect"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
-	// "strconv"
+	"reflect"
+	//"strconv"
 )
 
 func NewSwarmDB() *SwarmDB {
@@ -30,7 +30,7 @@ func NewSwarmDB() *SwarmDB {
 		sd.ens = ens
 	}
 
-	kaddb, err := NewKademliaDB(sd)
+	kaddb, err := NewKademliaDB(dbchunkstore)
 	if err != nil {
 	} else {
 		sd.kaddb = kaddb
@@ -73,6 +73,17 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 	return self.ens.StoreRootHash(columnName, roothash)
 }
 
+// parse sql and return rows in bulk (order by, group by, etc.)
+func (self SwarmDB) QuerySelect(sql string) (rows []Row, err error) {
+	// get the table, OpenTable, run scan operation with OrderedDatabaseCursor with Seek/Next/Prev, as possible
+	return rows, nil
+}
+
+func (self SwarmDB) QueryInsert(sql string) (err error) {
+	// ..
+	return nil
+}
+
 // Table
 func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
 	t := new(Table)
@@ -83,7 +94,11 @@ func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
 	return t
 }
 
-func (t *Table) CreateTable(columns []Column, bid float64, replication int64, encrypted bool) (err error) {
+func (t *Table) CreateTable(columns []Column, bid float64, replication int, encrypted int) (err error) {
+	columnsMax := 30
+	if len(columns) > columnsMax {
+		fmt.Printf("\nMax Allowed Columns for a table is %s and you submit %s", columnsMax, len(columns))
+	}
 	buf := make([]byte, 4096)
 	for i, columninfo := range columns {
 		copy(buf[2048+i*64:], columninfo.ColumnName)
@@ -97,12 +112,21 @@ func (t *Table) CreateTable(columns []Column, bid float64, replication int64, en
 		b[0] = byte(columninfo.IndexType)
 		copy(buf[2048+i*64+30:], b) // columninfo.IndexType)
 	}
+	bidBytes := FloatToByte(bid)
+	copy(buf[4000:4008], bidBytes)
+	copy(buf[4008:4016], IntToByte(replication))
+	copy(buf[4016:4024], IntToByte(encrypted))
 	swarmhash, err := t.swarmdb.StoreDBChunk(buf)
 	if err != nil {
 		return
 	}
 	err = t.swarmdb.StoreRootHash([]byte(t.tableName), []byte(swarmhash))
 	return err
+}
+
+func (t *Table) SetPrimary(p string) (err error) {
+	t.primaryColumnName = p
+	return nil
 }
 
 func (t *Table) OpenTable() (err error) {
@@ -122,7 +146,7 @@ func (t *Table) OpenTable() (err error) {
 	}
 	columnbuf := columndata
 
-	for i := 2048; i < 4096; i = i + 64 {
+	for i := 2048; i < 4000; i = i + 64 {
 		buf := make([]byte, 64)
 		copy(buf, columnbuf[i:i+64])
 		if buf[0] == 0 {
@@ -134,7 +158,7 @@ func (t *Table) OpenTable() (err error) {
 		columninfo.columnType = ColumnType(buf[28]) //:29
 		columninfo.indexType = IndexType(buf[30])
 		columninfo.roothash = buf[32:]
-		fmt.Printf(" columnName: %s (%d) roothash: %x", columninfo.columnName, columninfo.primary , columninfo.roothash);
+		fmt.Printf(" columnName: %s (%d) roothash: %x", columninfo.columnName, columninfo.primary, columninfo.roothash)
 		switch columninfo.indexType {
 		case IT_BPLUSTREE:
 			bplustree := NewBPlusTreeDB(t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType))
@@ -144,7 +168,7 @@ func (t *Table) OpenTable() (err error) {
 				return err
 			}
 		case IT_HASHTREE:
-			columninfo.dbaccess, err = NewHashDB(columninfo.roothash, t.swarmdb)
+			columninfo.dbaccess, err = NewHashDB(columninfo.roothash, t.swarmdb, ColumnType(columninfo.columnType))
 			if err != nil {
 				return err
 			}
@@ -159,9 +183,11 @@ func (t *Table) OpenTable() (err error) {
 			}
 		}
 	}
+	t.bid = BytesToFloat(columnbuf[4000:4008])
+	t.replication = BytesToInt64(columnbuf[4008:4016])
+	t.encrypted = BytesToInt64(columnbuf[4016:4024])
 	return nil
 }
-
 
 func (t *Table) Put(value string) (err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Put|%s", value))
@@ -173,7 +199,7 @@ func (t *Table) Put(value string) (err error) {
 
 	// TODO: make this robust!
 	jsonrecord, ok := evalue.(map[string]interface{})
-	if ! ok {
+	if !ok {
 		return fmt.Errorf("Invalid JSON record: %s", value)
 	}
 
@@ -203,7 +229,7 @@ func (t *Table) Put(value string) (err error) {
 		return fmt.Errorf("No primary key %s specified in input", t.primaryColumnName)
 	}
 
-
+	fmt.Printf("\nT bid: %f | T.Rep: %d | T encrypted: %d", t.bid, t.replication, t.encrypted)
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName))
 	khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
 	//fmt.Printf("KADDB Key: %s => (value: %s)  hash(%v)\n", k, value, khash)
@@ -220,14 +246,14 @@ func (t *Table) Put(value string) (err error) {
 
 		}
 	}
-/*
+	/*
 		switch x := t.columns[t.primaryColumnName].dbaccess.(type) {
 		case (*Tree):
 			fmt.Printf("B+ tree Print (%s)\n", value)
 			x.Print()
 			fmt.Printf("-------\n\n")
 		}
-*/
+	*/
 
 	return err
 }
@@ -254,7 +280,6 @@ func (t *Table) Insert(key string, value string) error {
 	_, err = t.columns[primaryColumnName].dbaccess.Insert(k, []byte(khash))
 	return err
 }
-
 
 func (t *Table) Get(key string) ([]byte, error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Get|%s", key))
