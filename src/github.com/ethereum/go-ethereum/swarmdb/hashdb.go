@@ -165,8 +165,7 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmD
 		self.load(swarmdb)
 		self.Loaded = true
 	}
-	log.Debug(fmt.Sprintf("hashdb add Next!! %v %v %v %v", self.Next, self.Root, self.Loaded, self.Bin[bin]))
-	//fmt.Printf("hashdb add Next!! %v %v %v %v %v\n", addnode.Key, self.Next, self.Root, self.Loaded, self.Bin[bin])
+	//log.Debug(fmt.Sprintf("hashdb add Next!! %v %v %v %v", self.Next, self.Root, self.Loaded, self.Bin[bin]))
 
 	if self.Next || self.Root {
 		if self.Bin[bin] != nil {
@@ -203,12 +202,19 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmD
 			dhash, _ := swarmdb.StoreDBChunk(sdata)
 			//wg.Wait()
 			addnode.NodeHash = dhash
+			addnode.Stored = false
 			log.Debug(fmt.Sprintf("hashdb add bin leaf %d %v", bin, dhash))
 			self.Bin[bin] = addnode
 		}
 	} else {
 		log.Debug(fmt.Sprintf("hashdb add node not next %d '%s' '%v' '%s' '%v' %v", bin, self.Key, self.Key, addnode.Key, addnode.Key, strings.Compare(string(self.Key), string(addnode.Key))))
 		if strings.Compare(string(self.Key), string(addnode.Key)) == 0 {
+                        sdata := make([]byte, 4096)
+                        copy(sdata[64:], convertToByte(addnode.Value))
+                        copy(sdata[96:], addnode.Key)
+                        dhash, _ := swarmdb.StoreDBChunk(sdata)
+			addnode.NodeHash = dhash
+			self.Value = addnode.Value
 			return self
 		}
 		if len(self.Key) == 0 {
