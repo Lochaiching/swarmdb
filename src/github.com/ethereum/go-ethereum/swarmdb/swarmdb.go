@@ -160,10 +160,10 @@ func (t *Table) OpenTable() (err error) {
 		columninfo.indexType = IndexType(buf[30])
 		columninfo.roothash = buf[32:]
 		secondary := false
-		if columninfo.primary == 0 { 
+		if columninfo.primary == 0 {
 			secondary = true
 		} else {
-			primaryColumnType = columninfo.columnType  // TODO: what if primary is stored *after* the secondary?  would break this..
+			primaryColumnType = columninfo.columnType // TODO: what if primary is stored *after* the secondary?  would break this..
 		}
 		fmt.Printf(" columnName: %s (%d) roothash: %x (secondary: %v)", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary)
 		switch columninfo.indexType {
@@ -197,7 +197,6 @@ func (t *Table) OpenTable() (err error) {
 }
 
 func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte, err error) {
-	
 	switch svalue := pvalue.(type) {
 	case (int):
 		i := fmt.Sprintf("%d", svalue)
@@ -223,7 +222,6 @@ func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte,
 
 func (t *Table) Put(value string) (err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Put|%s", value))
-	/// store value to kdb and get a hash
 	var evalue interface{}
 	if err := json.Unmarshal([]byte(value), &evalue); err != nil {
 		//return err
@@ -234,44 +232,42 @@ func (t *Table) Put(value string) (err error) {
 	if !ok {
 		return fmt.Errorf("Invalid JSON record: %s", value)
 	}
-
+	/*
+	for jsonKey, jsonVal := range jsonrecord {
+		//throw error if jsonKey is not matching a columnname	
+	}
+	*/
 	k := make([]byte, 32)
 	// process primary key
 	for _, c := range t.columns {
+		fmt.Printf("\nProcessing a column %s and primary is %d", c.columnName, c.primary)
 		if c.primary > 0 {
-			if pvalue, ok2 := jsonrecord[t.primaryColumnName]; ok2 {
+			if pvalue, ok := jsonrecord[t.primaryColumnName]; ok {
 				k, _ = convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, pvalue)
-				fmt.Printf("\nT bid: %f | T.Rep: %d | T encrypted: %d", t.bid, t.replication, t.encrypted)
-				t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName))
-				khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
-				if err != nil {
-					// TODO
-				} 
-				_, err = t.columns[c.columnName].dbaccess.Put(k, []byte(khash))
-				if err != nil {
-					// TODO
-				} 
 			} else {
-				return fmt.Errorf("No primary key %s specified in input", t.primaryColumnName)
+				return fmt.Errorf("\nPrimary key %s not specified in input", t.primaryColumnName)
+			}
+		} else {
+			if pvalue, ok := jsonrecord[c.columnName]; ok {
+				k, _ = convertJSONValueToKey(c.columnType, pvalue)
+				if err != nil {
+					// TODO
+				}
+			} else {
+				//this is ok
+				//return fmt.Errorf("Column [%s] not found in [%+v]", c.columnName, jsonrecord)
 			}
 		}
-	}
-
-	// process secondary key
-	for _, c := range t.columns {
-		if c.primary > 0 {
-			// processed above
-		} else {
-			k2 := make([]byte, 32)
-			if pvalue, ok2 := jsonrecord[c.columnName]; ok2 {
-				k2, _ = convertJSONValueToKey(c.columnType, pvalue)
-				if err != nil {
-					// TODO
-				} 
-			} else {
-				return fmt.Errorf("No primary key %s specified in input", t.primaryColumnName)
-			}
-			_, err = t.columns[c.columnName].dbaccess.Put(k2, k)
+		fmt.Printf("\nOpening Table [%s] owned by: %s with primarykey of [%s] ", t.tableName, t.ownerID, t.primaryColumnName)
+		t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName))
+		fmt.Printf("\nT bid: %f | T.Rep: %d | T encrypted: %d", t.bid, t.replication, t.encrypted)
+		khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
+		if err != nil {
+			// TODO
+		}
+		_, err = t.columns[c.columnName].dbaccess.Put(k, []byte(khash))
+		if err != nil {
+			// TODO
 		}
 	}
 
