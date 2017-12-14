@@ -93,7 +93,7 @@ func TestLoadDBChunkStore(t *testing.T) {
 				fmt.Printf("[SUCCESS] writing #%v chunk to %v\n", j, testDBPath)
 			}
 		}
-		_ = store.Save()
+		_ = store.Flush()
 	})
 
 	t.Run("EScan=1", func(t *testing.T) {
@@ -103,7 +103,7 @@ func TestLoadDBChunkStore(t *testing.T) {
 		} else {
 			fmt.Printf("[SUCCESS] ScanAll Operation\n")
 		}
-		_ = store.Save()
+		_ = store.Flush()
 	})
 
 	t.Run("EStat=1", func(t *testing.T) {
@@ -122,7 +122,7 @@ func TestLoadDBChunkStore(t *testing.T) {
 		} else {
 			fmt.Printf("[SUCCESS] netStat optput\n")
 		}
-		_ = store.Save()
+		_ = store.Flush()
 	})
 
 	t.Run("ESave", func(t *testing.T) {
@@ -133,4 +133,13 @@ func TestLoadDBChunkStore(t *testing.T) {
 			fmt.Printf("[SUCCESS] netStat stored in persisted files\n")
 		}
 	})
+
+    err = store.Save()
+    if err != nil {
+        t.Fatal("[FAILURE] to persist netstat\n")
+    } else {
+        fmt.Printf("[SUCCESS] persist netstat to local\n")
+    }
+    
+    
 }

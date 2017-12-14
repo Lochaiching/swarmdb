@@ -73,15 +73,22 @@ func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
 
 	for cc, cv := range self.netstat.CStat {
 		file.ChunkStat[cc] = cv.String()
+        if cc == "ChunkR" || cc == "ChunkW" || cc == "ChunkS" {
+            self.netstat.CStat[cc] = big.NewInt(0) 
+        }
 	}
 
 	for bc, bv := range self.netstat.BStat {
 		file.ByteStat[bc] = bv.String()
+        if bc == "ByteR" || bc == "ByteS" || bc == "ByteW" { 
+            self.netstat.BStat[bc] = big.NewInt(0)
+        }
 	}
 
 	for ticket, reward := range self.netstat.Claim {
 		file.Ticket[ticket] = reward.String()
 	}
+
 	return json.Marshal(file)
 }
 
@@ -142,6 +149,21 @@ func (self *DBChunkstore) Save() (err error) {
 	fmt.Printf("\n%v\n", string(data))
 	return ioutil.WriteFile(self.statpath, data, os.ModePerm)
 }
+
+func (self *DBChunkstore) Flush() (err error) {
+    data, err := json.Marshal(self)
+    if err != nil {
+        return err
+    }
+    netstatlog, err := os.OpenFile("netstat.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+    if err != nil {
+        return err
+    }
+    defer netstatlog.Close()
+    fmt.Fprintf(netstatlog, "%s\n",data)
+    return nil
+}
+
 
 func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 	ts := time.Now()
