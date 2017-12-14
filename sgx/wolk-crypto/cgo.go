@@ -17,6 +17,6 @@ func test() {
 }
 
 func main() {
-    C.wolkMain()
+    C.getSha256()
     //test()
 }

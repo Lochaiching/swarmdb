@@ -10,7 +10,7 @@
 extern "C" {  
 
 #endif  
-int wolkMain(void);
+int getSha256(void);
 
 #ifdef __cplusplus  
 }  

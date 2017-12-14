@@ -17,13 +17,13 @@ typedef struct ms_unseal_t {
 	uint32_t ms_plaintext_len;
 } ms_unseal_t;
 
-typedef struct ms_wolkSHA256_t {
+typedef struct ms_sgxGetSha256_t {
 	sgx_status_t ms_retval;
 	uint8_t* ms_plaintext;
 	size_t ms_plaintext_len;
 	uint8_t* ms_hash;
 	size_t ms_hash_len;
-} ms_wolkSHA256_t;
+} ms_sgxGetSha256_t;
 
 static const struct {
 	size_t nr_ocall;
@@ -58,10 +58,10 @@ sgx_status_t unseal(sgx_enclave_id_t eid, sgx_status_t* retval, sgx_sealed_data_
 	return status;
 }
 
-sgx_status_t wolkSHA256(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* plaintext, size_t plaintext_len, uint8_t* hash, size_t hash_len)
+sgx_status_t sgxGetSha256(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* plaintext, size_t plaintext_len, uint8_t* hash, size_t hash_len)
 {
 	sgx_status_t status;
-	ms_wolkSHA256_t ms;
+	ms_sgxGetSha256_t ms;
 	ms.ms_plaintext = plaintext;
 	ms.ms_plaintext_len = plaintext_len;
 	ms.ms_hash = hash;

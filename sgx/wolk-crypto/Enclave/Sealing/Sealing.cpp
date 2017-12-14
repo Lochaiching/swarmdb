@@ -52,7 +52,7 @@ sgx_status_t unseal(sgx_sealed_data_t* sealed_data, size_t sealed_size, uint8_t*
 
 
 
-sgx_status_t wolkSHA256(uint8_t* plaintext, size_t plaintext_len, uint8_t* hash, size_t hash_len) {
+sgx_status_t sgxGetSha256(uint8_t* plaintext, size_t plaintext_len, uint8_t* hash, size_t hash_len) {
 
     sgx_status_t sgx_ret = SGX_SUCCESS;
     sgx_sha_state_handle_t sha_context;

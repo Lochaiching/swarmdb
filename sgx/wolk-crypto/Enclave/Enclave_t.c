@@ -33,13 +33,13 @@ typedef struct ms_unseal_t {
 	uint32_t ms_plaintext_len;
 } ms_unseal_t;
 
-typedef struct ms_wolkSHA256_t {
+typedef struct ms_sgxGetSha256_t {
 	sgx_status_t ms_retval;
 	uint8_t* ms_plaintext;
 	size_t ms_plaintext_len;
 	uint8_t* ms_hash;
 	size_t ms_hash_len;
-} ms_wolkSHA256_t;
+} ms_sgxGetSha256_t;
 
 static sgx_status_t SGX_CDECL sgx_seal(void* pms)
 {
@@ -131,16 +131,16 @@ err:
 	return status;
 }
 
-static sgx_status_t SGX_CDECL sgx_wolkSHA256(void* pms)
+static sgx_status_t SGX_CDECL sgx_sgxGetSha256(void* pms)
 {
-	CHECK_REF_POINTER(pms, sizeof(ms_wolkSHA256_t));
-	ms_wolkSHA256_t* ms = SGX_CAST(ms_wolkSHA256_t*, pms);
+	CHECK_REF_POINTER(pms, sizeof(ms_sgxGetSha256_t));
+	ms_sgxGetSha256_t* ms = SGX_CAST(ms_sgxGetSha256_t*, pms);
 	sgx_status_t status = SGX_SUCCESS;
 	uint8_t* _tmp_plaintext = ms->ms_plaintext;
 	uint8_t* _tmp_hash = ms->ms_hash;
 
 
-	ms->ms_retval = wolkSHA256(_tmp_plaintext, ms->ms_plaintext_len, _tmp_hash, ms->ms_hash_len);
+	ms->ms_retval = sgxGetSha256(_tmp_plaintext, ms->ms_plaintext_len, _tmp_hash, ms->ms_hash_len);
 
 
 	return status;
@@ -154,7 +154,7 @@ SGX_EXTERNC const struct {
 	{
 		{(void*)(uintptr_t)sgx_seal, 0},
 		{(void*)(uintptr_t)sgx_unseal, 0},
-		{(void*)(uintptr_t)sgx_wolkSHA256, 0},
+		{(void*)(uintptr_t)sgx_sgxGetSha256, 0},
 	}
 };
 
