@@ -136,7 +136,7 @@ func (self *HashDB) Open(owner, tablename, columnname []byte) (bool, error) {
 }
 
 func (self *HashDB) Put(k, v []byte) (bool, error) {
-	self.rootnode.Add(k, v, self.swarmdb)
+	self.rootnode.Add(k, v, self.swarmdb, self.columnType)
 	return true, nil
 }
 
@@ -144,15 +144,15 @@ func (self *HashDB) GetRootNode() []byte {
 	return self.rootnode.NodeHash
 }
 
-func (self *Node) Add(k []byte, v Val, swarmdb SwarmDB) {
+func (self *Node) Add(k []byte, v Val, swarmdb SwarmDB, columntype ColumnType) {
 	log.Debug(fmt.Sprintf("HashDB Add ", self))
 	self.Version++
 	self.NodeKey = []byte("0")
-	self.add(NewNode(k, v), self.Version, self.NodeKey, swarmdb)
+	self.add(NewNode(k, v), self.Version, self.NodeKey, swarmdb, columntype)
 	return
 }
 
-func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmDB) (newnode *Node) {
+func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmDB, columntype ColumnType) (newnode *Node) {
 	kh := keyhash(addnode.Key)
 	bin := hashbin(kh, self.Level)
 	log.Debug(fmt.Sprintf("hashdb add ", string(addnode.Key), bin, self.Version, string(self.NodeKey)))
@@ -175,7 +175,7 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmD
 			if self.Bin[bin].Loaded == false {
 				self.Bin[bin].load(swarmdb)
 			}
-			self.Bin[bin] = self.Bin[bin].add(addnode, version, []byte(newnodekey), swarmdb)
+			self.Bin[bin] = self.Bin[bin].add(addnode, version, []byte(newnodekey), swarmdb, columntype)
 			var str string
 			for i, b := range self.Bin {
 				if b != nil {
@@ -230,19 +230,20 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmD
 			self = addnode
 			return self
 		}
-		n := newRootNode(self.Key, self.Value, self.Level, version, self.NodeKey)
+		n := newRootNode(nil, nil, self.Level, version, self.NodeKey)
 		n.Next = true
 		n.Root = self.Root
 		n.Level = self.Level
+		n.Loaded = true
 		addnode.Level = self.Level + 1
 		cself := self
 		cself.Level = self.Level + 1
-		n.add(addnode, version, self.NodeKey, swarmdb)
-		n.add(cself, version, self.NodeKey, swarmdb)
+		n.add(addnode, version, self.NodeKey, swarmdb, columntype)
+		n.add(cself, version, self.NodeKey, swarmdb, columntype)
 		n.NodeHash = self.storeBinToNetwork(swarmdb)
 		//swarmdb.Put([]byte(n.NodeKey), n.NodeHash)
 		n.Loaded = true
-		//return n
+		return n
 	}
 	var svalue string
 	for i, b := range self.Bin {
@@ -557,6 +558,7 @@ func (self *Node) print(swarmdb SwarmDB) {
 			if bin.Next != true {
 				fmt.Printf("leaf key = %v Value = %x\n", bin.Key, bin.Value)
 			} else {
+//				fmt.Printf("node key = %v Value = %x binnum = %d level = %d\n", bin.Key, bin.Value, binnum, bin.Level)
 				bin.print(swarmdb)
 			}
 		}
