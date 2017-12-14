@@ -23,7 +23,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
+	//"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,7 +37,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	"sync"
+	//"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts"
@@ -219,6 +219,7 @@ func BuildSwarmdbPrefix(owner string, table string, id string) string {
 	return prefix
 }
 
+/*
 func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
 	log.Debug(fmt.Sprintf("In HandlePostDB r.uri(%v) r.uri.Path(%v) r.uri.Addr(%v)", r.uri, r.uri.Path, r.uri.Addr))
 
@@ -341,6 +342,7 @@ func (s *Server) HandlePostRawTable(w http.ResponseWriter, r *Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, key)
 }
+*/
 
 // HandlePostFiles handles a POST request (or deprecated PUT request) to
 // bzz:/<hash>/<path> which contains either a single file or multiple files
@@ -521,6 +523,7 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *Request) {
 	fmt.Fprint(w, newKey)
 }
 
+/*
 func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
 	value := s.api.GetHashDB(r.uri.Path)
 	if value == nil {
@@ -563,6 +566,7 @@ func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
 	log.Debug(fmt.Sprintf("In GetRawTest %v %v", r.uri.Path, r.uri.Addr))
 	s.HandleGetRaw(w, r)
 }
+*/
 
 func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
 	var contentPrefix string
@@ -648,31 +652,6 @@ func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
 	queryResponseReader := bytes.NewReader(queryResponse)
 	w.Header().Set("Content-Type", contentType)
 	http.ServeContent(w, &r.Request, "", time.Now(), queryResponseReader)
-}
-
-func (s *Server) HandleGetRawTable(w http.ResponseWriter, r *Request) {
-	id := r.URL.Query().Get("id")
-	tableid := r.URL.Query().Get("tableid")
-	key := tableid + "_" + id
-	//key, _ := s.api.Resolve(r.uri)
-	log.Debug(fmt.Sprintf("In GetTable %v %v %v", id, tableid, key))
-	reader, contentType, _, err := s.api.GetTest(key)
-	if err != nil {
-		s.Error(w, r, err)
-		return
-	}
-
-	// check the root chunk exists by retrieving the file's size
-	if _, err := reader.Size(nil); err != nil {
-		s.logDebug("file not found %s: %s", r.uri, err)
-		http.NotFound(w, &r.Request)
-		return
-	}
-
-	w.Header().Set("Content-Type", contentType)
-
-	http.ServeContent(w, &r.Request, "", time.Now(), reader)
-	log.Debug(fmt.Sprintf("GetTable %v, %v", r.uri.Path, reader))
 }
 
 // HandleGetRaw handles a GET request to bzzr://<key> and responds with
@@ -1021,23 +1000,23 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//s.logDebug("server POST %s %s %s", uri, req.uri.Addr, bodycontent)
 		s.logDebug("server POST %s %s", uri, req.uri.Addr)
 		if req.uri.Addr == "demo" || r.URL.Query().Get("posttest") == "true" {
-			s.HandlePostRawTest(w, req)
+			//s.HandlePostRawTest(w, req)
 			return
 		}
 		if req.uri.Addr == "table" {
-			s.HandlePostRawTable(w, req)
+			//s.HandlePostRawTable(w, req)
 			return
 		}
 		if req.uri.Addr == "hashdb" {
-			s.HandlePostHashDB(w, req)
+			//s.HandlePostHashDB(w, req)
 			return
 		}
 		if req.uri.Addr == "tabledata" {
-			s.HandlePostTableData(w, req)
+			//s.HandlePostTableData(w, req)
 			return
 		}
 		if uri.Swarmdb() == true {
-			s.HandlePostDB(w, req)
+			//s.HandlePostDB(w, req)
 			return
 		}
 		if uri.Raw() {
@@ -1077,19 +1056,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if req.uri.Addr == "demo" || r.URL.Query().Get("gettest") == "true" {
-			s.HandleGetRawTest(w, req)
+			//s.HandleGetRawTest(w, req)
 			return
 		}
 		if req.uri.Addr == "table" {
-			s.HandleGetRawTable(w, req)
+			//s.HandleGetRawTable(w, req)
 			return
 		}
 		if req.uri.Addr == "hashdb" {
-			s.HandleGetHashDB(w, req)
+			//s.HandleGetHashDB(w, req)
 			return
 		}
 		if req.uri.Addr == "tabledata" {
-			s.HandleGetTableData(w, req)
+			//s.HandleGetTableData(w, req)
 			return
 		}
 		if uri.Raw() {
