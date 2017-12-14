@@ -16,15 +16,17 @@ console.log("public key: " + publicKey.toString("hex"));
 // console.log("private key: " + privateKey.toString("hex"));
 // console.log("public key: " + publicKey.toString("hex"));
 
-var msgStr = "challenge";
+// var msgStr = "challenge";
+var msgStr = "sAFcbjKkwBOCtyNJFroPxWqn";
+console.log("Original message: " + msgStr);
 var msgHash = crypto.createHash("sha256").update(msgStr).digest();
-console.log("Hashed message: " + msgHash);
+console.log("sha256 hashed message: " + msgHash.toString('hex'));
 
 eccrypto.sign(privateKey, msgHash).then(function(sig) {
-    console.log("Signature: " + sig);
+    console.log("Signature: " + sig.toString('hex'));
     eccrypto.verify(publicKey, msgHash, sig).then(function() {
-        console.log("Signature is GOOD");
+        console.log("Verify: Signature is GOOD");
     }).catch(function() {
-        console.log("Signature is BAD");
+        console.log("Verify: Signature is BAD");
     });
 });
