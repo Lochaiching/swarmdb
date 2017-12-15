@@ -162,7 +162,7 @@ func TestGetRecord(t *testing.T) {
 	}
 }
 
-func TestQuery(t *testing.T) {
+func TestGetQuery(t *testing.T) {
 
 	//t.SkipNow()
 
