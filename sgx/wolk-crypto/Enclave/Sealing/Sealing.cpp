@@ -49,14 +49,11 @@ sgx_status_t unseal(sgx_sealed_data_t* sealed_data, size_t sealed_size, uint8_t*
     return status;
 }
 
-
-
-
-sgx_status_t sgxGetSha256(uint8_t* plaintext, size_t plaintext_len, uint8_t* hash, size_t hash_len) {
+sgx_status_t sgxGetSha256(uint8_t* src, size_t src_len, uint8_t* hash, size_t hash_len) {
 
     sgx_status_t sgx_ret = SGX_SUCCESS;
     sgx_sha_state_handle_t sha_context;
-    sgx_sha256_hash_t key_material;
+    sgx_sha256_hash_t sgx_hash;
 
     sgx_ret = sgx_sha256_init(&sha_context);
     if (sgx_ret != SGX_SUCCESS)
@@ -64,23 +61,79 @@ sgx_status_t sgxGetSha256(uint8_t* plaintext, size_t plaintext_len, uint8_t* has
         return sgx_ret;
     }
 
-    sgx_ret = sgx_sha256_update((uint8_t*)plaintext, plaintext_len, sha_context);
+    sgx_ret = sgx_sha256_update((uint8_t*)src, src_len, sha_context);
     if (sgx_ret != SGX_SUCCESS)
     {
         sgx_sha256_close(sha_context);
         return sgx_ret;
     }
 
-    sgx_ret = sgx_sha256_get_hash(sha_context, &key_material);
+    sgx_ret = sgx_sha256_get_hash(sha_context, &sgx_hash);
     if (sgx_ret != SGX_SUCCESS)
     {
         sgx_sha256_close(sha_context);
         return sgx_ret;
     }
 
-    memcpy(hash, key_material, 32);
+    memcpy(hash, sgx_hash, 32);
 
     sgx_ret = sgx_sha256_close(sha_context);
 
     return sgx_ret;
 }
+
+sgx_status_t sgxEcc256CreateKeyPair(sgx_ec256_private_t* p_private, sgx_ec256_public_t* p_public) {
+
+    sgx_status_t sgx_ret = SGX_SUCCESS;
+    sgx_ecc_state_handle_t ecc_handle;
+
+    sgx_ret = sgx_ecc256_open_context(&ecc_handle);
+    if (sgx_ret != SGX_SUCCESS) {
+        switch (sgx_ret) {
+            case SGX_ERROR_OUT_OF_MEMORY:
+                //ocall_print("SGX_ERROR_OUT_OF_MEMORY");
+                break;
+            case SGX_ERROR_UNEXPECTED:
+                //ocall_print("SGX_ERROR_UNEXPECTED");
+                break;
+        }
+    }
+
+    // create private, public key pair
+    sgx_ret = sgx_ecc256_create_key_pair(p_private, p_public, ecc_handle);
+    if (sgx_ret != SGX_SUCCESS)
+    {
+        return sgx_ret;
+    }
+
+    /*
+    swarm.wolk.com/sgx/go-with-intel-sgx/Enclave/Enclave.cpp
+
+    ocall_print("ecc private key");
+    ocall_uint8_t_print(p_private.r, SGX_ECP256_KEY_SIZE);
+
+    ocall_print("ecc public key.gx");
+    ocall_uint8_t_print(p_public.gx, SGX_ECP256_KEY_SIZE);
+    ocall_print("ecc public key.gy");
+    ocall_uint8_t_print(p_public.gy, SGX_ECP256_KEY_SIZE);
+    */
+
+    return sgx_ret;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

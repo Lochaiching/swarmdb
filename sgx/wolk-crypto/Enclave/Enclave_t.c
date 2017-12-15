@@ -35,11 +35,17 @@ typedef struct ms_unseal_t {
 
 typedef struct ms_sgxGetSha256_t {
 	sgx_status_t ms_retval;
-	uint8_t* ms_plaintext;
-	size_t ms_plaintext_len;
+	uint8_t* ms_src;
+	size_t ms_src_len;
 	uint8_t* ms_hash;
 	size_t ms_hash_len;
 } ms_sgxGetSha256_t;
+
+typedef struct ms_sgxEcc256CreateKeyPair_t {
+	sgx_status_t ms_retval;
+	sgx_ec256_private_t* ms_p_private;
+	sgx_ec256_public_t* ms_p_public;
+} ms_sgxEcc256CreateKeyPair_t;
 
 static sgx_status_t SGX_CDECL sgx_seal(void* pms)
 {
@@ -136,11 +142,26 @@ static sgx_status_t SGX_CDECL sgx_sgxGetSha256(void* pms)
 	CHECK_REF_POINTER(pms, sizeof(ms_sgxGetSha256_t));
 	ms_sgxGetSha256_t* ms = SGX_CAST(ms_sgxGetSha256_t*, pms);
 	sgx_status_t status = SGX_SUCCESS;
-	uint8_t* _tmp_plaintext = ms->ms_plaintext;
+	uint8_t* _tmp_src = ms->ms_src;
 	uint8_t* _tmp_hash = ms->ms_hash;
 
 
-	ms->ms_retval = sgxGetSha256(_tmp_plaintext, ms->ms_plaintext_len, _tmp_hash, ms->ms_hash_len);
+	ms->ms_retval = sgxGetSha256(_tmp_src, ms->ms_src_len, _tmp_hash, ms->ms_hash_len);
+
+
+	return status;
+}
+
+static sgx_status_t SGX_CDECL sgx_sgxEcc256CreateKeyPair(void* pms)
+{
+	CHECK_REF_POINTER(pms, sizeof(ms_sgxEcc256CreateKeyPair_t));
+	ms_sgxEcc256CreateKeyPair_t* ms = SGX_CAST(ms_sgxEcc256CreateKeyPair_t*, pms);
+	sgx_status_t status = SGX_SUCCESS;
+	sgx_ec256_private_t* _tmp_p_private = ms->ms_p_private;
+	sgx_ec256_public_t* _tmp_p_public = ms->ms_p_public;
+
+
+	ms->ms_retval = sgxEcc256CreateKeyPair(_tmp_p_private, _tmp_p_public);
 
 
 	return status;
@@ -148,13 +169,14 @@ static sgx_status_t SGX_CDECL sgx_sgxGetSha256(void* pms)
 
 SGX_EXTERNC const struct {
 	size_t nr_ecall;
-	struct {void* ecall_addr; uint8_t is_priv;} ecall_table[3];
+	struct {void* ecall_addr; uint8_t is_priv;} ecall_table[4];
 } g_ecall_table = {
-	3,
+	4,
 	{
 		{(void*)(uintptr_t)sgx_seal, 0},
 		{(void*)(uintptr_t)sgx_unseal, 0},
 		{(void*)(uintptr_t)sgx_sgxGetSha256, 0},
+		{(void*)(uintptr_t)sgx_sgxEcc256CreateKeyPair, 0},
 	}
 };
 

@@ -58,7 +58,7 @@ type KademliaDB struct {
 
 type SwarmDB struct {
 	Logger       *swarmdblog.Logger
-	tables       map[string]map[string]*Table
+	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
 	kaddb        *KademliaDB
@@ -176,6 +176,8 @@ type OrderedDatabase interface {
 	// ok - returns true if key found, false if not found
 	// Possible errors: KeySizeError, NetworkError
 	Seek(k []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err error)
+	SeekFirst() (e OrderedDatabaseCursor, err error)
+	SeekLast() (e OrderedDatabaseCursor, err error)
 }
 
 type OrderedDatabaseCursor interface {

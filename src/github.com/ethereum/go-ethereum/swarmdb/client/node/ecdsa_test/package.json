@@ -10,6 +10,7 @@
   "license": "ISC",
   "dependencies": {
     "eccrypto": "^1.0.3",
+    "jsrsasign": "^8.0.4",
     "keythereum": "^1.0.2"
   }
 }

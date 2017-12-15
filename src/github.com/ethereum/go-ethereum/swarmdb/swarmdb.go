@@ -14,8 +14,7 @@ func NewSwarmDB() *SwarmDB {
 	sd := new(SwarmDB)
 
 	// ownerID, tableName => *Table
-	sd.tables = make(map[string]map[string]*Table)
-
+	sd.tables = make(map[string]*Table)
 	dbchunkstore, err := NewDBChunkStore("/tmp/chunk.db")
 	if err != nil {
 		// TODO: PANIC
@@ -46,9 +45,11 @@ func (self *SwarmDB) RetrieveKDBChunk(key []byte) (val []byte, err error) {
 	return self.dbchunkstore.RetrieveKChunk(key)
 }
 
+/*
 func (self *SwarmDB) StoreKDBChunk(key []byte, val []byte) (err error) {
 	return self.dbchunkstore.StoreKChunk(key, val)
 }
+*/
 
 func (self SwarmDB) PrintDBChunk(columnType ColumnType, hashid []byte, c []byte) {
 	self.dbchunkstore.PrintDBChunk(columnType, hashid, c)
@@ -75,14 +76,71 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 
 // parse sql and return rows in bulk (order by, group by, etc.)
 func (self SwarmDB) QuerySelect(sql string) (rows []Row, err error) {
-	// get the table, OpenTable, run scan operation with OrderedDatabaseCursor with Seek/Next/Prev, as possible
+	// parse query to get the tableName, OpenTable, run Scan operation and filter out rows
+	// Alina: implementing with Scan
 	return rows, nil
 }
 
 func (self SwarmDB) QueryInsert(sql string) (err error) {
-	// ..
+	// Alina: implementing with Put (=> Insert)
 	return nil
 }
+
+func (self SwarmDB) QueryDelete(sql string) (err error) {
+	// Alina: implementing with Delete
+	return nil
+}
+
+func (self SwarmDB) Query(sql string) (err error) {
+	// Alina: dispatch to QuerySelect/Insert/Update/Delete
+	return nil
+}
+
+func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, ascending bool) (err error) {
+	tblKey := fmt.Sprintf("%s|%s", ownerID, tableName)
+	if tbl, ok := self.tables[tblKey]; ok {
+		tbl.Scan(columnName, ascending)
+	} else {
+		return fmt.Errorf("No such table to scan %s - %s", ownerID, tableName)
+	} 
+	return nil
+	
+}
+
+func (t *Table) Scan(columnName string, ascending bool) (rows []Row, err error) {
+	column, err := t.getColumn(columnName)
+	if err != nil {
+		fmt.Printf(" err %v \n", err)
+		return rows, err
+	}
+	c := column.dbaccess.(OrderedDatabase)
+	// TODO: Error checking
+	if ascending {
+		res, err := c.SeekFirst()
+		if err != nil {
+		} else {
+			records := 0
+			for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
+				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(column.columnType, k), v)
+				// put this into "Row" form
+				records++
+			}
+		}
+	} else {
+		res, err := c.SeekLast()
+		if err != nil {
+		} else {
+			records := 0
+			for k, v, err := res.Prev(); err == nil; k, v, err = res.Prev() {
+				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(column.columnType, k), v)
+				// put this into "Row" form
+				records++
+			}
+		}
+	}
+	return rows, nil
+}
+
 
 // Table
 func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
@@ -91,6 +149,10 @@ func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
 	t.ownerID = ownerID
 	t.tableName = tableName
 	t.columns = make(map[string]*ColumnInfo)
+
+	// register the Table in SwarmDB
+	tblKey := fmt.Sprintf("%s|%s", ownerID, tableName)
+	self.tables[tblKey] = t
 	return t
 }
 
@@ -220,6 +282,7 @@ func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte,
 	return k, nil
 }
 
+
 func (t *Table) Put(value string) (err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Put|%s", value))
 	var evalue interface{}
@@ -232,13 +295,8 @@ func (t *Table) Put(value string) (err error) {
 	if !ok {
 		return fmt.Errorf("Invalid JSON record: %s", value)
 	}
-	/*
-	for jsonKey, jsonVal := range jsonrecord {
-		//throw error if jsonKey is not matching a columnname	
-	}
-	*/
 	k := make([]byte, 32)
-	// process primary key
+
 	for _, c := range t.columns {
 		//fmt.Printf("\nProcessing a column %s and primary is %d", c.columnName, c.primary)
 		if c.primary > 0 {
@@ -247,9 +305,19 @@ func (t *Table) Put(value string) (err error) {
 			} else {
 				return fmt.Errorf("\nPrimary key %s not specified in input", t.primaryColumnName)
 			}
+			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.bid, t.replication, t.encrypted)
+			khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
+			if err != nil {
+				fmt.Errorf("\nKademlia Put Failed")
+				// TODO
+			}
+			fmt.Printf(" - primary  %s | %x\n", c.columnName, k)
+			_, err = t.columns[c.columnName].dbaccess.Put(k, khash)
+//			t.columns[c.columnName].dbaccess.Print()
 		} else {
+			k2 := make([]byte, 32)
 			if pvalue, ok := jsonrecord[c.columnName]; ok {
-				k, _ = convertJSONValueToKey(c.columnType, pvalue)
+				k2, _ = convertJSONValueToKey(c.columnType, pvalue)
 				if err != nil {
 					// TODO
 				}
@@ -257,17 +325,13 @@ func (t *Table) Put(value string) (err error) {
 				//this is ok
 				//return fmt.Errorf("Column [%s] not found in [%+v]", c.columnName, jsonrecord)
 			}
-		}
-		t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.bid, t.replication, t.encrypted)
-		khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
-		if err != nil {
-			fmt.Errorf("\nKademlia Put Failed")
-			// TODO
-		}
-		_, err = t.columns[c.columnName].dbaccess.Put(k, []byte(khash))
-		if err != nil {
-			// TODO
-			fmt.Errorf("\nDB Put Failed")
+			fmt.Printf(" - secondary %s %x | %x\n", c.columnName, k2, k)
+			_, err = t.columns[c.columnName].dbaccess.Put(k2, k)
+			if err != nil {
+				fmt.Errorf("\nDB Put Failed")
+			} else {
+			}
+			//t.columns[c.columnName].dbaccess.Print()
 		}
 	}
 
@@ -316,6 +380,18 @@ func (t *Table) Insert(key string, value string) error {
 	return err
 }
 
+func (t *Table) getPrimaryColumn() (c *ColumnInfo, err error) {
+	return t.getColumn( t.primaryColumnName )
+}
+
+func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
+	if t.columns[columnName] == nil {
+		var cerr *NoColumnError
+		return c, cerr
+	}
+	return t.columns[columnName], nil
+}
+
 func (t *Table) Get(key string) ([]byte, error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Get|%s", key))
 	primaryColumnName := t.primaryColumnName
@@ -326,23 +402,26 @@ func (t *Table) Get(key string) ([]byte, error) {
 
 	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
 	//fmt.Printf(" k: %v\n", k)
-
+	
 	v, _, err := t.columns[primaryColumnName].dbaccess.Get(k)
 	if err != nil {
 		return nil, err
 	}
-	//fmt.Printf(" GET RESULTv: %v\n", v)
-	// get value from kdb
-	kres, _, _ := t.swarmdb.kaddb.Get(v)
-	fres := bytes.Trim(kres, "\x00")
-	return fres, err
+	if len(v) > 0 {
+		//fmt.Printf(" GET RESULTv: %v\n", v)
+		// get value from kdb
+		kres, _, _ := t.swarmdb.kaddb.GetByKey(k)
+		fres := bytes.Trim(kres, "\x00")
+		return fres, err
+	} else {
+		return []byte(""), nil
+	}
 }
 
 func (t *Table) Delete(key string) (ok bool, err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Delete|%s", key))
 	primaryColumnName := t.primaryColumnName
 	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
-	// fmt.Printf(" DELETE %x\n", k)
 	ok = false
 	for _, ip := range t.columns {
 		ok2, err := ip.dbaccess.Delete(k)
