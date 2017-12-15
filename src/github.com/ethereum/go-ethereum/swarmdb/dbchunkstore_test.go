@@ -17,6 +17,9 @@ func TestDBChunkStore(t *testing.T) {
 	v := make([]byte, 4096)
 	copy(v, r)
 
+	bid := float64(7.17)
+	encrypted := int64(1)
+
 	// StoreChunk
 	k, err := store.StoreChunk(r)
 	if err == nil {
@@ -43,14 +46,14 @@ func TestDBChunkStore(t *testing.T) {
 	}
 
 	// StoreKChunk
-	err2 := store.StoreKChunk(k, v)
+	err2 := store.StoreKChunk(k, v, bid, encrypted)
 	if err2 != nil {
-		t.Fatal("Failure to StoreKChunk", k, v)
+		t.Fatal("Failure to StoreKChunk ->", k, v, bid, encrypted)
 	} else {
 		fmt.Printf("SUCCESS in StoreKChunk:  %x => %v\n", string(k), string(v))
 	}
 
-	err3 := store.StoreKChunk(k, r)
+	err3 := store.StoreKChunk(k, r, bid, encrypted)
 	if err3 == nil {
 		t.Fatal("Failure to generate StoreKChunk Err", k, r)
 	} else {

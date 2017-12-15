@@ -58,7 +58,7 @@ type KademliaDB struct {
 
 type SwarmDB struct {
 	Logger       *swarmdblog.Logger
-	tables       map[string]map[string]*Table
+	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
 	kaddb        *KademliaDB
