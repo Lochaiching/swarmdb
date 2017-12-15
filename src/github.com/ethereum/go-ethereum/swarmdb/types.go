@@ -45,6 +45,11 @@ type ENSSimulation struct {
 	db       *sql.DB
 }
 
+type IncomingInfo struct {
+        Data    string
+        Address string
+}
+
 type KademliaDB struct {
 	dbChunkstore *DBChunkstore
 	mutex        sync.Mutex
