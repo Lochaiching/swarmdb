@@ -46,9 +46,11 @@ func (self *SwarmDB) RetrieveKDBChunk(key []byte) (val []byte, err error) {
 	return self.dbchunkstore.RetrieveKChunk(key)
 }
 
+/*
 func (self *SwarmDB) StoreKDBChunk(key []byte, val []byte) (err error) {
 	return self.dbchunkstore.StoreKChunk(key, val)
 }
+*/
 
 func (self SwarmDB) PrintDBChunk(columnType ColumnType, hashid []byte, c []byte) {
 	self.dbchunkstore.PrintDBChunk(columnType, hashid, c)
