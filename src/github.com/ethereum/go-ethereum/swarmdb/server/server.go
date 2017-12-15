@@ -214,12 +214,14 @@ func (svr *TCPIPServer) SelectHandler(data *IncomingInfo) {
 	*/
 	case "Put":
 		if len(d.Value) == 0{
-			svr.outgoing <- rerr.Error()
+			//svr.outgoing <- rerr.Error()
+			fmt.Printf("\nValue empty -- bad!")
 			return
 		}
 		err := svr.clients[0].table.Put(d.Value)
                 if err != nil{
-                        svr.outgoing <- err.Error()
+			fmt.Printf("\nError trying to 'Put' [%s] -- Err: %s", d.Value, err)
+                        //svr.outgoing <- err.Error()
                 }
 	case "Get":
 		if len(d.Key) == 0 {
