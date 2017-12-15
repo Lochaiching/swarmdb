@@ -37,11 +37,11 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 
 	var metadataBody []byte
 	metadataBody = make([]byte, 140)
-	copy(metadataBody[0:41], self.owner)
-	copy(metadataBody[42:59], buyAt)
-	copy(metadataBody[60:91], blockNumber)
-	copy(metadataBody[92:107], timestamp)
-	copy(metadataBody[108:139], wlksig)
+	copy(metadataBody[0:42], self.owner)
+	copy(metadataBody[42:60], buyAt)
+	copy(metadataBody[60:92], blockNumber)
+	copy(metadataBody[92:108], timestamp)
+	copy(metadataBody[108:140], wlksig)
 	log.Debug("Metadata is [%+v]", metadataBody)
 
 	contentPrefix := BuildSwarmdbPrefix(self.owner, self.tableName, key)
@@ -59,7 +59,7 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 func (self *KademliaDB) Put(k []byte, v []byte) ([]byte, error) {
 	sdata := self.buildSdata(k, v)
 	hashVal := sdata[512:544] // 32 bytes
-	_ = self.dbChunkstore.StoreKChunk(hashVal, sdata)
+	_ = self.dbChunkstore.StoreKChunk(hashVal, sdata, self.bid, self.encrypted)
 	return hashVal, nil
 }
 
