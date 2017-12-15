@@ -8,7 +8,8 @@ SET UP THE REPOSITORY:
 2. $ sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 
 INSTALL DOCKER CE (Community Edition):
- $ sudo yum -y install docker-ce
+
+$ sudo yum -y install docker-ce
 
 Get SWARMDB Docker
 
