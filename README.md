@@ -1,7 +1,7 @@
 
 # How to Install SWARMDB
 
-Install Docker
+# Install Docker
 
 SET UP THE REPOSITORY:
 1. $ sudo yum install -y yum-utils device-mapper-persistent-data lvm2
