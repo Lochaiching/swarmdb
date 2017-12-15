@@ -75,13 +75,58 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 
 // parse sql and return rows in bulk (order by, group by, etc.)
 func (self SwarmDB) QuerySelect(sql string) (rows []Row, err error) {
-	// get the table, OpenTable, run scan operation with OrderedDatabaseCursor with Seek/Next/Prev, as possible
+	// parse query to get the tableName, OpenTable, run Scan operation and filter out rows
+	// Alina: implementing with Scan
 	return rows, nil
 }
 
 func (self SwarmDB) QueryInsert(sql string) (err error) {
-	// ..
+	// Alina: implementing with Put (=> Insert)
 	return nil
+}
+
+func (self SwarmDB) QueryDelete(sql string) (err error) {
+	// Alina: implementing with Delete
+	return nil
+}
+
+func (self SwarmDB) Query(sql string) (err error) {
+	// Alina: dispatch to QuerySelect/Insert/Update/Delete
+	return nil
+}
+
+func (t *Table) Scan(ascending bool) (rows []Row, err error) {
+	primaryColumn, err := t.getPrimaryColumn()
+	if err != nil {
+		fmt.Printf(" err %v \n", err)
+		return rows, err
+	}
+	c := primaryColumn.dbaccess.(OrderedDatabase)
+	// TODO: Error checking
+	if ascending {
+		res, err := c.SeekFirst()
+		if err != nil {
+		} else {
+			records := 0
+			for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
+				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(CT_INTEGER, k), string(v))
+				// put this into "Row" form
+				records++
+			}
+		}
+	} else {
+		res, err := c.SeekLast()
+		if err != nil {
+		} else {
+			records := 0
+			for k, v, err := res.Prev(); err == nil; k, v, err = res.Prev() {
+				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(CT_INTEGER, k), string(v))
+				// put this into "Row" form
+				records++
+			}
+		}
+	}
+	return rows, nil
 }
 
 // Table
@@ -160,10 +205,10 @@ func (t *Table) OpenTable() (err error) {
 		columninfo.indexType = IndexType(buf[30])
 		columninfo.roothash = buf[32:]
 		secondary := false
-		if columninfo.primary == 0 { 
+		if columninfo.primary == 0 {
 			secondary = true
 		} else {
-			primaryColumnType = columninfo.columnType  // TODO: what if primary is stored *after* the secondary?  would break this..
+			primaryColumnType = columninfo.columnType // TODO: what if primary is stored *after* the secondary?  would break this..
 		}
 		fmt.Printf(" columnName: %s (%d) roothash: %x (secondary: %v)", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary)
 		switch columninfo.indexType {
@@ -197,7 +242,7 @@ func (t *Table) OpenTable() (err error) {
 }
 
 func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte, err error) {
-	
+
 	switch svalue := pvalue.(type) {
 	case (int):
 		i := fmt.Sprintf("%d", svalue)
@@ -241,16 +286,16 @@ func (t *Table) Put(value string) (err error) {
 		if c.primary > 0 {
 			if pvalue, ok2 := jsonrecord[t.primaryColumnName]; ok2 {
 				k, _ = convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, pvalue)
-				fmt.Printf("\nT bid: %f | T.Rep: %d | T encrypted: %d", t.bid, t.replication, t.encrypted)
+				// fmt.Printf("\nT bid: %f | T.Rep: %d | T encrypted: %d", t.bid, t.replication, t.encrypted)
 				t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName))
 				khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
 				if err != nil {
 					// TODO
-				} 
+				}
 				_, err = t.columns[c.columnName].dbaccess.Put(k, []byte(khash))
 				if err != nil {
 					// TODO
-				} 
+				}
 			} else {
 				return fmt.Errorf("No primary key %s specified in input", t.primaryColumnName)
 			}
@@ -267,7 +312,7 @@ func (t *Table) Put(value string) (err error) {
 				k2, _ = convertJSONValueToKey(c.columnType, pvalue)
 				if err != nil {
 					// TODO
-				} 
+				}
 			} else {
 				return fmt.Errorf("No primary key %s specified in input", t.primaryColumnName)
 			}
@@ -320,6 +365,15 @@ func (t *Table) Insert(key string, value string) error {
 	return err
 }
 
+func (t *Table) getPrimaryColumn() (c *ColumnInfo, err error) {
+	primaryColumnName := t.primaryColumnName
+	if t.columns[primaryColumnName] == nil {
+		var cerr *NoColumnError
+		return c, cerr
+	}
+	return t.columns[primaryColumnName], nil
+}
+
 func (t *Table) Get(key string) ([]byte, error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Get|%s", key))
 	primaryColumnName := t.primaryColumnName
@@ -346,7 +400,6 @@ func (t *Table) Delete(key string) (ok bool, err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Delete|%s", key))
 	primaryColumnName := t.primaryColumnName
 	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
-	// fmt.Printf(" DELETE %x\n", k)
 	ok = false
 	for _, ip := range t.columns {
 		ok2, err := ip.dbaccess.Delete(k)

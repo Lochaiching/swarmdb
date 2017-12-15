@@ -12,20 +12,20 @@ import (
 
 // Tree is a B+tree.
 type Tree struct {
-	c     int
-	cmp   Cmp
-	cmpPrimary  Cmp
-	first *d
-	last  *d
-	r     interface{}
-	ver   int64
+	c          int
+	cmp        Cmp
+	cmpPrimary Cmp
+	first      *d
+	last       *d
+	r          interface{}
+	ver        int64
 
-	swarmdb    DBChunkstorage
-	buffered   bool
-	columnType ColumnType
+	swarmdb           DBChunkstorage
+	buffered          bool
+	columnType        ColumnType
 	columnTypePrimary ColumnType
-	secondary  bool
-	hashid     []byte
+	secondary         bool
+	hashid            []byte
 }
 
 const (
@@ -968,8 +968,52 @@ func (t *Tree) Seek(key []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err err
 			return btEPool.get(nil, ok, i, k, x, t, t.ver), false, nil
 		}
 	}
-	fmt.Printf("DONE SEEK\n")
+	// fmt.Printf("DONE SEEK\n")
 	return e, false, nil
+}
+
+func (t *Tree) SeekFirst() (e OrderedDatabaseCursor, err error) {
+	k := make([]byte, K_SIZE)
+	q := t.r
+	if q == nil {
+		e = btEPool.get(nil, false, 0, k, nil, t, t.ver)
+		return
+	}
+
+	for {
+		checkload(t.swarmdb, q)
+		var i int
+
+		i = 0
+		switch x := q.(type) {
+		case *x:
+			q = x.x[i].ch
+		case *d:
+			return btEPool.get(nil, true, i, k, x, t, t.ver), nil
+		}
+	}
+	return e, nil
+}
+
+func (t *Tree) SeekLast() (e OrderedDatabaseCursor, err error) {
+	k := make([]byte, K_SIZE)
+	q := t.r
+	if q == nil {
+		e = btEPool.get(nil, false, 0, k, nil, t, t.ver)
+		return
+	}
+
+	for {
+		checkload(t.swarmdb, q)
+		switch x := q.(type) {
+		case *x:
+			q = x.x[x.c].ch
+		case *d:
+			i := x.c - 1
+			return btEPool.get(nil, true, i, k, x, t, t.ver), nil
+		}
+	}
+	return e, nil
 }
 
 func (t *Tree) Put(key []byte /*K*/, v []byte /*V*/) (okresult bool, err error) {
@@ -1344,12 +1388,24 @@ func (e *Enumerator) prev() error {
 	case e.i > 0:
 		e.i--
 	default:
-		if e.q = e.q.p; e.q == nil {
-			e.err = io.EOF
-			break
+		if valid_hashid(e.q.prevhashid) && e.q.p == nil {
+			r := btDPool.Get().(*d)
+			r.hashid = e.q.prevhashid
+			r.notloaded = true
+			r.SWARMGet(e.t.swarmdb)
+			e.q = r
+			if r.c >= 0 {
+				e.i = r.c - 1
+			} else {
+				e.i = 0
+			}
+		} else {
+			if e.q = e.q.p; e.q == nil {
+				e.err = io.EOF
+				break
+			}
+			e.i = e.q.c
 		}
-
-		e.i = e.q.c - 1
 	}
 	return e.err
 }
