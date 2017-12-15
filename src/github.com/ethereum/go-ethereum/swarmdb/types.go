@@ -64,6 +64,7 @@ type SwarmDB struct {
 	kaddb        *KademliaDB
 }
 
+//for passing request data from client to server if the request needs Table data
 type Column struct {
 	ColumnName string     `json:"columnname,omitempty"` // e.g. "accountID"
 	IndexType  IndexType  `json:"indextype,omitempty"`  // IT_BTREE
@@ -71,6 +72,7 @@ type Column struct {
 	Primary    int        `json:"primary,omitempty"`
 }
 
+//for passing request data from client to server
 type RequestOption struct {
 	RequestType string   `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
 	Owner       string   `json:"owner,omitempty"`
@@ -80,10 +82,20 @@ type RequestOption struct {
 	Replication int      `json:"replication,omitempty"`
 	Key         string   `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
 	Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
-	Columns     []Column `json:"columns",omitempty"`
-	//Bid         float64  `json:"bid"`
-	//Replication int      `json:"replication",omitempty`
-	//Encrypt     int      `json:"encrypt"`
+	Columns     []Column `json:"columns,omitempty"`
+	QueryOptions []QueryOption `json:"queryoptions,omitempty"`
+}
+
+//for sql parsing
+type QueryOption struct {
+	Where Where
+	
+}
+//for sql parsing
+type Where struct {
+	Left string
+	Right string
+	Operator string //sqlparser.ComparisonExpr.Operator; sqlparser.BinaryExpr.Operator; sqlparser.IsExpr.Operator; sqlparser.AndExpr.Operator, sqlparser.OrExpr.Operator
 }
 
 type ColumnInfo struct {
