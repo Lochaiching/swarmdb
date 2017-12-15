@@ -1,11 +1,18 @@
 
 # How to Install SWARMDB
 
-Install Docker
+# Install Docker CE (Community Edition)
 
-Get SWARMDB Docker
+Set up the repository:
+* $ sudo yum install -y yum-utils device-mapper-persistent-data lvm2
+* $ sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 
-Run SWARMDB
+Installing the Docker package:
+* $ sudo yum -y install docker-ce
+
+# Get SWARMDB Docker
+
+# Run SWARMDB
 
 Test if it works
 

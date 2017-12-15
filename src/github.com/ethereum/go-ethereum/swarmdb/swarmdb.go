@@ -75,13 +75,58 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 
 // parse sql and return rows in bulk (order by, group by, etc.)
 func (self SwarmDB) QuerySelect(sql string) (rows []Row, err error) {
-	// get the table, OpenTable, run scan operation with OrderedDatabaseCursor with Seek/Next/Prev, as possible
+	// parse query to get the tableName, OpenTable, run Scan operation and filter out rows
+	// Alina: implementing with Scan
 	return rows, nil
 }
 
 func (self SwarmDB) QueryInsert(sql string) (err error) {
-	// ..
+	// Alina: implementing with Put (=> Insert)
 	return nil
+}
+
+func (self SwarmDB) QueryDelete(sql string) (err error) {
+	// Alina: implementing with Delete
+	return nil
+}
+
+func (self SwarmDB) Query(sql string) (err error) {
+	// Alina: dispatch to QuerySelect/Insert/Update/Delete
+	return nil
+}
+
+func (t *Table) Scan(ascending bool) (rows []Row, err error) {
+	primaryColumn, err := t.getPrimaryColumn()
+	if err != nil {
+		fmt.Printf(" err %v \n", err)
+		return rows, err
+	}
+	c := primaryColumn.dbaccess.(OrderedDatabase)
+	// TODO: Error checking
+	if ascending {
+		res, err := c.SeekFirst()
+		if err != nil {
+		} else {
+			records := 0
+			for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
+				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(CT_INTEGER, k), string(v))
+				// put this into "Row" form
+				records++
+			}
+		}
+	} else {
+		res, err := c.SeekLast()
+		if err != nil {
+		} else {
+			records := 0
+			for k, v, err := res.Prev(); err == nil; k, v, err = res.Prev() {
+				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(CT_INTEGER, k), string(v))
+				// put this into "Row" form
+				records++
+			}
+		}
+	}
+	return rows, nil
 }
 
 // Table
@@ -233,12 +278,13 @@ func (t *Table) Put(value string) (err error) {
 		return fmt.Errorf("Invalid JSON record: %s", value)
 	}
 	/*
-	for jsonKey, jsonVal := range jsonrecord {
-		//throw error if jsonKey is not matching a columnname	
-	}
+		for jsonKey, jsonVal := range jsonrecord {
+			//throw error if jsonKey is not matching a columnname
+		}
 	*/
 	k := make([]byte, 32)
 	// process primary key
+
 	for _, c := range t.columns {
 		//fmt.Printf("\nProcessing a column %s and primary is %d", c.columnName, c.primary)
 		if c.primary > 0 {
@@ -316,6 +362,15 @@ func (t *Table) Insert(key string, value string) error {
 	return err
 }
 
+func (t *Table) getPrimaryColumn() (c *ColumnInfo, err error) {
+	primaryColumnName := t.primaryColumnName
+	if t.columns[primaryColumnName] == nil {
+		var cerr *NoColumnError
+		return c, cerr
+	}
+	return t.columns[primaryColumnName], nil
+}
+
 func (t *Table) Get(key string) ([]byte, error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Get|%s", key))
 	primaryColumnName := t.primaryColumnName
@@ -342,7 +397,6 @@ func (t *Table) Delete(key string) (ok bool, err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Delete|%s", key))
 	primaryColumnName := t.primaryColumnName
 	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
-	// fmt.Printf(" DELETE %x\n", k)
 	ok = false
 	for _, ip := range t.columns {
 		ok2, err := ip.dbaccess.Delete(k)
