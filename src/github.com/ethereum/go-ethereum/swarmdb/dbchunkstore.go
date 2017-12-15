@@ -30,7 +30,7 @@ type DBChunk struct {
 	Owner       []byte // 42
 	BuyAt       []byte // 32
 	Blocknumber []byte // 32
-	Tablename   []byte // 32
+	TableName   []byte // 32
 	TableId     []byte // 32
 	StoreDT     int64
 }
@@ -73,16 +73,16 @@ func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
 
 	for cc, cv := range self.netstat.CStat {
 		file.ChunkStat[cc] = cv.String()
-        if cc == "ChunkR" || cc == "ChunkW" || cc == "ChunkS" {
-            self.netstat.CStat[cc] = big.NewInt(0) 
-        }
+		if cc == "ChunkR" || cc == "ChunkW" || cc == "ChunkS" {
+			self.netstat.CStat[cc] = big.NewInt(0)
+		}
 	}
 
 	for bc, bv := range self.netstat.BStat {
 		file.ByteStat[bc] = bv.String()
-        if bc == "ByteR" || bc == "ByteS" || bc == "ByteW" { 
-            self.netstat.BStat[bc] = big.NewInt(0)
-        }
+		if bc == "ByteR" || bc == "ByteS" || bc == "ByteW" {
+			self.netstat.BStat[bc] = big.NewInt(0)
+		}
 	}
 
 	for ticket, reward := range self.netstat.Claim {
@@ -151,19 +151,18 @@ func (self *DBChunkstore) Save() (err error) {
 }
 
 func (self *DBChunkstore) Flush() (err error) {
-    data, err := json.Marshal(self)
-    if err != nil {
-        return err
-    }
-    netstatlog, err := os.OpenFile("netstat.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
-    if err != nil {
-        return err
-    }
-    defer netstatlog.Close()
-    fmt.Fprintf(netstatlog, "%s\n",data)
-    return nil
+	data, err := json.Marshal(self)
+	if err != nil {
+		return err
+	}
+	netstatlog, err := os.OpenFile("netstat.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer netstatlog.Close()
+	fmt.Fprintf(netstatlog, "%s\n", data)
+	return nil
 }
-
 
 func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 	ts := time.Now()
@@ -186,8 +185,10 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
     Owner TEXT,
     BuyAt TEXT,
     BlockNumber TEXT,
-    Tablename TEXT,
-    Tableid TEXT,
+    TableName TEXT,
+    TableId TEXT,
+    Bid TEXT,
+    Encrypted TEXT,
     storeDT DATETIME
     );
     `
@@ -284,14 +285,14 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 	return
 }
 
-func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
+func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, bid float64, encrypted int64) (err error) {
 	//TODO get OWNER from CHUNK or get it from swarmdb into dbchunkstore
 	ts := time.Now()
 	if len(v) < minChunkSize {
 		return fmt.Errorf("chunk too small") // should be improved
 	}
 
-	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, storeDT ) values(?, ?, CURRENT_TIMESTAMP)`
+	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, Bid, Encrypted, storeDT ) values(?, ?, ?, ?, CURRENT_TIMESTAMP)`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
 		fmt.Printf("\nError Preparing into Table: [%s]", err)
@@ -299,13 +300,13 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte) (err error) {
 	}
 	defer stmt.Close()
 
-	recordData := v[577:4095]
+	recordData := v[577:4096]
 	encRecordData := self.km.EncryptData(recordData)
 
 	var finalSdata [8192]byte
-	copy(finalSdata[0:566], v[0:576])
+	copy(finalSdata[0:577], v[0:577])
 	copy(finalSdata[577:], encRecordData)
-	_, err2 := stmt.Exec(k[:32], finalSdata[0:]) //TODO: why is k going in as 64 instead of 32?
+	_, err2 := stmt.Exec(k[:32], finalSdata[0:], bid, encrypted)
 	if err2 != nil {
 		fmt.Printf("\nError Inserting into Table: [%s]", err2)
 		fmt.Printf("Putting in this data: [%s]", finalSdata)

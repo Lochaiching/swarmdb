@@ -81,3 +81,59 @@ sgx_status_t sgxGetSha256(uint8_t* src, size_t src_len, uint8_t* hash, size_t ha
 
     return sgx_ret;
 }
+
+sgx_status_t sgxEcc256CreateKeyPair(sgx_ec256_private_t* p_private, sgx_ec256_public_t* p_public) {
+
+    sgx_status_t sgx_ret = SGX_SUCCESS;
+    sgx_ecc_state_handle_t ecc_handle;
+
+    sgx_ret = sgx_ecc256_open_context(&ecc_handle);
+    if (sgx_ret != SGX_SUCCESS) {
+        switch (sgx_ret) {
+            case SGX_ERROR_OUT_OF_MEMORY:
+                //ocall_print("SGX_ERROR_OUT_OF_MEMORY");
+                break;
+            case SGX_ERROR_UNEXPECTED:
+                //ocall_print("SGX_ERROR_UNEXPECTED");
+                break;
+        }
+    }
+
+    // create private, public key pair
+    sgx_ret = sgx_ecc256_create_key_pair(p_private, p_public, ecc_handle);
+    if (sgx_ret != SGX_SUCCESS)
+    {
+        return sgx_ret;
+    }
+
+    /*
+    swarm.wolk.com/sgx/go-with-intel-sgx/Enclave/Enclave.cpp
+
+    ocall_print("ecc private key");
+    ocall_uint8_t_print(p_private.r, SGX_ECP256_KEY_SIZE);
+
+    ocall_print("ecc public key.gx");
+    ocall_uint8_t_print(p_public.gx, SGX_ECP256_KEY_SIZE);
+    ocall_print("ecc public key.gy");
+    ocall_uint8_t_print(p_public.gy, SGX_ECP256_KEY_SIZE);
+    */
+
+    return sgx_ret;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
