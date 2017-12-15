@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"io"
 	//"io/ioutil"
-	"net"
 	"github.com/ethereum/go-ethereum/log"
+	"net"
 	//"os"
 	common "github.com/ethereum/go-ethereum/swarmdb"
 	//"strconv"
 	"sync"
 )
-
 
 type ServerConfig struct {
 	Addr string
@@ -32,7 +31,7 @@ type Client struct {
 	outgoing chan string
 	reader   *bufio.Reader
 	writer   *bufio.Writer
-	table    *common.Table  // holds ownerID, tableName
+	table    *common.Table // holds ownerID, tableName
 }
 
 type TCPIPServer struct {
@@ -141,8 +140,8 @@ func (svr *TCPIPServer) addClient(conn net.Conn) {
 
 func (svr *TCPIPServer) TestAddClient(owner string, tablename string, primary string) {
 	//testConn := svr.NewConnection()
-	client := newClient(nil)//testConn)	
-	client.table = svr.swarmdb.NewTable(owner, tablename);
+	client := newClient(nil) //testConn)
+	client.table = svr.swarmdb.NewTable(owner, tablename)
 	//client.table.SetPrimary( primary )
 	svr.clients = append(svr.clients, client)
 }
@@ -154,119 +153,106 @@ func (svr *TCPIPServer) listen() {
 			case conn := <-svr.conn:
 				svr.addClient(conn)
 			case data := <-svr.incoming:
-				svr.SelectHandler(data)
+				resp := svr.SelectHandler(data)
+				svr.outgoing <- resp
 			}
 		}
 	}()
 }
-func (svr *TCPIPServer) SelectHandler(data *IncomingInfo) {
+func (svr *TCPIPServer) SelectHandler(data *IncomingInfo) (resp string) {
 	var rerr *common.RequestFormatError
 	d, err := parseData(data.Data)
 	if err != nil {
-		//svr.outgoing <- err.Error()
-		return
+		return  err.Error()
 	}
 	switch d.RequestType {
 	/*
-	case "OpenClient":
-		if len(d.Owner) == 0{
-			svr.outgoing <- rerr.Error()
-			return
-		}
-		err := svr.NewConnection()
-		resp := "okay"
-		if err != nil {
-			resp = err.Error()
-		}
-		svr.outgoing <- resp
+		case "OpenClient":
+			if len(d.Owner) == 0{
+				return rerr.Error()
+			}
+			err := svr.NewConnection()
+			resp := "okay"
+			if err != nil {
+				resp = err.Error()
+			}
+			return resp
 	*/
 	case "OpenTable":
-		if len(d.Table) == 0{
-			svr.outgoing <- rerr.Error()
-			return
+		if len(d.Table) == 0 {
+			return rerr.Error()
 		}
 		err := svr.clients[0].table.OpenTable()
-		//resp := "okay"
-		//fmt.Printf("Resp: %s ", resp)
+		resp := "okay"
 		if err != nil {
-			//resp = err.Error()
+			return err.Error()
 		}
-		//svr.outgoing <- resp
+		return resp
 	case "CloseTable":
 	case "CreateTable":
-		if len(d.Table) == 0 || len(d.Columns) == 0{
-			svr.outgoing <- rerr.Error()
-			return
+		if len(d.Table) == 0 || len(d.Columns) == 0 {
+			return `ERR: empty table and column`
 		}
 		svr.clients[0].table.CreateTable(d.Columns, d.Bid, d.Replication, d.Encrypted)
-		fmt.Printf("\nFinished Create")
+		return `okay`
 	/*
-	case "Insert":
-		if len(d.Index) == 0 || len(d.Key) == 0 || len(d.Value) == 0{
-			svr.outgoing <- rerr.Error()
-			return
-		}
-		err := svr.table.Insert(d.Key, d.Value)
-		if err != nil{
-			svr.outgoing <- rerr.Error()
-		}
-		svr.outgoing <- "okay"
+		case "Insert":
+			if len(d.Index) == 0 || len(d.Key) == 0 || len(d.Value) == 0{
+				return
+			}
+			err := svr.table.Insert(d.Key, d.Value)
+			if err != nil{
+				return err.Error()
+			}
+			return "okay"
 	*/
 	case "Put":
-		if len(d.Value) == 0{
-			//svr.outgoing <- rerr.Error()
-			fmt.Printf("\nValue empty -- bad!")
-			return
+		if len(d.Value) == 0 {
+			return "\nValue empty -- bad!"
 		}
 		err := svr.clients[0].table.Put(d.Value)
-                if err != nil{
-			fmt.Printf("\nError trying to 'Put' [%s] -- Err: %s", d.Value, err)
-                        //svr.outgoing <- err.Error()
-                }
+		if err != nil {
+			return "\nError trying to 'Put' [%s] -- Err: %s"
+		}
 	case "Get":
 		if len(d.Key) == 0 {
-		//	svr.outgoing <- rerr.Error()
-			return
+			return err.Error()
 		}
-		ret, err:= svr.clients[0].table.Get(d.Key)
+		ret, err := svr.clients[0].table.Get(d.Key)
 		sret := string(ret)
-		fmt.Printf("\nResult of GET: %s\n", sret)
-		if err != nil{
+		if err != nil {
 			sret = err.Error()
 		}
-		//svr.outgoing <- sret
-	/*
-	case "Delete":
-		if len(d.Key) == 0 {
-			svr.outgoing <- rerr.Error()
-			return
-		}
-		err := svr.table.Delete(d.Key)
-		ret := "okay"
-		if err != nil{
-			ret = err.Error()
-		}
-		svr.outgoing <- ret
-	case "StartBuffer":
-		err := svr.table.StartBuffer()
-		ret := "okay"
-		if err != nil{
-			ret = err.Error()
-		}
-		svr.outgoing <- ret
-	case "FlushBuffer":
-		err := svr.table.FlushBuffer()
-		ret := "okay"
-		if err != nil{
-			ret = err.Error()
-		}
-		svr.outgoing <- ret
-*/
+		return sret
+		/*
+			case "Delete":
+				if len(d.Key) == 0 {
+					return rerr.Error()
+				}
+				err := svr.table.Delete(d.Key)
+				ret := "okay"
+				if err != nil{
+					ret = err.Error()
+				}
+				return ret
+			case "StartBuffer":
+				err := svr.table.StartBuffer()
+				ret := "okay"
+				if err != nil{
+					ret = err.Error()
+				}
+				return ret
+			case "FlushBuffer":
+				err := svr.table.FlushBuffer()
+				ret := "okay"
+				if err != nil{
+					ret = err.Error()
+				}
+				return ret
+		*/
 	}
-	//svr.outgoing <- "RequestType Error"
-	return
+	return "RequestType Error"
 }
-
 
 func parseData(data string) (*common.RequestOption, error) {
 	udata := new(common.RequestOption)
@@ -276,13 +262,12 @@ func parseData(data string) (*common.RequestOption, error) {
 	return udata, nil
 }
 
-func (svr *TCPIPServer) NewConnection() (err error){
+func (svr *TCPIPServer) NewConnection() (err error) {
 	ownerID := "owner1"
 	tableName := "testtable"
 	svr.swarmdb.NewTable(ownerID, tableName)
-	
+
 	// svr.table = table
 
 	return nil
 }
-
