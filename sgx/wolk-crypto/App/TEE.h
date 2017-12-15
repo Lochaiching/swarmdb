@@ -7,12 +7,15 @@
 #include "Enclave_u.h"
 #include "sgx_urts.h"
 #include "sgx_utils/sgx_utils.h"
+
 extern "C" {  
 
-#endif  
-int getSha256(void);
+#endif
 
-#ifdef __cplusplus  
+char* getSha256(char *str);
+
+#ifdef __cplusplus
+
 }  
 #endif  
   

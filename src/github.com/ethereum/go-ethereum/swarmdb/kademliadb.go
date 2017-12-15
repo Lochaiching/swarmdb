@@ -18,10 +18,13 @@ func NewKademliaDB(dbChunkstore *DBChunkstore) (*KademliaDB, error) {
 	return kd, nil
 }
 
-func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte) (bool, error) {
+func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte, bid float64, replication int64, encrypted int64) (bool, error) {
 	self.owner = owner
 	self.tableName = tableName
 	self.column = column
+	self.bid = bid
+	self.replication = replication
+	self.encrypted = encrypted
 
 	return true, nil
 }

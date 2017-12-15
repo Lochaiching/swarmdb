@@ -27,6 +27,9 @@ type testCase struct {
 	Owner       []byte
 	TableName   []byte
 	Column      []byte
+	Bid         float64
+	Replication int64
+	Encrypted   int64
 	Value       []byte
 	Key         []byte
 	ExpectedKey []byte
@@ -40,13 +43,16 @@ func TestKademliaChunkKeyGeneration(t *testing.T) {
 	tc.Owner = []byte(`0x728781e75735dc0962df3a51d7ef47e798a7107e`)
 	tc.TableName = []byte(`email`)
 	tc.Column = []byte(`yob`)
-	
+	tc.Bid = 7.27
+	tc.Replication = 4
+	tc.Encrypted = 1
+
 	dbchunkstore, err := swarmdb.NewDBChunkStore("/tmp/testchunk.db")
 	kdb, err := swarmdb.NewKademliaDB(dbchunkstore)
 	if err != nil {
 		t.Fatal("Failed creating Kademlia")
 	}
-	kdb.Open(tc.Owner, tc.TableName, tc.Column)
+	kdb.Open(tc.Owner, tc.TableName, tc.Column, tc.Bid, tc.Replication, tc.Encrypted)
 	generatedKey := kdb.GenerateChunkKey(tc.Key)
 	expectedKey := []byte{232, 13, 189, 249, 19, 48, 66, 109, 189, 89, 16, 49, 191, 59, 245, 251, 210, 223, 121, 151, 165, 252, 232, 245, 156, 183, 4, 176, 14, 37, 155, 30}
 	if bytes.Compare(generatedKey, expectedKey) != 0 {
@@ -62,6 +68,9 @@ func TestKademliaPutGetByKey(t *testing.T) {
 	tc.Owner = []byte(`0x728781e75735dc0962df3a51d7ef47e798a7107e`)
 	tc.TableName = []byte(`email`)
 	tc.Column = []byte(`yob`)
+	tc.Bid = 7.27
+	tc.Replication = 4
+	tc.Encrypted = 1
 
 	dbchunkstore, err := swarmdb.NewDBChunkStore("/tmp/testchunk.db")
 	kdb, err := swarmdb.NewKademliaDB(dbchunkstore)
@@ -69,7 +78,7 @@ func TestKademliaPutGetByKey(t *testing.T) {
 		t.Fatal("Failed creating Kademlia")
 	}
 
-	kdb.Open(tc.Owner, tc.TableName, tc.Column)
+	kdb.Open(tc.Owner, tc.TableName, tc.Column, tc.Bid, tc.Replication, tc.Encrypted)
 	_, err = kdb.Put(tc.Key, tc.Value)
 	if err != nil {
 		t.Fatal(err)

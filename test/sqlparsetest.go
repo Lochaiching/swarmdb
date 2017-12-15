@@ -11,7 +11,8 @@ import (
 
 func main() {
 
-	sql := `select * from wolkpurchaser where country = "USA"`
+// 	sql := `select * from wolkpurchaser where country = "USA"`
+	 sql := `select * from wolkpurchaser where name like "Rodney%"`
 	fmt.Printf("sql is: %s\n", sql)
 
 	stmt, err := sqlparser.Parse(sql)

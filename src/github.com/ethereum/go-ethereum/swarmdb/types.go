@@ -51,6 +51,9 @@ type KademliaDB struct {
 	owner        []byte
 	tableName    []byte
 	column       []byte
+	bid          float64
+	replication  int64
+	encrypted    int64
 }
 
 type SwarmDB struct {
@@ -161,6 +164,8 @@ type OrderedDatabase interface {
 	// ok - returns true if key found, false if not found
 	// Possible errors: KeySizeError, NetworkError
 	Seek(k []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err error)
+	SeekFirst() (e OrderedDatabaseCursor, err error)
+	SeekLast() (e OrderedDatabaseCursor, err error)
 }
 
 type OrderedDatabaseCursor interface {

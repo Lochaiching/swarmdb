@@ -75,22 +75,22 @@ func getSWARMDBTableSecondary(ownerID string, tableName string, primaryKeyName s
 	}
 
 	putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
-	swarmdbObj.Put(putstr)
+	tbl.Put(putstr)
 
 	putstr = `{"email":"sourabh@wolk.com", "age": 45, "gender": "M", "weight": 210.5}`
-	swarmdbObj.Put(putstr)
+	tbl.Put(putstr)
 	// Put
 	for i := 1; i < 10; i++ {
 		g := "F"
 		w := float64(i) + .314159
 		putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
 			TEST_PKEY_STRING, i, i, g, w)
-		swarmdbObj.Put(putstr)
+		tbl.Put(putstr)
 		g = "M"
 		w = float64(i) + float64(0.414159)
 		putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
 			TEST_PKEY_STRING, i, i, g, w)
-		swarmdbObj.Put(putstr)
+		tbl.Put(putstr)
 	}
 
 	return swarmdbObj

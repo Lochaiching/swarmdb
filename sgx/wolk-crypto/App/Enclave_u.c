@@ -19,8 +19,8 @@ typedef struct ms_unseal_t {
 
 typedef struct ms_sgxGetSha256_t {
 	sgx_status_t ms_retval;
-	uint8_t* ms_plaintext;
-	size_t ms_plaintext_len;
+	uint8_t* ms_src;
+	size_t ms_src_len;
 	uint8_t* ms_hash;
 	size_t ms_hash_len;
 } ms_sgxGetSha256_t;
@@ -58,12 +58,12 @@ sgx_status_t unseal(sgx_enclave_id_t eid, sgx_status_t* retval, sgx_sealed_data_
 	return status;
 }
 
-sgx_status_t sgxGetSha256(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* plaintext, size_t plaintext_len, uint8_t* hash, size_t hash_len)
+sgx_status_t sgxGetSha256(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* src, size_t src_len, uint8_t* hash, size_t hash_len)
 {
 	sgx_status_t status;
 	ms_sgxGetSha256_t ms;
-	ms.ms_plaintext = plaintext;
-	ms.ms_plaintext_len = plaintext_len;
+	ms.ms_src = src;
+	ms.ms_src_len = src_len;
 	ms.ms_hash = hash;
 	ms.ms_hash_len = hash_len;
 	status = sgx_ecall(eid, 2, &ocall_table_Enclave, &ms);
