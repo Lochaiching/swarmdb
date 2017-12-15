@@ -25,6 +25,12 @@ typedef struct ms_sgxGetSha256_t {
 	size_t ms_hash_len;
 } ms_sgxGetSha256_t;
 
+typedef struct ms_sgxEcc256CreateKeyPair_t {
+	sgx_status_t ms_retval;
+	sgx_ec256_private_t* ms_p_private;
+	sgx_ec256_public_t* ms_p_public;
+} ms_sgxEcc256CreateKeyPair_t;
+
 static const struct {
 	size_t nr_ocall;
 	void * table[1];
@@ -67,6 +73,17 @@ sgx_status_t sgxGetSha256(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* s
 	ms.ms_hash = hash;
 	ms.ms_hash_len = hash_len;
 	status = sgx_ecall(eid, 2, &ocall_table_Enclave, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t sgxEcc256CreateKeyPair(sgx_enclave_id_t eid, sgx_status_t* retval, sgx_ec256_private_t* p_private, sgx_ec256_public_t* p_public)
+{
+	sgx_status_t status;
+	ms_sgxEcc256CreateKeyPair_t ms;
+	ms.ms_p_private = p_private;
+	ms.ms_p_public = p_public;
+	status = sgx_ecall(eid, 3, &ocall_table_Enclave, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }

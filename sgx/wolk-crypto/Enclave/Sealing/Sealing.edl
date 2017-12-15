@@ -6,6 +6,9 @@ enclave {
 
         public sgx_status_t unseal([in, size=sealed_size]sgx_sealed_data_t* sealed_data, size_t sealed_size, [out, size=plaintext_len]uint8_t* plaintext, uint32_t plaintext_len);
         
-        public sgx_status_t sgxGetSha256([user_check] uint8_t* src, size_t src_len, [user_check] uint8_t* hash, size_t hash_len);
+        public sgx_status_t sgxGetSha256([user_check]uint8_t* src, size_t src_len, [user_check]uint8_t* hash, size_t hash_len);
+         
+        public sgx_status_t sgxEcc256CreateKeyPair([user_check]sgx_ec256_private_t* p_private, [user_check]sgx_ec256_public_t* p_public);
+          
     };
 };
