@@ -4,26 +4,26 @@
 # Install Docker CE (Community Edition)
 
 # Prerequisites
-* CentOS 7.x 64-bit
-* Red Hat Enterprise Linux (RHEL) 7.x 64-bit
+* CentOS 7.x 64-bit.
+* Red Hat Enterprise Linux (RHEL) 7.x 64-bit.
 
-* Debian
-** Debian stretch (testing)
-** Debian Jessie 8.0
-** Debian Wheezy 7.7
+* Debian 64-bit:
+Debian stretch (testing),
+Debian Jessie 8.0,
+Debian Wheezy 7.7.
 
 * Fedora 64-bit:
-**Fedora 25
-**Fedora 24
+Fedora 25,
+Fedora 24.
 
 * Ubuntu versions:
-**Zesty 17.04 (LTS)
-Yakkety 16.10
-Xenial 16.04 (LTS)
-Trusty 14.04 (LTS)
+Zesty 17.04 (LTS),
+Yakkety 16.10,
+Xenial 16.04 (LTS),
+Trusty 14.04 (LTS).
 
-* MAC OSX Yosemite 10.10.3 or above
-* MS Windows 10 Professional or Enterprise 64-bit
+* MAC OSX Yosemite 10.10.3 or above.
+* MS Windows 10 Professional or Enterprise 64-bit.
 
 Set up the repository:
 * $ sudo yum install -y yum-utils
