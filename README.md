@@ -3,7 +3,7 @@
 
 # Install Docker
 
-SET UP THE REPOSITORY:
+_SET UP THE REPOSITORY:_
 1. $ sudo yum install -y yum-utils device-mapper-persistent-data lvm2
 2. $ sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 
@@ -11,9 +11,9 @@ INSTALL DOCKER CE (Community Edition):
 
 $ sudo yum -y install docker-ce
 
-Get SWARMDB Docker
+# Get SWARMDB Docker
 
-Run SWARMDB
+# Run SWARMDB
 
 Test if it works
 
