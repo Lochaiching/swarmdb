@@ -88,13 +88,15 @@ type RequestOption struct {
 	Key         string   `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
 	Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Columns     []Column `json:"columns,omitempty"`
-	QueryOptions []QueryOption `json:"queryoptions,omitempty"`
+	RawQuery       string  `json:"rawquery,omitempty"` //"Select name, age from contacts where email = 'blah'"
 }
 
 //for sql parsing
-type QueryOption struct {
+type Query struct {
+	Type string //"Select" or "Insert" or "Update" probably should be an enum
+	RequestColumns []Column
+	Table string 
 	Where Where
-	
 }
 //for sql parsing
 type Where struct {
