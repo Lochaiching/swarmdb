@@ -118,16 +118,93 @@ sgx_status_t sgxEcc256CreateKeyPair(sgx_ec256_private_t* p_private, sgx_ec256_pu
     ocall_uint8_t_print(p_public.gy, SGX_ECP256_KEY_SIZE);
     */
 
+    sgx_ec256_signature_t p_signature;
+
+    uint8_t sample_data[8]
+        = {0x12, 0x13, 0x3f, 0x00,
+           0x9a, 0x02, 0x10, 0x53};
+
+    // create digital signature used ecc
+    sgx_ret = sgx_ecdsa_sign(sample_data,
+                        sizeof(sample_data) / sizeof(sample_data[0]),
+                        p_private,                                            //&p_private,
+                        &p_signature,
+                        ecc_handle);
+
+    ocall_print("ecdsa signature x");
+    ocall_uint32_t_print(p_signature.x, SGX_NISTP_ECP256_KEY_SIZE);
+    ocall_print("ecdsa signature y");
+    ocall_uint32_t_print(p_signature.y, SGX_NISTP_ECP256_KEY_SIZE);
+
+    if (sgx_ret != SGX_SUCCESS) {
+        ocall_print("ecdsa sign error");
+    }
+
+
+
+    // print p_signature
+    uint8_t p_result;
+    sgx_ret = sgx_ecdsa_verify(sample_data,
+                    8,
+                    p_public,                                      //&p_public,
+                    &p_signature,
+                    &p_result,
+                    ecc_handle);
+    ocall_print("verify result");
+    ocall_uint8_t_print(&p_result, 1); // 0 on success, 1 on fail
+
+    sgx_ret = sgx_ecc256_close_context(ecc_handle);
+    if (sgx_ret != SGX_SUCCESS) {
+        ocall_print("ecc256 close fails");
+    }
+
+
+
+    //sgx_sha256_hash_t p_hash;
+    //sgx_sha256_msg(sample_data, 8, &p_hash);
+    //ocall_print("sha256");
+    //ocall_uint8_t_print(p_hash, SGX_SHA256_HASH_SIZE);
+
     return sgx_ret;
 }
 
+sgx_status_t sgxEcdsaSign(uint8_t* sample_data, size_t sample_data_len, sgx_ec256_private_t* p_private, sgx_ec256_signature_t* p_signature) {
 
+    sgx_status_t sgx_ret = SGX_SUCCESS;
+    sgx_ecc_state_handle_t ecc_handle;
 
+    sgx_ret = sgx_ecc256_open_context(&ecc_handle);
+    if (sgx_ret != SGX_SUCCESS) {
+        switch (sgx_ret) {
+            case SGX_ERROR_OUT_OF_MEMORY:
+                //ocall_print("SGX_ERROR_OUT_OF_MEMORY");
+                break;
+            case SGX_ERROR_UNEXPECTED:
+                //ocall_print("SGX_ERROR_UNEXPECTED");
+                break;
+        }
+    }
 
+    // create digital signature used ecc
+    sgx_ret = sgx_ecdsa_sign(sample_data,
+                         sizeof(sample_data) / sizeof(sample_data[0]),
+                         p_private,
+                         p_signature,
+                         ecc_handle);
 
+    /*
+    ocall_print("ecdsa signature x");
+    ocall_uint32_t_print(p_signature.x, SGX_NISTP_ECP256_KEY_SIZE);
+    ocall_print("ecdsa signature y");
+    ocall_uint32_t_print(p_signature.y, SGX_NISTP_ECP256_KEY_SIZE);
+    */
 
+    if (sgx_ret != SGX_SUCCESS) {
+       // ocall_print("ecdsa sign error");
+    }
 
-
+    return sgx_ret;
+}
 
 
 

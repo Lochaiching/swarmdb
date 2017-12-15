@@ -4,12 +4,20 @@
 sgx_enclave_id_t global_eid = 0;
 
 #define SGX_ECP256_KEY_SIZE             32
+#define SGX_NISTP_ECP256_KEY_SIZE       (SGX_ECP256_KEY_SIZE/sizeof(uint32_t))
 
 void ocall_print(const char* str) {
 	printf("%s\n", str);
 }
 
 void ocall_uint8_t_print(uint8_t *arr, size_t len) {
+    for (int i = 0; i < len; i++) {
+        printf("%02X", arr[i]);
+    }
+    printf("\n");
+}
+
+void ocall_uint32_t_print(uint32_t *arr, size_t len) {
     for (int i = 0; i < len; i++) {
         printf("%02X", arr[i]);
     }
@@ -89,14 +97,39 @@ int ecc256CreateKeyPair(char* privateKey, char* publicKeyGX, char* publicKeyGY) 
 	return 0;
 }
 
+int ecdsaSign(char* privateKey) {return 0;
+/*
+    sgx_status_t ecall_status;
+
+	sgx_ec256_private_t p_private;
+    sgx_ec256_signature_t p_signature;
+
+    int k;
+    for(k = 0; k < 32; k++) {
+    	sprintf(&p_private.r[k*2], "%02X",p_public.gx[k]);
+    }
 
 
 
 
+    p_private.r = (uint8_t*)&privateKey;
 
+    uint8_t sample_data[8]
+        = {0x12, 0x13, 0x3f, 0x00,
+           0x9a, 0x02, 0x10, 0x53};
 
+    size_t sample_data_len = sizeof(sample_data) / sizeof(sample_data[0]);
 
+    sgx_status_t sgxEcdsaSign(global_eid, &ecall_status, uint8_t* sample_data, size_t sample_data_len, sgx_ec256_private_t* p_private, sgx_ec256_signature_t* p_signature)
 
+    ocall_print("ecdsa signature x");
+    ocall_uint32_t_print(p_signature.x, SGX_NISTP_ECP256_KEY_SIZE);
+    ocall_print("ecdsa signature y");
+    ocall_uint32_t_print(p_signature.y, SGX_NISTP_ECP256_KEY_SIZE);
+
+	return 0;
+	*/
+}
 
 
 
