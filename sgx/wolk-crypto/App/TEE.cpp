@@ -4,7 +4,7 @@
 sgx_enclave_id_t global_eid = 0;
 
 #define SGX_ECP256_KEY_SIZE             32
-#define SGX_NISTP_ECP256_KEY_SIZE       (SGX_ECP256_KEY_SIZE/sizeof(uint32_t))
+#define SGX_NISTP_ECP256_KEY_SIZE       (SGX_ECP256_KEY_SIZE/sizeof(uint32_t))   // 32/4 = 8
 
 void ocall_print(const char* str) {
 	printf("%s\n", str);
