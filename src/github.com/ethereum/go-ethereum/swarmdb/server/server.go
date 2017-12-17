@@ -68,7 +68,14 @@ func StartTCPIPServer(swarmdb *common.SwarmDB, config *ServerConfig) {
 	for {
 		conn, err := svr.listener.Accept()
 		if err != nil {
+			fmt.Println("Error accepting: ", err.Error())
+			os.Exit(1)
 		}
+
+		challenge := RandStringRunes(64)
+		nonce := RandStringRunes(48)
+		s := fmt.Sprintf(`{"challenge":"%s","nonce":"%s"}\n`, challenge, nonce)
+		conn.Write([]byte(s))
 		svr.conn <- conn
 	}
 	if err != nil {
@@ -133,6 +140,39 @@ func (svr *TCPIPServer) addClient(conn net.Conn) {
 			client.outgoing <- <-svr.outgoing
 		}
 	}()
+}
+
+func RandStringRunes(n int) string {
+	// var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	var letterRunes = []rune("0123456789abcdef")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
+}
+
+func handleRequest(conn net.Conn, nonce string, challenge string) {
+	// Make a buffer to hold incoming data.
+	buf := make([]byte, 1024)
+	// Read the incoming connection into the buffer.
+	reqLen, err := conn.Read(buf)
+	if err != nil {
+		fmt.Println("Error reading:", err.Error())
+	}
+	
+	// this should be the signed challenge, verify using valid_response
+	resp := string(buf)
+	resp = strings.Trim(resp, "\n")
+	if valid_response(resp, nonce, challenge) {
+		resp = "VALID"
+	} else {
+		resp = "INVALID"
+	}
+	s := fmt.Sprintf("%d:%s", reqLen, resp)
+	conn.Write([]byte(s))
+	// Close the connection when you're done with it.
+	conn.Close()
 }
 
 func (svr *TCPIPServer) TestAddClient(owner string, tablename string, primary string) {

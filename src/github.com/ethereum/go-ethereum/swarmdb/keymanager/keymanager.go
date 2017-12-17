@@ -1,91 +1,106 @@
 package keymanager
 
 import (
+	"crypto/sha256"
 	"fmt"
-	"golang.org/x/crypto/nacl/box"
-	//"io"
-	"io/ioutil"
-
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
+	"golang.org/x/crypto/nacl/box"
+//	"hash"
+//	"io"
+	"io/ioutil"
 )
 
 type KeyManager struct {
-	pk [32]byte
-	sk [32]byte
+	keystore *keystore.Key
+	pk       [32]byte
+	sk       [32]byte
 }
 
-func NewKeyManager(path string) (keymgr KeyManager, err error) {
-	keymgr.sk, keymgr.pk = GetKeys()
+func NewKeyManager() (keymgr KeyManager, err error) {
+	keystore, err := GetKeystore()
+	if err != nil {
+		return keymgr, err
+	} else {
+		keymgr.keystore = keystore
+		sk, pk := ExtractPKSK(keymgr.keystore)
+		copy(keymgr.sk[0:], sk)
+		copy(keymgr.pk[0:], pk)
+	}
 	return keymgr, nil
 }
 
-func GetKeys() (sk [32]byte, pk [32]byte) {
-	path := "/var/www/vhosts/data/keystore"
+func GetKeystore() (keyWrapper *keystore.Key, err error) {
+	path := "/var/www/vhosts/sourabh/swarm.wolk.com/src/github.com/ethereum/go-ethereum/swarmdb/keymanager/"
 	ks := keystore.NewKeyStore(path, keystore.StandardScryptN, keystore.StandardScryptP)
 	var ks_accounts []accounts.Account //     type Account struct    in->   keystore/keystore.go
 	ks_accounts = ks.Accounts()
-
-	var testsk = [32]byte{240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
-	var testpk = [32]byte{159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
-
-	if len(ks_accounts) == 0 {
-		// No keystore file found at given path
-		log.Debug(fmt.Sprintf("[BZZ] HTTP: "+"SWARM server.go No keyStore file found at %s", path))
-		sk, pk = testsk, testpk
-	} else {
+	if len(ks_accounts) > 0 {
 		acc_url := ks_accounts[0].URL
 		acc_url_string := fmt.Sprintf("%s", acc_url)
 		filename := acc_url_string[11:] // /var/www/vhosts/data/keystore/UTC--2017-10-13T23-15-16.214744640Z--dc8a520a69157a7087f0b575644b8e454f462159
-
 		// Open the keystore file
 		keyJson, readErr := ioutil.ReadFile(filename)
 		if readErr != nil {
-			// Fail to ReadFile keystore File
-			// s.logDebug("SWARM server.go ReadFile of keystore file error: %s ", readErr)
-			log.Debug(fmt.Sprintf("[BZZ] HTTP: "+"SWARM server.go ReadFile of keystore file error: %s ", readErr))
-			sk, pk = testsk, testpk
+			return keyWrapper, readErr
 		} else {
-			keyWrapper, keyErr := keystore.DecryptKey([]byte(keyJson), "mdotm")
+			keyWrapper, keyErr := keystore.DecryptKey([]byte(keyJson), "h3r0c1ty!")
+			// fmt.Printf("KEYS: %v\n", keyWrapper)
 			if keyErr != nil {
-				// Incorrect Password
-				// s.logDebug("SWARM server.go DecryptKey error: %s ", keyErr)
-				log.Debug(fmt.Sprintf("[BZZ] HTTP: "+"SWARM server.go DecryptKey error: %s ", keyErr))
-				sk, pk = testsk, testpk
+				return keyWrapper, keyErr
 			} else {
-
-				acc_sk := crypto.FromECDSA(keyWrapper.PrivateKey)
-				acc_pk := crypto.FromECDSAPub(&keyWrapper.PrivateKey.PublicKey)
-				acc_pk = append(pk[:0], pk[1:]...)
-				// fun call elliptic.Marshal   add  ret[0] = 4 // uncompressed point
-				// pk:[]byte{0x4, 0x8d, 0x9b,
-				// need to remove the "ret[0] = 4" to get the pk
-
-				//secretkey := [32]byte{}
-				for i := range acc_sk {
-					sk[i] = acc_sk[i]
-					if i == 31 {
-						break
-					}
-				}
-
-				// crypto/nacl  box.Seal()  box.Open()   PublicKey is  type *[32]byte  so cut the account PublicKey from [64]byte to [32]byte
-				//publickey := [64]byte{}
-				//publickey := [32]byte{}
-				for i := range acc_pk {
-					pk[i] = acc_pk[i]
-					if i == 31 {
-						break
-					}
-				}
-
+				return keyWrapper, nil
 			}
 		}
 	}
-	return sk, pk
+	return keyWrapper, fmt.Errorf("No accounts found")
+}
 
+func (self *KeyManager) SignMessage(msg string) (sig []byte, hashout []byte, err error) {
+	privateKey := self.keystore.PrivateKey
+
+	// The produced signature is in the [R || S || V] format where V is 0 or 1.
+	h256 := sha256.New()
+	h256.Write([]byte(msg))
+	hashout = h256.Sum(nil)
+
+	sig, err = crypto.Sign(hashout, privateKey)
+	if err != nil {
+		return sig, hashout, err
+	}
+	return sig, hashout, err
+}
+
+func ExtractPKSK(keyWrapper *keystore.Key) (acc_sk []byte, acc_pk []byte) {
+	var sk [32]byte
+	var pk [32]byte
+
+	acc_sk = crypto.FromECDSA(keyWrapper.PrivateKey)
+	acc_pk = crypto.FromECDSAPub(&keyWrapper.PrivateKey.PublicKey)
+	acc_pk = append(pk[:0], pk[1:]...)
+	// fun call elliptic.Marshal   add  ret[0] = 4 // uncompressed point
+	// pk:[]byte{0x4, 0x8d, 0x9b,
+	// need to remove the "ret[0] = 4" to get the pk
+
+	//secretkey := [32]byte{}
+	for i := range acc_sk {
+		sk[i] = acc_sk[i]
+		if i == 31 {
+			break
+		}
+	}
+
+	// crypto/nacl  box.Seal()  box.Open()   PublicKey is  type *[32]byte  so cut the account PublicKey from [64]byte to [32]byte
+	//publickey := [64]byte{}
+	//publickey := [32]byte{}
+	for i := range acc_pk {
+		pk[i] = acc_pk[i]
+		if i == 31 {
+			break
+		}
+	}
+	return acc_sk, acc_pk
 }
 
 func (self *KeyManager) DecryptData(data []byte) []byte {
@@ -106,3 +121,12 @@ func (self *KeyManager) EncryptData(data []byte) []byte {
 	encrypted := box.Seal(nonce[:], msg, &nonce, &self.pk, &self.sk)
 	return encrypted
 }
+
+/*
+func main() {
+	privateFile := "f.prv"
+	publicFile := "f.pub"
+	// privateKey, publicKey := GenKeys(privateFile, publicFile)
+	privateKey, publicKey := LoadKeys(privateFile, publicFile)
+ }
+*/

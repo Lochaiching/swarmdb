@@ -1,57 +1,60 @@
-package keymanager
+package keymanager_test
 
 import (
 	"fmt"
+	"bytes"
+	"math/big"
+	"github.com/ethereum/go-ethereum/crypto"
+	// "encoding/binary"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"testing"
 )
 
-func TestKeyManager(t *testing.T) {
-	//km, err := NewKeyManager("chunks.db")
-	km, err := keymanager.NewKeyManager("chunks.db")
+func TestSignMessage(t *testing.T) {
+	km, err := keymanager.NewKeyManager()
 	if err != nil {
-		t.Fatal("Failure to open NewDBChunkStore")
+		t.Fatal("Failure to open KeyManager", err)
+	}
+	msg := "sourabh"
+	sig, h, err := km.SignMessage(msg)
+	if err != nil {
+		t.Fatal("sign err", err)
+	} else {
+		fmt.Printf("%x\n", sig)
+	}
+	
+	r := new(big.Int).SetBytes(sig[:32])
+	s := new(big.Int).SetBytes(sig[32:64])
+	v := sig[64]
+
+	a := crypto.ValidateSignatureValues(v, r, s, false)
+	if a {
+		fmt.Printf("SUCCESS\n")
+	} else {
+		t.Fatal("Failure to verify")
+	}
+	p, err := crypto.Ecrecover(h, sig)
+	if err != nil {
+		t.Fatal("Failure to ecrecover")
+	}  else {
+		fmt.Printf("pubkey: %x\n", p)
 	}
 
-	r := []byte("randombytes23412341")
+}
+
+func aTestEncryptDecrypt(t *testing.T) {
+	km, err := keymanager.NewKeyManager()
+	if err != nil {
+		t.Fatal("Failure to open KeyManager", err)
+	}
+
+	r := []byte("sourabh")
 
 	encData := km.EncryptData(r)
-	fmt.Printf("Encrypted data is [%v][%s]", encData, encData)
 	decData := km.DecryptData(encData)
-	fmt.Printf("Decrypted data is [%v][%s]", decData, decData)
-	/*
-	   	k, err1 := store.StoreChunk(v)
-	   	if err1 != nil {
-	   		t.Fatal("Failure to StoreChunk", k, v)
-	   	} else {
-	    		fmt.Printf("SUCCESS in StoreChunk:  %x => %v\n", string(k), string(v))
-	   	}
+	a := bytes.Compare(decData, r) 
 
-	   	// StoreKChunk
-	   	err2 := store.StoreKChunk(k, v)
-	   	if err2 != nil {
-	   		t.Fatal("Failure to StoreKChunk", k, v)
-	   	} else {
-	    		fmt.Printf("SUCCESS in StoreKChunk:  %x => %v\n", string(k), string(v))
-	   	}
-
-	   	err3 := store.StoreKChunk(k, r)
-	   	if err3 == nil {
-	   		t.Fatal("Failure to generate StoreKChunk Err", k, r)
-	   	} else {
-	    		fmt.Printf("SUCCESS in StoreKChunk Err (input only has %d bytes)\n", len(r))
-	   	}
-
-	   	// RetrieveChunk
-	   	val, err := store.RetrieveChunk(k)
-	   	if err != nil {
-	   		t.Fatal("Failure to RetrieveChunk: Failure to retrieve", k, v, val)
-	   	}
-	   	if bytes.Compare(val, v) != 0 {
-	   		t.Fatal("Failure to RetrieveChunk: Incorrect match", k, v, val)
-	   	} else {
-	   		fmt.Printf("SUCCESS in RetrieveChunk:  %x => %v\n", string(k), string(v))
-	   	}
-	*/
+	fmt.Printf("Encrypted data is [%v][%x]", encData, encData)
+	fmt.Printf("Decrypted data is [%v][%s] => %d", decData, decData, a)
 
 }

@@ -11,7 +11,7 @@ const (
 )
 
 func TestAll(t *testing.T) {
-	conn, err := swarmdb.OpenConnection("localhost", 8500)
+	conn, err := swarmdb.OpenConnection("127.0.0.1", 2000)
 	if err != nil {
 		t.Fatal(err)
 	}

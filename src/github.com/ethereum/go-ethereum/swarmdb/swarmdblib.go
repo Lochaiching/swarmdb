@@ -19,7 +19,7 @@ func OpenConnection(ip string, port int) (conn *SWARMDBConnection, err error) {
 	conn.ownerID = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	// connect to this socket
 	
-	connstr := fmt.Sprintf("%s:%s", ip, port)
+	connstr := fmt.Sprintf("%s:%d", ip, port)
 	c, connerr := net.DialTimeout("tcp", connstr, 500*time.Millisecond)
 	if connerr != nil {
 		fmt.Print("Error: ", connerr)
@@ -44,13 +44,22 @@ func (c *SWARMDBConnection) Open(tableName string) (tbl *SWARMDBTable, err error
 	// send to server
 	tbl = new(SWARMDBTable)
 	tbl.tableName = tableName
+	tbl.conn = c
 	return tbl, nil
 }
 
 func (c *SWARMDBConnection) CreateTable(tableName string, columns []Column, ens ENSSimulation) (tbl *SWARMDBTable, err error) {
 	// create request 
-	// send to server
+	var r RequestOption
+	r.RequestType = "CreateTable"
+	r.Owner = c.ownerID
+	r.Table = tableName
+	r.Columns = columns
 
+	// send to server
+	tbl = new(SWARMDBTable)
+	tbl.tableName = tableName
+	tbl.conn = c
 	return tbl, nil
 }
 
