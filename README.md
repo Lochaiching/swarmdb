@@ -32,6 +32,9 @@ Set up the repository:
 Installing the Docker package:
 * $ sudo yum -y install docker-ce
 
+Download the docker image:
+* $ docker pull wolkinc/wolkmain:12182017
+
 # Get SWARMDB Docker
 
 # Run SWARMDB
