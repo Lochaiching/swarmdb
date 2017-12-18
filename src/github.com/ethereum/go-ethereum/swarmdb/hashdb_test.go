@@ -112,7 +112,7 @@ func TestPutFloat(t *testing.T) {
 
 func TestSetGetString(t *testing.T) {
 	hashid := make([]byte, 32)
-	r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t), swarmdb.CT_FLOAT)
+	r, _ := swarmdb.NewHashDB(nil, getSwarmDB(t), swarmdb.CT_STRING)
 
 	// put
 	key := []byte("42")
