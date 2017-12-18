@@ -10,7 +10,15 @@ const (
 	TEST_TABLE = "testtable"
 )
 
-func TestAll(t *testing.T) {
+func TestConn(t *testing.T) {
+	_, err := swarmdb.OpenConnection("127.0.0.1", 2000)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
+
+func aTestAll(t *testing.T) {
 	conn, err := swarmdb.OpenConnection("127.0.0.1", 2000)
 	if err != nil {
 		t.Fatal(err)
@@ -55,32 +63,32 @@ func TestAll(t *testing.T) {
 	})
 }
 
-func TestPut(t *testing.T) {
+func bTestPut(t *testing.T) {
 	// create request 
 	// send to server
 }
 
-func TestInsert(t *testing.T) {
+func bTestInsert(t *testing.T) {
 	// create request 
 	// send to server
 }
 
-func TestGet(t *testing.T) {
+func bTestGet(t *testing.T) {
 	// create request 
 	// send to server
 }
 
-func TestDelete(t *testing.T) {
+func bTestDelete(t *testing.T) {
 	// create request 
 	// send to server
 }
 
-func TestScan(t *testing.T) {
+func bTestScan(t *testing.T) {
 	// create request 
 	// send to server
 }
 
-func TestQuerySelect(t *testing.T) {
+func bTestQuerySelect(t *testing.T) {
 	// create request 
 	// send to server
 }

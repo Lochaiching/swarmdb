@@ -6,45 +6,81 @@ import (
 	"fmt"
 	// "github.com/ethereum/go-ethereum/crypto"
 	// "encoding/binary"
+	"encoding/hex"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"testing"
 )
 
-const (
-	TEST_MSG             = "sourabh"
-	PATH                 = "/var/www/vhosts/sourabh/swarm.wolk.com/src/github.com/ethereum/go-ethereum/swarmdb/keymanager/"
-	WOLKSWARMDB_ADDRESS  = "b6d1561697854dfa502140c8e2128f4ca4015b59"
-	WOLKSWARMDB_PASSWORD = "h3r0c1ty!"
-)
+
 
 func TestSignVerifyMessage(t *testing.T) {
-	km, err := keymanager.NewKeyManager(PATH, WOLKSWARMDB_ADDRESS, WOLKSWARMDB_PASSWORD)
+	sig_bytes, e1 := hex.DecodeString("1f7b169c846f218ab552fa82fbf86758bf5c97d2d2a313e4f95957818a7b3edca492f2b8a67697c4f91d9b9332e8234783de17bd7a25e0a9f6813976eadf26deb5")
+	if ( e1 != nil ) {
+		t.Fatal(e1)
+	}
 
+	challenge_bytes, e2 := hex.DecodeString("b0e33f362d4345fe36103d0f62f9ab8e480b0ed4467726b15733afed9a4d4cc1")
+	if ( e2 != nil ) {
+		t.Fatal(e2)
+	}
+	fmt.Printf("Sig: %d Chall: %d\n", len(sig_bytes), len(challenge_bytes))
+
+	km, err := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
 	if err != nil {
-
 		t.Fatal("Failure to open KeyManager", err)
 	}
-	msg := "swarmdb"
+	
+	// bogus message
+	verified0, err2 := km.VerifyMessage(challenge_bytes, sig_bytes)
+	if err2 != nil {
+		fmt.Printf("Correct Reject0\n")
+	} else  if verified0 {
+		t.Fatal("Failure to Reject0: %s", err2)
+	} else {
+		t.Fatal("Failure to Reject0: %s", err2)
+	}
 
+	sig_bytes, e1  = hex.DecodeString("6b1c7b37285181ef74fb1946968c675c09f7967a3e69888ee37c42df14a043ac2413d19f96760143ee8e8d58e6b0bda4911f642912d2b81e1f2834814fcfdad700")
+	if ( e1 != nil ) {
+                t.Fatal(e1)
+        }
+
+	challenge_bytes, e2 = hex.DecodeString("27bd4896d883198198dc2a6213957bc64352ea35a4398e2f47bb67bffa5a1669")
+	if ( e2 != nil ) {
+                t.Fatal(e2)
+        }
+
+        // bogus message                                                                                                                                         
+        verified1, err3 := km.VerifyMessage(challenge_bytes, sig_bytes)
+        if err3 != nil {
+                t.Fatal(err3)
+        } else if verified1 {
+                fmt.Printf("Correct Accept1\n")
+	} else {
+                t.Fatal("Failure to Accept1: %s", err2)
+        }
+
+
+	msg := "swarmdb"
 	h256 := sha256.New()
 	h256.Write([]byte(msg))
 	msg_hash := h256.Sum(nil)
 
-	sig, err := km.SignMessage(msg_hash)
-	if err != nil {
+	sig, err4 := km.SignMessage(msg_hash)
+	if err4 != nil {
 		t.Fatal("sign err", err)
 	}
 
-	verified, err := km.VerifyMessage(msg_hash, sig)
-	if err != nil || !verified {
-		t.Fatal("verify err", err)
+	verified2, err5 := km.VerifyMessage(msg_hash, sig)
+	if err5 != nil || !verified2 {
+		t.Fatal("verify2 err", err)
 	} else {
-		fmt.Printf("Verified signature %x\n", sig)
+		fmt.Printf("Verified challenge %x signature %x\n", msg_hash, sig)
 	}
 }
 
 func failTestEncryptDecryptAES(t *testing.T) {
-	km, err := keymanager.NewKeyManager(PATH, WOLKSWARMDB_ADDRESS, WOLKSWARMDB_PASSWORD)
+	km, err := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
 	if err != nil {
 		t.Fatal("Failure to open KeyManager", err)
 	}
@@ -71,8 +107,8 @@ func failTestEncryptDecryptAES(t *testing.T) {
 
 }
 
-func TestEncryptDecrypt(t *testing.T) {
-	km, err := keymanager.NewKeyManager(PATH, WOLKSWARMDB_ADDRESS, WOLKSWARMDB_PASSWORD)
+func okTestEncryptDecrypt(t *testing.T) {
+	km, err := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
 	if err != nil {
 		t.Fatal("Failure to open KeyManager", err)
 	}

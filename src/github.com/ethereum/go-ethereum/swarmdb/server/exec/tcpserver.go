@@ -10,9 +10,9 @@ import (
 func main() {
 	fmt.Println("Launching server...")
 	swdb := swarmdb.NewSwarmDB()
-	tcpaddr := net.JoinHostPort("127.0.0.1", "8503")
+	tcpaddr := net.JoinHostPort("127.0.0.1", "2000")
 	tcpapi.StartTCPIPServer(swdb, &tcpapi.ServerConfig{
 		Addr: tcpaddr,
-		Port: "23456",
+		Port: "2000",
 	})
 }

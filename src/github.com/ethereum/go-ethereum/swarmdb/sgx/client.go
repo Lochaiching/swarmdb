@@ -1,47 +1,58 @@
 package main
 
 import (
- "net"
- "fmt"
- "bufio"
-"time"
+	"bufio"
+	"fmt"
+	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
+	"math/rand"
+	"net"
+	"encoding/hex"
+	"os"
 	"strings"
- "os"
 )
 
 const (
-	CONN_HOST = "10.128.0.7" // telnet 10.128.0.7 8501
-	CONN_PORT = "8501"
+	CONN_HOST = "127.0.0.1"
+	CONN_PORT = "2000"
 	CONN_TYPE = "tcp"
 )
 
-func generate_challenge_response( nonce string, challenge string) (response string) {
-	// use NaCl library + SGX enclave to generate challenge response
-	ts := int32(time.Now().Unix())
-	if ts % 2 == 0 {
-		response = "validresponse"
-	} else {
-		response = "invalidresponse"
+func RandStringRunes(n int) string {
+	var letterRunes = []rune("0123456789abcdef")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
-	return response
+	return string(b)
 }
 
+
+
 func main() {
-	conn, err := net.Dial(CONN_TYPE, CONN_HOST + ":" + CONN_PORT)
-	if ( err != nil ) {
+	// open a TCP connection to ip port
+	km, err := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
+
+	conn, err := net.Dial(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
+	if err != nil {
 		fmt.Printf("Connection Error: %v\n", err)
-		os.Exit(0);
-	} 
-	message, _ := bufio.NewReader(conn).ReadString('\n')
-	sa := strings.Split(message, "|");
-	if len(sa) > 1 {
-		nonce := sa[0]
-		challenge := strings.Trim(sa[1], "\n")
-		response := generate_challenge_response(nonce, challenge)
-		fmt.Printf("nonce:[%v] challenge:[%v] response:[%v]\n", nonce, challenge, response)
-		fmt.Fprintf(conn, response + "\n")
-		message2, _ := bufio.NewReader(conn).ReadString('\n')
-		fmt.Printf("%s\n", message2)
-		
+		os.Exit(0)
 	}
+	fmt.Printf("Opened connection: reading string...")
+	challenge, _ := bufio.NewReader(conn).ReadString('\n')
+	challenge = strings.Trim(challenge, "\n")
+	// challenge = "27bd4896d883198198dc2a6213957bc64352ea35a4398e2f47bb67bffa5a1669"
+	challenge_bytes, _ := hex.DecodeString(challenge)
+	sig, err := km.SignMessage(challenge_bytes)
+	if err != nil {
+		fmt.Printf("Err %s\n", err)
+	} else {
+		fmt.Printf("Challenge: [%x] Sig:[%x]\n", challenge_bytes, sig)
+	}
+// response = "6b1c7b37285181ef74fb1946968c675c09f7967a3e69888ee37c42df14a043ac2413d19f96760143ee8e8d58e6b0bda4911f642912d2b81e1f2834814fcfdad700"
+//	response := generate_challenge_response(challenge)
+	response := fmt.Sprintf("%x", sig)
+	fmt.Printf("challenge:[%v] response:[%v]\n", challenge, response)
+	fmt.Fprintf(conn, response+"\n")
+	message2, _ := bufio.NewReader(conn).ReadString('\n')
+	fmt.Printf("%s\n", message2)
 }

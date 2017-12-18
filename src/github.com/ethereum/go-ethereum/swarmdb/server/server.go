@@ -6,12 +6,12 @@ import (
 	//"encoding/json"
 	"fmt"
 	"io"
-	//"io/ioutil"
+	"math/rand"
 	"github.com/ethereum/go-ethereum/log"
 	"net"
-	//"os"
+	"os"
 	common "github.com/ethereum/go-ethereum/swarmdb"
-	//"strconv"
+	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"sync"
 )
 
@@ -32,6 +32,7 @@ type Client struct {
 type TCPIPServer struct {
 	swarmdb  *common.SwarmDB
 	listener net.Listener
+	keymanager keymanager.KeyManager
 	conn     chan net.Conn
 	incoming chan *common.IncomingInfo
 	outgoing chan string
@@ -41,9 +42,15 @@ type TCPIPServer struct {
 
 func NewTCPIPServer(swarmdb *common.SwarmDB, l net.Listener) *TCPIPServer {
 	sv := new(TCPIPServer)
+	km, errkm := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
+	if errkm != nil {
+	} else {
+		sv.keymanager = km
+	}
 	sv.listener = l
 	sv.clients = make([]*Client, 0)
 	sv.conn = make(chan net.Conn)
+
 	sv.incoming = make(chan *common.IncomingInfo)
 	sv.outgoing = make(chan string)
 	sv.swarmdb = swarmdb
@@ -53,9 +60,8 @@ func NewTCPIPServer(swarmdb *common.SwarmDB, l net.Listener) *TCPIPServer {
 func StartTCPIPServer(swarmdb *common.SwarmDB, config *ServerConfig) {
 	log.Debug(fmt.Sprintf("tcp StartTCPIPServer"))
 
-	//listen, err := net.Listen("tcp", config.Port)
-	l, err := net.Listen("tcp", ":2000")
-	log.Debug(fmt.Sprintf("tcp StartTCPIPServer with 2000"))
+	l, err := net.Listen("tcp", fmt.Sprintf(":%s", config.Port))
+	log.Debug(fmt.Sprintf("tcp StartTCPIPServer with %s", config.Port))
 
 	svr := NewTCPIPServer(swarmdb, l)
 	if err != nil {
@@ -73,8 +79,7 @@ func StartTCPIPServer(swarmdb *common.SwarmDB, config *ServerConfig) {
 		}
 
 		challenge := RandStringRunes(64)
-		nonce := RandStringRunes(48)
-		s := fmt.Sprintf(`{"challenge":"%s","nonce":"%s"}\n`, challenge, nonce)
+		s := fmt.Sprintf(`%s\n`, challenge)
 		conn.Write([]byte(s))
 		svr.conn <- conn
 	}
@@ -152,29 +157,6 @@ func RandStringRunes(n int) string {
 	return string(b)
 }
 
-func handleRequest(conn net.Conn, nonce string, challenge string) {
-	// Make a buffer to hold incoming data.
-	buf := make([]byte, 1024)
-	// Read the incoming connection into the buffer.
-	reqLen, err := conn.Read(buf)
-	if err != nil {
-		fmt.Println("Error reading:", err.Error())
-	}
-	
-	// this should be the signed challenge, verify using valid_response
-	resp := string(buf)
-	resp = strings.Trim(resp, "\n")
-	if valid_response(resp, nonce, challenge) {
-		resp = "VALID"
-	} else {
-		resp = "INVALID"
-	}
-	s := fmt.Sprintf("%d:%s", reqLen, resp)
-	conn.Write([]byte(s))
-	// Close the connection when you're done with it.
-	conn.Close()
-}
-
 func (svr *TCPIPServer) TestAddClient(owner string, tablename string, primary string) {
 	//testConn := svr.NewConnection()
 	client := newClient(nil) //testConn)
@@ -191,11 +173,17 @@ func (svr *TCPIPServer) listen() {
 				svr.addClient(conn)
 			case data := <-svr.incoming:
 				fmt.Printf("\nIncoming Data [%+v]", data)
+				
+				verified, err := svr.keymanager.VerifyMessage([]byte(data.Data), []byte(data.Data))
+				if err != nil || !verified {
+				
+				} else {
+					fmt.Fprintf(svr.clients[0].conn, "ok")
+				}
+
 				resp := svr.swarmdb.SelectHandler(data)
 				fmt.Fprintf(svr.clients[0].conn, resp)
 				svr.outgoing <- resp
-				//default:
-				// fmt.Println("\nIn DEFAULT     .")
 			}
 		}
 	}()

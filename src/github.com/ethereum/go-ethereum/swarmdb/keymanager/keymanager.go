@@ -16,6 +16,12 @@ import (
 	// "os"
 )
 
+const (
+	PATH                 = "/var/www/vhosts/sourabh/swarm.wolk.com/src/github.com/ethereum/go-ethereum/swarmdb/keymanager/"
+	WOLKSWARMDB_ADDRESS  = "b6d1561697854dfa502140c8e2128f4ca4015b59"
+	WOLKSWARMDB_PASSWORD = "h3r0c1ty!"
+)
+
 type KeyManager struct {
 	OwnerAccount accounts.Account
 	OwnerAddress common.Address
@@ -81,9 +87,11 @@ func (self *KeyManager) SignMessage(msg_hash []byte) (sig []byte, err error) {
 func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (verified bool, err error) {
 	pubKey, err := crypto.SigToPub(msg_hash, sig)
 	if err != nil {
-		return false, err
+		fmt.Printf("111: invalid sig\n");
+		return false, fmt.Errorf("invalid signature - cannot get public key")
 	}
 	if !bytes.Equal(crypto.FromECDSAPub(pubKey), self.pk) {
+		fmt.Printf("222: signer mismatch: [%x] != [%x]\n", crypto.FromECDSAPub(pubKey), self.pk)
 		return false, fmt.Errorf("signer mismatch: %x != %x", crypto.FromECDSAPub(pubKey), self.pk)
 	}
 	return true, nil
