@@ -4,7 +4,6 @@ import (
 	"fmt"
 	//"github.com/ethereum/go-ethereum/log"
 	"github.com/xwb1989/sqlparser"
-
 )
 
 //at the moment, only parses a query with a single un-nested where clause, i.e.
@@ -35,7 +34,7 @@ func ParseQuery(rawquery string) (query Query, err error) {
 		//From
 		fmt.Printf("from 0: %+v \n", sqlparser.String(stmt.From[0]))
 		query.Table = sqlparser.String(stmt.From[0])
-		
+
 		//Where & Having
 		fmt.Printf("where or having: %s \n", readable(stmt.Where.Expr))
 		if stmt.Where.Type == sqlparser.WhereStr { //Where
@@ -52,7 +51,6 @@ func ParseQuery(rawquery string) (query Query, err error) {
 			fmt.Printf("type: %s\n", stmt.Where.Type)
 			//fill in having
 		}
-
 
 		//GroupBy ([]Expr)
 		for _, g := range stmt.GroupBy {
