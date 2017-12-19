@@ -104,7 +104,8 @@ func getSWARMDBTableSecondary(ownerId string, tableName string, primaryKeyName s
 	return swarmdbObj
 }
 
-func aTestSetGetInt(t *testing.T) {
+func TestSetGetInt(t *testing.T) {
+	t.SkipNow()
 	const N = 4
 
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
@@ -160,7 +161,8 @@ func aTestSetGetInt(t *testing.T) {
 	}
 }
 
-func aTestTable(t *testing.T) {
+func TestTable(t *testing.T) {
+	t.SkipNow()
 	tbl := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 
 	putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
@@ -195,12 +197,18 @@ func aTestTable(t *testing.T) {
 }
 
 func TestTableSecondaryInt(t *testing.T) {
+	t.SkipNow()
 	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
-	err := swarmdb.Scan(TEST_OWNER, TEST_TABLE, "age", true)
+	rows, err := swarmdb.Scan(TEST_OWNER, TEST_TABLE, "age", true)
 	if err != nil {
+		t.Fatal(err)
 	}
+	for i, r := range rows  {
+		fmt.Printf("%v:%v\n", i, r)
+	}
+
 	//	os.Exit(0)
 	// select * from table where age < 30
 	/*	sql := fmt.Sprintf("select * from %s where %s < 30", TEST_TABLE, TEST_SKEY_INT)
@@ -213,12 +221,20 @@ func TestTableSecondaryInt(t *testing.T) {
 		} */
 }
 
-func cTestTableSecondaryFloat(t *testing.T) {
-	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+func TestTableSecondaryFloat(t *testing.T) {
+	t.SkipNow()
+	swdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_FLOAT, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
 	// select * from table where age < 30
 	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_FLOAT)
-	rows, err := swarmdb.QuerySelect(sql)
+
+	var testReqOption swarmdb.RequestOption
+	testReqOption.RequestType = "GetQuery"
+	testReqOption.Owner = TEST_OWNER
+	testReqOption.Table = TEST_TABLE
+	testReqOption.RawQuery = sql
+
+	rows, err := swdb.QuerySelect(&testReqOption)
 	if err != nil {
 	} else {
 		for i, row := range rows {
@@ -227,11 +243,19 @@ func cTestTableSecondaryFloat(t *testing.T) {
 	}
 }
 
-func cTestTableSecondaryString(t *testing.T) {
-	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+func TestTableSecondaryString(t *testing.T) {
+	t.SkipNow()
+	swdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_STRING)
-	rows, err := swarmdb.QuerySelect(sql)
+
+	var testReqOption swarmdb.RequestOption
+	testReqOption.RequestType = "GetQuery"
+	testReqOption.Owner = TEST_OWNER
+	testReqOption.Table = TEST_TABLE
+	testReqOption.RawQuery = sql
+	
+	rows, err := swdb.QuerySelect(&testReqOption)
 	if err != nil {
 	} else {
 		for i, row := range rows {
@@ -494,7 +518,8 @@ func aTestDelete2(t *testing.T) {
 	}
 }
 
-func aTestCreateTable(t *testing.T) {
+func TestCreateTable(t *testing.T) {
+	t.SkipNow()
 	swdb := swarmdb.NewSwarmDB()
 	var testData swarmdb.IncomingInfo
 	var testColumn []swarmdb.Column
