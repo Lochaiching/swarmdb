@@ -70,12 +70,12 @@ type SwarmDB struct {
 }
 
 //for sql parsing
-type Query struct {
+type QueryOption struct {
 	Type           string //"Select" or "Insert" or "Update" probably should be an enum
+	Table          string
 	RequestColumns []Column
 	Where          Where
 	Ascending      int //1 true, 0 false (descending)
-	Table          string
 }
 
 //for sql parsing
