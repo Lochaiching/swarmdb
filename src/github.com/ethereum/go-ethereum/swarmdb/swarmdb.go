@@ -191,6 +191,14 @@ func (swdb *SwarmDB) SelectHandler(data *IncomingInfo) (resp string) {
 			sret = err.Error()
 		}
 		return sret
+	case "GetTableInfo":
+		tblKey := fmt.Sprintf("%s|%s", d.Owner, d.Table)
+		tblinfo, err := swdb.tables[tblKey].GetTableInfo()
+		if err != nil{
+			return err.Error()
+		}
+		return tblinfo
+
 		/*
 			case "Delete":
 				if len(d.Key) == 0 {
@@ -622,4 +630,19 @@ func (t *Table) updateTableInfo() (err error) {
 	} else {
 	}
 	return nil
+}
+
+func (t *Table) GetTableInfo()(tblinfo string, err error){
+	var columns []Column
+	for cname, c := range t.columns{
+		var cinfo Column
+		cinfo.ColumnName = cname
+		cinfo.IndexType = c.indexType
+		cinfo.Primary = int(c.primary)
+		cinfo.ColumnType = c.columnType
+		columns = append(columns, cinfo)
+	}
+	jcolumns, err := json.Marshal(columns)
+
+	return string(jcolumns), err
 }
