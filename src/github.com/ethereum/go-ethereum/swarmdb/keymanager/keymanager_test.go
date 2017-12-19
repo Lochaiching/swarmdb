@@ -3,15 +3,17 @@ package keymanager_test
 import (
 	"bytes"
 	"crypto/sha256"
-	"fmt"
+	// "github.com/ethereum/go-ethereum/crypto"
 	// "github.com/ethereum/go-ethereum/crypto"
 	// "encoding/binary"
+	// "strings"
 	"encoding/hex"
+	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"testing"
 )
 
-func TestSignVerifyMessage(t *testing.T) {
+func okTestSignVerifyMessage(t *testing.T) {
 
 	sig_bytes, e1 := hex.DecodeString("1f7b169c846f218ab552fa82fbf86758bf5c97d2d2a313e4f95957818a7b3edca492f2b8a67697c4f91d9b9332e8234783de17bd7a25e0a9f6813976eadf26deb5")
 	if e1 != nil {
@@ -76,6 +78,7 @@ func TestSignVerifyMessage(t *testing.T) {
 		fmt.Printf("Verified challenge %x signature %x\n", msg_hash, sig)
 	}
 }
+
 /*
 func failTestEncryptDecryptAES(t *testing.T) {
 	km, err := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
