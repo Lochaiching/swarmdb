@@ -46,8 +46,8 @@ type ENSSimulation struct {
 }
 
 type IncomingInfo struct {
-        Data    string
-        Address string
+	Data    string
+	Address string
 }
 
 type KademliaDB struct {
@@ -71,15 +71,15 @@ type SwarmDB struct {
 
 //for sql parsing
 type Query struct {
-	Type string //"Select" or "Insert" or "Update" probably should be an enum
-	RequestColumns []Column
-	Table string 
-	Where Where
+	Type      string //"Select" or "Insert" or "Update" probably should be an enum
+	Where     Where
+	Ascending int //1 true, 0 false (descending)
 }
+
 //for sql parsing
 type Where struct {
-	Left string
-	Right string
+	Left     string
+	Right    string
 	Operator string //sqlparser.ComparisonExpr.Operator; sqlparser.BinaryExpr.Operator; sqlparser.IsExpr.Operator; sqlparser.AndExpr.Operator, sqlparser.OrExpr.Operator
 }
 
