@@ -7,6 +7,8 @@ import (
 	// "encoding/hex"
 	"strings"
 	"testing"
+	"github.com/btcsuite/btcd/btcec"
+	//"crypto/elliptic"
 )
 
 /*
@@ -44,6 +46,8 @@ func TestWeb3SignMatch(t *testing.T) {
 		fmt.Printf("Key: %x\n", secretKey)
 	}
 	correct_signature := "3bc843a917d6c19c487c1d0c660cdd61389ce2a7651ee3171bcc212ffddca164193f1f2e06f7ed8f9fbf2254232d99848a8102b552032b68a5507b4d81492f0f1b"
+
+	
 	sig, err2 := crypto.Sign(msg_hash, secretKey)
 	if err2 != nil {
 		t.Fatalf("ERR2: cannot sign hash %v", err2)
@@ -60,5 +64,15 @@ func TestWeb3SignMatch(t *testing.T) {
 			t.Fatal("INCORRECT\n");
 		}
 	}
-	
+
+	// btcec.SignCompact 
+	sig2, err3 := btcec.SignCompact(btcec.S256(), (*btcec.PrivateKey)(secretKey), msg_hash, false)
+	v := sig2[0] // - 27
+	copy(sig2, sig2[1:])
+	sig2[64] = v
+	if err3 != nil {
+		t.Fatalf("ERR2: cannot btcec.SignCompact hash %v", err2)
+	} else {
+		fmt.Printf("btcec.SignCompact: 0x%x\n", sig2)
+	}
 }
