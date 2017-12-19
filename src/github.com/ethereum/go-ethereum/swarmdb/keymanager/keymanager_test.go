@@ -76,7 +76,7 @@ func TestSignVerifyMessage(t *testing.T) {
 		fmt.Printf("Verified challenge %x signature %x\n", msg_hash, sig)
 	}
 }
-
+/*
 func failTestEncryptDecryptAES(t *testing.T) {
 	km, err := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
 	if err != nil {
@@ -104,7 +104,7 @@ func failTestEncryptDecryptAES(t *testing.T) {
 	}
 
 }
-
+*/
 func TestEncryptDecrypt(t *testing.T) {
 	km, err := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
 	if err != nil {

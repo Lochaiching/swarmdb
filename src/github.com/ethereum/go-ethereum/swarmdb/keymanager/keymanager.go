@@ -8,8 +8,8 @@ import (
 
 	"crypto/aes"
 	"crypto/cipher"
-	"github.com/andreburgaud/crypt2go/ecb"
-	"github.com/andreburgaud/crypt2go/padding"
+	//"github.com/andreburgaud/crypt2go/ecb"
+	//"github.com/andreburgaud/crypt2go/padding"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -98,6 +98,7 @@ func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (verified boo
 
 }
 
+/*
 func (self *KeyManager) DecryptDataAES(src []byte) (dst []byte, err error) {
 	mode := ecb.NewECBEncrypter(self.aescipher)
 	padder := padding.NewPkcs7Padding(mode.BlockSize())
@@ -121,7 +122,7 @@ func (self *KeyManager) EncryptDataAES(src []byte) (dst []byte, err error) {
 	}
 	return dst, err
 }
-
+*/
 func (self *KeyManager) DecryptData(data []byte) []byte {
 	var decryptNonce [24]byte
 	copy(decryptNonce[:], data[:24])
