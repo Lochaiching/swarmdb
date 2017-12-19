@@ -8,7 +8,7 @@ import (
 
 //at the moment, only parses a query with a single un-nested where clause, i.e.
 //'Select name, age from contacts where email = "rodney@wolk.com"'
-func ParseQuery(rawquery string) (query Query, err error) {
+func ParseQuery(rawquery string) (query QueryOption, err error) {
 
 	stmt, err := sqlparser.Parse(rawquery)
 	if err != nil {
