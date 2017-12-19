@@ -4,22 +4,22 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts"
-"golang.org/x/crypto/nacl/box"
+	"golang.org/x/crypto/nacl/box"
 
+	"crypto/aes"
+	"crypto/cipher"
+	"github.com/andreburgaud/crypt2go/ecb"
+	"github.com/andreburgaud/crypt2go/padding"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/andreburgaud/crypt2go/ecb"
-	"github.com/andreburgaud/crypt2go/padding"
-	"crypto/aes"
-	"crypto/cipher"
 	// "os"
 )
 
 const (
-	PATH                 = "/var/www/vhosts/sourabh/swarm.wolk.com/src/github.com/ethereum/go-ethereum/swarmdb/keymanager/"
-	WOLKSWARMDB_ADDRESS  = "b6d1561697854dfa502140c8e2128f4ca4015b59"
-	WOLKSWARMDB_PASSWORD = "h3r0c1ty!"
+	PATH                 = "/swarmdb/data/keystore"
+	WOLKSWARMDB_ADDRESS  = "9982ad7bfbe62567287dafec879d20687e4b76f5" // b6d1561697854dfa502140c8e2128f4ca4015b59
+	WOLKSWARMDB_PASSWORD = "wolkwolkwolk"
 )
 
 type KeyManager struct {
@@ -56,20 +56,20 @@ func NewKeyManager(path string, ownerAddress string, passphrase string) (keymgr 
 					copy(keymgr.publicK[0:], keymgr.pk[0:])
 					copy(keymgr.secretK[0:], keymgr.sk[0:])
 
-					aescipher, errcip := aes.NewCipher(keymgr.sk) 
+					aescipher, errcip := aes.NewCipher(keymgr.sk)
 					if errcip != nil {
 						return keymgr, err
 					}
 					keymgr.aescipher = aescipher
+					return keymgr, nil
 				}
 			} else {
 				// fmt.Printf("Keystore Not found %x\n%x\n", accounts[0].Address.Bytes(), keymgr.OwnerAddress.Bytes())
-				return keymgr, fmt.Errorf("No keystore file found %x", ownerAddress)
 			}
 		}
 	}
 
-	return keymgr, nil
+	return keymgr, fmt.Errorf("No keystore file found %x", ownerAddress)
 }
 
 func (self *KeyManager) GetPublicKey() []byte {
@@ -87,7 +87,7 @@ func (self *KeyManager) SignMessage(msg_hash []byte) (sig []byte, err error) {
 func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (verified bool, err error) {
 	pubKey, err := crypto.SigToPub(msg_hash, sig)
 	if err != nil {
-		fmt.Printf("111: invalid sig\n");
+		fmt.Printf("111: invalid sig\n")
 		return false, fmt.Errorf("invalid signature - cannot get public key")
 	}
 	if !bytes.Equal(crypto.FromECDSAPub(pubKey), self.pk) {
@@ -122,7 +122,6 @@ func (self *KeyManager) EncryptDataAES(src []byte) (dst []byte, err error) {
 	return dst, err
 }
 
-
 func (self *KeyManager) DecryptData(data []byte) []byte {
 	var decryptNonce [24]byte
 	copy(decryptNonce[:], data[:24])
@@ -142,4 +141,3 @@ func (self *KeyManager) EncryptData(data []byte) []byte {
 	encrypted := box.Seal(nonce[:], msg, &nonce, &self.publicK, &self.secretK)
 	return encrypted
 }
-
