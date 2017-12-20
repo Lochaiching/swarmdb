@@ -45,6 +45,11 @@ type ENSSimulation struct {
 	db       *sql.DB
 }
 
+type IncomingInfo struct {
+	Data    string
+	Address string
+}
+
 type KademliaDB struct {
 	dbChunkstore *DBChunkstore
 	mutex        sync.Mutex
@@ -64,26 +69,20 @@ type SwarmDB struct {
 	kaddb        *KademliaDB
 }
 
-type Column struct {
-	ColumnName string     `json:"columnname,omitempty"` // e.g. "accountID"
-	IndexType  IndexType  `json:"indextype,omitempty"`  // IT_BTREE
-	ColumnType ColumnType `json:"columntype,omitempty"`
-	Primary    int        `json:"primary,omitempty"`
+//for sql parsing
+type QueryOption struct {
+	Type           string //"Select" or "Insert" or "Update" probably should be an enum
+	Table          string
+	RequestColumns []Column
+	Where          Where
+	Ascending      int //1 true, 0 false (descending)
 }
 
-type RequestOption struct {
-	RequestType string   `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	Owner       string   `json:"owner,omitempty"`
-	Table       string   `json:"table,omitempty"` //"contacts"
-	Encrypted   int      `json:"encrypted,omitempty"`
-	Bid         float64  `json:"bid,omitempty"`
-	Replication int      `json:"replication,omitempty"`
-	Key         string   `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
-	Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
-	Columns     []Column `json:"columns",omitempty"`
-	//Bid         float64  `json:"bid"`
-	//Replication int      `json:"replication",omitempty`
-	//Encrypt     int      `json:"encrypt"`
+//for sql parsing
+type Where struct {
+	Left     string
+	Right    string
+	Operator string //sqlparser.ComparisonExpr.Operator; sqlparser.BinaryExpr.Operator; sqlparser.IsExpr.Operator; sqlparser.AndExpr.Operator, sqlparser.OrExpr.Operator
 }
 
 type ColumnInfo struct {

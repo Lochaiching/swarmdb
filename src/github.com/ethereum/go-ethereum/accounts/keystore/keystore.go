@@ -227,7 +227,6 @@ func (ks *KeyStore) HasAddress(addr common.Address) bool {
 func (ks *KeyStore) Accounts() []accounts.Account {
 	return ks.cache.accounts()
 }
-
 // Delete deletes the key matched by account if the passphrase is correct.
 // If the account contains no filename, the address must match a unique key.
 func (ks *KeyStore) Delete(a accounts.Account, passphrase string) error {
@@ -379,6 +378,11 @@ func (ks *KeyStore) getDecryptedKey(a accounts.Account, auth string) (accounts.A
 	if err != nil {
 		return a, nil, err
 	}
+	key, err := ks.storage.GetKey(a.Address, a.URL.Path, auth)
+	return a, key, err
+}
+
+func (ks *KeyStore) WgetDecryptedKey(a accounts.Account, auth string) (accounts.Account, *Key, error) {
 	key, err := ks.storage.GetKey(a.Address, a.URL.Path, auth)
 	return a, key, err
 }

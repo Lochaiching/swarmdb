@@ -15,6 +15,7 @@ extern "C" {
 
 char* getSha256(char *str);
 int ecc256CreateKeyPair(char* privateKey, char* publicKeyGX, char* publicKeyGY);
+int ecdsaSign(char* privateKey);
 
 #ifdef __cplusplus
 

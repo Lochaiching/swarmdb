@@ -31,12 +31,62 @@ typedef struct ms_sgxEcc256CreateKeyPair_t {
 	sgx_ec256_public_t* ms_p_public;
 } ms_sgxEcc256CreateKeyPair_t;
 
+typedef struct ms_sgxEcdsaSign_t {
+	sgx_status_t ms_retval;
+	uint8_t* ms_sample_data;
+	size_t ms_sample_data_len;
+	sgx_ec256_private_t* ms_p_private;
+	sgx_ec256_signature_t* ms_p_signature;
+} ms_sgxEcdsaSign_t;
+
+typedef struct ms_ocall_print_t {
+	char* ms_str;
+} ms_ocall_print_t;
+
+typedef struct ms_ocall_uint8_t_print_t {
+	uint8_t* ms_arr;
+	size_t ms_len;
+} ms_ocall_uint8_t_print_t;
+
+typedef struct ms_ocall_uint32_t_print_t {
+	uint32_t* ms_arr;
+	size_t ms_len;
+} ms_ocall_uint32_t_print_t;
+
+static sgx_status_t SGX_CDECL Enclave_ocall_print(void* pms)
+{
+	ms_ocall_print_t* ms = SGX_CAST(ms_ocall_print_t*, pms);
+	ocall_print((const char*)ms->ms_str);
+
+	return SGX_SUCCESS;
+}
+
+static sgx_status_t SGX_CDECL Enclave_ocall_uint8_t_print(void* pms)
+{
+	ms_ocall_uint8_t_print_t* ms = SGX_CAST(ms_ocall_uint8_t_print_t*, pms);
+	ocall_uint8_t_print(ms->ms_arr, ms->ms_len);
+
+	return SGX_SUCCESS;
+}
+
+static sgx_status_t SGX_CDECL Enclave_ocall_uint32_t_print(void* pms)
+{
+	ms_ocall_uint32_t_print_t* ms = SGX_CAST(ms_ocall_uint32_t_print_t*, pms);
+	ocall_uint32_t_print(ms->ms_arr, ms->ms_len);
+
+	return SGX_SUCCESS;
+}
+
 static const struct {
 	size_t nr_ocall;
-	void * table[1];
+	void * table[3];
 } ocall_table_Enclave = {
-	0,
-	{ NULL },
+	3,
+	{
+		(void*)Enclave_ocall_print,
+		(void*)Enclave_ocall_uint8_t_print,
+		(void*)Enclave_ocall_uint32_t_print,
+	}
 };
 sgx_status_t seal(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* plaintext, size_t plaintext_len, sgx_sealed_data_t* sealed_data, size_t sealed_size)
 {
@@ -84,6 +134,19 @@ sgx_status_t sgxEcc256CreateKeyPair(sgx_enclave_id_t eid, sgx_status_t* retval, 
 	ms.ms_p_private = p_private;
 	ms.ms_p_public = p_public;
 	status = sgx_ecall(eid, 3, &ocall_table_Enclave, &ms);
+	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
+	return status;
+}
+
+sgx_status_t sgxEcdsaSign(sgx_enclave_id_t eid, sgx_status_t* retval, uint8_t* sample_data, size_t sample_data_len, sgx_ec256_private_t* p_private, sgx_ec256_signature_t* p_signature)
+{
+	sgx_status_t status;
+	ms_sgxEcdsaSign_t ms;
+	ms.ms_sample_data = sample_data;
+	ms.ms_sample_data_len = sample_data_len;
+	ms.ms_p_private = p_private;
+	ms.ms_p_signature = p_signature;
+	status = sgx_ecall(eid, 4, &ocall_table_Enclave, &ms);
 	if (status == SGX_SUCCESS && retval) *retval = ms.ms_retval;
 	return status;
 }

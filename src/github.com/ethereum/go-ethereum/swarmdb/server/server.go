@@ -3,15 +3,15 @@ package server
 import (
 	"bufio"
 	//"bytes"
-	"encoding/json"
+	//"encoding/json"
 	"fmt"
 	"io"
-	//"io/ioutil"
+	"math/rand"
 	"github.com/ethereum/go-ethereum/log"
 	"net"
-	//"os"
+	"os"
 	common "github.com/ethereum/go-ethereum/swarmdb"
-	//"strconv"
+	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"sync"
 )
 
@@ -20,14 +20,9 @@ type ServerConfig struct {
 	Port string
 }
 
-type IncomingInfo struct {
-	Data    string
-	Address string
-}
-
 type Client struct {
 	conn     net.Conn
-	incoming chan *IncomingInfo
+	incoming chan *common.IncomingInfo
 	outgoing chan string
 	reader   *bufio.Reader
 	writer   *bufio.Writer
@@ -37,8 +32,9 @@ type Client struct {
 type TCPIPServer struct {
 	swarmdb  *common.SwarmDB
 	listener net.Listener
+	keymanager keymanager.KeyManager
 	conn     chan net.Conn
-	incoming chan *IncomingInfo
+	incoming chan *common.IncomingInfo
 	outgoing chan string
 	clients  []*Client
 	lock     sync.Mutex
@@ -46,10 +42,16 @@ type TCPIPServer struct {
 
 func NewTCPIPServer(swarmdb *common.SwarmDB, l net.Listener) *TCPIPServer {
 	sv := new(TCPIPServer)
+	km, errkm := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
+	if errkm != nil {
+	} else {
+		sv.keymanager = km
+	}
 	sv.listener = l
 	sv.clients = make([]*Client, 0)
 	sv.conn = make(chan net.Conn)
-	sv.incoming = make(chan *IncomingInfo)
+
+	sv.incoming = make(chan *common.IncomingInfo)
 	sv.outgoing = make(chan string)
 	sv.swarmdb = swarmdb
 	return sv
@@ -58,9 +60,8 @@ func NewTCPIPServer(swarmdb *common.SwarmDB, l net.Listener) *TCPIPServer {
 func StartTCPIPServer(swarmdb *common.SwarmDB, config *ServerConfig) {
 	log.Debug(fmt.Sprintf("tcp StartTCPIPServer"))
 
-	//listen, err := net.Listen("tcp", config.Port)
-	l, err := net.Listen("tcp", ":2000")
-	log.Debug(fmt.Sprintf("tcp StartTCPIPServer with 2000"))
+	l, err := net.Listen("tcp", fmt.Sprintf(":%s", config.Port))
+	log.Debug(fmt.Sprintf("tcp StartTCPIPServer with %s", config.Port))
 
 	svr := NewTCPIPServer(swarmdb, l)
 	if err != nil {
@@ -73,7 +74,13 @@ func StartTCPIPServer(swarmdb *common.SwarmDB, config *ServerConfig) {
 	for {
 		conn, err := svr.listener.Accept()
 		if err != nil {
+			fmt.Println("Error accepting: ", err.Error())
+			os.Exit(1)
 		}
+
+		challenge := RandStringRunes(64)
+		s := fmt.Sprintf(`%s\n`, challenge)
+		conn.Write([]byte(s))
 		svr.conn <- conn
 	}
 	if err != nil {
@@ -88,13 +95,13 @@ func newClient(connection net.Conn) *Client {
 	reader := bufio.NewReader(connection)
 	client := &Client{
 		conn:     connection,
-		incoming: make(chan *IncomingInfo),
+		incoming: make(chan *common.IncomingInfo),
 		outgoing: make(chan string),
 		reader:   reader,
 		writer:   writer,
 		//databases: make(map[string]map[string]*common.Database),
 	}
-	//go client.read()
+	go client.read()
 	//go client.write()
 	return client
 }
@@ -109,7 +116,7 @@ func (client *Client) read() {
 		if err != nil {
 			////////
 		}
-		incoming := new(IncomingInfo)
+		incoming := new(common.IncomingInfo)
 		incoming.Data = line
 		incoming.Address = client.conn.RemoteAddr().String()
 		//client.incoming <- line
@@ -127,6 +134,8 @@ func (client *Client) write() {
 }
 
 func (svr *TCPIPServer) addClient(conn net.Conn) {
+	fmt.Printf("\nConnection Added")
+	fmt.Fprintf(conn, "Your Connection Added\n")
 	client := newClient(conn)
 	/// this one is not good. need to change it
 	svr.clients = append(svr.clients, client)
@@ -136,6 +145,16 @@ func (svr *TCPIPServer) addClient(conn net.Conn) {
 			client.outgoing <- <-svr.outgoing
 		}
 	}()
+}
+
+func RandStringRunes(n int) string {
+	// var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	var letterRunes = []rune("0123456789abcdef")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }
 
 func (svr *TCPIPServer) TestAddClient(owner string, tablename string, primary string) {
@@ -153,113 +172,21 @@ func (svr *TCPIPServer) listen() {
 			case conn := <-svr.conn:
 				svr.addClient(conn)
 			case data := <-svr.incoming:
-				resp := svr.SelectHandler(data)
+				fmt.Printf("\nIncoming Data [%+v]", data)
+				
+				verified, err := svr.keymanager.VerifyMessage([]byte(data.Data), []byte(data.Data))
+				if err != nil || !verified {
+				
+				} else {
+					fmt.Fprintf(svr.clients[0].conn, "ok")
+				}
+
+				resp := svr.swarmdb.SelectHandler(data)
+				fmt.Fprintf(svr.clients[0].conn, resp)
 				svr.outgoing <- resp
 			}
 		}
 	}()
-}
-func (svr *TCPIPServer) SelectHandler(data *IncomingInfo) (resp string) {
-	var rerr *common.RequestFormatError
-	d, err := parseData(data.Data)
-	if err != nil {
-		return  err.Error()
-	}
-	switch d.RequestType {
-	/*
-		case "OpenClient":
-			if len(d.Owner) == 0{
-				return rerr.Error()
-			}
-			err := svr.NewConnection()
-			resp := "okay"
-			if err != nil {
-				resp = err.Error()
-			}
-			return resp
-	*/
-	case "OpenTable":
-		if len(d.Table) == 0 {
-			return rerr.Error()
-		}
-		err := svr.clients[0].table.OpenTable()
-		resp := "okay"
-		if err != nil {
-			return err.Error()
-		}
-		return resp
-	case "CloseTable":
-	case "CreateTable":
-		if len(d.Table) == 0 || len(d.Columns) == 0 {
-			return `ERR: empty table and column`
-		}
-		svr.clients[0].table.CreateTable(d.Columns, d.Bid, d.Replication, d.Encrypted)
-		return `okay`
-	/*
-		case "Insert":
-			if len(d.Index) == 0 || len(d.Key) == 0 || len(d.Value) == 0{
-				return
-			}
-			err := svr.table.Insert(d.Key, d.Value)
-			if err != nil{
-				return err.Error()
-			}
-			return "okay"
-	*/
-	case "Put":
-		if len(d.Value) == 0 {
-			return "\nValue empty -- bad!"
-		}
-		err := svr.clients[0].table.Put(d.Value)
-		if err != nil {
-			return "\nError trying to 'Put' [%s] -- Err: %s"
-		}
-	case "Get":
-		if len(d.Key) == 0 {
-			return err.Error()
-		}
-		ret, err := svr.clients[0].table.Get(d.Key)
-		sret := string(ret)
-		if err != nil {
-			sret = err.Error()
-		}
-		return sret
-		/*
-			case "Delete":
-				if len(d.Key) == 0 {
-					return rerr.Error()
-				}
-				err := svr.table.Delete(d.Key)
-				ret := "okay"
-				if err != nil{
-					ret = err.Error()
-				}
-				return ret
-			case "StartBuffer":
-				err := svr.table.StartBuffer()
-				ret := "okay"
-				if err != nil{
-					ret = err.Error()
-				}
-				return ret
-			case "FlushBuffer":
-				err := svr.table.FlushBuffer()
-				ret := "okay"
-				if err != nil{
-					ret = err.Error()
-				}
-				return ret
-		*/
-	}
-	return "RequestType Error"
-}
-
-func parseData(data string) (*common.RequestOption, error) {
-	udata := new(common.RequestOption)
-	if err := json.Unmarshal([]byte(data), udata); err != nil {
-		return nil, err
-	}
-	return udata, nil
 }
 
 func (svr *TCPIPServer) NewConnection() (err error) {

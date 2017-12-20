@@ -211,7 +211,8 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 		return nil, err
 	}
 
-	km, errKm := keymanager.NewKeyManager("/tmp/blah")
+	km, errKm := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
+
 	if errKm != nil {
 		fmt.Printf("Error Creating KeyManager")
 		return nil, err
@@ -272,7 +273,7 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 		return nil, err
 	}
 
-	km, errKm := keymanager.NewKeyManager("/tmp/blah")
+	km, errKm := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
 	if errKm != nil {
 		fmt.Printf("Error Creating KeyManager")
 		return nil, err

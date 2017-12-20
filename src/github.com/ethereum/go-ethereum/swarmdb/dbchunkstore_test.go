@@ -8,7 +8,7 @@ import (
 )
 
 func TestDBChunkStore(t *testing.T) {
-	store, err := swarmdb.NewDBChunkStore("chunks.db")
+	store, err := swarmdb.NewDBChunkStore("/tmp/chunks.db")
 	if err != nil {
 		t.Fatal("Failure to open NewDBChunkStore")
 	}
