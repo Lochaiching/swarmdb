@@ -4,127 +4,218 @@ package swarmdb
 import (
 	"net"
 	"fmt"
+	"os" 
+	"strings"
+	"encoding/hex"
 	// "encoding/gob"
-	// "encoding/json"
+	"encoding/json"
 	"time"
 	"bufio"
-	"crypto/sha256"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 )
 
 const (
-	TEST_MSG             = "sourabh"
-	PATH                 = "/var/www/vhosts/sourabh/swarm.wolk.com/src/github.com/ethereum/go-ethereum/swarmdb/keymanager/"
-	WOLKSWARMDB_ADDRESS  = "b6d1561697854dfa502140c8e2128f4ca4015b59"
-	WOLKSWARMDB_PASSWORD = "h3r0c1ty!"
+	CONN_HOST = "127.0.0.1"
+	CONN_PORT = "2000"
+	CONN_TYPE = "tcp"
 )
 
-func OpenConnection(ip string, port int) (conn *SWARMDBConnection, err error) {
-	// open a TCP connection to ip port
-	conn = new(SWARMDBConnection)
-	conn.ownerID = keymanager.WOLKSWARMDB_ADDRESS
-	km, err := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
-	// connect to this socket
-	conn.keymanager = km
-	connstr := fmt.Sprintf("%s:%d", ip, port)
-	c, connerr := net.DialTimeout("tcp", connstr, 500*time.Millisecond)
-	if connerr != nil {
-		fmt.Print("Error: ", connerr)
-		return conn, connerr
-	}
-	conn.connection = c
-	conn.nrw = bufio.NewReadWriter(bufio.NewReader(c), bufio.NewWriter(c))
-	// enc := gob.NewEncoder(conn.nrw)
-	message, _ := conn.nrw.ReadString('\n')
-	// generate challenge message 
-	h256 := sha256.New()
-	h256.Write([]byte(message))
-	msg_hash := h256.Sum(nil)
-
-	fmt.Printf("Challenge:[%s]\nMsg_Hash: %x\n", message, msg_hash)
-	sig, err := km.SignMessage(msg_hash)
+func NewGoClient() {
+	dbc, err := NewSWARMDBConnection()
 	if err != nil {
-		return conn, err
+		fmt.Printf("%s\n", err)
+		os.Exit(0);
+	}
+	var ens ENSSimulation
+	tableName := "test"
+
+	var columns []Column
+	columns = make([]Column, 1)
+	columns[0].ColumnName = "email"
+	columns[0].Primary = 1                      // What if this is inconsistent?
+	columns[0].IndexType = IT_BPLUSTREE //  What if this is inconsistent?
+	columns[0].ColumnType = CT_STRING
+	tbl, err := dbc.CreateTable(tableName, columns, ens)
+	if err != nil {
+		fmt.Printf("ERR CREATE TABLE %v\n", err)
 	} else {
-		fmt.Printf("Sig:[%x]\n", msg_hash)
-		conn.nrw.WriteString( fmt.Sprintf("%x\n", sig) )
+		fmt.Printf("SUCCESS CREATE TABLE \n", err)
 	}
 
-	return conn, err 
+	tbl, err2 := dbc.Open(tableName)
+	if err2 != nil {
+		
+	}
+	nrows := 5
+	for i := 0; i < nrows ; i++ {
+		row := NewRow()
+		row.Set("email", fmt.Sprintf("test%03d@wolk.com", i))
+		row.Set("age", fmt.Sprintf("%d", i))
+		resp, err := tbl.Put(row)
+		if ( err != nil ) {
+			fmt.Printf("ERROR PUT %s %v\n", err, row)
+		} else {
+			fmt.Printf("SUCCESS PUT %v %s\n", row, resp)
+		}
+	}
+
+	for i := 0; i < nrows ; i++ {
+		key := fmt.Sprintf("test%03d@wolk.com", i)
+		row, err := tbl.Get(key)
+		if err != nil {
+			fmt.Printf("ERROR GET %s key: %v\n", err, row)
+		} else {
+			fmt.Printf("SUCCESS GET %v\n", row)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 }
 
-func (c *SWARMDBConnection) Open(tableName string) (tbl *SWARMDBTable, err error) {
+func NewSWARMDBConnection() (dbc SWARMDBConnection, err error) {
+	// open a TCP connection to ip port
+	// dbc = new(SWARMDBConnection)
+	km, kmerr := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
+	if err != nil {
+		return dbc, kmerr 
+	} else {
+		dbc.keymanager = km
+	}
+	conn, err := net.Dial(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
+	if err != nil {
+		return dbc, err 
+	} else {
+		dbc.connection = conn
+	}
+	fmt.Printf("Opened connection: reading string...")
+	reader := bufio.NewReader(conn)
+	writer := bufio.NewWriter(conn)
+
+	dbc.reader = reader
+	dbc.writer = writer
+	return dbc, nil
+}
+	
+func (dbc *SWARMDBConnection) Open(tableName string) (tbl *SWARMDBTable, err error) {
+	challenge, _ := dbc.reader.ReadString('\n')
+	challenge = strings.Trim(challenge, "\n")
+	// challenge = "27bd4896d883198198dc2a6213957bc64352ea35a4398e2f47bb67bffa5a1669"
+	challenge_bytes, _ := hex.DecodeString(challenge)
+	sig, err := dbc.keymanager.SignMessage(challenge_bytes)
+	if err != nil {
+		fmt.Printf("Err %s\n", err)
+	} else {
+		fmt.Printf("Challenge: [%x] Sig:[%x]\n", challenge_bytes, sig)
+	}
+	// response = "6b1c7b37285181ef74fb1946968c675c09f7967a3e69888ee37c42df14a043ac2413d19f96760143ee8e8d58e6b0bda4911f642912d2b81e1f2834814fcfdad700"
+	response := fmt.Sprintf("%x", sig)
+	fmt.Printf("challenge:[%v] response:[%v]\n", challenge, response)
+	dbc.writer.WriteString(response+"\n")
+	dbc.writer.Flush()
+
 	// create request 
 	var r RequestOption
 	r.RequestType = "OpenTable"
-	r.Owner = c.ownerID
+	r.Owner = dbc.ownerID
 	r.Table = tableName
-
-	// send to server
-	tbl = new(SWARMDBTable)
-	tbl.tableName = tableName
-	tbl.conn = c
-	return tbl, nil
+	
+	_, err2 := dbc.ProcessRequestResponseCommand(r)
+	if err2 != nil {
+		return tbl, err2
+	} else {
+		tbl = new(SWARMDBTable)
+		tbl.tableName = tableName
+		tbl.dbc = dbc
+		return tbl, nil
+	}
 }
 
-func (c *SWARMDBConnection) CreateTable(tableName string, columns []Column, ens ENSSimulation) (tbl *SWARMDBTable, err error) {
+func (dbc *SWARMDBConnection) CreateTable(tableName string, columns []Column, ens ENSSimulation) (tbl *SWARMDBTable, err error) {
 	// create request 
 	var r RequestOption
 	r.RequestType = "CreateTable"
-	r.Owner = c.ownerID
+	r.Owner = dbc.ownerID
 	r.Table = tableName
 	r.Columns = columns
 
 	// send to server
 	tbl = new(SWARMDBTable)
 	tbl.tableName = tableName
-	tbl.conn = c
+	tbl.dbc = dbc
 	return tbl, nil
 }
 
-func (t *SWARMDBTable) Put(row SWARMDBRow) (err error) {
+func (t *SWARMDBTable) Put(row *SWARMDBRow) (response string, err error) {
 	// create request 
 	var r RequestOption
 	r.RequestType = "Put"
-	r.Owner = t.conn.ownerID
+	r.Owner = t.dbc.ownerID
 	r.Table = t.tableName
-	r.Row = row // json.Marshal(r)
+	r.Row = row.cells 
+	
 	// send to server
-	return nil
+	return t.dbc.ProcessRequestResponseCommand(r)
 }
 
-func (t *SWARMDBTable) Insert(row SWARMDBRow) (err error) {
+func (t *SWARMDBTable) Insert(row *SWARMDBRow) (response string, err error) {
 	// create request 
 	var r RequestOption
 	r.RequestType = "Insert"
-	r.Owner = t.conn.ownerID
+	r.Owner = t.dbc.ownerID
 	r.Table = t.tableName
-	r.Key = "key"
+	r.Row = row.cells
 	// send to server
-	return nil
+	return t.dbc.ProcessRequestResponseCommand(r)
 }
 
+func (dbc *SWARMDBConnection) ProcessRequestResponseRow(r RequestOption) (row *SWARMDBRow, err error) {
+	resp, err := dbc.ProcessRequestResponseCommand(r) 
+	if ( err != nil ) {
+		return row, err
+	} else {
+		if ( len(resp) > 0 ) {
+			// TODO: turn row_string into row HERE
+		}
+		return row, nil
+	}
+}
 
-func (t *SWARMDBTable) Get(key string) (row SWARMDBRow, err error) {
+func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(r RequestOption) (response string, err error) {
+	message, err := json.Marshal(r)
+	if ( err != nil ) {
+		return response, err
+	} else {
+		str := string(message) + "\n"
+		dbc.writer.WriteString(str)
+		dbc.writer.Flush()
+		
+		response, err2 := dbc.reader.ReadString('\n')
+		if ( err2 != nil ) {
+			return response, err
+		}
+		fmt.Printf("received message response: %s\n", message)
+		return response, nil
+	}
+}
+
+func (t *SWARMDBTable) Get(key string) (row *SWARMDBRow, err error) {
 	// create request 
 	var r RequestOption
 	r.RequestType = "Get"
-	r.Owner = t.conn.ownerID
+	r.Owner = t.dbc.ownerID
 	r.Table = t.tableName
 	r.Key = key
-	
-	return row, nil
+	return t.dbc.ProcessRequestResponseRow(r)
 }
 
 
-func (t *SWARMDBTable) Delete(key string) (err error) {
+func (t *SWARMDBTable) Delete(key string) (response string, err error) {
 	// send to server
 	var r RequestOption
 	r.RequestType = "Delete"
-	r.Owner = t.conn.ownerID
+	r.Owner = t.dbc.ownerID
 	r.Table = t.tableName
 	r.Key = key
-	return nil
+	return t.dbc.ProcessRequestResponseCommand(r)
 }
 
 func (t *SWARMDBTable) Scan(rowfunc func(r SWARMDBRow) bool) (err error) {
@@ -137,7 +228,7 @@ func (t *SWARMDBTable) Query(sql string, f func (r SWARMDBRow) bool) (err error)
 	// create request 
 	var r RequestOption
 	r.RequestType = "Query"
-	r.Owner = t.conn.ownerID
+	r.Owner = t.dbc.ownerID
 	r.Table = t.tableName
 	r.RawQuery = sql
 	return nil
@@ -148,8 +239,8 @@ func (t *SWARMDBTable) Close() {
 	// send to server
 }
 
-func NewRow() (r SWARMDBRow) {
-	// r = new(SWARMDBRow)
+func NewRow() (r *SWARMDBRow) {
+	r = new(SWARMDBRow)
 	r.cells = make(map[string]string)
 	return r
 }

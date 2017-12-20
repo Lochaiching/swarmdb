@@ -108,117 +108,116 @@ func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, as
 }
 
 func (self SwarmDB) GetTable(ownerID string, tableName string) (tbl *Table, err error) {
+	if len(tableName) == 0 {
+		return tbl, fmt.Errorf("Invalid table [%s]", tableName)
+	}
+	self.NewTable(ownerID, tableName)
 	tblKey := fmt.Sprintf("%s|%s", ownerID, tableName)
 	if tbl, ok := self.tables[tblKey]; ok {
 		return tbl, nil
 	} else {
-		return nil, fmt.Errorf("No such table")
+		// this should throw an error if the table is not created
+		err := self.tables[tblKey].OpenTable()
+		if err != nil {
+			return tbl, err
+		}
+		return tbl, nil // fmt.Errorf("No such table")
 	}
 }
 
-func (swdb *SwarmDB) SelectHandler(data *IncomingInfo) (resp string) {
-	var rerr *RequestFormatError
-	d, err := parseData(data.Data)
+func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, err error) {
+	// var rerr *RequestFormatError
+	fmt.Printf("BRILLIANT: %s\n", data)
+	d, err := parseData(data)
 	if err != nil {
-		return err.Error()
+		return resp, err
 	}
 	switch d.RequestType {
-	/*
-		case "OpenClient":
-			if len(d.Owner) == 0{
-				return rerr.Error()
-			}
-			err := svr.NewConnection()
-			resp := "okay"
-			if err != nil {
-				resp = err.Error()
-			}
-			return resp
-	*/
-	case "OpenTable":
-		resp := "okay"
-		if len(d.Table) == 0 {
-			return rerr.Error()
-		}
-		swdb.NewTable(d.Owner, d.Table)
-		tblKey := fmt.Sprintf("%s|%s", d.Owner, d.Table)
-		err := swdb.tables[tblKey].OpenTable()
-		if err != nil {
-			return err.Error()
-		}
-		return resp
-	case "CloseTable":
 	case "CreateTable":
 		if len(d.Table) == 0 || len(d.Columns) == 0 {
-			return `ERR: empty table and column`
+			return resp, fmt.Errorf(`ERR: empty table and column`)
 		}
 		//Upon further review, could make a NewTable and then call this from tbl. ---
-		_, err := swdb.CreateTable(d.Owner, d.Table, d.Columns, d.Bid, d.Replication, d.Encrypted)
-		resp := `okay`
+		_, err := self.CreateTable(ownerID, d.Table, d.Columns, d.Bid, d.Replication, d.Encrypted)
 		if err != nil {
-			resp = err.Error()
+			return resp, err
 		}
-		return resp
-	/*
-		case "Insert":
-			if len(d.Index) == 0 || len(d.Key) == 0 || len(d.Value) == 0{
-				return
-			}
-			err := svr.table.Insert(d.Key, d.Value)
-			if err != nil{
-				return err.Error()
-			}
-			return "okay"
-	*/
+		return "ok", err
 	case "Put":
-		if len(d.Value) == 0 {
-			return "\nValue empty -- bad!"
-		}
-		tblKey := fmt.Sprintf("%s|%s", d.Owner, d.Table)
-		err := swdb.tables[tblKey].Put(d.Value)
+		// use Row Cells instead
+		/*if len(d.Value) == 0 {
+			return resp, fmt.Errorf("\nValue empty -- bad!")
+		} */
+			tbl, err := self.GetTable(ownerID, d.Table)
 		if err != nil {
-			return "\nError trying to 'Put' [%s] -- Err: %s"
+			return resp, err
+		} else {
+			err2 := tbl.Put(d.Value)
+			if err2 != nil {
+				fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
+				return "ok", err2
+			} else {
+				return resp, nil
+			}
 		}
 	case "Get":
-		fmt.Printf("\nRecieved GET")
 		if len(d.Key) == 0 {
-			return err.Error()
+			return resp, fmt.Errorf("Missing key in GET")
 		}
-		tblKey := fmt.Sprintf("%s|%s", d.Owner, d.Table)
-		ret, err := swdb.tables[tblKey].Get(d.Key)
-		sret := string(ret)
+		tbl, err := self.GetTable(ownerID, d.Table)
 		if err != nil {
-			sret = err.Error()
+			return resp, err
 		}
-		return sret
-		/*
-			case "Delete":
-				if len(d.Key) == 0 {
-					return rerr.Error()
-				}
-				err := svr.table.Delete(d.Key)
-				ret := "okay"
-				if err != nil{
-					ret = err.Error()
-				}
-				return ret
-			case "StartBuffer":
-				err := svr.table.StartBuffer()
-				ret := "okay"
-				if err != nil{
-					ret = err.Error()
-				}
-				return ret
-			case "FlushBuffer":
-				err := svr.table.FlushBuffer()
-				ret := "okay"
-				if err != nil{
-					ret = err.Error()
-				}
-				return ret
-		*/
+		ret, err := tbl.Get(d.Key)
+		if err != nil {
+			return resp, err
+		} else {
+			return string(ret), nil
+		}
+	case "Insert":
+		if len(d.Key) == 0 || len(d.Value) == 0{
+			return resp, fmt.Errorf("Missing Key/Value")
+		}
+		tbl, err := self.GetTable(ownerID, d.Table)
+		if err != nil {
+			return resp, err
+		}
+		err2 := tbl.Insert(d.Key, d.Value)
+		if err2 != nil {
+			return resp, err2
+		}
+		return "ok", nil
+	case "Delete":
+		if len(d.Key) == 0 {
+			return resp, fmt.Errorf("Missing key")
+		}
+		tbl, err := self.GetTable(ownerID, d.Table)
+		if err != nil {
+			return resp, err
+		}
+		_, err2 := tbl.Delete(d.Key)
+		if err2 != nil {
+			return resp, err2
+		}
+		return "ok", nil
+/*
+	case "StartBuffer":
+		err := tbl.StartBuffer()
+		ret := "okay"
+		if err != nil{
+			ret = err.Error()
+		}
+		return ret
+	case "FlushBuffer":
+		err := tbl.FlushBuffer()
+		ret := "okay"
+		if err != nil{
+			ret = err.Error()
+		}
+		return ret
+*/
 	}
-	return "RequestType Error"
+	return resp, fmt.Errorf("RequestType invalid: [%s]", d.RequestType)
 }
 
 func parseData(data string) (*RequestOption, error) {
