@@ -76,23 +76,30 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 
 // parse sql and return rows in bulk (order by, group by, etc.)
 func (self SwarmDB) QuerySelect(request *RequestOption) (rows []Row, err error) {
-        //where to switch on bplus or hashdb?
+	//where to switch on bplus or hashdb?
 
-        for _, column := range request.Columns { //Scan can use any column or only primary column?
-                ascend := true
-                if request.Query.Ascending == 0 { //clunky .. maybe chg type of ascend
-                        ascend = false
-                }
-                rows, err := self.Scan(request.Owner, request.Table, column.ColumnName, ascend)
-                if err != nil {
-                        return rows, err
-                }
+	for _, column := range request.Columns { //Scan can use any column or only primary column?
+		ascend := true
+		if request.Query.Ascending == 0 { //clunky .. maybe chg type of ascend
+			ascend = false
+		}
+		//no need to error check with table, already did that in SelectHandler
+		//tblKey := self.GetTableKey(request.Owner, request.Table)
+		//tblInfo, err := self.tables[tblKey].GetTableInfo()
+		//get primary key
+		//use that to Scan
+		//filter the table
 
-        }
+		rows, err := self.Scan(request.Owner, request.Table, column.ColumnName, ascend)
+		if err != nil {
+			return rows, err
+		}
 
-        // parse query to get the tableName, OpenTable, run Scan operation and filter out rows
-        // Alina: implementing with Scan
-        return rows, nil
+	}
+
+	// parse query to get the tableName, OpenTable, run Scan operation and filter out rows
+	// Alina: implementing with Scan
+	return rows, nil
 
 }
 
@@ -112,46 +119,45 @@ func (self SwarmDB) QueryDelete(request *RequestOption) (err error) {
 
 func (self SwarmDB) Query(request *RequestOption) (rows []Row, err error) {
 
-        switch request.Query.Type {
-        case "Select":
-                rows, err := self.QuerySelect(request)
-                if err != nil {
-                        return rows, err
-                }
-                if len(rows) == 0 {
-                        return rows, fmt.Errorf("select query came back empty")
-                }
+	switch request.Query.Type {
+	case "Select":
+		rows, err := self.QuerySelect(request)
+		if err != nil {
+			return rows, err
+		}
+		if len(rows) == 0 {
+			return rows, fmt.Errorf("select query came back empty")
+		}
 		return rows, err
-        case "Insert":
-                err = self.QueryInsert(request)
-		return rows, err
-
-        case "Update":
-                err = self.QueryUpdate(request)
+	case "Insert":
+		err = self.QueryInsert(request)
 		return rows, err
 
-        case "Delete":
-                err = self.QueryDelete(request)
+	case "Update":
+		err = self.QueryUpdate(request)
 		return rows, err
-        }
-        return rows, nil
+
+	case "Delete":
+		err = self.QueryDelete(request)
+		return rows, err
+	}
+	return rows, nil
 
 }
 
-
 func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, ascending bool) (rows []Row, err error) {
-        tblKey := fmt.Sprintf("%s|%s", ownerID, tableName)
-        if tbl, ok := self.tables[tblKey]; ok {
-                rows, err = tbl.Scan(columnName, ascending)
-        } else {
-                return rows, fmt.Errorf("No such table to scan %s - %s", ownerID, tableName)
-        }
-        return rows, nil
+	tblKey := self.GetTableKey(ownerID, tableName)
+	if tbl, ok := self.tables[tblKey]; ok {
+		rows, err = tbl.Scan(columnName, ascending)
+	} else {
+		return rows, fmt.Errorf("No such table to scan %s - %s", ownerID, tableName)
+	}
+	return rows, nil
 
 }
 
 func (self SwarmDB) GetTable(ownerID string, tableName string) (tbl *Table, err error) {
-	tblKey := fmt.Sprintf("%s|%s", ownerID, tableName)
+	tblKey := self.GetTableKey(ownerID, tableName)
 	if tbl, ok := self.tables[tblKey]; ok {
 		return tbl, nil
 	} else {
@@ -167,7 +173,7 @@ func (swdb *SwarmDB) SelectHandler(data *IncomingInfo) (resp string) {
 		return err.Error()
 	}
 
-	tblKey := fmt.Sprintf("%s|%s", d.Owner, d.Table)
+	tblKey := swdb.GetTableKey(d.Owner, d.Table)
 
 	switch d.RequestType {
 	/*
@@ -245,8 +251,7 @@ func (swdb *SwarmDB) SelectHandler(data *IncomingInfo) (resp string) {
 		if len(d.Table) == 0 {
 			d.Table = d.Query.Table //since table is specified in the query we do not have get it as a separate input
 		}
-		tblKey = fmt.Sprintf("%s|%s", d.Owner, d.Table)
-		
+		tblKey := swdb.GetTableKey(d.Owner, d.Table)
 		tblInfo, err := swdb.tables[tblKey].GetTableInfo()
 		if err != nil {
 			return err.Error()
@@ -257,7 +262,7 @@ func (swdb *SwarmDB) SelectHandler(data *IncomingInfo) (resp string) {
 			}
 		}
 		//Also need to check d.Query.Where.Left (Right too?)
-	
+
 		ret, err := swdb.Query(d)
 		if err != nil {
 			return err.Error()
@@ -360,7 +365,7 @@ func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
 	t.columns = make(map[string]*ColumnInfo)
 
 	// register the Table in SwarmDB
-	tblKey := fmt.Sprintf("%s|%s", ownerID, tableName)
+	tblKey := self.GetTableKey(ownerID, tableName)
 	self.tables[tblKey] = t
 	return t
 }
@@ -712,16 +717,20 @@ func (t *Table) updateTableInfo() (err error) {
 	return nil
 }
 
-func (t *Table) GetTableInfo()(tblInfo map[string]Column, err error){
+func (swdb *SwarmDB) GetTableKey(owner string, tableName string) (key string) {
+	return (fmt.Sprintf("%s|%s", owner, tableName))
+}
+
+func (t *Table) GetTableInfo() (tblInfo map[string]Column, err error) {
 	//var columns []Column
 	tblInfo = make(map[string]Column)
-	for cname, c := range t.columns{
+	for cname, c := range t.columns {
 		var cinfo Column
 		cinfo.ColumnName = cname
 		cinfo.IndexType = c.indexType
 		cinfo.Primary = int(c.primary)
 		cinfo.ColumnType = c.columnType
-		if _, ok := tblInfo[cname]; !ok {  //would mean for some reason there are two cols named the same thing
+		if _, ok := tblInfo[cname]; !ok { //would mean for some reason there are two cols named the same thing
 			return tblInfo, err
 		}
 		tblInfo[cname] = cinfo
