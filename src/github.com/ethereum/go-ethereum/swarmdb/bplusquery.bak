@@ -1,0 +1,47 @@
+package common
+
+import (
+	//"fmt"
+	//"github.com/ethereum/go-ethereum/swarm/api"
+	//"github.com/ethereum/go-ethereum/swarmdb/common"
+	//"github.com/ethereum/go-ethereum/swarmdb/tree"
+)
+
+func (t *Tree) Equal(key interface{}) (value string, found bool, err error) {
+	return value, found, err
+}
+
+func (t *Tree) GreaterThan(key interface{}) (values []string, found bool, err error) {
+	return values, found, err
+	
+}
+
+func GreaterThanOrEqualTo(key interface{}) (values []string, found bool, err error) {
+	return values, found, err
+	
+}
+
+func LessThan(key interface{}) (values []string, found bool, err error) {
+	return values, found, err
+	
+}
+
+func LessThanOrEqualTo(key interface{}) (values []string, found bool, err error) {
+	return values, found, err
+	
+}
+
+func NotEqual(key interface{}) (values []string, found bool, err error) {
+	return values, found, err
+	
+}
+
+func Like(key interface{}) (values []string, found bool, err error) {
+	return values, found, err
+	
+}
+
+func NotLike(key interface{}) (values []string, found bool, err error) {
+	return values, found, err
+	
+}

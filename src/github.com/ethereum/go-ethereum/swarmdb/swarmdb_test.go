@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
+	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"testing"
 	//	"os"
 	// "bytes"
@@ -521,7 +522,7 @@ func aTestDelete2(t *testing.T) {
 func TestCreateTable(t *testing.T) {
 	t.SkipNow()
 	swdb := swarmdb.NewSwarmDB()
-	var testData swarmdb.IncomingInfo
+
 	var testColumn []swarmdb.Column
 	testColumn = make([]swarmdb.Column, 3)
 	testColumn[0].ColumnName = "email"
@@ -555,15 +556,11 @@ func TestCreateTable(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 
 	}
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	swdb.SelectHandler(&testData)
+	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
 }
 
 func TestOpenTable(t *testing.T) {
 	swdb := swarmdb.NewSwarmDB()
-	var testData swarmdb.IncomingInfo
-
 	var testReqOption swarmdb.RequestOption
 
 	testReqOption.RequestType = "OpenTable"
@@ -575,14 +572,11 @@ func TestOpenTable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	swdb.SelectHandler(&testData)
+	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
 }
 
 func OpenTable(swdb *swarmdb.SwarmDB, owner string, table string) {
 	var testReqOption swarmdb.RequestOption
-	var testData swarmdb.IncomingInfo
 
 	testReqOption.RequestType = "OpenTable"
 	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
@@ -592,14 +586,11 @@ func OpenTable(swdb *swarmdb.SwarmDB, owner string, table string) {
 	if err != nil {
 		fmt.Printf("error marshaling testReqOption: %s", err)
 	}
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	swdb.SelectHandler(&testData)
+	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
 }
 
 func TestPut(t *testing.T) {
 	swdb := swarmdb.NewSwarmDB()
-	var testData swarmdb.IncomingInfo
 
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = "Put"
@@ -614,14 +605,11 @@ func TestPut(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
 	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	swdb.SelectHandler(&testData)
+	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
 }
 
 func TestGet(t *testing.T) {
 	swdb := swarmdb.NewSwarmDB()
-	var testData swarmdb.IncomingInfo
 
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = "Get"
@@ -635,15 +623,17 @@ func TestGet(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
 	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	resp := swdb.SelectHandler(&testData)
-	fmt.Printf("\nResponse of TestGet is[%s]", resp)
+	
+	resp, err := swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	if err != nil {
+		t.Fatal(err)
+	} 
+	fmt.Printf("\nResponse of TestGet is [%s]", resp)
 }
 
 func TestPutGet(t *testing.T) {
 	swdb := swarmdb.NewSwarmDB()
-	var testData swarmdb.IncomingInfo
+
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = "Put"
 	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
@@ -657,9 +647,14 @@ func TestPutGet(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
 	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	swdb.SelectHandler(&testData)
+
+	resp, err := swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	if err != nil {
+		t.Fatal(err)
+	}  else {
+		fmt.Printf("\nResponse of TestPutGet is [%s]", resp)
+	}
+
 	var testReqOptionGet swarmdb.RequestOption
 	testReqOptionGet.RequestType = "Get"
 	testReqOptionGet.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
@@ -673,8 +668,12 @@ func TestPutGet(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
 	OpenTable(swdb, testReqOptionGet.Owner, testReqOptionGet.Table)
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	resp := swdb.SelectHandler(&testData)
+	
+
+	resp, err2 := swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	if err2 != nil {
+                t.Fatal(err)
+        } 
+
 	fmt.Printf("\nResponse of TestGet is [%s]", resp)
 }

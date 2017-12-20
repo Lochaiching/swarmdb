@@ -132,15 +132,20 @@ func handleRequest(conn net.Conn, svr *TCPIPServer) {
 				conn.Close()
 				break
 			}
-			if err != nil {
-				//
+			if ( true ) {
+				resp, err := svr.swarmdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, str)
+				if err != nil {
+					s := fmt.Sprintf("ERR: %s\n", err)
+					writer.WriteString(s)
+					writer.Flush()
+				} else {
+					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, resp)
+					fmt.Fprintf(client.writer, resp)
+				}
+			} else {
+				writer.WriteString("OK\n")
+				writer.Flush()
 			}
-			writer.WriteString("OK\n")
-			writer.Flush()
-			fmt.Printf("Read: %s Wrote:OK\n", str)
-			// not implemented yet
-			//resp := svr.swarmdb.SelectHandler(data)
-			//fmt.Fprintf(client.writer, resp)
 		}
 	} else {
 		conn.Close()
