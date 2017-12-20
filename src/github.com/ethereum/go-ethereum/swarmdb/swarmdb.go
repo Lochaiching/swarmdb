@@ -75,35 +75,77 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 }
 
 // parse sql and return rows in bulk (order by, group by, etc.)
-func (self SwarmDB) QuerySelect(sql string) (rows []Row, err error) {
+func (self SwarmDB) QuerySelect(request *RequestOption) (rows []Row, err error) {
+	//where to switch on bplus or hashdb?
+
+	for _, column := range request.Columns { //Scan can use any column or only primary column?
+		ascend := true
+		if request.Query.Ascending == 0 { //clunky .. maybe chg type of ascend
+			ascend = false
+		}
+		rows, err := self.Scan(request.Owner, request.Table, column.ColumnName, ascend)
+		if err != nil {
+			return rows, err
+		}
+
+	}
+
 	// parse query to get the tableName, OpenTable, run Scan operation and filter out rows
 	// Alina: implementing with Scan
 	return rows, nil
+
 }
 
-func (self SwarmDB) QueryInsert(sql string) (err error) {
+func (self SwarmDB) QueryInsert(request *RequestOption) (err error) {
+	// Alina: implementing with Put (=> Insert)
+	return nil
+}
+func (self SwarmDB) QueryUpdate(request *RequestOption) (err error) {
 	// Alina: implementing with Put (=> Insert)
 	return nil
 }
 
-func (self SwarmDB) QueryDelete(sql string) (err error) {
+func (self SwarmDB) QueryDelete(request *RequestOption) (err error) {
 	// Alina: implementing with Delete
 	return nil
 }
 
-func (self SwarmDB) Query(sql string) (err error) {
-	// Alina: dispatch to QuerySelect/Insert/Update/Delete
-	return nil
+func (self SwarmDB) Query(request *RequestOption) (rows []Row, err error) {
+
+	switch request.Query.Type {
+	case "Select":
+		rows, err := self.QuerySelect(request)
+		if err != nil {
+			return rows, err
+		}
+		if len(rows) == 0 {
+			return rows, fmt.Errorf("select query came back empty")
+		}
+		return rows, err
+	case "Insert":
+		err = self.QueryInsert(request)
+		return rows, err
+
+	case "Update":
+		err = self.QueryUpdate(request)
+		return rows, err
+
+	case "Delete":
+		err = self.QueryDelete(request)
+		return rows, err
+	}
+	return rows, nil
+
 }
 
-func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, ascending bool) (err error) {
+func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, ascending bool) (rows []Row, err error) {
 	tblKey := fmt.Sprintf("%s|%s", ownerID, tableName)
 	if tbl, ok := self.tables[tblKey]; ok {
-		tbl.Scan(columnName, ascending)
+		rows, err = tbl.Scan(columnName, ascending)
 	} else {
-		return fmt.Errorf("No such table to scan %s - %s", ownerID, tableName)
+		return rows, fmt.Errorf("No such table to scan %s - %s", ownerID, tableName)
 	}
-	return nil
+	return rows, nil
 
 }
 
@@ -132,6 +174,9 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 	if err != nil {
 		return resp, err
 	}
+
+	tblKey := fmt.Sprintf("%s|%s", d.Owner, d.Table)
+
 	switch d.RequestType {
 	case "CreateTable":
 		if len(d.Table) == 0 || len(d.Columns) == 0 {
@@ -144,11 +189,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		}
 		return "ok", err
 	case "Put":
-		// use Row Cells instead
-		/*if len(d.Value) == 0 {
-			return resp, fmt.Errorf("\nValue empty -- bad!")
-		} */
-			tbl, err := self.GetTable(ownerID, d.Table)
+		tbl, err := self.GetTable(ownerID, d.Table)
 		if err != nil {
 			return resp, err
 		} else {
@@ -175,7 +216,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			return string(ret), nil
 		}
 	case "Insert":
-		if len(d.Key) == 0 || len(d.Value) == 0{
+		if len(d.Key) == 0 || len(d.Value) == 0 {
 			return resp, fmt.Errorf("Missing Key/Value")
 		}
 		tbl, err := self.GetTable(ownerID, d.Table)
@@ -200,22 +241,66 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			return resp, err2
 		}
 		return "ok", nil
-/*
-	case "StartBuffer":
-		err := tbl.StartBuffer()
-		ret := "okay"
-		if err != nil{
-			ret = err.Error()
+		/*
+			case "StartBuffer":
+				err := tbl.StartBuffer()
+				ret := "okay"
+				if err != nil{
+					ret = err.Error()
+				}
+				return ret
+			case "FlushBuffer":
+				err := tbl.FlushBuffer()
+				ret := "okay"
+				if err != nil{
+					ret = err.Error()
+				}
+				return ret
+		*/
+	case "GetQuery":
+		fmt.Printf("\nReceived GETQUERY")
+
+		d.Query, err = ParseQuery(d.RawQuery)
+		if err != nil {
+			return resp, err
 		}
-		return ret
-	case "FlushBuffer":
-		err := tbl.FlushBuffer()
-		ret := "okay"
-		if err != nil{
-			ret = err.Error()
+
+		if len(d.Table) == 0 {
+			d.Table = d.Query.Table //since table is specified in the query we do not have get it as a separate input
 		}
-		return ret
-*/
+		tblKey = fmt.Sprintf("%s|%s", d.Owner, d.Table)
+
+		tblInfo, err := self.tables[tblKey].GetTableInfo()
+		if err != nil {
+			return resp, err
+		}
+		for _, reqCol := range d.Query.RequestColumns {
+			if _, ok := tblInfo[reqCol.ColumnName]; !ok {
+				return resp, fmt.Errorf("\nRequested col [%s] does not exist in table", reqCol.ColumnName)
+			}
+		}
+		//Also need to check d.Query.Where.Left (Right too?)
+
+		ret, err := self.Query(d)
+		if err != nil {
+			return resp, err
+		}
+		retJson, err := json.Marshal(ret)
+		if err != nil {
+			return resp, err
+		}
+		return string(retJson), nil
+
+	case "GetTableInfo":
+		tblcols, err := self.tables[tblKey].GetTableInfo()
+		if err != nil {
+			return resp, err
+		}
+		tblinfo, err := json.Marshal(tblcols)
+		if err != nil {
+			return resp, err
+		}
+		return string(tblinfo), nil
 	}
 	return resp, fmt.Errorf("RequestType invalid: [%s]", d.RequestType)
 }
@@ -621,4 +706,25 @@ func (t *Table) updateTableInfo() (err error) {
 	} else {
 	}
 	return nil
+}
+
+func (t *Table) GetTableInfo() (tblInfo map[string]Column, err error) {
+	//var columns []Column
+	tblInfo = make(map[string]Column)
+	for cname, c := range t.columns {
+		var cinfo Column
+		cinfo.ColumnName = cname
+		cinfo.IndexType = c.indexType
+		cinfo.Primary = int(c.primary)
+		cinfo.ColumnType = c.columnType
+		if _, ok := tblInfo[cname]; !ok { //would mean for some reason there are two cols named the same thing
+			return tblInfo, err
+		}
+		tblInfo[cname] = cinfo
+		//columns = append(columns, cinfo)
+	}
+	//jcolumns, err := json.Marshal(columns)
+
+	//return string(jcolumns), err
+	return tblInfo, err
 }

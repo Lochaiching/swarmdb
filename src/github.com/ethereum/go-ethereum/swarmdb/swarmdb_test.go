@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
+	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"testing"
 	//	"os"
 	// "bytes"
@@ -104,7 +105,8 @@ func getSWARMDBTableSecondary(ownerId string, tableName string, primaryKeyName s
 	return swarmdbObj
 }
 
-func aTestSetGetInt(t *testing.T) {
+func TestSetGetInt(t *testing.T) {
+	t.SkipNow()
 	const N = 4
 
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
@@ -160,7 +162,8 @@ func aTestSetGetInt(t *testing.T) {
 	}
 }
 
-func aTestTable(t *testing.T) {
+func TestTable(t *testing.T) {
+	t.SkipNow()
 	tbl := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 
 	putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
@@ -195,12 +198,18 @@ func aTestTable(t *testing.T) {
 }
 
 func TestTableSecondaryInt(t *testing.T) {
+	t.SkipNow()
 	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
-	err := swarmdb.Scan(TEST_OWNER, TEST_TABLE, "age", true)
+	rows, err := swarmdb.Scan(TEST_OWNER, TEST_TABLE, "age", true)
 	if err != nil {
+		t.Fatal(err)
 	}
+	for i, r := range rows  {
+		fmt.Printf("%v:%v\n", i, r)
+	}
+
 	//	os.Exit(0)
 	// select * from table where age < 30
 	/*	sql := fmt.Sprintf("select * from %s where %s < 30", TEST_TABLE, TEST_SKEY_INT)
@@ -213,12 +222,20 @@ func TestTableSecondaryInt(t *testing.T) {
 		} */
 }
 
-func cTestTableSecondaryFloat(t *testing.T) {
-	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+func TestTableSecondaryFloat(t *testing.T) {
+	t.SkipNow()
+	swdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_FLOAT, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
 	// select * from table where age < 30
 	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_FLOAT)
-	rows, err := swarmdb.QuerySelect(sql)
+
+	var testReqOption swarmdb.RequestOption
+	testReqOption.RequestType = "GetQuery"
+	testReqOption.Owner = TEST_OWNER
+	testReqOption.Table = TEST_TABLE
+	testReqOption.RawQuery = sql
+
+	rows, err := swdb.QuerySelect(&testReqOption)
 	if err != nil {
 	} else {
 		for i, row := range rows {
@@ -227,11 +244,19 @@ func cTestTableSecondaryFloat(t *testing.T) {
 	}
 }
 
-func cTestTableSecondaryString(t *testing.T) {
-	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+func TestTableSecondaryString(t *testing.T) {
+	t.SkipNow()
+	swdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_STRING)
-	rows, err := swarmdb.QuerySelect(sql)
+
+	var testReqOption swarmdb.RequestOption
+	testReqOption.RequestType = "GetQuery"
+	testReqOption.Owner = TEST_OWNER
+	testReqOption.Table = TEST_TABLE
+	testReqOption.RawQuery = sql
+	
+	rows, err := swdb.QuerySelect(&testReqOption)
 	if err != nil {
 	} else {
 		for i, row := range rows {
@@ -494,9 +519,10 @@ func aTestDelete2(t *testing.T) {
 	}
 }
 
-func aTestCreateTable(t *testing.T) {
+func TestCreateTable(t *testing.T) {
+	t.SkipNow()
 	swdb := swarmdb.NewSwarmDB()
-	var testData swarmdb.IncomingInfo
+
 	var testColumn []swarmdb.Column
 	testColumn = make([]swarmdb.Column, 3)
 	testColumn[0].ColumnName = "email"
@@ -530,15 +556,11 @@ func aTestCreateTable(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 
 	}
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	swdb.SelectHandler(&testData)
+	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
 }
 
 func TestOpenTable(t *testing.T) {
 	swdb := swarmdb.NewSwarmDB()
-	var testData swarmdb.IncomingInfo
-
 	var testReqOption swarmdb.RequestOption
 
 	testReqOption.RequestType = "OpenTable"
@@ -550,14 +572,11 @@ func TestOpenTable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	swdb.SelectHandler(&testData)
+	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
 }
 
 func OpenTable(swdb *swarmdb.SwarmDB, owner string, table string) {
 	var testReqOption swarmdb.RequestOption
-	var testData swarmdb.IncomingInfo
 
 	testReqOption.RequestType = "OpenTable"
 	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
@@ -567,14 +586,11 @@ func OpenTable(swdb *swarmdb.SwarmDB, owner string, table string) {
 	if err != nil {
 		fmt.Printf("error marshaling testReqOption: %s", err)
 	}
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	swdb.SelectHandler(&testData)
+	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
 }
 
 func TestPut(t *testing.T) {
 	swdb := swarmdb.NewSwarmDB()
-	var testData swarmdb.IncomingInfo
 
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = "Put"
@@ -589,14 +605,11 @@ func TestPut(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
 	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	swdb.SelectHandler(&testData)
+	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
 }
 
 func TestGet(t *testing.T) {
 	swdb := swarmdb.NewSwarmDB()
-	var testData swarmdb.IncomingInfo
 
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = "Get"
@@ -610,15 +623,17 @@ func TestGet(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
 	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	resp := swdb.SelectHandler(&testData)
-	fmt.Printf("\nResponse of TestGet is[%s]", resp)
+	
+	resp, err := swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	if err != nil {
+		t.Fatal(err)
+	} 
+	fmt.Printf("\nResponse of TestGet is [%s]", resp)
 }
 
 func TestPutGet(t *testing.T) {
 	swdb := swarmdb.NewSwarmDB()
-	var testData swarmdb.IncomingInfo
+
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = "Put"
 	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
@@ -632,9 +647,14 @@ func TestPutGet(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
 	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	swdb.SelectHandler(&testData)
+
+	resp, err := swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	if err != nil {
+		t.Fatal(err)
+	}  else {
+		fmt.Printf("\nResponse of TestPutGet is [%s]", resp)
+	}
+
 	var testReqOptionGet swarmdb.RequestOption
 	testReqOptionGet.RequestType = "Get"
 	testReqOptionGet.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
@@ -648,8 +668,12 @@ func TestPutGet(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
 	OpenTable(swdb, testReqOptionGet.Owner, testReqOptionGet.Table)
-	testData.Data = string(marshalTestReqOption)
-	testData.Address = ""
-	resp := swdb.SelectHandler(&testData)
+	
+
+	resp, err2 := swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	if err2 != nil {
+                t.Fatal(err)
+        } 
+
 	fmt.Printf("\nResponse of TestGet is [%s]", resp)
 }
