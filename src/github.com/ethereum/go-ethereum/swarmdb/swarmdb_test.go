@@ -197,7 +197,7 @@ func TestTable(t *testing.T) {
 }
 
 func TestTableSecondaryInt(t *testing.T) {
-	t.SkipNow()
+	
 	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
@@ -205,7 +205,7 @@ func TestTableSecondaryInt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for i, r := range rows  {
+	for i, r := range rows {
 		fmt.Printf("%v:%v\n", i, r)
 	}
 
@@ -254,7 +254,7 @@ func TestTableSecondaryString(t *testing.T) {
 	testReqOption.Owner = TEST_OWNER
 	testReqOption.Table = TEST_TABLE
 	testReqOption.RawQuery = sql
-	
+
 	rows, err := swdb.QuerySelect(&testReqOption)
 	if err != nil {
 	} else {
