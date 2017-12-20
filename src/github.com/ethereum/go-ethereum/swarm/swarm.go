@@ -41,7 +41,7 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/network"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
-	tcpapi "github.com/ethereum/go-ethereum/swarmdb/server"
+	//tcpapi "github.com/ethereum/go-ethereum/swarmdb/server"
 
 	//"github.com/syndtr/goleveldb/leveldb"
 	"reflect"
@@ -231,11 +231,13 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 		}
 	}
 	if true {
+	/*
 		tcpaddr := net.JoinHostPort("127.0.0.1", "8503")
 		go tcpapi.StartTCPIPServer(self.swarmdb, &tcpapi.ServerConfig{
 			Addr: tcpaddr,
 			Port: "23456",
 		})
+	*/
 	}
 	/* start of mayumi tcp/ip server call */
 	//tcpip.StartTCPServer(self)
