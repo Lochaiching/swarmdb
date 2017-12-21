@@ -362,7 +362,7 @@ func (t *Table) Scan(columnName string, ascending bool) (rows []Row, err error) 
 // Table
 func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
 	t := new(Table)
-	t.swarmdb = self
+	t.swarmdb = &self
 	t.ownerID = ownerID
 	t.tableName = tableName
 	t.columns = make(map[string]*ColumnInfo)
@@ -443,14 +443,14 @@ func (t *Table) OpenTable() (err error) {
 		//fmt.Printf("\n columnName: %s (%d) roothash: %x (secondary: %v) columnType: %d", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary, columninfo.columnType)
 		switch columninfo.indexType {
 		case IT_BPLUSTREE:
-			bplustree := NewBPlusTreeDB(t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType))
+			bplustree := NewBPlusTreeDB(*t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType))
 			// bplustree.Print()
 			columninfo.dbaccess = bplustree
 			if err != nil {
 				return err
 			}
 		case IT_HASHTREE:
-			columninfo.dbaccess, err = NewHashDB(columninfo.roothash, t.swarmdb, ColumnType(columninfo.columnType))
+			columninfo.dbaccess, err = NewHashDB(columninfo.roothash, *t.swarmdb, ColumnType(columninfo.columnType))
 			if err != nil {
 				return err
 			}
