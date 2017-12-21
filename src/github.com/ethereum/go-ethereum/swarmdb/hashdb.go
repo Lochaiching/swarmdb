@@ -8,19 +8,20 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"io"
-	"reflect"
+	//"reflect"
 	"strconv"
 	"strings"
 	"sync"
 )
 
 const binnum = 64
+const STACK_SIZE = 100
 
 type Val interface{}
 
 type HashDB struct {
 	rootnode   *Node
-	swarmdb    SwarmDB
+	swarmdb    *SwarmDB
 	buffered   bool
 	columnType ColumnType
 	mutex      sync.Mutex
@@ -41,6 +42,13 @@ type Node struct {
 	columnType	ColumnType
 }
 
+type HashdbCursor struct{
+	hashdb *HashDB
+	level	int
+	bin	*stack_t
+	node	*Node
+}
+
 func (self *HashDB) GetRootHash() ([]byte, error) {
 	return self.rootnode.NodeHash, nil
 }
@@ -52,9 +60,10 @@ func NewHashDB(rootnode []byte, swarmdb SwarmDB, columntype ColumnType) (*HashDB
 	if rootnode == nil {
 	} else {
 		n.NodeHash = rootnode
+		n.load(&swarmdb, columntype)
 	}
 	hd.rootnode = n
-	hd.swarmdb = swarmdb
+	hd.swarmdb = &swarmdb
 	hd.buffered = false
 	hd.columnType = columntype
 	return hd, nil
@@ -145,7 +154,7 @@ func (self *HashDB) GetRootNode() []byte {
 	return self.rootnode.NodeHash
 }
 
-func (self *Node) Add(k []byte, v Val, swarmdb SwarmDB, columntype ColumnType) {
+func (self *Node) Add(k []byte, v Val, swarmdb *SwarmDB, columntype ColumnType) {
 	log.Debug(fmt.Sprintf("HashDB Add ", self))
 	self.Version++
 	self.NodeKey = []byte("0")
@@ -154,25 +163,21 @@ func (self *Node) Add(k []byte, v Val, swarmdb SwarmDB, columntype ColumnType) {
 	return
 }
 
-func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmDB, columntype ColumnType) (newnode *Node) {
+func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb *SwarmDB, columntype ColumnType) (newnode *Node) {
 	kh := keyhash(addnode.Key)
 	bin := hashbin(kh, self.Level)
-	log.Debug(fmt.Sprintf("hashdb add ", string(addnode.Key), bin, self.Version, string(self.NodeKey)))
 	self.NodeKey = nodekey
 	self.Stored = false
 	addnode.Stored = false
 	addnode.columnType = columntype
 
-	log.Debug(fmt.Sprintf("hashdb add Next %v %v %v", self.Next, self.Root, self.Loaded))
 	if self.Loaded == false {
 		self.load(swarmdb, columntype)
 		self.Loaded = true
 	}
-	//log.Debug(fmt.Sprintf("hashdb add Next!! %v %v %v %v", self.Next, self.Root, self.Loaded, self.Bin[bin]))
 
 	if self.Next || self.Root {
 		if self.Bin[bin] != nil {
-			log.Debug(fmt.Sprintf("hashdb add bin not nil %d %v", bin, self.Bin[bin].NodeHash))
 			newnodekey := string(self.NodeKey) + "|" + strconv.Itoa(bin)
 			if self.Bin[bin].Loaded == false {
 				self.Bin[bin].load(swarmdb, columntype)
@@ -189,8 +194,10 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmD
 				}
 			}
 		} else {
-			log.Debug(fmt.Sprintf("hashdb add bin nil %d", bin))
 			addnode.Level = self.Level + 1
+			addnode.Loaded = true
+			addnode.Stored = false
+			addnode.Next = false
 			addnode.NodeKey = []byte(string(self.NodeKey) + "|" + strconv.Itoa(bin))
 			//sdata := make([]byte, 64*4)
 			sdata := make([]byte, 4096)
@@ -201,16 +208,16 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmD
 			log.Debug(fmt.Sprintf("hashdb add bin leaf Key %v %s %s %v", sdata, addnode.Key, addnode.Value, addnode.Key))
 			//rd := bytes.NewReader(sdata)
 			//wg := &sync.WaitGroup{}
+/*
 			//dhash, _ := swarmdb.Store(rd, int64(len(sdata)), wg, nil)
 			dhash, _ := swarmdb.StoreDBChunk(sdata)
 			//wg.Wait()
 			addnode.NodeHash = dhash
-			addnode.Stored = false
 			log.Debug(fmt.Sprintf("hashdb add bin leaf %d %v", bin, dhash))
+*/
 			self.Bin[bin] = addnode
 		}
 	} else {
-		log.Debug(fmt.Sprintf("hashdb add node not next %d '%s' '%v' '%s' '%v' %v", bin, self.Key, self.Key, addnode.Key, addnode.Key, strings.Compare(string(self.Key), string(addnode.Key))))
 		if strings.Compare(string(self.Key), string(addnode.Key)) == 0 {
                         sdata := make([]byte, 4096)
                         copy(sdata[64:], convertToByte(addnode.Value))
@@ -247,9 +254,11 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmD
 		addnode.Level = self.Level + 1
 		cself := self
 		cself.Level = self.Level + 1
+		cself.Loaded = true
 		n.add(addnode, version, self.NodeKey, swarmdb, columntype)
 		n.add(cself, version, self.NodeKey, swarmdb, columntype)
-		n.NodeHash = self.storeBinToNetwork(swarmdb)
+///////////
+		//n.NodeHash = self.storeBinToNetwork(swarmdb)
 		//swarmdb.Put([]byte(n.NodeKey), n.NodeHash)
 		n.Loaded = true
 		return n
@@ -260,23 +269,15 @@ func (self *Node) add(addnode *Node, version int, nodekey []byte, swarmdb SwarmD
 			svalue = svalue + "|" + strconv.Itoa(i)
 		}
 	}
-	self.NodeHash = self.storeBinToNetwork(swarmdb)
+///////////
+	//self.NodeHash = self.storeBinToNetwork(swarmdb)
 	self.Loaded = true
 	return self
 }
 
 func compareVal(a, b Val) int {
 	if va, ok := a.([]byte); ok {
-		if vb, ok := b.([]byte); ok {
-			/*
-				bufa := make([]byte, 32)
-				bufb := make([]byte, 32)
-				copy(bufa, va[0:32])
-				copy(bufb, vb[0:32])
-				if bytes.Compare(bufa, bufb) == 0{
-					return 0
-				}
-			*/
+                if vb, ok := b.([]byte); ok {
 			return bytes.Compare(bytes.Trim(va, "\x00"), bytes.Trim(vb, "\x00"))
 		}
 	}
@@ -306,13 +307,10 @@ func compareValType(a, b Val, columntype ColumnType) int {
 
 
 func convertToByte(a Val) []byte {
-	log.Trace(fmt.Sprintf("convertToByte type: %v '%v'", a, reflect.TypeOf(a)))
 	if va, ok := a.([]byte); ok {
-		log.Trace(fmt.Sprintf("convertToByte []byte: %v '%v' %s", a, va, string(va)))
 		return []byte(va)
 	}
 	if va, ok := a.(storage.Key); ok {
-		log.Trace(fmt.Sprintf("convertToByte storage.Key: %v '%v' %s", a, va, string(va)))
 		return []byte(va)
 	} else if va, ok := a.(string); ok {
 		return []byte(va)
@@ -320,7 +318,7 @@ func convertToByte(a Val) []byte {
 	return nil
 }
 
-func (self *Node) storeBinToNetwork(swarmdb SwarmDB) []byte {
+func (self *Node) storeBinToNetwork(swarmdb *SwarmDB) []byte {
 	storedata := make([]byte, 66*64)
 
 	if self.Next || self.Root {
@@ -356,7 +354,7 @@ func (self *HashDB) Get(k []byte) ([]byte, bool, error) {
 	return value, b, nil
 }
 
-func (self *Node) Get(k []byte, swarmdb SwarmDB, columntype ColumnType) Val {
+func (self *Node) Get(k []byte, swarmdb *SwarmDB, columntype ColumnType) Val {
 	kh := keyhash(k)
 	bin := hashbin(kh, self.Level)
 	log.Trace(fmt.Sprintf("hashdb Node Get: %d '%v %v'", bin, k, kh))
@@ -377,7 +375,7 @@ func (self *Node) Get(k []byte, swarmdb SwarmDB, columntype ColumnType) Val {
 	if self.Bin[bin].Next {
 		return self.Bin[bin].Get(k, swarmdb, columntype)
 	} else {
-		if compareVal(k, self.Bin[bin].Key) == 0 {
+		if compareValType(k, self.Bin[bin].Key, columntype) == 0 {
 			return self.Bin[bin].Value
 		} else {
 			return nil
@@ -386,11 +384,9 @@ func (self *Node) Get(k []byte, swarmdb SwarmDB, columntype ColumnType) Val {
 	return nil
 }
 
-func (self *Node) load(swarmdb SwarmDB, columnType ColumnType) {
-	//log.Trace(fmt.Sprintf("hashdb Node Get load: %v %s", self.NodeHash, Bytes2Hex(self.NodeHash)))
+func (self *Node) load(swarmdb *SwarmDB, columnType ColumnType) {
 	buf, err := swarmdb.RetrieveDBChunk(self.NodeHash)
 	lf := int64(binary.LittleEndian.Uint64(buf[0:8]))
-	//log.Trace(fmt.Sprintf("hashdb Node Get load: %d '%v %v'", offset, buf, err))
 	if err != nil && err != io.EOF {
 		log.Trace(fmt.Sprintf("hashdb load Node Get err: %d  %v'", lf, err))
 		self.Loaded = false
@@ -399,12 +395,12 @@ func (self *Node) load(swarmdb SwarmDB, columnType ColumnType) {
 	}
 	emptybyte := make([]byte, 32)
 	if lf == 1 {
-		log.Trace(fmt.Sprintf("hashdb load Node Get bins: %d  %v'", lf, self.NodeHash))
 		for i := 0; i < 64; i++ {
 			binnode := NewNode(nil, nil)
 			binnode.NodeHash = make([]byte, 32)
 			binnode.NodeHash = buf[64+32*i : 64+32*(i+1)]
 			binnode.Loaded = false
+			binnode.Level = self.Level + 1
 			if binnode.NodeHash == nil || bytes.Compare(binnode.NodeHash, emptybyte) == 0 {
 				log.Trace(fmt.Sprintf("hashdb Node Get load nil: %d '%v'", i, binnode.NodeHash))
 				self.Bin[i] = nil
@@ -415,7 +411,6 @@ func (self *Node) load(swarmdb SwarmDB, columnType ColumnType) {
 		}
 		self.Next = true
 	} else {
-		log.Trace(fmt.Sprintf("hashdb load Node Get leaf: %d  %v'", lf, self.NodeHash))
 		var pos int
 
 		eb := make([]byte, 1)
@@ -431,7 +426,6 @@ func (self *Node) load(swarmdb SwarmDB, columnType ColumnType) {
 		if columnType == CT_INTEGER {
 			pos = 96 + 8
 		}
-		log.Trace(fmt.Sprintf("hashdb Node Get load index: %d pos = %d", bytes.Index(buf[96:96+32], eb), pos))
 		self.Key = buf[96:pos]
 		self.Value = buf[64:96]
 		self.Next = false
@@ -456,7 +450,7 @@ func (self *HashDB) Delete(k []byte) (bool, error) {
 	return b, nil
 }
 
-func (self *Node) Delete(k []byte, swarmdb SwarmDB, columntype ColumnType) (newnode *Node, found bool) {
+func (self *Node) Delete(k []byte, swarmdb *SwarmDB, columntype ColumnType) (newnode *Node, found bool) {
 	found = false
 	if self.Loaded == false{
 		self.load(swarmdb, columntype)
@@ -582,7 +576,7 @@ func (self *HashDB) FlushBuffer() (bool, error) {
 	return true, err
 }
 
-func (self *Node) flushBuffer(swarmdb SwarmDB) ([]byte, error) {
+func (self *Node) flushBuffer(swarmdb *SwarmDB) ([]byte, error) {
 	//buf := make([]byte, 4096)
 	for _, bin := range self.Bin {
 		//fmt.Println("bin = ", bin)
@@ -592,15 +586,17 @@ func (self *Node) flushBuffer(swarmdb SwarmDB) ([]byte, error) {
 				if err != nil {
 					return nil, err
 				}
-			} else if bin.Stored == false {
+		//	} else if bin.Stored == false && bin.Value != nil {
+			} else if bin.Stored == false  {
 				sdata := make([]byte, 4096)
 				copy(sdata[64:], convertToByte(bin.Value))
 				copy(sdata[96:], bin.Key)
+fmt.Println("flushBuffer: key = ", bin.Key, "value = ", bin.Value)
 				dhash, err := swarmdb.StoreDBChunk(sdata)
 				if err != nil {
 					return nil, err
 				}
-				self.NodeHash = dhash
+				bin.NodeHash = dhash
 				bin.Stored = true
 			}
 		}
@@ -608,7 +604,6 @@ func (self *Node) flushBuffer(swarmdb SwarmDB) ([]byte, error) {
 	self.NodeHash = self.storeBinToNetwork(swarmdb)
 	self.Stored = true
 	return self.NodeHash, nil
-
 }
 
 func (self *HashDB) Print() {
@@ -616,7 +611,7 @@ func (self *HashDB) Print() {
 	return
 }
 
-func (self *Node) print(swarmdb SwarmDB, columnType ColumnType) {
+func (self *Node) print(swarmdb *SwarmDB, columnType ColumnType) {
 	for binnum, bin := range self.Bin {
 		if bin != nil {
 			if bin.Loaded == false {
@@ -624,7 +619,7 @@ func (self *Node) print(swarmdb SwarmDB, columnType ColumnType) {
 				bin.Loaded = true
 			}
 			if bin.Next != true {
-				fmt.Printf("leaf key = %v Value = %x binnum = %d level = %d\n", bin.Key, bin.Value, binnum, bin.Level)
+				fmt.Printf("leaf key = %v Value = %x binnum = %d level = %d Value len = %d\n", bin.Key, bin.Value, binnum, bin.Level, len(bytes.Trim(convertToByte(bin.Value), "\x00")))
 			} else {
 				fmt.Printf("node key = %v Value = %x binnum = %d level = %d\n", bin.Key, bin.Value, binnum, bin.Level)
 				bin.print(swarmdb, columnType)
@@ -632,3 +627,245 @@ func (self *Node) print(swarmdb SwarmDB, columnType ColumnType) {
 		}
 	}
 }
+
+func (self *HashDB) Seek(k []byte)(*HashdbCursor, bool, error){
+	_, b, err := self.Get(k)
+	if err != nil{
+		return nil, b, err
+	}
+	cursor, err := newHashdbCursor(self)
+	if err != nil{
+		return nil, false, err
+	}
+	err = cursor.seek(k)
+	if err != nil{
+		return nil, false, err
+	}
+	return cursor, true, nil
+}
+
+func (self *HashDB) SeekFirst()(*HashdbCursor, error){
+	cursor, err := newHashdbCursor(self)
+	if err != nil{
+		return nil, err
+	}
+	err = cursor.seeknext()
+	if err != nil{
+		return nil, err
+	}
+	return cursor, nil
+}
+
+func (self *HashDB) SeekLast()(*HashdbCursor, error){
+	cursor, err := newHashdbCursor(self)
+	if err != nil{
+		return nil, err
+	}
+	err = cursor.seeklast()
+	if err != nil{
+		return nil, err
+	}
+	return cursor, nil
+}
+
+func newHashdbCursor(hashdb *HashDB)(*HashdbCursor, error){
+	cursor := &HashdbCursor{
+		hashdb : hashdb,
+		level : 0,
+		bin : newStack(),
+		node : hashdb.rootnode,
+	}
+	return cursor, nil
+}
+
+
+func (self *HashdbCursor) Next()([]byte, []byte, error){
+	pos := self.bin.GetLast()
+        k := convertToByte(self.node.Bin[pos].Key)
+        v := convertToByte(self.node.Bin[pos].Value)
+	err := self.seeknext()
+        if err != nil{
+                return k, v, err
+        }
+	if len(bytes.Trim(convertToByte(self.node.Bin[self.bin.GetLast()].Value), "\x00")) == 0{
+		err = self.seeknext()
+	}
+        return k, v, err
+}
+
+func (self *HashdbCursor) Prev()([]byte, []byte, error){
+	err := self.seekprev()
+        if err != nil{
+                return nil, nil, err
+        }
+	k := convertToByte(self.node.Key)
+	v := convertToByte(self.node.Value)
+	
+        return k, v, err
+}
+
+func (self *HashdbCursor) seek(k []byte)(error){
+	return nil
+}
+
+func (self *HashdbCursor) seeknext()(error){
+	l := self.level
+ 	if self.node.Loaded == false{
+		self.node.load(self.hashdb.swarmdb, self.hashdb.columnType)
+	}
+
+	lastpos:= self.bin.GetLast()
+	if lastpos < 0 {
+		lastpos = 0
+	}else{
+		lastpos = lastpos + 1
+	}
+	for i := lastpos; i < 64; i++{
+		//if self.node.Bin[i] != nil && self.node.Bin[i].Value != 0 && len(bytes.Trim(convertToByte(self.node.Bin[i].Value), "\x00")) > 0 {
+		if self.node.Bin[i] != nil && self.node.Bin[i].Value != 0 {
+			if self.node.Bin[i].Loaded == false{
+				self.node.Bin[i].load(self.hashdb.swarmdb, self.hashdb.columnType)
+			}
+			self.level = l + 1
+			if self.node.Bin[i].Next == true{
+				self.node = self.node.Bin[i]
+				self.bin.Pop()
+				self.bin.Push(i)
+				self.bin.size = self.bin.size + 1
+				if self.seeknext() == nil {
+					return nil
+				}
+			}else {
+				self.bin.Pop()
+				self.bin.Push(i)
+				return nil
+			}
+		}
+	}
+	if self.level == 0{
+		return io.EOF
+	}
+	self.level = self.level-1
+	bnum, err := self.bin.Pop()
+	if err != nil{
+		return io.EOF
+	}
+	if bnum < 63{
+		self.bin.Push(bnum + 1)
+	}else{
+		if self.bin.Size() == 0 {
+			return io.EOF
+		}
+		bnum, _ := self.bin.Pop()
+		self.bin.Push(bnum+1)
+	}
+	self.node = self.hashdb.rootnode
+	for i := 0; i < self.bin.Size(); i++{
+		if self.bin.GetPos(i) == -1 {
+			return fmt.Errorf("No Data")
+		}
+		if self.node.Bin[self.bin.GetPos(i)] == nil{
+		}else{
+			if self.node.Bin[self.bin.GetPos(i)].Loaded == false {
+				self.node.Bin[self.bin.GetPos(i)].load(self.hashdb.swarmdb, self.hashdb.columnType)
+			}
+			return nil
+		}
+	}
+	err = self.seeknext()
+	return err
+}
+
+func (self *HashdbCursor) seekprev() (err error){
+	l := self.level
+	node := self.node
+	for i := self.bin.GetLast() ; i >= 0; i--{
+		if node.Bin[i] != nil{
+			self.level = l+1
+			self.bin.Push(i)
+			self.node = node.Bin[i]
+			if node.Bin[i].Next == true{
+				err = self.seekprev()
+			}else{
+				return nil
+			}
+			return err
+		}
+	}
+// no next bin go upper level
+	if self.level == 0{
+		return fmt.Errorf("no data")
+	}
+        self.level = self.level-1
+        //bnum, _ := self.bin.Pop()
+        self.bin.Pop()
+	self.node = self.hashdb.rootnode
+        for i := 0; i < self.bin.Size(); i++{
+		self.node = self.node.Bin[self.bin.GetPos(i)]
+        }
+        err = self.seekprev()
+	return fmt.Errorf("no data")
+}
+
+func (self *HashdbCursor) seeklast()(error){
+	return nil
+}
+
+type stack_t struct{
+	data []int
+	size int
+}
+
+func newStack()(*stack_t){
+	s := stack_t{
+		data: make([]int, STACK_SIZE),
+		size: 0,
+	}
+	for i := 0; i < STACK_SIZE; i++{
+		s.data[i] = -1
+	}
+	return &s
+}
+
+func (self *stack_t) Push(add int) (error){
+	if self.size + 1  > STACK_SIZE{
+		return fmt.Errorf("over max stack")
+	}
+	self.data[self.size] = add
+	self.size = self.size+1
+	return nil
+}
+
+func (self *stack_t)Pop()(int, error){
+	if self.size == 0{
+		return -1, fmt.Errorf("nothing in stack")
+	}
+	pos := self.data[self.size-1]
+	self.data[self.size-1] = -1
+	self.size = self.size - 1
+	return pos, nil
+}
+
+func (self *stack_t) GetLast()(int){
+	if self.size <= 0{
+		return -1
+	}
+	return self.data[self.size-1]
+}
+
+func (self *stack_t) GetFirst()(int){
+	return self.data[0]
+}
+
+func (self *stack_t) GetPos(pos int)(int){
+	if self.size < pos{
+		return -1
+	}
+	return self.data[pos]
+}
+
+func (self *stack_t)Size()(int){
+	return self.size
+}
+
+
