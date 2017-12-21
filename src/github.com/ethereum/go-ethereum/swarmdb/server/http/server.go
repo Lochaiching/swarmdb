@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
+"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"github.com/rs/cors"
 	"net"
 	"net/http"
@@ -26,7 +28,13 @@ type HTTPServer struct {
 type SwarmDBReq struct {
 	protocol string
 	table    string
-	id       string
+	key      string
+}
+
+type DataReq struct {
+	RequestType string `json:"requesttype,omitempty"`
+	Table       string `json:"table,omitempty"`
+	Key         string `json:"key,omitempty"`
 }
 
 func parsePath(path string) (swdbReq SwarmDBReq, err error) {
@@ -36,7 +44,7 @@ func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 	} else {
 		swdbReq.protocol = pathParts[1]
 		swdbReq.table = pathParts[2]
-		swdbReq.id = pathParts[3]
+		swdbReq.key = pathParts[3]
 	}
 	return swdbReq, nil
 }
@@ -76,17 +84,22 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	swReq, _ := parsePath(r.URL.Path)
 	//Parse BodyContent
 
+	var dataReq DataReq
 	if swReq.protocol != "swarmdb:" {
 		//Invalid Protocol: Throw Error
 		fmt.Fprintf(w, "The protocol sent in: %s is invalid | %+v\n", swReq.protocol, swReq)
-		//w.Flush()
 	} else {
 		if r.Method == "GET" {
-			//This is really only the "GET" by ID method
+			fmt.Fprintf(w, "Processing [%s] protocol request with Body of () \n", swReq.protocol)
+			dataReq.RequestType = "Get"
+			dataReq.Table = swReq.table
+			dataReq.Key = swReq.key
+			retJson, _ := json.Marshal(dataReq)
 			//Redirect to SelectHandler after "building" GET RequestOption
+			s.swarmdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(retJson))
 		} else if r.Method == "POST" {
 			bodyContent := r.Body
-			fmt.Fprintf(w, "Received: %s\n", bodyContent)
+			fmt.Fprintf(w, "Processing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyContent)
 			//READ parsed body content to get the RequestType
 			//Retrieve body content
 			//Redirect to SelectHandler after "building" appropriate RequestOption
