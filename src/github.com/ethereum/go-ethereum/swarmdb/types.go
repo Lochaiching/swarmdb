@@ -1,18 +1,18 @@
 package swarmdb
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
 	"bufio"
-	"net"
+	"crypto/sha256"
 	"database/sql"
 	// "encoding/json"
+	"encoding/binary"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
 	"math"
 	"math/big"
+	"net"
 	"strconv"
 	"sync"
 	"time"
@@ -43,19 +43,19 @@ type RequestOption struct {
 
 type SWARMDBConnection struct {
 	connection net.Conn
-	keymanager keymanager.KeyManager 
+	keymanager keymanager.KeyManager
 	ownerID    string
-	reader        *bufio.Reader
-	writer *bufio.Writer
+	reader     *bufio.Reader
+	writer     *bufio.Writer
 }
 
 type SWARMDBTable struct {
-	dbc *SWARMDBConnection
-	tableName  string
+	dbc       *SWARMDBConnection
+	tableName string
 }
 
 type SWARMDBRow struct {
-	cells   map[string]string `json:"cells,omitempty"`
+	cells map[string]string `json:"cells,omitempty"`
 }
 
 type NetstatFile struct {
@@ -115,6 +115,7 @@ type SwarmDB struct {
 type QueryOption struct {
 	Type           string //"Select" or "Insert" or "Update" probably should be an enum
 	Table          string
+	TableOwner     string
 	RequestColumns []Column
 	Where          Where
 	Ascending      int //1 true, 0 false (descending)
