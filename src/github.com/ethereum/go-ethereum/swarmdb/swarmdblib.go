@@ -29,33 +29,32 @@ func NewGoClient() {
 	var ens ENSSimulation
 	tableName := "test"
 
+
+	tbl, err2 := dbc.Open(tableName)
+	if err2 != nil {
+	}
 	var columns []Column
 	columns = make([]Column, 1)
 	columns[0].ColumnName = "email"
 	columns[0].Primary = 1                      // What if this is inconsistent?
 	columns[0].IndexType = IT_BPLUSTREE //  What if this is inconsistent?
 	columns[0].ColumnType = CT_STRING
-	tbl, err := dbc.CreateTable(tableName, columns, ens)
-	if err != nil {
-		fmt.Printf("ERR CREATE TABLE %v\n", err)
+	tbl, err3 := dbc.CreateTable(tableName, columns, ens)
+	if err3 != nil {
+		fmt.Printf("ERR CREATE TABLE %v\n", err3)
 	} else {
-		fmt.Printf("SUCCESS CREATE TABLE \n", err)
-	}
-
-	tbl, err2 := dbc.Open(tableName)
-	if err2 != nil {
-		
+		// fmt.Printf("SUCCESS CREATE TABLE\n")
 	}
 	nrows := 5
 	for i := 0; i < nrows ; i++ {
 		row := NewRow()
 		row.Set("email", fmt.Sprintf("test%03d@wolk.com", i))
 		row.Set("age", fmt.Sprintf("%d", i))
-		resp, err := tbl.Put(row)
+		_, err := tbl.Put(row)
 		if ( err != nil ) {
 			fmt.Printf("ERROR PUT %s %v\n", err, row)
 		} else {
-			fmt.Printf("SUCCESS PUT %v %s\n", row, resp)
+			// fmt.Printf("SUCCESS PUT %v %s\n", row, resp)
 		}
 	}
 
@@ -65,7 +64,7 @@ func NewGoClient() {
 		if err != nil {
 			fmt.Printf("ERROR GET %s key: %v\n", err, row)
 		} else {
-			fmt.Printf("SUCCESS GET %v\n", row)
+			// fmt.Printf("SUCCESS GET %v\n", row)
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -104,7 +103,7 @@ func (dbc *SWARMDBConnection) Open(tableName string) (tbl *SWARMDBTable, err err
 	if err != nil {
 		fmt.Printf("Err %s\n", err)
 	} else {
-		fmt.Printf("Challenge: [%x] Sig:[%x]\n", challenge_bytes, sig)
+		// fmt.Printf("Challenge: [%x] Sig:[%x]\n", challenge_bytes, sig)
 	}
 	// response = "6b1c7b37285181ef74fb1946968c675c09f7967a3e69888ee37c42df14a043ac2413d19f96760143ee8e8d58e6b0bda4911f642912d2b81e1f2834814fcfdad700"
 	response := fmt.Sprintf("%x", sig)
@@ -112,21 +111,10 @@ func (dbc *SWARMDBConnection) Open(tableName string) (tbl *SWARMDBTable, err err
 	dbc.writer.WriteString(response+"\n")
 	dbc.writer.Flush()
 
-	// create request 
-	var r RequestOption
-	r.RequestType = "OpenTable"
-	r.Owner = dbc.ownerID
-	r.Table = tableName
-	
-	_, err2 := dbc.ProcessRequestResponseCommand(r)
-	if err2 != nil {
-		return tbl, err2
-	} else {
-		tbl = new(SWARMDBTable)
-		tbl.tableName = tableName
-		tbl.dbc = dbc
-		return tbl, nil
-	}
+	tbl = new(SWARMDBTable)
+	tbl.tableName = tableName
+	tbl.dbc = dbc
+	return tbl, nil
 }
 
 func (dbc *SWARMDBConnection) CreateTable(tableName string, columns []Column, ens ENSSimulation) (tbl *SWARMDBTable, err error) {
@@ -137,11 +125,16 @@ func (dbc *SWARMDBConnection) CreateTable(tableName string, columns []Column, en
 	r.Table = tableName
 	r.Columns = columns
 
-	// send to server
-	tbl = new(SWARMDBTable)
-	tbl.tableName = tableName
-	tbl.dbc = dbc
-	return tbl, nil
+	_, err = dbc.ProcessRequestResponseCommand(r)
+	if err != nil {
+		return tbl, err
+	} else {
+		// send to server
+		tbl = new(SWARMDBTable)
+		tbl.tableName = tableName
+		tbl.dbc = dbc
+		return tbl, nil
+	}
 }
 
 func (t *SWARMDBTable) Put(row *SWARMDBRow) (response string, err error) {
@@ -150,7 +143,7 @@ func (t *SWARMDBTable) Put(row *SWARMDBRow) (response string, err error) {
 	r.RequestType = "Put"
 	r.Owner = t.dbc.ownerID
 	r.Table = t.tableName
-	r.Row = row.cells 
+	r.Row = row.cells
 	
 	// send to server
 	return t.dbc.ProcessRequestResponseCommand(r)
@@ -187,12 +180,13 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(r RequestOption) (re
 		str := string(message) + "\n"
 		dbc.writer.WriteString(str)
 		dbc.writer.Flush()
-		
+		fmt.Printf("Req: %s", str)
 		response, err2 := dbc.reader.ReadString('\n')
 		if ( err2 != nil ) {
+			fmt.Printf("err: \n");
 			return response, err
 		}
-		fmt.Printf("received message response: %s\n", message)
+		fmt.Printf("Res: %s\n", response)
 		return response, nil
 	}
 }

@@ -52,21 +52,6 @@ func RandStringRunes(n int) string {
 	return string(b)
 }
 
-func (client *Client) read() {
-	for {
-		_, err := client.reader.ReadString('\n')
-		if err == io.EOF {
-			client.conn.Close()
-			break
-		}
-		if err != nil {
-			//
-		}
-		// not implemented yet
-		//resp := svr.swarmdb.SelectHandler(data)
-		//fmt.Fprintf(client.writer, resp)
-	}
-}
 
 // Handles incoming requests.
 func handleRequest(conn net.Conn, svr *TCPIPServer) {
@@ -136,11 +121,14 @@ func handleRequest(conn net.Conn, svr *TCPIPServer) {
 				resp, err := svr.swarmdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, str)
 				if err != nil {
 					s := fmt.Sprintf("ERR: %s\n", err)
+					fmt.Printf(s)
 					writer.WriteString(s)
 					writer.Flush()
 				} else {
 					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, resp)
-					fmt.Fprintf(client.writer, resp)
+					writer.WriteString(resp + "\n")
+					writer.Flush()
+// 					fmt.Fprintf(client.writer, resp + "\n")
 				}
 			} else {
 				writer.WriteString("OK\n")

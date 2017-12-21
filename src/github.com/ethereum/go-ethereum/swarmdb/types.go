@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"net"
 	"database/sql"
+	// "encoding/json"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
@@ -34,11 +35,10 @@ type RequestOption struct {
 	Bid         float64  `json:"bid,omitempty"`
 	Replication int      `json:"replication,omitempty"`
 	Key         string   `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
-	Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
-	Row         map[string]string `json:"row,omitempty"`
+	// Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
+	Row         map[string]string `json:"row,omitempty"` //value of val, usually the whole json record
 	Columns     []Column `json:"columns,omitempty"`
 	RawQuery       string  `json:"rawquery,omitempty"` //"Select name, age from contacts where email = 'blah'"
-	Query       QueryOption `json:"query,omitempty"`    //Parsed query
 }
 
 type SWARMDBConnection struct {

@@ -18,6 +18,7 @@ func NewSwarmDB() *SwarmDB {
 	dbchunkstore, err := NewDBChunkStore("/tmp/chunk.db")
 	if err != nil {
 		// TODO: PANIC
+		fmt.Printf("NO CHUNK STORE!\n")
 	} else {
 		sd.dbchunkstore = dbchunkstore
 	}
@@ -25,6 +26,7 @@ func NewSwarmDB() *SwarmDB {
 	ens, err := NewENSSimulation("/tmp/ens.db")
 	if err != nil {
 		// TODO: PANIC
+		fmt.Printf("NO ENS!\n")
 	} else {
 		sd.ens = ens
 	}
@@ -75,12 +77,12 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 }
 
 // parse sql and return rows in bulk (order by, group by, etc.)
-func (self SwarmDB) QuerySelect(request *RequestOption) (rows []Row, err error) {
+/*func (self SwarmDB) QuerySelect(request *RequestOption) (rows []Row, err error) {
 	//where to switch on bplus or hashdb?
 
 	for _, column := range request.Columns { //Scan can use any column or only primary column?
-		ascend := true
-		if request.Query.Ascending == 0 { //clunky .. maybe chg type of ascend
+ ascend := true
+ if request.Query.Ascending == 0 { //clunky .. maybe chg type of ascend
 			ascend = false
 		}
 		rows, err := self.Scan(request.Owner, request.Table, column.ColumnName, ascend)
@@ -136,7 +138,7 @@ func (self SwarmDB) Query(request *RequestOption) (rows []Row, err error) {
 	}
 	return rows, nil
 
-}
+}*/
 
 func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, ascending bool) (rows []Row, err error) {
 	tblKey := fmt.Sprintf("%s|%s", ownerID, tableName)
@@ -153,29 +155,30 @@ func (self SwarmDB) GetTable(ownerID string, tableName string) (tbl *Table, err 
 	if len(tableName) == 0 {
 		return tbl, fmt.Errorf("Invalid table [%s]", tableName)
 	}
-	self.NewTable(ownerID, tableName)
 	tblKey := fmt.Sprintf("%s|%s", ownerID, tableName)
 	if tbl, ok := self.tables[tblKey]; ok {
 		return tbl, nil
 	} else {
 		// this should throw an error if the table is not created
-		err := self.tables[tblKey].OpenTable()
+		tbl = self.NewTable(ownerID, tableName)
+		err = tbl.OpenTable()
 		if err != nil {
 			return tbl, err
 		}
-		return tbl, nil // fmt.Errorf("No such table")
+		return tbl, nil 
 	}
 }
 
 func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, err error) {
 	// var rerr *RequestFormatError
-	fmt.Printf("BRILLIANT: %s\n", data)
 	d, err := parseData(data)
 	if err != nil {
+		fmt.Printf("problem: %s\n", err)
 		return resp, err
 	}
 
 	tblKey := fmt.Sprintf("%s|%s", d.Owner, d.Table)
+
 
 	switch d.RequestType {
 	case "CreateTable":
@@ -191,14 +194,15 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 	case "Put":
 		tbl, err := self.GetTable(ownerID, d.Table)
 		if err != nil {
+			fmt.Printf("err1: %s\n", err)
 			return resp, err
 		} else {
-			err2 := tbl.Put(d.Value)
+			err2 := tbl.Put(d.Row)
 			if err2 != nil {
-				fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
-				return "ok", err2
+				fmt.Printf("err putting")
+				return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
 			} else {
-				return resp, nil
+				return "ok", nil
 			}
 		}
 	case "Get":
@@ -216,14 +220,14 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			return string(ret), nil
 		}
 	case "Insert":
-		if len(d.Key) == 0 || len(d.Value) == 0 {
+		if len(d.Key) == 0 {
 			return resp, fmt.Errorf("Missing Key/Value")
 		}
 		tbl, err := self.GetTable(ownerID, d.Table)
 		if err != nil {
 			return resp, err
 		}
-		err2 := tbl.Insert(d.Key, d.Value)
+		err2 := tbl.Insert(d.Row)
 		if err2 != nil {
 			return resp, err2
 		}
@@ -257,7 +261,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 				}
 				return ret
 		*/
-	case "GetQuery":
+/*	case "GetQuery":
 		fmt.Printf("\nReceived GETQUERY")
 
 		d.Query, err = ParseQuery(d.RawQuery)
@@ -290,7 +294,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			return resp, err
 		}
 		return string(retJson), nil
-
+*/
 	case "GetTableInfo":
 		tblcols, err := self.tables[tblKey].GetTableInfo()
 		if err != nil {
@@ -308,6 +312,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 func parseData(data string) (*RequestOption, error) {
 	udata := new(RequestOption)
 	if err := json.Unmarshal([]byte(data), udata); err != nil {
+		fmt.Printf("BIG PROBLEM: %v\n", err)
 		return nil, err
 	}
 	return udata, nil
@@ -363,10 +368,12 @@ func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
 
 func (swdb *SwarmDB) CreateTable(ownerID string, tableName string, columns []Column, bid float64, replication int, encrypted int) (tbl *Table, err error) {
 	columnsMax := 30
+	primaryColumnName := ""
 	if len(columns) > columnsMax {
 		fmt.Printf("\nMax Allowed Columns for a table is %s and you submit %s", columnsMax, len(columns))
 	}
 	buf := make([]byte, 4096)
+	tbl = swdb.NewTable(ownerID, tableName)
 	for i, columninfo := range columns {
 		copy(buf[2048+i*64:], columninfo.ColumnName)
 		b := make([]byte, 1)
@@ -377,7 +384,14 @@ func (swdb *SwarmDB) CreateTable(ownerID string, tableName string, columns []Col
 		copy(buf[2048+i*64+28:], b)
 
 		b[0] = byte(columninfo.IndexType)
-		copy(buf[2048+i*64+30:], b) // columninfo.IndexType)
+		copy(buf[2048+i*64+30:], b) // columninfo.IndexType
+		// fmt.Printf(" column: %v\n", columninfo)
+		if ( columninfo.Primary > 0 ) {
+			primaryColumnName = columninfo.ColumnName
+			// fmt.Printf("  [%s] ---> primary\n", primaryColumnName)
+		} else {
+			// fmt.Printf("  ---> NOT primary\n")
+		}
 	}
 	bidBytes := FloatToByte(bid)
 	copy(buf[4000:4008], bidBytes)
@@ -385,11 +399,24 @@ func (swdb *SwarmDB) CreateTable(ownerID string, tableName string, columns []Col
 	copy(buf[4016:4024], IntToByte(encrypted))
 	swarmhash, err := swdb.StoreDBChunk(buf)
 	if err != nil {
+		fmt.Printf(" problem storing chunk\n")
 		return
 	}
-	tbl = swdb.NewTable(ownerID, tableName)
+	tbl.primaryColumnName = primaryColumnName
+	tbl.tableName = tableName
+
+	fmt.Printf(" CreateTable primary: [%s] (%s) store root hash:  %s hash:[%x]\n", tbl.primaryColumnName, tbl.ownerID, tableName, swarmhash)
 	err = swdb.StoreRootHash([]byte(tableName), []byte(swarmhash))
-	return tbl, err
+	if err != nil {
+		return tbl, err
+	} else {
+		err = tbl.OpenTable()
+		if err != nil {
+			return tbl, err
+		} else {
+			return tbl, nil
+		}
+	}
 }
 
 func (t *Table) OpenTable() (err error) {
@@ -397,6 +424,7 @@ func (t *Table) OpenTable() (err error) {
 	t.columns = make(map[string]*ColumnInfo)
 	/// get Table RootHash to  retrieve the table descriptor
 	roothash, err := t.swarmdb.GetRootHash([]byte(t.tableName))
+	// fmt.Printf("opening table @ %s roothash %s\n", t.tableName, roothash)
 	if err != nil {
 		fmt.Printf("Error retrieving Index Root Hash for table [%s]: %s", t.tableName, err)
 		return err
@@ -407,13 +435,14 @@ func (t *Table) OpenTable() (err error) {
 		fmt.Printf("Error retrieving Index Root Hash: %s", err)
 		return err
 	}
-	columnbuf := columndata
 
+	columnbuf := columndata
 	primaryColumnType := ColumnType(CT_INTEGER)
 	for i := 2048; i < 4000; i = i + 64 {
 		buf := make([]byte, 64)
 		copy(buf, columnbuf[i:i+64])
 		if buf[0] == 0 {
+			// fmt.Printf("skip!\n")
 			break
 		}
 		columninfo := new(ColumnInfo)
@@ -428,7 +457,7 @@ func (t *Table) OpenTable() (err error) {
 		} else {
 			primaryColumnType = columninfo.columnType // TODO: what if primary is stored *after* the secondary?  would break this..
 		}
-		//fmt.Printf("\n columnName: %s (%d) roothash: %x (secondary: %v) columnType: %d", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary, columninfo.columnType)
+		// fmt.Printf("\n columnName: %s (%d) roothash: %x (secondary: %v) columnType: %d", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary, columninfo.columnType)
 		switch columninfo.indexType {
 		case IT_BPLUSTREE:
 			bplustree := NewBPlusTreeDB(t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType))
@@ -483,17 +512,23 @@ func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte,
 	return k, nil
 }
 
-func (t *Table) Put(value string) (err error) {
-	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Put|%s", value))
+func (t *Table) Put(jsonrecord map[string]string) (err error) {
+/*
 	var evalue interface{}
 	if err := json.Unmarshal([]byte(value), &evalue); err != nil {
 		//return err
 	}
 
-	// TODO: make this robust!
 	jsonrecord, ok := evalue.(map[string]interface{})
 	if !ok {
 		return fmt.Errorf("Invalid JSON record: %s", value)
+	}
+*/
+	value, err0 := json.Marshal(jsonrecord)
+	if err0 != nil {
+		return err0
+	} else {
+		t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Put|%s", value))
 	}
 	k := make([]byte, 32)
 
@@ -511,7 +546,7 @@ func (t *Table) Put(value string) (err error) {
 				fmt.Errorf("\nKademlia Put Failed")
 				// TODO
 			}
-			fmt.Printf(" - primary  %s | %x\n", c.columnName, k)
+			// fmt.Printf(" - primary  %s | %x\n", c.columnName, k)
 			_, err = t.columns[c.columnName].dbaccess.Put(k, khash)
 			//			t.columns[c.columnName].dbaccess.Print()
 		} else {
@@ -554,10 +589,11 @@ func (t *Table) Put(value string) (err error) {
 		}
 	*/
 
-	return err
+	return nil
 }
 
-func (t *Table) Insert(key string, value string) error {
+func (t *Table) Insert(value map[string]string) ( err error ) {
+/*
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Insert|%s", value))
 	primaryColumnName := t.primaryColumnName
 	/// store value to kdb and get a hash
@@ -577,6 +613,7 @@ func (t *Table) Insert(key string, value string) error {
 		return err
 	}
 	_, err = t.columns[primaryColumnName].dbaccess.Insert(k, []byte(khash))
+ */
 	return err
 }
 
@@ -592,29 +629,35 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 	return t.columns[columnName], nil
 }
 
-func (t *Table) Get(key string) ([]byte, error) {
+func (t *Table) Get(key string) (out []byte, err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Get|%s", key))
 	primaryColumnName := t.primaryColumnName
 	if t.columns[primaryColumnName] == nil {
+		fmt.Printf("NO COLUMN ERROR\n")
 		var cerr *NoColumnError
 		return nil, cerr
+	} else {
+		// fmt.Printf("READY\n")
 	}
-
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.bid, t.replication, t.encrypted)
 	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
-	//fmt.Printf(" k: %v\n", k)
+	// fmt.Printf(" GET k: %v\n", k)
 
-	v, _, err := t.columns[primaryColumnName].dbaccess.Get(k)
-	if err != nil {
+	v, _, err2 := t.columns[primaryColumnName].dbaccess.Get(k)
+	if err2 != nil {
 		fmt.Printf("\nError traversing tree: %s", err.Error())
-		return nil, err
+		return nil, err2
 	}
 	if len(v) > 0 {
 		// get value from kdb
-		kres, _, _ := t.swarmdb.kaddb.GetByKey(k)
+		kres, _, err3 := t.swarmdb.kaddb.GetByKey(k)
+		if err3 != nil {
+			return out, err3
+		}
 		fres := bytes.Trim(kres, "\x00")
-		return fres, err
+		return fres, nil
 	} else {
+		fmt.Printf(" MISSING RECORD %s\n", key)
 		return []byte(""), nil
 	}
 }
