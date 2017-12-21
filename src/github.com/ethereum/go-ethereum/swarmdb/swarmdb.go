@@ -75,12 +75,12 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 }
 
 // parse sql and return rows in bulk (order by, group by, etc.)
-func (self SwarmDB) QuerySelect(request *RequestOption) (rows []Row, err error) {
+func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 	//where to switch on bplus or hashdb?
 
-	for _, column := range request.Columns { //Scan can use any column or only primary column?
+	for _, column := range query.RequestColumns { //Scan can use any column or only primary column?
 		ascend := true
-		if request.Query.Ascending == 0 { //clunky .. maybe chg type of ascend
+		if query.Ascending == 0 { //clunky .. maybe chg type of ascend
 			ascend = false
 		}
 
@@ -91,7 +91,7 @@ func (self SwarmDB) QuerySelect(request *RequestOption) (rows []Row, err error) 
 		//use that to Scan
 		//filter the table
 
-		rows, err := self.Scan(request.Owner, request.Table, column.ColumnName, ascend)
+		rows, err := self.Scan(query.TableOwner, query.Table, column.ColumnName, ascend)
 		if err != nil {
 			return rows, err
 		}
@@ -104,25 +104,25 @@ func (self SwarmDB) QuerySelect(request *RequestOption) (rows []Row, err error) 
 
 }
 
-func (self SwarmDB) QueryInsert(request *RequestOption) (err error) {
+func (self SwarmDB) QueryInsert(query *QueryOption) (err error) {
 	// Alina: implementing with Put (=> Insert)
 	return nil
 }
-func (self SwarmDB) QueryUpdate(request *RequestOption) (err error) {
+func (self SwarmDB) QueryUpdate(query *QueryOption) (err error) {
 	// Alina: implementing with Put (=> Insert)
 	return nil
 }
 
-func (self SwarmDB) QueryDelete(request *RequestOption) (err error) {
+func (self SwarmDB) QueryDelete(query *QueryOption) (err error) {
 	// Alina: implementing with Delete
 	return nil
 }
 
-func (self SwarmDB) Query(request *RequestOption) (rows []Row, err error) {
+func (self SwarmDB) Query(query *QueryOption) (rows []Row, err error) {
 
-	switch request.Query.Type {
+	switch query.Type {
 	case "Select":
-		rows, err := self.QuerySelect(request)
+		rows, err := self.QuerySelect(query)
 		if err != nil {
 			return rows, err
 		}
@@ -131,15 +131,15 @@ func (self SwarmDB) Query(request *RequestOption) (rows []Row, err error) {
 		}
 		return rows, err
 	case "Insert":
-		err = self.QueryInsert(request)
+		err = self.QueryInsert(query)
 		return rows, err
 
 	case "Update":
-		err = self.QueryUpdate(request)
+		err = self.QueryUpdate(query)
 		return rows, err
 
 	case "Delete":
-		err = self.QueryDelete(request)
+		err = self.QueryDelete(query)
 		return rows, err
 	}
 	return rows, nil
@@ -271,13 +271,13 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 	case "GetQuery":
 		fmt.Printf("\nReceived GETQUERY")
 
-		d.Query, err = ParseQuery(d.RawQuery)
+		query, err := ParseQuery(d.RawQuery)
 		if err != nil {
 			return resp, err
 		}
-
+		query.TableOwner = d.Owner
 		if len(d.Table) == 0 {
-			d.Table = d.Query.Table //since table is specified in the query we do not have get it as a separate input
+			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
 
 		tblKey := self.GetTableKey(d.Owner, d.Table)
@@ -286,14 +286,14 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		for _, reqCol := range d.Query.RequestColumns {
+		for _, reqCol := range query.RequestColumns {
 			if _, ok := tblInfo[reqCol.ColumnName]; !ok {
 				return resp, fmt.Errorf("\nRequested col [%s] does not exist in table", reqCol.ColumnName)
 			}
 		}
-		//Also need to check d.Query.Where.Left (Right too?)
+		//Also need to check query.Where.Left (Right too?)
 
-		ret, err := self.Query(d)
+		ret, err := self.Query(&query)
 		if err != nil {
 			return resp, err
 		}
@@ -720,11 +720,9 @@ func (t *Table) updateTableInfo() (err error) {
 	return nil
 }
 
-
 func (swdb *SwarmDB) GetTableKey(owner string, tableName string) (key string) {
 	return (fmt.Sprintf("%s|%s", owner, tableName))
 }
-
 
 func (t *Table) GetTableInfo() (tblInfo map[string]Column, err error) {
 	//var columns []Column
