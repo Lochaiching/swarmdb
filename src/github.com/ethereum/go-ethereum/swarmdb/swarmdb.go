@@ -85,6 +85,14 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
  if request.Query.Ascending == 0 { //clunky .. maybe chg type of ascend
 			ascend = false
 		}
+
+		//no need to error check with table, already did that in SelectHandler
+		//tblKey := self.GetTableKey(request.Owner, request.Table)
+		//tblInfo, err := self.tables[tblKey].GetTableInfo()
+		//get primary key
+		//use that to Scan
+		//filter the table
+
 		rows, err := self.Scan(request.Owner, request.Table, column.ColumnName, ascend)
 		if err != nil {
 			return rows, err
@@ -141,7 +149,8 @@ func (self SwarmDB) Query(request *RequestOption) (rows []Row, err error) {
 }*/
 
 func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, ascending bool) (rows []Row, err error) {
-	tblKey := fmt.Sprintf("%s|%s", ownerID, tableName)
+
+	tblKey := self.GetTableKey(ownerID, tableName)
 	if tbl, ok := self.tables[tblKey]; ok {
 		rows, err = tbl.Scan(columnName, ascending)
 	} else {
@@ -152,10 +161,13 @@ func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, as
 }
 
 func (self SwarmDB) GetTable(ownerID string, tableName string) (tbl *Table, err error) {
+
 	if len(tableName) == 0 {
 		return tbl, fmt.Errorf("Invalid table [%s]", tableName)
 	}
-	tblKey := fmt.Sprintf("%s|%s", ownerID, tableName)
+	self.NewTable(ownerID, tableName)
+	tblKey := self.GetTableKey(ownerID, tableName)
+
 	if tbl, ok := self.tables[tblKey]; ok {
 		return tbl, nil
 	} else {
@@ -177,7 +189,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		return resp, err
 	}
 
-	tblKey := fmt.Sprintf("%s|%s", d.Owner, d.Table)
+	tblKey := self.GetTableKey(d.Owner, d.Table)
 
 
 	switch d.RequestType {
@@ -272,9 +284,10 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		if len(d.Table) == 0 {
 			d.Table = d.Query.Table //since table is specified in the query we do not have get it as a separate input
 		}
-		tblKey = fmt.Sprintf("%s|%s", d.Owner, d.Table)
 
+		tblKey := self.GetTableKey(d.Owner, d.Table)
 		tblInfo, err := self.tables[tblKey].GetTableInfo()
+
 		if err != nil {
 			return resp, err
 		}
@@ -361,7 +374,7 @@ func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
 	t.columns = make(map[string]*ColumnInfo)
 
 	// register the Table in SwarmDB
-	tblKey := fmt.Sprintf("%s|%s", ownerID, tableName)
+	tblKey := self.GetTableKey(ownerID, tableName)
 	self.tables[tblKey] = t
 	return t
 }
@@ -513,17 +526,6 @@ func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte,
 }
 
 func (t *Table) Put(jsonrecord map[string]string) (err error) {
-/*
-	var evalue interface{}
-	if err := json.Unmarshal([]byte(value), &evalue); err != nil {
-		//return err
-	}
-
-	jsonrecord, ok := evalue.(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("Invalid JSON record: %s", value)
-	}
-*/
 	value, err0 := json.Marshal(jsonrecord)
 	if err0 != nil {
 		return err0
@@ -750,6 +752,12 @@ func (t *Table) updateTableInfo() (err error) {
 	}
 	return nil
 }
+
+
+func (swdb *SwarmDB) GetTableKey(owner string, tableName string) (key string) {
+	return (fmt.Sprintf("%s|%s", owner, tableName))
+}
+
 
 func (t *Table) GetTableInfo() (tblInfo map[string]Column, err error) {
 	//var columns []Column
