@@ -139,7 +139,7 @@ type ColumnInfo struct {
 
 type Table struct {
 	buffered          bool
-	swarmdb           SwarmDB
+	swarmdb           *SwarmDB
 	tableName         string
 	ownerID           string
 	roothash          []byte
