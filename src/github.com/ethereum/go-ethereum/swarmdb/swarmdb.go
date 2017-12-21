@@ -77,20 +77,13 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 }
 
 // parse sql and return rows in bulk (order by, group by, etc.)
-/*func (self SwarmDB) QuerySelect(request *RequestOption) (rows []Row, err error) {
-	//where to switch on bplus or hashdb?
-
-	for _, column := range request.Columns { //Scan can use any column or only primary column?
- ascend := true
- if request.Query.Ascending == 0 { //clunky .. maybe chg type of ascend
-=======
+/*
 func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 	//where to switch on bplus or hashdb?
 
 	for _, column := range query.RequestColumns { //Scan can use any column or only primary column?
 		ascend := true
 		if query.Ascending == 0 { //clunky .. maybe chg type of ascend
->>>>>>> upstream/master
 			ascend = false
 		}
 
@@ -173,10 +166,10 @@ func (self SwarmDB) GetTable(ownerID string, tableName string) (tbl *Table, err 
 	if len(tableName) == 0 {
 		return tbl, fmt.Errorf("Invalid table [%s]", tableName)
 	}
-	self.NewTable(ownerID, tableName)
 	tblKey := self.GetTableKey(ownerID, tableName)
 
 	if tbl, ok := self.tables[tblKey]; ok {
+		fmt.Printf("primary column name GetTable: %s -> columns: %v\n", tbl.columns, tbl.primaryColumnName)
 		return tbl, nil
 	} else {
 		// this should throw an error if the table is not created
@@ -376,7 +369,7 @@ func (t *Table) Scan(columnName string, ascending bool) (rows []Row, err error) 
 // Table
 func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
 	t := new(Table)
-	t.swarmdb = self
+	t.swarmdb = &self
 	t.ownerID = ownerID
 	t.tableName = tableName
 	t.columns = make(map[string]*ColumnInfo)
@@ -445,7 +438,7 @@ func (t *Table) OpenTable() (err error) {
 	t.columns = make(map[string]*ColumnInfo)
 	/// get Table RootHash to  retrieve the table descriptor
 	roothash, err := t.swarmdb.GetRootHash([]byte(t.tableName))
-	// fmt.Printf("opening table @ %s roothash %s\n", t.tableName, roothash)
+	fmt.Printf("opening table @ %s roothash %s\n", t.tableName, roothash)
 	if err != nil {
 		fmt.Printf("Error retrieving Index Root Hash for table [%s]: %s", t.tableName, err)
 		return err
@@ -463,7 +456,7 @@ func (t *Table) OpenTable() (err error) {
 		buf := make([]byte, 64)
 		copy(buf, columnbuf[i:i+64])
 		if buf[0] == 0 {
-			// fmt.Printf("skip!\n")
+			fmt.Printf("skip!\n")
 			break
 		}
 		columninfo := new(ColumnInfo)
@@ -478,17 +471,17 @@ func (t *Table) OpenTable() (err error) {
 		} else {
 			primaryColumnType = columninfo.columnType // TODO: what if primary is stored *after* the secondary?  would break this..
 		}
-		// fmt.Printf("\n columnName: %s (%d) roothash: %x (secondary: %v) columnType: %d", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary, columninfo.columnType)
+		fmt.Printf("\n columnName: %s (%d) roothash: %x (secondary: %v) columnType: %d", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary, columninfo.columnType)
 		switch columninfo.indexType {
 		case IT_BPLUSTREE:
-			bplustree := NewBPlusTreeDB(t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType))
+			bplustree := NewBPlusTreeDB(*t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType))
 			// bplustree.Print()
 			columninfo.dbaccess = bplustree
 			if err != nil {
 				return err
 			}
 		case IT_HASHTREE:
-			columninfo.dbaccess, err = NewHashDB(columninfo.roothash, t.swarmdb, ColumnType(columninfo.columnType))
+			columninfo.dbaccess, err = NewHashDB(columninfo.roothash, *t.swarmdb, ColumnType(columninfo.columnType))
 			if err != nil {
 				return err
 			}
