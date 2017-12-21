@@ -1,17 +1,17 @@
 package swarmdb
 
 import (
-	"crypto/sha256"
-	"encoding/binary"
 	"bufio"
-	"net"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/binary"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
 	"math"
 	"math/big"
+	"net"
 	"strconv"
 	"sync"
 	"time"
@@ -27,35 +27,35 @@ type Column struct {
 
 //for passing request data from client to server
 type RequestOption struct {
-	RequestType string   `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	Owner       string   `json:"owner,omitempty"`
-	Table       string   `json:"table,omitempty"` //"contacts"
-	Encrypted   int      `json:"encrypted,omitempty"`
-	Bid         float64  `json:"bid,omitempty"`
-	Replication int      `json:"replication,omitempty"`
-	Key         string   `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
-	Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
+	RequestType string            `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
+	Owner       string            `json:"owner,omitempty"`
+	Table       string            `json:"table,omitempty"` //"contacts"
+	Encrypted   int               `json:"encrypted,omitempty"`
+	Bid         float64           `json:"bid,omitempty"`
+	Replication int               `json:"replication,omitempty"`
+	Key         string            `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
+	Value       string            `json:"value,omitempty"` //value of val, usually the whole json record
 	Row         map[string]string `json:"row,omitempty"`
-	Columns     []Column `json:"columns,omitempty"`
-	RawQuery       string  `json:"rawquery,omitempty"` //"Select name, age from contacts where email = 'blah'"
-	Query       QueryOption `json:"query,omitempty"`    //Parsed query
+	Columns     []Column          `json:"columns,omitempty"`
+	RawQuery    string            `json:"rawquery,omitempty"` //"Select name, age from contacts where email = 'blah'"
+	//Query       QueryOption `json:"query,omitempty"`    //Parsed query
 }
 
 type SWARMDBConnection struct {
 	connection net.Conn
-	keymanager keymanager.KeyManager 
+	keymanager keymanager.KeyManager
 	ownerID    string
-	reader        *bufio.Reader
-	writer *bufio.Writer
+	reader     *bufio.Reader
+	writer     *bufio.Writer
 }
 
 type SWARMDBTable struct {
-	dbc *SWARMDBConnection
-	tableName  string
+	dbc       *SWARMDBConnection
+	tableName string
 }
 
 type SWARMDBRow struct {
-	cells   map[string]string `json:"cells,omitempty"`
+	cells map[string]string `json:"cells,omitempty"`
 }
 
 type NetstatFile struct {
@@ -115,6 +115,7 @@ type SwarmDB struct {
 type QueryOption struct {
 	Type           string //"Select" or "Insert" or "Update" probably should be an enum
 	Table          string
+	TableOwner     string
 	RequestColumns []Column
 	Where          Where
 	Ascending      int //1 true, 0 false (descending)
