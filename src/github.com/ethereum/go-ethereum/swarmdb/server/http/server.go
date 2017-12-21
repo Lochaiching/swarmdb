@@ -32,12 +32,13 @@ type SwarmDBReq struct {
 func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 	pathParts := strings.Split(path, "/")
 	if len(pathParts) < 1 {
-		return swdbReq, err.Error("Invalid Path")
+		return swdbReq, fmt.Errorf("Invalid Path")
 	} else {
 		swdbReq.protocol = pathParts[0]
 		swdbReq.table = pathParts[1]
 		swdbReq.id = pathParts[2]
 	}
+	return swdbReq, nil
 }
 
 func StartHttpServer(config *ServerConfig) {
@@ -72,17 +73,20 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Println("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
-	swReq := parsePath(r.URL.Path)
-	bodyContent := r.Body
+	swReq, _ := parsePath(r.URL.Path)
 	//Parse BodyContent
 
 	if swReq.protocol != "swarmdb:" {
 		//Invalid Protocol: Throw Error
+		fmt.Fprintf(w, "The protocol sent in: %s is invalid\n", swReq.protocol)
+		//w.Flush()
 	} else {
 		if r.Method == "GET" {
 			//This is really only the "GET" by ID method
 			//Redirect to SelectHandler after "building" GET RequestOption
 		} else if r.Method == "POST" {
+			bodyContent := r.Body
+			fmt.Fprintf(w, "Received: %s\n", bodyContent)
 			//READ parsed body content to get the RequestType
 			//Retrieve body content
 			//Redirect to SelectHandler after "building" appropriate RequestOption
