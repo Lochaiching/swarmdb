@@ -31,12 +31,12 @@ type SwarmDBReq struct {
 
 func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 	pathParts := strings.Split(path, "/")
-	if len(pathParts) < 1 {
+	if len(pathParts) < 2 {
 		return swdbReq, fmt.Errorf("Invalid Path")
 	} else {
-		swdbReq.protocol = pathParts[0]
-		swdbReq.table = pathParts[1]
-		swdbReq.id = pathParts[2]
+		swdbReq.protocol = pathParts[1]
+		swdbReq.table = pathParts[2]
+		swdbReq.id = pathParts[3]
 	}
 	return swdbReq, nil
 }
@@ -78,7 +78,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if swReq.protocol != "swarmdb:" {
 		//Invalid Protocol: Throw Error
-		fmt.Fprintf(w, "The protocol sent in: %s is invalid\n", swReq.protocol)
+		fmt.Fprintf(w, "The protocol sent in: %s is invalid | %+v\n", swReq.protocol, swReq)
 		//w.Flush()
 	} else {
 		if r.Method == "GET" {
