@@ -78,22 +78,30 @@ func getSWARMDBTableSecondary(ownerId string, tableName string, primaryKeyName s
 		}
 
 		putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
-		tbl.Put(putstr)
+		var putjson map[string]string
+		_ = json.Unmarshal([]byte(putstr), putjson)
+		tbl.Put(putjson)
 
 		putstr = `{"email":"sourabh@wolk.com", "age": 45, "gender": "M", "weight": 210.5}`
-		tbl.Put(putstr)
+		_ = json.Unmarshal([]byte(putstr), putjson)
+		tbl.Put(putjson)
+
 		// Put
 		for i := 1; i < 10; i++ {
 			g := "F"
 			w := float64(i) + .314159
 			putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
 				TEST_PKEY_STRING, i*2, i%5+21, g, w)
-			tbl.Put(putstr)
+			_ = json.Unmarshal([]byte(putstr), putjson)
+			tbl.Put(putjson)
+
 			g = "M"
 			w = float64(i) + float64(0.414159)
 			putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
 				TEST_PKEY_STRING, i*2+1, i%5+21, g, w)
-			tbl.Put(putstr)
+			_ = json.Unmarshal([]byte(putstr), putjson)
+			tbl.Put(putjson)
+
 		}
 	} else {
 		tbl, _ := swarmdbObj.GetTable(ownerId, tableName)
@@ -120,7 +128,10 @@ func TestSetGetInt(t *testing.T) {
 		for _, k := range a {
 			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
 			fmt.Printf("%s\n", val)
-			r.Put(val)
+			var putjson map[string]string
+			_ = json.Unmarshal([]byte(val), putjson)
+			r.Put(putjson)
+
 		}
 
 		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
@@ -145,7 +156,10 @@ func TestSetGetInt(t *testing.T) {
 		r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 		for _, k := range a {
 			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
-			r2.Put(val)
+			var putjson map[string]string
+			_ = json.Unmarshal([]byte(val), putjson)
+			r2.Put(putjson)
+
 		}
 
 		s2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
@@ -167,22 +181,30 @@ func TestTable(t *testing.T) {
 	tbl := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 
 	putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
-	tbl.Put(putstr)
+	var putjson map[string]string
+	_ = json.Unmarshal([]byte(putstr), putjson)
+	tbl.Put(putjson)
 
 	putstr = `{"email":"sourabh@wolk.com", "age": 45, "gender": "M", "weight": 210.5}`
-	tbl.Put(putstr)
+	_ = json.Unmarshal([]byte(putstr), putjson)
+	tbl.Put(putjson)
+
 	// Put
 	for i := 1; i < 100; i++ {
 		g := "F"
 		w := float64(i) + .314159
 		putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
 			TEST_PKEY_STRING, i, i, g, w)
+		_ = json.Unmarshal([]byte(putstr), putjson)
+		tbl.Put(putjson)
 
 		g = "M"
 		w = float64(i) + float64(0.414159)
 		putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
 			TEST_PKEY_STRING, i, i, g, w)
-		tbl.Put(putstr)
+		_ = json.Unmarshal([]byte(putstr), putjson)
+		tbl.Put(putjson)
+
 	}
 
 	tbl2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
@@ -283,9 +305,11 @@ func aTestPutInteger(t *testing.T) {
 	// write 20 values into B-tree (only kept in memory)
 	r.StartBuffer()
 	vals := rand.Perm(20)
+	var putjson map[string]string
 	for _, i := range vals {
 		v := fmt.Sprintf(`{"%s":"%d", "email":"test%03d@wolk.com"}`, TEST_PKEY_INT, i, i)
-		r.Put(v)
+		_ = json.Unmarshal([]byte(v), putjson)
+		r.Put(putjson)
 	}
 	r.FlushBuffer()
 
@@ -312,10 +336,13 @@ func aTestPutString(t *testing.T) {
 
 	r.StartBuffer()
 	vals := rand.Perm(20)
+	var putjson map[string]string
 	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
 		v := fmt.Sprintf(`{"%s":"t%06x@wolk.com", "val":"valueof%06x"}`, TEST_PKEY_STRING, i, i)
-		r.Put(v)
+		_ = json.Unmarshal([]byte(v), putjson)
+		r.Put(putjson)
+
 	}
 	// this writes B+tree to SWARM
 	r.FlushBuffer()
@@ -338,11 +365,14 @@ func aTestPutFloat(t *testing.T) {
 
 	r.StartBuffer()
 	vals := rand.Perm(20)
+	var putjson map[string]string
 	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
 		f := float64(i) + .3141519
 		v := fmt.Sprintf(`{"%s":"%f", "val":"valueof%06x"}`, TEST_PKEY_FLOAT, f, i)
-		r.Put(v)
+		_ = json.Unmarshal([]byte(v), putjson)
+		r.Put(putjson)
+
 	}
 	// this writes B+tree to SWARM
 	r.FlushBuffer()
@@ -368,7 +398,9 @@ func aTestSetGetString(t *testing.T) {
 	// put
 	key := "88"
 	val := fmt.Sprintf(`{"%s":"%s", "val":"valueof%06x"}`, TEST_PKEY_STRING, key, key)
-	r.Put(val)
+	var putjson map[string]string
+	_ = json.Unmarshal([]byte(val), putjson)
+	r.Put(putjson)
 
 	// check put with get
 	g, err := r.Get(key)
@@ -381,7 +413,8 @@ func aTestSetGetString(t *testing.T) {
 	// r2 put
 	r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, false)
 	val2 := fmt.Sprintf(`{"%s":"%s", "val":"newvalueof%06x"}`, TEST_PKEY_STRING, key, key)
-	r2.Put(val2)
+	_ = json.Unmarshal([]byte(val2), putjson)
+	r.Put(putjson)
 
 	// check put with get
 	g2, err := r2.Get(key)
@@ -394,7 +427,8 @@ func aTestSetGetString(t *testing.T) {
 	// r3 put
 	r3 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, false)
 	val3 := fmt.Sprintf(`{"%s":"%s", "val":"valueof%06x"}`, TEST_PKEY_STRING, key, key)
-	r3.Put(val3)
+	_ = json.Unmarshal([]byte(val3), putjson)
+	r.Put(putjson)
 
 	// check put with get
 	g3, err := r3.Get(key)
@@ -419,7 +453,8 @@ func aTestDelete0(t *testing.T) {
 		t.Fatal(ok)
 	}
 
-	r.Put(val0)
+	var putjson map[string]string
+
 	if ok, _ := r.Delete(key1); ok {
 		t.Fatal(ok)
 	}
@@ -432,8 +467,11 @@ func aTestDelete0(t *testing.T) {
 		t.Fatal(ok)
 	}
 
-	r.Put(val0)
-	r.Put(val1)
+	_ = json.Unmarshal([]byte(val0), putjson)
+	r.Put(putjson)
+	_ = json.Unmarshal([]byte(val1), putjson)
+	r.Put(putjson)
+
 	if ok, _ := r.Delete(key1); !ok {
 		t.Fatal(ok)
 	}
@@ -450,8 +488,11 @@ func aTestDelete0(t *testing.T) {
 		t.Fatal(ok)
 	}
 
-	r.Put(val0)
-	r.Put(val1)
+	_ = json.Unmarshal([]byte(val0), putjson)
+	r.Put(putjson)
+	_ = json.Unmarshal([]byte(val1), putjson)
+	r.Put(putjson)
+
 	if ok, _ := r.Delete(key0); !ok {
 		t.Fatal(ok)
 	}
@@ -480,7 +521,10 @@ func aTestDelete1(t *testing.T) {
 		}
 		for _, k := range a {
 			v := fmt.Sprintf(`{"%s":"%d","val":"value%d"}`, TEST_PKEY_INT, k, k)
-			r.Put(v)
+			var putjson map[string]string
+			_ = json.Unmarshal([]byte(v), putjson)
+			r.Put(putjson)
+
 		}
 
 		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
@@ -506,10 +550,13 @@ func aTestDelete2(t *testing.T) {
 		for i := range a {
 			a[i] = (rng.Next() ^ x) << 1
 		}
+		var putjson map[string]string
 		for _, k := range a {
 
 			v := fmt.Sprintf(`{"%s":"%d","val":"value%d"`, TEST_PKEY_INT, k, k)
-			r.Put(v)
+			_ = json.Unmarshal([]byte(v), putjson)
+			r.Put(putjson)
+
 		}
 		for i, k := range a {
 			key := fmt.Sprintf("%d", k)
@@ -599,7 +646,8 @@ func TestPut(t *testing.T) {
 	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOption.Table = "contacts"
 	testReqOption.Key = "rodneytest1@wolk.com"
-	testReqOption.Value = `{"name": "Rodney", "age": 37, "email": "rodneytest1@wolk.com"}`
+	row := `{"name": "Rodney", "age": 37, "email": "rodneytest1@wolk.com"}`
+	_ = json.Unmarshal([]byte(row), testReqOption.Row)
 
 	marshalTestReqOption, err := json.Marshal(testReqOption)
 	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
@@ -641,7 +689,8 @@ func TestPutGet(t *testing.T) {
 	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOption.Table = "contacts"
 	testReqOption.Key = "alinatest@wolk.com"
-	testReqOption.Value = `{"name": "ZAlina", "age": 35, "email": "alinatest@wolk.com"}`
+	row := `{"name": "ZAlina", "age": 35, "email": "alinatest@wolk.com"}`
+	_ = json.Unmarshal([]byte(row), testReqOption.Row)
 
 	marshalTestReqOption, err := json.Marshal(testReqOption)
 	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
