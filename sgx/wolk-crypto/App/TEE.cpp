@@ -1,4 +1,8 @@
 #include "TEE.h"
+#include <openssl/ecdsa.h>
+
+#include<string>
+using namespace std;
 
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
@@ -93,6 +97,43 @@ int ecc256CreateKeyPair(char* privateKey, char* publicKeyGX, char* publicKeyGY) 
     	sprintf(&publicKeyGY[k*2], "%02X",p_public.gy[k]);
     }
     //printf("\nreturn: %s\n", publicKeyGY);
+
+
+    uint8_t sig[64];
+    string hex = "3bc843a917d6c19c487c1d0c660cdd61389ce2a7651ee3171bcc212ffddca164193f1f2e06f7ed8f9fbf2254232d99848a8102b552032b68a5507b4d81492f0f1b";
+    int len = hex.length();
+    //uint8_t r[SGX_ECP256_KEY_SIZE];
+    int j=0;
+    for(int i=0; i< len; i+=2)
+    {
+        string byte = hex.substr(i,2);
+        sig[j] = (uint8_t) (int)strtol(byte.c_str(), NULL, 16);
+        j=j+1;
+    }
+
+
+    // int8_t sig[64]= "\0";
+
+        ECDSA_SIG* ec_sig = ECDSA_SIG_new();
+
+        if (NULL == BN_bin2bn(sig, 32, (ec_sig->r))) {
+          //dumpOpenSslErrors();
+        	printf("FFFFFFFFFFFFFFFFFFAIL :%s\n");
+         }
+
+      //  printf("post r  :%s\n", BN_bn2hex(ec_sig->r));
+        printf("post r  :%d%d%d\n", ec_sig->r);
+		 //BN_bn2hex(ec_sig->r);
+//        printf("post r  :%s\n", h1);
+/*
+        if (NULL == BN_bin2bn(sig + 32, 32, (ec_sig->s))) {
+          //dumpOpenSslErrors();
+         }
+        printf("post s  :%s\n", BN_bn2hex(ec_sig->s));
+*/
+
+
+
 
 	return 0;
 }

@@ -21,6 +21,7 @@ int ecdsaSign(char* privateKey);
 
 void ocall_print(const char* str);
 void ocall_uint8_t_print(uint8_t *arr, size_t len);
+void ocall_uint32_t_print(uint32_t *arr, size_t len);
 
 }  
 #endif  
