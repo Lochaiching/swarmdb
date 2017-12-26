@@ -34,6 +34,8 @@ Installing the Docker package:
 
 Download the docker image:
 * $ docker pull wolkinc/wolkmain
+
+Deploy the docker image:
 * $ docker run --name=wolkmain --rm -it -p 8500:8500 -p 5001:5000 -p 30303:30303 -p 30399:30399 -p 30301:30301/udp -p 30303:30303/udp -p 30399:30399/udp wolkinc/wolkmain 
 
 # Get SWARMDB Docker
