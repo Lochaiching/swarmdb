@@ -3,10 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
-"github.com/ethereum/go-ethereum/swarmdb/keymanager"
+	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"github.com/rs/cors"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"strings"
@@ -20,8 +20,8 @@ type ServerConfig struct {
 }
 
 type HTTPServer struct {
-	swarmdb  *swarmdb.SwarmDB
-	listener net.Listener
+	swarmdb    *swarmdb.SwarmDB
+	listener   net.Listener
 	keymanager keymanager.KeyManager
 	//lock       sync.Mutex
 }
@@ -33,10 +33,11 @@ type SwarmDBReq struct {
 }
 
 type DataReq struct {
-	RequestType string `json:"requesttype,omitempty"`
-	Table       string `json:"table,omitempty"`
-	Key         string `json:"key,omitempty"`
-	Columns     []interface{} `json:"columns,omitempty"`
+	RequestType string            `json:"requesttype,omitempty"`
+	Table       string            `json:"table,omitempty"`
+	Key         string            `json:"key,omitempty"`
+	Columns     []interface{}     `json:"columns,omitempty"`
+	Row         map[string]string `json:"row,omitempty"`
 }
 
 func parsePath(path string) (swdbReq SwarmDBReq, err error) {
@@ -45,7 +46,7 @@ func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 		return swdbReq, fmt.Errorf("Invalid Path")
 	} else {
 		swdbReq.protocol = pathParts[1]
-		if ( len(pathParts) > 2 ) {
+		if len(pathParts) > 2 {
 			swdbReq.table = pathParts[2]
 		}
 		if len(pathParts) == 4 {
@@ -91,12 +92,12 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//Parse BodyContent
 
 	var dataReq DataReq
+	var reqJson []byte
 	if swReq.protocol != "swarmdb:" {
 		//Invalid Protocol: Throw Error
 		fmt.Fprintf(w, "The protocol sent in: %s is invalid | %+v\n", swReq.protocol, swReq)
 	} else {
-		var reqJson []byte 
-		var err error 
+		var err error
 		if r.Method == "GET" {
 			fmt.Fprintf(w, "Processing [%s] protocol request with Body of () \n", swReq.protocol)
 			dataReq.RequestType = "Get"
@@ -106,9 +107,10 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 			}
 		} else if r.Method == "POST" {
-			bodyContent,_ := ioutil.ReadAll(r.Body)
-			reqJson = bodyContent 
-			/*
+			bodyContent, _ := ioutil.ReadAll(r.Body)
+			reqJson = bodyContent
+			fmt.Printf("\nBODY Json: %s", reqJson)
+
 			var bodyMapInt interface{}
 			json.Unmarshal(bodyContent, &bodyMapInt)
 			fmt.Println("\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
@@ -116,23 +118,38 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			bodyMap := bodyMapInt.(map[string]interface{})
 			if reqType, ok := bodyMap["requesttype"]; ok {
 				dataReq.RequestType = reqType.(string)
-				dataReq.Table = swReq.table
-				if columns, ok := bodyMap["columns"]; ok {
-					columnsInt := columns.([]interface{})
-					dataReq.Columns = columnsInt
-					//json.Unmarshal(columnsInt, &dataReq.Columns) // = columns.([]interface{})
-				}
-				reqJson, err = json.Marshal(dataReq)
-				if err != nil {
+				if dataReq.RequestType == "CreateTable" {
+				} else {
+					dataReq.Table = swReq.table
+					if row, ok := bodyMap["row"]; ok {
+						dataReq.Row = make(map[string]string)
+						for k, v := range row.(map[string]interface{}) {
+							switch v.(type) {
+							case float64:
+								dataReq.Row[k] = fmt.Sprintf("%f", v)
+
+							default:
+								dataReq.Row[k] = v.(string)
+							}
+							//fmt.Printf("\nRow: %s",dataReq.Row[k])
+						}
+					}
+					reqJson, err = json.Marshal(dataReq)
+					if err != nil {
+					}
 				}
 			} else {
-				fmt.Fprintf(w, "\nPOST operations require a requestMethod, (%+v), (%s)", bodyMap, bodyMap["requesttype"]);
+				fmt.Fprintf(w, "\nPOST operations require a requestMethod, (%+v), (%s)", bodyMap, bodyMap["requesttype"])
 			}
-			*/
 		}
 		//Redirect to SelectHandler after "building" GET RequestOption
-		fmt.Printf("Sending this JSON to SelectHandler (%s) and Owner=[%s]", reqJson, keymanager.WOLKSWARMDB_ADDRESS)
-		s.swarmdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(reqJson))
+		//fmt.Printf("Sending this JSON to SelectHandler (%s) and Owner=[%s]", reqJson, keymanager.WOLKSWARMDB_ADDRESS)
+		response, errResp := s.swarmdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(reqJson))
+		if errResp != nil {
+			fmt.Printf("\nResponse resulted in Error: %s", errResp)
+		} else {
+			fmt.Fprintf(w, response)
+		}
 	}
 }
 
