@@ -224,7 +224,7 @@ func TestTableSecondaryInt(t *testing.T) {
 	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
-	rows, err := swarmdb.Scan(TEST_OWNER, TEST_TABLE, "age", true)
+	rows, err := swarmdb.Scan(TEST_OWNER, TEST_TABLE, "age", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
