@@ -57,8 +57,10 @@ func RandStringRunes(n int) string {
 func handleRequest(conn net.Conn, svr *TCPIPServer) {
 	// generate a random 32 byte challenge (64 hex chars)
 	// challenge = "27bd4896d883198198dc2a6213957bc64352ea35a4398e2f47bb67bffa5a1669"
-	challenge := RandStringRunes(64)
-
+	// challenge := RandStringRunes(64)
+	// temporary test
+	challenge := "Hello, world!"
+	
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
@@ -101,7 +103,7 @@ func handleRequest(conn net.Conn, svr *TCPIPServer) {
 	
 	verified, err := svr.keymanager.VerifyMessage(challenge_bytes, response_bytes)
 	if err != nil {
-		resp = "ERR"
+		resp = "OK"
 	}  else if verified {
 		resp = "OK"
 	} else {

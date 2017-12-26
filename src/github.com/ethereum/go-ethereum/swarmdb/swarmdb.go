@@ -327,7 +327,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 func parseData(data string) (*RequestOption, error) {
 	udata := new(RequestOption)
 	if err := json.Unmarshal([]byte(data), udata); err != nil {
-		fmt.Printf("BIG PROBLEM: %v\n", err)
+		fmt.Printf("BIG PROBLEM parsing [%s] | Error: %v\n", data, err)
 		return nil, err
 	}
 	return udata, nil

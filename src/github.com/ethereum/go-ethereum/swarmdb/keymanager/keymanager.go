@@ -77,12 +77,29 @@ func (self *KeyManager) GetPublicKey() []byte {
 }
 
 func (self *KeyManager) SignMessage(msg_hash []byte) (sig []byte, err error) {
-	sig, err = self.keystore.SignHash(self.OwnerAccount, msg_hash)
+	// TODO: hard coded secret key right now to test Web3-based authentication, use keystore.SignHash instead!!!
+	secretKeyRaw := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+	secretKey, err := crypto.HexToECDSA(secretKeyRaw) 
+	if err != nil {
+		return sig, fmt.Errorf("Failure to get secretKey");
+	} else {
+		address := crypto.PubkeyToAddress(secretKey.PublicKey) 
+		fmt.Printf("Key: %x Address: %x\n", secretKey, address)
+	}
+	sig, err2 := crypto.Sign(msg_hash, secretKey)
+	if err2 != nil {
+		return sig, err2
+	} 
+	
+	/*
+	 sig, err = self.keystore.SignHash(self.OwnerAccount, msg_hash)
 	if err != nil {
 		return sig, err
 	}
+	 */
 	return sig, nil
 }
+
 
 func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (verified bool, err error) {
 	pubKey, err := crypto.SigToPub(msg_hash, sig)

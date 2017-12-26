@@ -30,6 +30,7 @@ func TestWeb3SignMatch(t *testing.T) {
 	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(data), data)
 	msg_hash := crypto.Keccak256([]byte(msg))
 	correct_msg_hash := "b453bd4e271eed985cbab8231da609c4ce0a9cf1f763b6c1594e76315510e0f1"
+
 	out := fmt.Sprintf("%x", msg_hash)
 	if strings.Compare(out, correct_msg_hash) == 0 {
 		fmt.Printf("CORRECT")
@@ -43,7 +44,8 @@ func TestWeb3SignMatch(t *testing.T) {
 	if err != nil {
 		t.Fatal("Failure to get secretKey");
 	} else {
-		fmt.Printf("Key: %x\n", secretKey)
+		address := crypto.PubkeyToAddress(secretKey.PublicKey) 
+		fmt.Printf("Key: %x Address: %x\n", secretKey, address)
 	}
 	correct_signature := "3bc843a917d6c19c487c1d0c660cdd61389ce2a7651ee3171bcc212ffddca164193f1f2e06f7ed8f9fbf2254232d99848a8102b552032b68a5507b4d81492f0f1b"
 
