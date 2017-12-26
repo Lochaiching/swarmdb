@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"os" 
 	"strings"
-	"encoding/hex"
+	"github.com/ethereum/go-ethereum/crypto"
+	// "encoding/hex"
 	// "encoding/gob"
 	"encoding/json"
 	"time"
@@ -94,11 +95,17 @@ func NewSWARMDBConnection() (dbc SWARMDBConnection, err error) {
 	return dbc, nil
 }
 	
+
 func (dbc *SWARMDBConnection) Open(tableName string) (tbl *SWARMDBTable, err error) {
+	// read a random length string from the server
 	challenge, _ := dbc.reader.ReadString('\n')
 	challenge = strings.Trim(challenge, "\n")
-	// challenge = "27bd4896d883198198dc2a6213957bc64352ea35a4398e2f47bb67bffa5a1669"
-	challenge_bytes, _ := hex.DecodeString(challenge)
+	// challenge_bytes, _ := hex.DecodeString(challenge)
+
+	// sign the message Web3 style
+	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(challenge), challenge)
+	challenge_bytes := crypto.Keccak256([]byte(msg))
+
 	sig, err := dbc.keymanager.SignMessage(challenge_bytes)
 	if err != nil {
 		fmt.Printf("Err %s\n", err)
