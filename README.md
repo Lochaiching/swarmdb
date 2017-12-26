@@ -33,7 +33,8 @@ Installing the Docker package:
 * $ sudo yum -y install docker-ce
 
 Download the docker image:
-* $ docker pull wolkinc/wolkmain:12182017
+* $ docker pull wolkinc/wolkmain
+* $ docker run --name=wolkmain --rm -it -p 8500:8500 -p 5001:5000 -p 30303:30303 -p 30399:30399 -p 30301:30301/udp -p 30303:30303/udp -p 30399:30399/udp wolkinc/wolkmain 
 
 # Get SWARMDB Docker
 
