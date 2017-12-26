@@ -77,32 +77,33 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 }
 
 // parse sql and return rows in bulk (order by, group by, etc.)
-/*
 func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 	//where to switch on bplus or hashdb?
 
+
+		
 	for _, column := range query.RequestColumns { //Scan can use any column or only primary column?
-		ascend := true
-		if query.Ascending == 0 { //clunky .. maybe chg type of ascend
-			ascend = false
-		}
 
 		//no need to error check with table, already did that in SelectHandler
 		//tblKey := self.GetTableKey(request.Owner, request.Table)
 		//tblInfo, err := self.tables[tblKey].GetTableInfo()
-		//get primary key
-		//use that to Scan
-		//filter the table
-
-		rows, err := self.Scan(query.TableOwner, query.Table, column.ColumnName, ascend)
+		colRows, err := self.Scan(query.TableOwner, query.Table, column.ColumnName, query.Ascending)
 		if err != nil {
 			return rows, err
+		}
+		for _, colRow := range colRows {
+			//check for duplicates here...before appending
+			rows = append(rows, colRow)
 		}
 
 	}
 
-	// parse query to get the tableName, OpenTable, run Scan operation and filter out rows
-	// Alina: implementing with Scan
+
+	//filter for Where/Groupby
+	
+	//Put it in order for Ascending
+
+
 	return rows, nil
 
 }
@@ -147,9 +148,9 @@ func (self SwarmDB) Query(query *QueryOption) (rows []Row, err error) {
 	}
 	return rows, nil
 
-}*/
+}
 
-func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, ascending bool) (rows []Row, err error) {
+func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, ascending int) (rows []Row, err error) {
 
 	tblKey := self.GetTableKey(ownerID, tableName)
 	if tbl, ok := self.tables[tblKey]; ok {
@@ -274,7 +275,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 				}
 				return ret
 		*/
-/*	case "GetQuery":
+	case "GetQuery":
 		fmt.Printf("\nReceived GETQUERY")
 
 		query, err := ParseQuery(d.RawQuery)
@@ -308,7 +309,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			return resp, err
 		}
 		return string(retJson), nil
-*/
+
 	case "GetTableInfo":
 		tblcols, err := self.tables[tblKey].GetTableInfo()
 		if err != nil {
@@ -332,7 +333,7 @@ func parseData(data string) (*RequestOption, error) {
 	return udata, nil
 }
 
-func (t *Table) Scan(columnName string, ascending bool) (rows []Row, err error) {
+func (t *Table) Scan(columnName string, ascending int) (rows []Row, err error) {
 	column, err := t.getColumn(columnName)
 	if err != nil {
 		fmt.Printf(" err %v \n", err)
@@ -340,7 +341,7 @@ func (t *Table) Scan(columnName string, ascending bool) (rows []Row, err error) 
 	}
 	c := column.dbaccess.(OrderedDatabase)
 	// TODO: Error checking
-	if ascending {
+	if ascending == 1 {
 		res, err := c.SeekFirst()
 		if err != nil {
 		} else {
