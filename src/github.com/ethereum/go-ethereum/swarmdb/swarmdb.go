@@ -80,8 +80,6 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 	//where to switch on bplus or hashdb?
 
-
-		
 	for _, column := range query.RequestColumns { //Scan can use any column or only primary column?
 
 		//no need to error check with table, already did that in SelectHandler
@@ -92,17 +90,22 @@ func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 			return rows, err
 		}
 		for _, colRow := range colRows {
-			//check for duplicates here...before appending
-			rows = append(rows, colRow)
+			dupe := false
+			for _, row := range rows {
+				if checkDuplicateRow(row, colRow) {
+					dupe = true
+					break
+				}
+			}
+			if dupe == false {
+				rows = append(rows, colRow)
+			}
 		}
-
 	}
 
-
 	//filter for Where/Groupby
-	
-	//Put it in order for Ascending
 
+	//Put it in order for Ascending
 
 	return rows, nil
 
@@ -179,7 +182,7 @@ func (self SwarmDB) GetTable(ownerID string, tableName string) (tbl *Table, err 
 		if err != nil {
 			return tbl, err
 		}
-		return tbl, nil 
+		return tbl, nil
 	}
 }
 
@@ -192,7 +195,6 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 	}
 
 	tblKey := self.GetTableKey(d.Owner, d.Table)
-
 
 	switch d.RequestType {
 	case "CreateTable":
@@ -289,16 +291,32 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 
 		tblKey := self.GetTableKey(d.Owner, d.Table)
 		tblInfo, err := self.tables[tblKey].GetTableInfo()
-
 		if err != nil {
 			return resp, err
 		}
+		tbl, err := self.GetTable(ownerID, d.Table)
+		if err != nil {
+			return resp, err
+		}
+
 		for _, reqCol := range query.RequestColumns {
 			if _, ok := tblInfo[reqCol.ColumnName]; !ok {
 				return resp, fmt.Errorf("\nRequested col [%s] does not exist in table", reqCol.ColumnName)
 			}
 		}
-		//Also need to check query.Where.Left (Right too?)
+
+		if len(query.Where.Left) > 0 {
+			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
+				ret, err := tbl.Get(query.Where.Right)
+				if err != nil {
+					return resp, err
+				}
+				return string(ret), nil //needs to filter by RequestCols first before returning
+			}
+			if _, ok := tblInfo[query.Where.Left]; !ok {
+				return resp, fmt.Errorf("\nQuery col [%s] does not exist in table", query.Where.Left)
+			}
+		}
 
 		ret, err := self.Query(&query)
 		if err != nil {
@@ -401,7 +419,7 @@ func (swdb *SwarmDB) CreateTable(ownerID string, tableName string, columns []Col
 		b[0] = byte(columninfo.IndexType)
 		copy(buf[2048+i*64+30:], b) // columninfo.IndexType
 		// fmt.Printf(" column: %v\n", columninfo)
-		if ( columninfo.Primary > 0 ) {
+		if columninfo.Primary > 0 {
 			primaryColumnName = columninfo.ColumnName
 			// fmt.Printf("  [%s] ---> primary\n", primaryColumnName)
 		} else {
@@ -596,28 +614,28 @@ func (t *Table) Put(jsonrecord map[string]string) (err error) {
 	return nil
 }
 
-func (t *Table) Insert(value map[string]string) ( err error ) {
-/*
-	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Insert|%s", value))
-	primaryColumnName := t.primaryColumnName
-	/// store value to kdb and get a hash
-	_, b, err := t.columns[primaryColumnName].dbaccess.Get([]byte(key))
-	if b {
-		var derr *DuplicateKeyError
-		return derr
-	}
-	if err != nil {
-		return err
-	}
+func (t *Table) Insert(value map[string]string) (err error) {
+	/*
+		t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Insert|%s", value))
+		primaryColumnName := t.primaryColumnName
+		/// store value to kdb and get a hash
+		_, b, err := t.columns[primaryColumnName].dbaccess.Get([]byte(key))
+		if b {
+			var derr *DuplicateKeyError
+			return derr
+		}
+		if err != nil {
+			return err
+		}
 
-	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName), t.bid, t.replication, t.encrypted)
-	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
-	khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
-	if err != nil {
-		return err
-	}
-	_, err = t.columns[primaryColumnName].dbaccess.Insert(k, []byte(khash))
- */
+		t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName), t.bid, t.replication, t.encrypted)
+		k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
+		khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
+		if err != nil {
+			return err
+		}
+		_, err = t.columns[primaryColumnName].dbaccess.Insert(k, []byte(khash))
+	*/
 	return err
 }
 
@@ -778,4 +796,11 @@ func (t *Table) GetTableInfo() (tblInfo map[string]Column, err error) {
 
 	//return string(jcolumns), err
 	return tblInfo, err
+}
+
+//stub
+func checkDuplicateRow(row1 Row, row2 Row) bool {
+	//cmp primaryKeyValue, need to pivot on type (interface)
+	//cmp map also
+	return false
 }
