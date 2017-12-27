@@ -4,7 +4,7 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"database/sql"
-	// "encoding/json"
+	"encoding/json"
 	"encoding/binary"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
@@ -28,17 +28,17 @@ type Column struct {
 
 //for passing request data from client to server
 type RequestOption struct {
-	RequestType string   `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	Owner       string   `json:"owner,omitempty"`
-	Table       string   `json:"table,omitempty"` //"contacts"
-	Encrypted   int      `json:"encrypted,omitempty"`
-	Bid         float64  `json:"bid,omitempty"`
-	Replication int      `json:"replication,omitempty"`
-	Key         string   `json:"key,omitempty"`   //value of the key, like "rodney@wolk.com"
+	RequestType string  `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
+	Owner       string  `json:"owner,omitempty"`
+	Table       string  `json:"table,omitempty"` //"contacts"
+	Encrypted   int     `json:"encrypted,omitempty"`
+	Bid         float64 `json:"bid,omitempty"`
+	Replication int     `json:"replication,omitempty"`
+	Key         string  `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
 	// Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
-	Row         map[string]string `json:"row,omitempty"` //value of val, usually the whole json record
-	Columns     []Column `json:"columns,omitempty"`
-	RawQuery       string  `json:"rawquery,omitempty"` //"Select name, age from contacts where email = 'blah'"
+	Row      map[string]string `json:"row,omitempty"` //value of val, usually the whole json record
+	Columns  []Column          `json:"columns,omitempty"`
+	RawQuery string            `json:"rawquery,omitempty"` //"Select name, age from contacts where email = 'blah'"
 }
 
 type SWARMDBConnection struct {
@@ -233,6 +233,61 @@ const (
 	IT_FULLTEXT    = 3
 	IT_FRACTALTREE = 4
 )
+
+//for comparing rows in two different sets of data
+func checkDuplicateRow(row1 Row, row2 Row) bool {
+
+	//if row1.primaryKeyValue == row2.primaryKeyValue {
+	//	return true
+	//}
+
+	for k1, r1 := range row1.cells {
+		if _, ok := row2.cells[k1]; !ok {
+			return true
+		}
+		if r1 != row2.cells[k1] {
+			return true
+		}
+	}
+	for k2, r2 := range row2.cells {
+		if _, ok := row1.cells[k2]; !ok {
+			return true
+		}
+		if r2 != row1.cells[k2] {
+			return true
+		}
+	}
+
+	return false
+}
+
+//gets data (Row.Cells) out of a slice of Rows, and rtns as one json.
+func rowDataToJson(rows []Row) (string, error) {
+	var resMap map[string]interface{}
+	for _, row := range rows {
+		for key, val := range row.cells {
+			if _, ok := resMap[key]; !ok {
+				resMap[key] = val
+			}
+		}
+	}
+	resBytes, err := json.Marshal(resMap)
+	if err != nil {
+		return "", err
+	}
+	return string(resBytes), nil
+}
+
+//gets only the specified Columns (column name and value) out of a single Row, returns as a Row with only the relevant data
+func filterRowByColumns(row *Row, columns []Column) (filteredRow Row) {
+	filteredRow.primaryKeyValue = row.primaryKeyValue
+	for _, col := range columns {
+		if _, ok := row.cells[col.ColumnName]; ok {
+			filteredRow.cells[col.ColumnName] = row.cells[col.ColumnName]
+		}
+	}
+	return filteredRow
+}
 
 //used in client.go for user input
 func convertStringToIndexType(in string) (out IndexType, err error) {
