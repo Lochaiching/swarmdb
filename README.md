@@ -2,8 +2,11 @@
 # How to Install SWARMDB
 
 # Install Docker CE (Community Edition)
+https://www.docker.com/community-edition#/download
 
 * CentOS:
+  - Installation instructions: https://docs.docker.com/engine/installation/linux/docker-ce/centos/
+
   - Set up the repository:
     - $ sudo yum install -y yum-utils
     - $ sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -12,7 +15,7 @@ Installing the Docker Community Edition package:
 * $ sudo yum -y install docker-ce
 
 * Mac:
-  - https://store.docker.com/editions/community/docker-ce-desktop-mac
+  - Installation instructions: https://store.docker.com/editions/community/docker-ce-desktop-mac
     
 # Prerequisites
 * CentOS 7.x 64-bit.
