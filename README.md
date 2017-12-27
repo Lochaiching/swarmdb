@@ -37,13 +37,16 @@ Trusty 14.04 (LTS).
 
 # Get SWARMDB Docker
 
-Download the docker image:
-* $ sudo docker pull wolkinc/wolkmain
+* Download the docker image:
+  - $ sudo docker pull wolkinc/wolkmain
+
+* Deploy the docker image:
+  - $ sudo docker run --name=wolkmain --rm -it -p 8500:8500 -p 5001:5000 -p 30303:30303 -p 30399:30399 -p 30301:30301/udp -p 30303:30303/udp -p 30399:30399/udp wolkinc/wolkmain
 
 # Run SWARMDB
 
-Deploy the docker image:
-* $ sudo docker run --name=wolkmain --rm -it -p 8500:8500 -p 5001:5000 -p 30303:30303 -p 30399:30399 -p 30301:30301/udp -p 30303:30303/udp -p 30399:30399/udp wolkinc/wolkmain
+Deploying the image above will run GETH and SWARM in the Docker container. To verify if GETH and SWARM are running:
+  - $ ps aux | grep -E 'geth|swarm' | grep -v grep
 
 ## Configuration 
 
