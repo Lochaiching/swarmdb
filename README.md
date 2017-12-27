@@ -40,16 +40,21 @@ Trusty 14.04 (LTS).
 Download the docker image:
 * $ sudo docker pull wolkinc/wolkmain
 
+# Run SWARMDB
+
 Deploy the docker image:
 * $ sudo docker run --name=wolkmain --rm -it -p 8500:8500 -p 5001:5000 -p 30303:30303 -p 30399:30399 -p 30301:30301/udp -p 30303:30303/udp -p 30399:30399/udp wolkinc/wolkmain
 
-# Run SWARMDB
-
-Test if it works
-
 ## Configuration 
 
-Under construction
+* To check your geth Account
+  - $ geth attach geth.ipc --exec eth.accounts
+
+* To create new geth account
+  - $ geth --datadir $DATADIR account new
+
+* Note: If you downloaded our docker image using instructions above, $DATADIR will point to "/var/www/vhosts/data". To check what your DATADIR is, run:
+  - $ echo $DATADIR  
 
 #  Interfaces
 
