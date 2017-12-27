@@ -290,15 +290,16 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
 		/*
-		tblKey := self.GetTableKey(d.Owner, d.Table)
-		tblInfo, err := self.tables[tblKey].GetTableInfo()
-		if err != nil {
-			return resp, err
-		}
+			tblKey := self.GetTableKey(d.Owner, d.Table)
+			tblInfo, err := self.tables[tblKey].GetTableInfo()
+			if err != nil {
+				return resp, err
+			}
 		*/
 		tbl, err := self.GetTable(ownerID, d.Table)
-		//tblInfo, err := tbl.GetTableInfo()
-		tblInfo, err := self.tables[tblKey].GetTableInfo()
+		fmt.Printf("\nReturned table [%+v] when calling gettable with Owner[%s], Table[%s]", tbl, ownerID, d.Table)
+		tblInfo, err := tbl.GetTableInfo()
+		//tblInfo, err := self.tables[tblKey].GetTableInfo()
 		if err != nil {
 			return resp, err
 		}
@@ -809,7 +810,9 @@ func (t *Table) GetTableInfo() (tblInfo map[string]Column, err error) {
 		cinfo.IndexType = c.indexType
 		cinfo.Primary = int(c.primary)
 		cinfo.ColumnType = c.columnType
-		if _, ok := tblInfo[cname]; !ok { //would mean for some reason there are two cols named the same thing
+		//	fmt.Printf("\nProcessing columng [%s]", cname)
+		if _, ok := tblInfo[cname]; ok { //would mean for some reason there are two cols named the same thing
+			fmt.Printf("\nERROR: Duplicate column? [%s]", cname)
 			return tblInfo, err
 		}
 		tblInfo[cname] = cinfo
