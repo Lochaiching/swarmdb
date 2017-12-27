@@ -344,7 +344,8 @@ func (self *Node) storeBinToNetwork(swarmdb *SwarmDB) []byte {
 }
 
 func (self *HashDB) Get(k []byte) ([]byte, bool, error) {
-	ret := self.rootnode.Get(k, self.swarmdb, self.columnType)
+	stack := newStack()
+	ret := self.rootnode.Get(k, self.swarmdb, self.columnType, stack)
 	value := convertToByte(ret)
 	b := true
 	if ret == nil {
@@ -355,7 +356,18 @@ func (self *HashDB) Get(k []byte) ([]byte, bool, error) {
 	return value, b, nil
 }
 
-func (self *Node) Get(k []byte, swarmdb *SwarmDB, columntype ColumnType) Val {
+func (self *HashDB) getStack(k []byte) ([]byte, *stack_t, error) {
+        stack := newStack()
+        ret := self.rootnode.Get(k, self.swarmdb, self.columnType, stack)
+        value := convertToByte(ret)
+        if ret == nil {
+                var err *KeyNotFoundError
+                return nil, nil, err
+        }
+        return value, stack, nil
+}
+
+func (self *Node) Get(k []byte, swarmdb *SwarmDB, columntype ColumnType, stack *stack_t) Val {
 	kh := keyhash(k)
 	bin := hashbin(kh, self.Level)
 	log.Trace(fmt.Sprintf("hashdb Node Get: %d '%v %v'", bin, k, kh))
@@ -374,9 +386,11 @@ func (self *Node) Get(k []byte, swarmdb *SwarmDB, columntype ColumnType) Val {
 		self.Bin[bin].load(swarmdb, columntype)
 	}
 	if self.Bin[bin].Next {
-		return self.Bin[bin].Get(k, swarmdb, columntype)
+		stack.Push(bin)
+		return self.Bin[bin].Get(k, swarmdb, columntype, stack)
 	} else {
-		if compareValType(k, self.Bin[bin].Key, columntype) == 0 {
+		if compareValType(k, self.Bin[bin].Key, columntype) == 0 && len(convertToByte(self.Bin[bin].Value)) > 0{
+			stack.Push(bin)
 			return self.Bin[bin].Value
 		} else {
 			return nil
@@ -537,16 +551,13 @@ func (self *Node) Update(updatekey []byte, updatevalue []byte) (newnode *Node, e
 	kh := keyhash(updatekey)
 	bin := hashbin(kh, self.Level)
 
-	//fmt.Println("Update ", kh, bin, "key = ", string(self.Key))
 	if self.Bin[bin] == nil {
 		return self, nil
 	}
 
 	if self.Bin[bin].Next {
-		//fmt.Println("Update Next ", updatekey, bin, self.Bin[bin].Key)
 		return self.Bin[bin].Update(updatekey, updatevalue)
 	} else {
-		//fmt.Println("Update find ", updatekey, self.Value)
 		self.Bin[bin].Value = updatevalue
 		return self, nil
 		//return self.Bin[bin].Value
@@ -578,9 +589,7 @@ func (self *HashDB) FlushBuffer() (bool, error) {
 }
 
 func (self *Node) flushBuffer(swarmdb *SwarmDB) ([]byte, error) {
-	//buf := make([]byte, 4096)
 	for _, bin := range self.Bin {
-		//fmt.Println("bin = ", bin)
 		if bin != nil {
 			if bin.Next == true && bin.Stored == false {
 				_, err := bin.flushBuffer(swarmdb)
@@ -592,7 +601,6 @@ func (self *Node) flushBuffer(swarmdb *SwarmDB) ([]byte, error) {
 				sdata := make([]byte, 4096)
 				copy(sdata[64:], convertToByte(bin.Value))
 				copy(sdata[96:], bin.Key)
-fmt.Println("flushBuffer: key = ", bin.Key, "value = ", bin.Value)
 				dhash, err := swarmdb.StoreDBChunk(sdata)
 				if err != nil {
 					return nil, err
@@ -630,18 +638,25 @@ func (self *Node) print(swarmdb *SwarmDB, columnType ColumnType) {
 }
 
 func (self *HashDB) Seek(k []byte)(*HashdbCursor, bool, error){
-	_, b, err := self.Get(k)
+	ret, stack, err := self.getStack(k)
 	if err != nil{
-		return nil, b, err
+		return nil, false, err
+	}
+	if ret == nil{
+		return nil, false, fmt.Errorf("No Data")
 	}
 	cursor, err := newHashdbCursor(self)
 	if err != nil{
 		return nil, false, err
 	}
-	err = cursor.seek(k)
-	if err != nil{
-		return nil, false, err
+	node := self.rootnode
+	for i := 0; i < stack.Size()-1; i++{
+		bin := stack.GetPos(i)
+		node = node.Bin[bin]
 	}
+	cursor.bin = stack
+	cursor.node = node
+	cursor.level = stack.Size()
 	return cursor, true, nil
 }
 

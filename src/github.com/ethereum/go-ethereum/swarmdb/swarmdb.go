@@ -173,7 +173,7 @@ func (self SwarmDB) GetTable(ownerID string, tableName string) (tbl *Table, err 
 	tblKey := self.GetTableKey(ownerID, tableName)
 
 	if tbl, ok := self.tables[tblKey]; ok {
-		fmt.Printf("primary column name GetTable: %s -> columns: %v\n", tbl.columns, tbl.primaryColumnName)
+		fmt.Printf("\nprimary column name GetTable: %s -> columns: %v\n", tbl.columns, tbl.primaryColumnName)
 		return tbl, nil
 	} else {
 		// this should throw an error if the table is not created
@@ -215,7 +215,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		} else {
 			err2 := tbl.Put(d.Row)
 			if err2 != nil {
-				fmt.Printf("err putting")
+				fmt.Printf("Err putting: %s", err2)
 				return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
 			} else {
 				return "ok", nil
