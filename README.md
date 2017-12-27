@@ -39,10 +39,10 @@ Trusty 14.04 (LTS).
 # Get SWARMDB Docker
 
 Download the docker image:
-* $ docker pull wolkinc/wolkmain
+* $ sudo docker pull wolkinc/wolkmain
 
 Deploy the docker image:
-* $ docker run --name=wolkmain --rm -it -p 8500:8500 -p 5001:5000 -p 30303:30303 -p 30399:30399 -p 30301:30301/udp -p 30303:30303/udp -p 30399:30399/udp wolkinc/wolkmain
+* $ sudo docker run --name=wolkmain --rm -it -p 8500:8500 -p 5001:5000 -p 30303:30303 -p 30399:30399 -p 30301:30301/udp -p 30303:30303/udp -p 30399:30399/udp wolkinc/wolkmain
 
 # Run SWARMDB
 
