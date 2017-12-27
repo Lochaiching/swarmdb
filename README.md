@@ -12,11 +12,7 @@ Installing the Docker Community Edition package:
 * $ sudo yum -y install docker-ce
 
 * Mac:
-  - Install Homebrew on Mac
-      - $ /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-
-  - Install Docker:
-    - $ brew install docker
+  - https://store.docker.com/editions/community/docker-ce-desktop-mac
     
 # Prerequisites
 * CentOS 7.x 64-bit.
