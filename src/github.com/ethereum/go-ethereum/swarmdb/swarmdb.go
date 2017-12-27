@@ -361,35 +361,6 @@ func parseData(data string) (*RequestOption, error) {
 	return udata, nil
 }
 
-/*
-//gets data (Row.Cells) out of a slice of Rows, and rtns as one json.
-func rowDataToJson(rows []Row)(string, error) {
-	var resMap map[string]interface{}
-	for _, row := range rows {
-		for key, val := range row.cells {
-			if _, ok := resMap[key]; !ok {
-				resMap[key]=val
-			}
-		}
-	}
-	resBytes, err := json.Marshal(resMap)
-	if err != nil {
-		return "", err
-	}
-	return string(resBytes), nil
-}
-
-func filterRowByColumns(row *Row, columns []Column) (filteredRow Row){
-	filteredRow.primaryKeyValue = row.primaryKeyValue
-	for _, col := range columns {
-		if _, ok := row.cells[col.ColumnName]; ok {
-			filteredRow.cells[col.ColumnName] = row.cells[col.ColumnName]
-		}
-	}
-	return filteredRow
-}
-*/
-
 func (t *Table) Scan(columnName string, ascending int) (rows []Row, err error) {
 	column, err := t.getColumn(columnName)
 	if err != nil {
