@@ -306,27 +306,37 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		}
 
 		if len(query.Where.Left) > 0 {
-			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
-				ret, err := tbl.Get(query.Where.Right)
-				if err != nil {
-					return resp, err
-				}
-				return string(ret), nil //needs to filter by RequestCols first before returning
-			}
 			if _, ok := tblInfo[query.Where.Left]; !ok {
 				return resp, fmt.Errorf("\nQuery col [%s] does not exist in table", query.Where.Left)
 			}
+			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
+				byteRow, err := tbl.Get(query.Where.Right)
+				if err != nil {
+					return resp, err
+				}
+				row, err := tbl.byteArrayToRow(byteRow)
+				if err != nil {
+					return resp, err
+				}
+
+				filteredRow := filterRowByColumns(&row, query.RequestColumns)
+				retJson, err := json.Marshal(filteredRow.cells)
+				if err != nil {
+					return resp, err
+				}
+				return string(retJson), nil
+			}
 		}
 
-		ret, err := self.Query(&query)
+		qRows, err := self.Query(&query)
 		if err != nil {
 			return resp, err
 		}
-		retJson, err := json.Marshal(ret)
+		resp, err = rowDataToJson(qRows)
 		if err != nil {
 			return resp, err
 		}
-		return string(retJson), nil
+		return resp, nil
 
 	case "GetTableInfo":
 		tblcols, err := self.tables[tblKey].GetTableInfo()
@@ -350,6 +360,35 @@ func parseData(data string) (*RequestOption, error) {
 	}
 	return udata, nil
 }
+
+/*
+//gets data (Row.Cells) out of a slice of Rows, and rtns as one json.
+func rowDataToJson(rows []Row)(string, error) {
+	var resMap map[string]interface{}
+	for _, row := range rows {
+		for key, val := range row.cells {
+			if _, ok := resMap[key]; !ok {
+				resMap[key]=val
+			}
+		}
+	}
+	resBytes, err := json.Marshal(resMap)
+	if err != nil {
+		return "", err
+	}
+	return string(resBytes), nil
+}
+
+func filterRowByColumns(row *Row, columns []Column) (filteredRow Row){
+	filteredRow.primaryKeyValue = row.primaryKeyValue
+	for _, col := range columns {
+		if _, ok := row.cells[col.ColumnName]; ok {
+			filteredRow.cells[col.ColumnName] = row.cells[col.ColumnName]
+		}
+	}
+	return filteredRow
+}
+*/
 
 func (t *Table) Scan(columnName string, ascending int) (rows []Row, err error) {
 	column, err := t.getColumn(columnName)
@@ -651,6 +690,15 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 	return t.columns[columnName], nil
 }
 
+func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
+	var row Row
+	row.primaryKeyValue = t.primaryColumnName
+	if err := json.Unmarshal(byteData, row.cells); err != nil {
+		return out, err
+	}
+	return row, nil
+}
+
 func (t *Table) Get(key string) (out []byte, err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Get|%s", key))
 	primaryColumnName := t.primaryColumnName
@@ -796,11 +844,4 @@ func (t *Table) GetTableInfo() (tblInfo map[string]Column, err error) {
 
 	//return string(jcolumns), err
 	return tblInfo, err
-}
-
-//stub
-func checkDuplicateRow(row1 Row, row2 Row) bool {
-	//cmp primaryKeyValue, need to pivot on type (interface)
-	//cmp map also
-	return false
 }
