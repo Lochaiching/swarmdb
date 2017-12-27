@@ -7,16 +7,12 @@ https://www.docker.com/community-edition#/download
 * CentOS:
   - Installation instructions: https://docs.docker.com/engine/installation/linux/docker-ce/centos/
 
-  - Set up the repository:
-    - $ sudo yum install -y yum-utils
-    - $ sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-
-Installing the Docker Community Edition package:
-* $ sudo yum -y install docker-ce
-
 * Mac:
   - Installation instructions: https://store.docker.com/editions/community/docker-ce-desktop-mac
-    
+
+* Others:
+  - https://www.docker.com/community-edition#/download
+  
 # Prerequisites
 * CentOS 7.x 64-bit.
 * Red Hat Enterprise Linux (RHEL) 7.x 64-bit.
