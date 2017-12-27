@@ -277,7 +277,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 				}
 				return ret
 		*/
-	case "GetQuery":
+	case "Query":
 		fmt.Printf("\nReceived GETQUERY")
 
 		query, err := ParseQuery(d.RawQuery)
@@ -286,22 +286,26 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		}
 		query.TableOwner = d.Owner
 		if len(d.Table) == 0 {
+			fmt.Printf("\nGetting Table from Query rather than data obj")
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
-
+		/*
 		tblKey := self.GetTableKey(d.Owner, d.Table)
 		tblInfo, err := self.tables[tblKey].GetTableInfo()
 		if err != nil {
 			return resp, err
 		}
+		*/
 		tbl, err := self.GetTable(ownerID, d.Table)
+		//tblInfo, err := tbl.GetTableInfo()
+		tblInfo, err := self.tables[tblKey].GetTableInfo()
 		if err != nil {
 			return resp, err
 		}
 
 		for _, reqCol := range query.RequestColumns {
 			if _, ok := tblInfo[reqCol.ColumnName]; !ok {
-				return resp, fmt.Errorf("\nRequested col [%s] does not exist in table", reqCol.ColumnName)
+				return resp, fmt.Errorf("\nRequested col [%s] does not exist in table [%+v]", reqCol.ColumnName, tblInfo)
 			}
 		}
 
