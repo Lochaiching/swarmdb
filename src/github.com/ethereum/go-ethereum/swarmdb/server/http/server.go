@@ -38,6 +38,7 @@ type DataReq struct {
 	Key         string            `json:"key,omitempty"`
 	Columns     []interface{}     `json:"columns,omitempty"`
 	Row         map[string]string `json:"row,omitempty"`
+	RawQuery     string `json:"rawquery,omitempty"`
 }
 
 func parsePath(path string) (swdbReq SwarmDBReq, err error) {
@@ -75,7 +76,7 @@ func StartHttpServer(config *ServerConfig) {
 	//sk, pk := GetKeys()
 	hdlr := c.Handler(httpSvr)
 
-	fmt.Printf("\nRunning ListenAndServer")
+	fmt.Printf("\nRunning ListenAndServe")
 	//go http.ListenAndServe(config.Addr, hdlr)
 	http.ListenAndServe(config.Addr, hdlr)
 }
@@ -87,7 +88,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
 		return
 	}
-	fmt.Println("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
+	//fmt.Println("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
 	swReq, _ := parsePath(r.URL.Path)
 	//Parse BodyContent
 
@@ -95,7 +96,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var reqJson []byte
 	if swReq.protocol != "swarmdb:" {
 		//Invalid Protocol: Throw Error
-		fmt.Fprintf(w, "The protocol sent in: %s is invalid | %+v\n", swReq.protocol, swReq)
+		//fmt.Fprintf(w, "The protocol sent in: %s is invalid | %+v\n", swReq.protocol, swReq)
 	} else {
 		var err error
 		if r.Method == "GET" {
@@ -119,7 +120,13 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if reqType, ok := bodyMap["requesttype"]; ok {
 				dataReq.RequestType = reqType.(string)
 				if dataReq.RequestType == "CreateTable" {
-				} else {
+				} else if dataReq.RequestType == "Query" {
+					//Don't pass table for now (rely on Query parsing)	
+					dataReq.RawQuery = bodyMap["sql"].(string) 
+					reqJson, err = json.Marshal(dataReq)
+					if err != nil {
+					}
+				} else if dataReq.RequestType == "Put" {
 					dataReq.Table = swReq.table
 					if row, ok := bodyMap["row"]; ok {
 						dataReq.Row = make(map[string]string)
@@ -139,7 +146,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			} else {
-				fmt.Fprintf(w, "\nPOST operations require a requestMethod, (%+v), (%s)", bodyMap, bodyMap["requesttype"])
+				fmt.Fprintf(w, "\nPOST operations require a requestType, (%+v), (%s)", bodyMap, bodyMap["requesttype"])
 			}
 		}
 		//Redirect to SelectHandler after "building" GET RequestOption

@@ -277,7 +277,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 				}
 				return ret
 		*/
-	case "GetQuery":
+	case "Query":
 		fmt.Printf("\nReceived GETQUERY")
 
 		query, err := ParseQuery(d.RawQuery)
@@ -286,47 +286,62 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		}
 		query.TableOwner = d.Owner
 		if len(d.Table) == 0 {
+			fmt.Printf("\nGetting Table from Query rather than data obj")
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
-
-		tblKey := self.GetTableKey(d.Owner, d.Table)
-		tblInfo, err := self.tables[tblKey].GetTableInfo()
-		if err != nil {
-			return resp, err
-		}
+		/*
+			tblKey := self.GetTableKey(d.Owner, d.Table)
+			tblInfo, err := self.tables[tblKey].GetTableInfo()
+			if err != nil {
+				return resp, err
+			}
+		*/
 		tbl, err := self.GetTable(ownerID, d.Table)
+		fmt.Printf("\nReturned table [%+v] when calling gettable with Owner[%s], Table[%s]", tbl, ownerID, d.Table)
+		tblInfo, err := tbl.GetTableInfo()
+		//tblInfo, err := self.tables[tblKey].GetTableInfo()
 		if err != nil {
 			return resp, err
 		}
 
 		for _, reqCol := range query.RequestColumns {
 			if _, ok := tblInfo[reqCol.ColumnName]; !ok {
-				return resp, fmt.Errorf("\nRequested col [%s] does not exist in table", reqCol.ColumnName)
+				return resp, fmt.Errorf("\nRequested col [%s] does not exist in table [%+v]", reqCol.ColumnName, tblInfo)
 			}
 		}
 
 		if len(query.Where.Left) > 0 {
-			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
-				ret, err := tbl.Get(query.Where.Right)
-				if err != nil {
-					return resp, err
-				}
-				return string(ret), nil //needs to filter by RequestCols first before returning
-			}
 			if _, ok := tblInfo[query.Where.Left]; !ok {
 				return resp, fmt.Errorf("\nQuery col [%s] does not exist in table", query.Where.Left)
 			}
+			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
+				byteRow, err := tbl.Get(query.Where.Right)
+				if err != nil {
+					return resp, err
+				}
+				row, err := tbl.byteArrayToRow(byteRow)
+				if err != nil {
+					return resp, err
+				}
+
+				filteredRow := filterRowByColumns(&row, query.RequestColumns)
+				retJson, err := json.Marshal(filteredRow.cells)
+				if err != nil {
+					return resp, err
+				}
+				return string(retJson), nil
+			}
 		}
 
-		ret, err := self.Query(&query)
+		qRows, err := self.Query(&query)
 		if err != nil {
 			return resp, err
 		}
-		retJson, err := json.Marshal(ret)
+		resp, err = rowDataToJson(qRows)
 		if err != nil {
 			return resp, err
 		}
-		return string(retJson), nil
+		return resp, nil
 
 	case "GetTableInfo":
 		tblcols, err := self.tables[tblKey].GetTableInfo()
@@ -651,6 +666,15 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 	return t.columns[columnName], nil
 }
 
+func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
+	var row Row
+	row.primaryKeyValue = t.primaryColumnName
+	if err := json.Unmarshal(byteData, row.cells); err != nil {
+		return out, err
+	}
+	return row, nil
+}
+
 func (t *Table) Get(key string) (out []byte, err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Get|%s", key))
 	primaryColumnName := t.primaryColumnName
@@ -786,7 +810,9 @@ func (t *Table) GetTableInfo() (tblInfo map[string]Column, err error) {
 		cinfo.IndexType = c.indexType
 		cinfo.Primary = int(c.primary)
 		cinfo.ColumnType = c.columnType
-		if _, ok := tblInfo[cname]; !ok { //would mean for some reason there are two cols named the same thing
+		//	fmt.Printf("\nProcessing columng [%s]", cname)
+		if _, ok := tblInfo[cname]; ok { //would mean for some reason there are two cols named the same thing
+			fmt.Printf("\nERROR: Duplicate column? [%s]", cname)
 			return tblInfo, err
 		}
 		tblInfo[cname] = cinfo
@@ -796,11 +822,4 @@ func (t *Table) GetTableInfo() (tblInfo map[string]Column, err error) {
 
 	//return string(jcolumns), err
 	return tblInfo, err
-}
-
-//stub
-func checkDuplicateRow(row1 Row, row2 Row) bool {
-	//cmp primaryKeyValue, need to pivot on type (interface)
-	//cmp map also
-	return false
 }
