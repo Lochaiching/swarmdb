@@ -3,6 +3,21 @@
 
 # Install Docker CE (Community Edition)
 
+* CentOS:
+  - Set up the repository:
+    - $ sudo yum install -y yum-utils
+    - $ sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+Installing the Docker Community Edition package:
+* $ sudo yum -y install docker-ce
+
+* Mac:
+  - Install Homebrew on Mac
+      - $ /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+
+  - Install Docker:
+    - $ brew install docker
+    
 # Prerequisites
 * CentOS 7.x 64-bit.
 * Red Hat Enterprise Linux (RHEL) 7.x 64-bit.
@@ -26,13 +41,6 @@ Trusty 14.04 (LTS).
 * MS Windows 10 Professional or Enterprise 64-bit.
 
 # Get SWARMDB Docker
-
-Set up the repository:
-* $ sudo yum install -y yum-utils
-* $ sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-
-Installing the Docker package:
-* $ sudo yum -y install docker-ce
 
 Download the docker image:
 * $ docker pull wolkinc/wolkmain
