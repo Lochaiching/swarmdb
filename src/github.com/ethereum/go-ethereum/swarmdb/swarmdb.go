@@ -80,32 +80,71 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 	//where to switch on bplus or hashdb?
 
-	for _, column := range query.RequestColumns { //Scan can use any column or only primary column?
+	var rawRows []Row
+	for _, column := range query.RequestColumns {
 
-		//no need to error check with table, already did that in SelectHandler
-		//tblKey := self.GetTableKey(request.Owner, request.Table)
-		//tblInfo, err := self.tables[tblKey].GetTableInfo()
 		colRows, err := self.Scan(query.TableOwner, query.Table, column.ColumnName, query.Ascending)
 		if err != nil {
 			return rows, err
 		}
 		for _, colRow := range colRows {
 			dupe := false
-			for _, row := range rows {
+			for _, row := range rawRows {
 				if checkDuplicateRow(row, colRow) {
 					dupe = true
 					break
 				}
 			}
 			if dupe == false {
-				rows = append(rows, colRow)
+				rawRows = append(rawRows, colRow)
 			}
 		}
 	}
 
-	//filter for Where/Groupby
+	//filter for correct columns and Where/Having
+	for _, row := range rawRows {
+		fRow := filterRowByColumns(&row, query.RequestColumns)
+		if len(fRow.cells) == 0 {
+			return rows, err //no columns found
+		}
 
-	//Put it in order for Ascending
+		add := false
+		if _, ok := fRow.cells[query.Where.Left]; ok {
+			/* //need to make these type dependent b/c of interface{}, also needs to be moved to a diff fcn
+			switch query.Where.Operator {
+			case "=":
+				if fRow.cells[query.Where.Left] == query.Where.Right {
+					add = true
+				}
+			case "<":
+				if fRow.cells[query.Where.Left] < query.Where.Right {
+					add = true
+				}
+
+			case "<=":
+				if fRow.cells[query.Where.Left] <= query.Where.Right {
+					add = true
+				}
+
+			case ">=":
+				if fRow.cells[query.Where.Left] >= query.Where.Right {
+					add = true
+				}
+
+			default:
+				return rows, fmt.Errorf("Operator [%s] not found", query.Where.Operator)
+			}
+			 */
+
+		} else {
+			return rows, fmt.Errorf("query.Where.Left [%s] not found in filtered row [%+v]", query.Where.Left, fRow)
+		}
+		if add == true {
+			rows = append(rows, fRow)
+		}
+	}
+
+	//Put it in order for Ascending/GroupBy
 
 	return rows, nil
 
