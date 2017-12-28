@@ -361,11 +361,13 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 					return resp, err
 				}
 				row, err := tbl.byteArrayToRow(byteRow)
+				fmt.Printf("\nResponse row from Get: %s (%v)", row, row)
 				if err != nil {
 					return resp, err
 				}
 
 				filteredRow := filterRowByColumns(&row, query.RequestColumns)
+				fmt.Printf("\nResponse filteredrow from Get: %s (%v)", filteredRow, filteredRow)
 				retJson, err := json.Marshal(filteredRow.cells)
 				if err != nil {
 					return resp, err
@@ -710,7 +712,7 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	var row Row
 	row.primaryKeyValue = t.primaryColumnName
-	if err := json.Unmarshal(byteData, row.cells); err != nil {
+	if err := json.Unmarshal(byteData, &row.cells); err != nil {
 		return out, err
 	}
 	return row, nil
