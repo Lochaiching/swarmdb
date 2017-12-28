@@ -51,7 +51,7 @@ Deploying the image above will run GETH and SWARM in the Docker container. To ve
 ## Configuration 
 
 * To check your geth Account
-  - $ geth attach geth.ipc --exec eth.accounts
+  - $ geth attach $DATADIR/geth.ipc --exec eth.accounts
 
 * To create new geth account
   - $ geth --datadir $DATADIR account new
