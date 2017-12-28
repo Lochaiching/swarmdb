@@ -2,7 +2,7 @@ package swarmdb
 
 import (
 	"bytes"
-	//	"encoding/binary"
+	//"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
@@ -151,6 +151,7 @@ func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 }
 
 func (self SwarmDB) QueryInsert(query *QueryOption) (err error) {
+
 	// Alina: implementing with Put (=> Insert)
 	return nil
 }
@@ -178,6 +179,7 @@ func (self SwarmDB) Query(query *QueryOption) (rows []Row, err error) {
 		return rows, err
 	case "Insert":
 		err = self.QueryInsert(query)
+
 		return rows, err
 
 	case "Update":
@@ -317,57 +319,67 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 				return ret
 		*/
 	case "Query":
-		fmt.Printf("\nReceived GETQUERY")
+		fmt.Printf("\nReceived GETQUERY\n")
 
 		query, err := ParseQuery(d.RawQuery)
 		if err != nil {
+			fmt.Printf("err comes from query: [%s]\n", d.RawQuery)
 			return resp, err
 		}
 		query.TableOwner = d.Owner
 		if len(d.Table) == 0 {
-			fmt.Printf("\nGetting Table from Query rather than data obj")
+			fmt.Printf("Getting Table from Query rather than data obj\n")
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
+
+		tbl, err := self.GetTable(ownerID, d.Table)
+		fmt.Printf("Returned table [%+v] when calling gettable with Owner[%s], Table[%s]\n", tbl, ownerID, d.Table)
+		tblInfo, err := tbl.GetTableInfo()
+		if err != nil {
+			fmt.Printf("tblInfo err \n")
+			return resp, err
+		}
+		fmt.Printf("Table info gotten: [%+v] \n", tblInfo)
+		fmt.Printf("QueryOption is: [%+v] \n", query)
+
 		/*
+			fmt.Printf("The other way of getting tableinfo\n")
 			tblKey := self.GetTableKey(d.Owner, d.Table)
 			tblInfo, err := self.tables[tblKey].GetTableInfo()
 			if err != nil {
-				return resp, err
+			        return resp, err
 			}
 		*/
-		tbl, err := self.GetTable(ownerID, d.Table)
-		fmt.Printf("\nReturned table [%+v] when calling gettable with Owner[%s], Table[%s]", tbl, ownerID, d.Table)
-		tblInfo, err := tbl.GetTableInfo()
-		//tblInfo, err := self.tables[tblKey].GetTableInfo()
-		if err != nil {
-			return resp, err
-		}
 
+		//checking validity of columns
 		for _, reqCol := range query.RequestColumns {
 			if _, ok := tblInfo[reqCol.ColumnName]; !ok {
-				return resp, fmt.Errorf("\nRequested col [%s] does not exist in table [%+v]", reqCol.ColumnName, tblInfo)
+				return resp, fmt.Errorf("Requested col [%s] does not exist in table [%+v]\n", reqCol.ColumnName, tblInfo)
 			}
 		}
 
+		//checking the Where clause
 		if len(query.Where.Left) > 0 {
 			if _, ok := tblInfo[query.Where.Left]; !ok {
-				return resp, fmt.Errorf("\nQuery col [%s] does not exist in table", query.Where.Left)
+				return resp, fmt.Errorf("Query col [%s] does not exist in table\n", query.Where.Left)
 			}
+
+			//checking if the query is just a primary key Get
 			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
-				fmt.Printf("\nCalling Get from Query")
+				fmt.Printf("Calling Get from Query\n")
 				byteRow, err := tbl.Get(query.Where.Right)
 				if err != nil {
-					fmt.Printf("\nError Calling Get from Query [%s]", err)
+					fmt.Printf("Error Calling Get from Query [%s]\n", err)
 					return resp, err
 				}
 				row, err := tbl.byteArrayToRow(byteRow)
-				fmt.Printf("\nResponse row from Get: %s (%v)", row, row)
+				fmt.Printf("Response row from Get: %s (%v)\n", row, row)
 				if err != nil {
 					return resp, err
 				}
 
 				filteredRow := filterRowByColumns(&row, query.RequestColumns)
-				fmt.Printf("\nResponse filteredrow from Get: %s (%v)", filteredRow, filteredRow)
+				fmt.Printf("Response filteredrow from Get: %s (%v)\n", filteredRow, filteredRow)
 				retJson, err := json.Marshal(filteredRow.cells)
 				if err != nil {
 					return resp, err
@@ -376,6 +388,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			}
 		}
 
+		//process the query
 		qRows, err := self.Query(&query)
 		if err != nil {
 			return resp, err
@@ -849,6 +862,7 @@ func (swdb *SwarmDB) GetTableKey(owner string, tableName string) (key string) {
 
 func (t *Table) GetTableInfo() (tblInfo map[string]Column, err error) {
 	//var columns []Column
+	fmt.Printf("\n in GetTableInfo with table [%+v] \n", t)
 	tblInfo = make(map[string]Column)
 	for cname, c := range t.columns {
 		var cinfo Column
