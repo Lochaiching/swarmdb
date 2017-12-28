@@ -315,8 +315,10 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 				return resp, fmt.Errorf("\nQuery col [%s] does not exist in table", query.Where.Left)
 			}
 			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
+				fmt.Printf("\nCalling Get from Query")
 				byteRow, err := tbl.Get(query.Where.Right)
 				if err != nil {
+					fmt.Printf("\nError Calling Get from Query [%s]", err)
 					return resp, err
 				}
 				row, err := tbl.byteArrayToRow(byteRow)
@@ -686,10 +688,12 @@ func (t *Table) Get(key string) (out []byte, err error) {
 		// fmt.Printf("READY\n")
 	}
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.bid, t.replication, t.encrypted)
+	fmt.Printf("\n GET key: (%s)%v\n", key, key)
 	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
-	// fmt.Printf(" GET k: %v\n", k)
+	fmt.Printf("\n GET k: (%s)%v\n", k, k)
 
 	v, _, err2 := t.columns[primaryColumnName].dbaccess.Get(k)
+	fmt.Printf("\n v retrieved from db traversal get = %s", v)
 	if err2 != nil {
 		fmt.Printf("\nError traversing tree: %s", err.Error())
 		return nil, err2
@@ -703,7 +707,7 @@ func (t *Table) Get(key string) (out []byte, err error) {
 		fres := bytes.Trim(kres, "\x00")
 		return fres, nil
 	} else {
-		fmt.Printf(" MISSING RECORD %s\n", key)
+		fmt.Printf("\n MISSING RECORD %s\n", key)
 		return []byte(""), nil
 	}
 }
