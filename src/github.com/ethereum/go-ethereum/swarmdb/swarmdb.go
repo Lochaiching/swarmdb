@@ -151,8 +151,9 @@ func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 }
 
 func (self SwarmDB) QueryInsert(query *QueryOption) (err error) {
-
 	// Alina: implementing with Put (=> Insert)
+
+	
 	return nil
 }
 func (self SwarmDB) QueryUpdate(query *QueryOption) (err error) {
@@ -179,7 +180,6 @@ func (self SwarmDB) Query(query *QueryOption) (rows []Row, err error) {
 		return rows, err
 	case "Insert":
 		err = self.QueryInsert(query)
-
 		return rows, err
 
 	case "Update":
@@ -320,13 +320,15 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		*/
 	case "Query":
 		fmt.Printf("\nReceived GETQUERY\n")
+		if len(d.RawQuery) == 0 {
+			return resp, fmt.Errorf("RawQuery is blank")
+		}
 
 		query, err := ParseQuery(d.RawQuery)
 		if err != nil {
 			fmt.Printf("err comes from query: [%s]\n", d.RawQuery)
 			return resp, err
 		}
-		query.TableOwner = d.Owner
 		if len(d.Table) == 0 {
 			fmt.Printf("Getting Table from Query rather than data obj\n")
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
@@ -339,6 +341,8 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			fmt.Printf("tblInfo err \n")
 			return resp, err
 		}
+		query.TableOwner = d.Owner //probably should check the owner against the tableinfo owner here
+		
 		fmt.Printf("Table info gotten: [%+v] \n", tblInfo)
 		fmt.Printf("QueryOption is: [%+v] \n", query)
 
