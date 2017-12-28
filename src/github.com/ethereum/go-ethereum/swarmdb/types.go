@@ -281,9 +281,9 @@ func rowDataToJson(rows []Row) (string, error) {
 //gets only the specified Columns (column name and value) out of a single Row, returns as a Row with only the relevant data
 func filterRowByColumns(row *Row, columns []Column) (filteredRow Row) {
 	filteredRow.primaryKeyValue = row.primaryKeyValue
+	filteredRow.cells = make(map[string]interface{})
 	for _, col := range columns {
 		if _, ok := row.cells[col.ColumnName]; ok {
-			filteredRow.cells = make(map[string]interface{})
 			filteredRow.cells[col.ColumnName] = row.cells[col.ColumnName]
 		}
 	}
