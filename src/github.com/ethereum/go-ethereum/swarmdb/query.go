@@ -8,11 +8,11 @@ import (
 
 //at the moment, only parses a query with a single un-nested where clause, i.e.
 //'Select name, age from contacts where email = "rodney@wolk.com"'
-func ParseQuery(rawquery string) (query QueryOption, err error) {
+func ParseQuery(rawQuery string) (query QueryOption, err error) {
 
-	stmt, err := sqlparser.Parse(rawquery)
+	stmt, err := sqlparser.Parse(rawQuery)
 	if err != nil {
-		fmt.Printf("sqlparser.Parse err: %v\n", err)
+		//fmt.Printf("sqlparser.Parse err: %v\n", err)
 		return query, err
 	}
 
@@ -23,8 +23,8 @@ func ParseQuery(rawquery string) (query QueryOption, err error) {
 		//fmt.Printf("select: %v\n", buf.String())
 
 		query.Type = "Select"
-		for i, column := range stmt.SelectExprs {
-			fmt.Printf("select %d: %+v\n", i, sqlparser.String(column)) // stmt.(*sqlparser.Select).SelectExprs)
+		for _, column := range stmt.SelectExprs {
+			//fmt.Printf("select %d: %+v\n", i, sqlparser.String(column)) // stmt.(*sqlparser.Select).SelectExprs)
 			var newcolumn Column
 			newcolumn.ColumnName = sqlparser.String(column)
 			//should somehow get IndexType, ColumnType, Primary from table itself...(not here?)
@@ -32,14 +32,14 @@ func ParseQuery(rawquery string) (query QueryOption, err error) {
 		}
 
 		//From
-		fmt.Printf("from 0: %+v \n", sqlparser.String(stmt.From[0]))
+		//fmt.Printf("from 0: %+v \n", sqlparser.String(stmt.From[0]))
 		query.Table = sqlparser.String(stmt.From[0])
 
 		//Where & Having
-		fmt.Printf("where or having: %s \n", readable(stmt.Where.Expr))
+		//fmt.Printf("where or having: %s \n", readable(stmt.Where.Expr))
 		if stmt.Where.Type == sqlparser.WhereStr { //Where
 
-			fmt.Printf("type: %s\n", stmt.Where.Type)
+			//fmt.Printf("type: %s\n", stmt.Where.Type)
 			query.Where, err = parseWhere(stmt.Where.Expr)
 			//this is where recursion for nested parentheses should take place
 			if err != nil {
@@ -48,7 +48,7 @@ func ParseQuery(rawquery string) (query QueryOption, err error) {
 			return query, err
 
 		} else if stmt.Where.Type == sqlparser.HavingStr { //Having
-			fmt.Printf("type: %s\n", stmt.Where.Type)
+			//fmt.Printf("type: %s\n", stmt.Where.Type)
 			//fill in having
 		}
 
@@ -133,7 +133,20 @@ func parseWhere(expr sqlparser.Expr) (where Where, err error) {
 	default:
 		err = fmt.Errorf("WHERE expression not found")
 	}
+
+	where.Right = trimQuotes(where.Right)
+
 	return where, err
+}
+
+func trimQuotes(s string) string {
+	if len(s) > 0 && s[0] == '\'' {
+		s = s[1:]
+	}
+	if len(s) > 0 && s[len(s)-1] == '\'' {
+		s = s[:len(s)-1]
+	}
+	return s
 }
 
 func readable(expr sqlparser.Expr) string {
