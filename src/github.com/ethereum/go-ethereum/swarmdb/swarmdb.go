@@ -134,7 +134,7 @@ func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 			default:
 				return rows, fmt.Errorf("Operator [%s] not found", query.Where.Operator)
 			}
-			 */
+			*/
 
 		} else {
 			return rows, fmt.Errorf("query.Where.Left [%s] not found in filtered row [%+v]", query.Where.Left, fRow)
@@ -707,8 +707,9 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 
 func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	var row Row
+	row.cells = make(map[string]interface{})
 	row.primaryKeyValue = t.primaryColumnName
-	if err := json.Unmarshal(byteData, row.cells); err != nil {
+	if err := json.Unmarshal(byteData, &row.cells); err != nil {
 		return out, err
 	}
 	return row, nil
