@@ -115,7 +115,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var bodyMapInt interface{}
 			json.Unmarshal(bodyContent, &bodyMapInt)
 			fmt.Println("\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
-			fmt.Fprintf(w, "\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
+			//fmt.Fprintf(w, "\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
 			bodyMap := bodyMapInt.(map[string]interface{})
 			if reqType, ok := bodyMap["requesttype"]; ok {
 				dataReq.RequestType = reqType.(string)
