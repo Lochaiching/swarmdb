@@ -283,6 +283,7 @@ func filterRowByColumns(row *Row, columns []Column) (filteredRow Row) {
 	filteredRow.primaryKeyValue = row.primaryKeyValue
 	for _, col := range columns {
 		if _, ok := row.cells[col.ColumnName]; ok {
+			filteredRow.cells = make(map[string]interface{})
 			filteredRow.cells[col.ColumnName] = row.cells[col.ColumnName]
 		}
 	}
