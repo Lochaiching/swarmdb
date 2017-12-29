@@ -122,7 +122,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if dataReq.RequestType == "CreateTable" {
 				} else if dataReq.RequestType == "Query" {
 					//Don't pass table for now (rely on Query parsing)	
-					dataReq.RawQuery = bodyMap["sql"].(string) 
+					dataReq.RawQuery = bodyMap["rawquery"].(string) 
 					reqJson, err = json.Marshal(dataReq)
 					if err != nil {
 					}
