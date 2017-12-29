@@ -117,6 +117,7 @@ type QueryOption struct {
 	Table          string
 	TableOwner     string
 	RequestColumns []Column
+	Inserts        []Row //all values are strings in query parsing (ok?)
 	Where          Where
 	Ascending      int //1 true, 0 false (descending)
 }
@@ -124,7 +125,7 @@ type QueryOption struct {
 //for sql parsing
 type Where struct {
 	Left     string
-	Right    string
+	Right    string //all values are strings in query parsing
 	Operator string //sqlparser.ComparisonExpr.Operator; sqlparser.BinaryExpr.Operator; sqlparser.IsExpr.Operator; sqlparser.AndExpr.Operator, sqlparser.OrExpr.Operator
 }
 

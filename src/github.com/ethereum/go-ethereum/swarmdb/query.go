@@ -4,15 +4,17 @@ import (
 	"fmt"
 	//"github.com/ethereum/go-ethereum/log"
 	"github.com/xwb1989/sqlparser"
+	"strconv"
 )
 
 //at the moment, only parses a query with a single un-nested where clause, i.e.
 //'Select name, age from contacts where email = "rodney@wolk.com"'
 func ParseQuery(rawQuery string) (query QueryOption, err error) {
 
+	//fmt.Printf("\nin ParseQuery\n")
 	stmt, err := sqlparser.Parse(rawQuery)
 	if err != nil {
-		//fmt.Printf("sqlparser.Parse err: %v\n", err)
+		fmt.Printf("sqlparser.Parse err\n")
 		return query, err
 	}
 
@@ -48,7 +50,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			return query, err
 
 		} else if stmt.Where.Type == sqlparser.HavingStr { //Having
-			//fmt.Printf("type: %s\n", stmt.Where.Type)
+			fmt.Printf("type: %s\n", stmt.Where.Type)
 			//fill in having
 		}
 
@@ -58,28 +60,60 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		}
 
 		//OrderBy
+		query.Ascending = 1 //default if nothing?
 
-		//Limit
+	//Limit
 
-		/* Other options inside Select:
-		   type Select struct {
-		   	Cache       string
-		   	Comments    Comments
-		   	Distinct    string
-		   	Hints       string
-		   	SelectExprs SelectExprs
-		   	From        TableExprs
-		   	Where       *Where
-		   	GroupBy     GroupBy
-		   	Having      *Where
-		   	OrderBy     OrderBy
-		   	Limit       *Limit
-		   	Lock        string
-		   }*/
+	/* Other options inside Select:
+	   type Select struct {
+	   	Cache       string
+	   	Comments    Comments
+	   	Distinct    string
+	   	Hints       string
+	   	SelectExprs SelectExprs
+	   	From        TableExprs
+	   	Where       *Where
+	   	GroupBy     GroupBy
+	   	Having      *Where
+	   	OrderBy     OrderBy
+	   	Limit       *Limit
+	   	Lock        string
+	   }*/
 
 	case *sqlparser.Insert:
+		//for now, 1 row to insert only. still need to figure out multiple rows
+		//i.e. INSERT INTO MyTable (id, name) VALUES (1, 'Bob'), (2, 'Peter'), (3, 'Joe')
+
 		query.Type = "Insert"
-		//fill in
+		query.Ascending = 1 //default
+		//fmt.Printf("Action: %s \n", stmt.Action)
+		//fmt.Printf("Comments: %+v \n", stmt.Comments)
+		//fmt.Printf("Ignore: %s \n", stmt.Ignore)
+		query.Table = sqlparser.String(stmt.Table.Name)
+		if len(stmt.Rows.(sqlparser.Values)) == 0 {
+			return query, fmt.Errorf("in Insert, no values found")
+		}
+		if len(stmt.Rows.(sqlparser.Values)[0]) != len(stmt.Columns) {
+			return query, fmt.Errorf("in Insert, mismatch # of cols & vals")
+		}
+		insertCells := make(map[string]interface{})
+		for i, c := range stmt.Columns {
+			col := sqlparser.String(c)
+			if _, ok := insertCells[col]; ok {
+				return query, fmt.Errorf("in Insert, can't have duplicate col %s", col)
+			}
+			//not sure if should detect type here:
+			insertCells[col] = trimQuotes(sqlparser.String(stmt.Rows.(sqlparser.Values)[0][i]))
+		}
+		//primarykeyvalue?
+		query.Inserts = append(query.Inserts, Row{cells: insertCells})
+
+		//fmt.Printf("OnDup: %+v\n", stmt.OnDup)
+		//fmt.Printf("Rows: %+v\n", stmt.Rows.(sqlparser.Values))
+		//fmt.Printf("Rows: %+v\n", sqlparser.String(stmt.Rows.(sqlparser.Values)))
+		//for i, v := range stmt.Rows.(sqlparser.Values)[0] {
+		//	fmt.Printf("row: %v %+v\n", i, sqlparser.String(v))
+		//}
 
 	case *sqlparser.Update:
 		query.Type = "Update"
@@ -147,6 +181,20 @@ func trimQuotes(s string) string {
 		s = s[:len(s)-1]
 	}
 	return s
+}
+
+func isQuoted(s string) bool { //string
+	if (len(s) > 0) && (s[0] == '\'') && (s[len(s)-1] == '\'') {
+		return true
+	}
+	return false
+}
+
+func isNumeric(s string) bool { //float or int
+	if _, err := strconv.ParseFloat(s, 64); err == nil {
+		return true
+	}
+	return false
 }
 
 func readable(expr sqlparser.Expr) string {

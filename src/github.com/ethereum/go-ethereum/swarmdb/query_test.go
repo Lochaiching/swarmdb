@@ -48,6 +48,7 @@ func TestParseQuery(t *testing.T) {
 		`or`:           `select name, age from contacts where email = 'rodney@wolk.com' or age = 35`,
 		`not`:          `select name, age from contacts where email != 'rodney@wolk.com'`,
 		`groupby`:      `select name, age from contacts where age >= 35 group by email`,
+		`syntax`:       `select age from test where email = 'test002@wolk.com'`,
 	}
 	/*
 		test := `{"Type":"Select", "Table":"contacts", "TableOwner":, "RequestColumns":[{"ColumnName":"name", "IndexType":0, "ColumnType":0, "Primary":0}, {"ColumnName":"age", "IndexType":0, "ColumnType":0, "Primary":0}], "Where":{"Left":"email", "Right":"%wolk%", "Operator":"like"}, "Ascending":0}`
