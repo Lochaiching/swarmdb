@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
@@ -88,6 +90,41 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
 		return
 	}
+	encAuthString := r.Header["Authorization"]
+	encAuthStringParts := strings.SplitN(encAuthString[0], " ", 2)
+
+	decAuthString, err := base64.StdEncoding.DecodeString(encAuthStringParts[1])
+	if err != nil {
+		return 
+	}
+	decAuthStringParts := strings.SplitN(string(decAuthString), ":", 2)
+	ethAddr := decAuthStringParts[0]
+	ethAddrSigned := decAuthStringParts[1]
+
+	ethAddrBytes, errEthAddr := hex.DecodeString(ethAddr)
+        if errEthAddr != nil {
+                fmt.Printf("ERR decoding eth Address:[%s]\n", ethAddr)
+        }
+
+       	ethAddrSignedBytes, errEthAddrSigned := hex.DecodeString(ethAddrSigned)
+        if errEthAddrSigned != nil {
+                fmt.Printf("ERR decoding response:[%s]\n", ethAddrSignedBytes)
+        }
+
+        verified, errVerified := s.keymanager.VerifyMessage(ethAddrBytes, ethAddrSignedBytes)
+	var resp string
+        if errVerified != nil {
+                resp = "OK"
+        }  else if verified {
+                resp = "OK"
+        } else {
+                resp = "INVALID"
+        }	
+
+	if resp == "INVALID" {
+		return
+	}
+
 	//fmt.Println("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
 	swReq, _ := parsePath(r.URL.Path)
 	//Parse BodyContent
