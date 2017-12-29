@@ -367,7 +367,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 				}
 
 				filteredRow := filterRowByColumns(&row, query.RequestColumns)
-				fmt.Printf("\nResponse filteredrow from Get: %s (%v)", filteredRow, filteredRow)
+				fmt.Printf("\nResponse filteredrow from Get: %s (%v)", filteredRow.cells, filteredRow.cells)
 				retJson, err := json.Marshal(filteredRow.cells)
 				if err != nil {
 					return resp, err
