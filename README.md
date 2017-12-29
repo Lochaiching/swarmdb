@@ -38,10 +38,10 @@ Trusty 14.04 (LTS).
 # Get SWARMDB Docker
 
 * Download the docker image:
-  - $ sudo docker pull wolkinc/wolkmain
+  - $ sudo docker pull wolkinc/wolknode
 
 * Deploy the docker image:
-  - $ sudo docker run --name=wolkmain --rm -it -p 8500:8500 -p 5001:5000 -p 30303:30303 -p 30399:30399 -p 30301:30301/udp -p 30303:30303/udp -p 30399:30399/udp wolkinc/wolkmain
+  - $ sudo docker run --name=wolknode --rm -it -p 8500:8500 -p 5001:5000 -p 30303:30303 -p 30399:30399 -p 30303:30303/udp -p 30399:30399/udp wolkinc/wolknode
 
 * Port Mapping
   - 8500:8500 --> <swarm_http_system_port>:<swarm_http_container_port>
