@@ -36,3 +36,14 @@ connection.get("test", "test002@wolk.com", function (err, result) {
     if (err) throw err;
     console.log("get response: " + result);
 });
+
+// query
+connection.query("select email, age from test where email = 'test001@wolk.com'", function (err, result) {
+    if (err) throw err;
+    console.log("query response: " + result);
+});
+
+connection.query("select email, age from test where email = 'test002@wolk.com'", function (err, result) {
+    if (err) throw err;
+    console.log("query response: " + result);
+});
