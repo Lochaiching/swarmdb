@@ -48,9 +48,9 @@ Trusty 14.04 (LTS).
   - 5001:5000 --> <syslog_system_port>:<syslog_container_port>
   - 30303:30303 --> <geth_tcp_system_port>:<geth_tcp_container_port>
   - 30399:30399 --> <swarm_tcp_system_port>:<swarm_tcp_container_port>
-  - 30301:30301/udp --> <bootnode_udp_system_port>:<bootnode_udp_container_port>
   - 30303:30303/udp --> <geth_udp_system_port>:<geth_udp_container_port>
   - 30399:30399/udp --> <swarm_udp_system_port>:<swarm_udp_container_port>
+  - 30301:30301/udp --> <bootnode_udp_system_port>:<bootnode_udp_container_port> (Not used here)
 
 # Run SWARMDB
 
