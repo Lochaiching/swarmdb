@@ -473,16 +473,15 @@ func (self *HashDB) Delete(k []byte) (bool, error) {
 }
 
 func (self *Node) Delete(k []byte, swarmdb *SwarmDB, columntype ColumnType) (newnode *Node, found bool) {
-	fmt.Println("k = ", k)
 	found = false
 	if self.Loaded == false{
 		self.load(swarmdb, columntype)
 	}
-	/*
-		if self.Get(k) == nil{
-			return self
-		}
-	*/
+        stack := newStack()
+	ret := self.Get(k, swarmdb, columntype, stack)
+	if ret == nil {
+		return self, false
+	}
 	kh := keyhash(k)
 	bin := hashbin(kh, self.Level)
 
@@ -501,7 +500,7 @@ func (self *Node) Delete(k []byte, swarmdb *SwarmDB, columntype ColumnType) (new
 					pos = i
 				}
 			}
-			if bincount == 1 && self.Bin[bin].Bin[pos].Next == false {
+			if bincount == 1 && self.Bin[bin].Bin[pos].Next == false{
 				self.Bin[bin].Bin[pos].Level = self.Bin[bin].Level
 				self.Bin[bin].Bin[pos] = self.Bin[bin].Bin[pos].shiftUpper()
 				self.Bin[bin] = self.Bin[bin].Bin[pos]
@@ -524,33 +523,19 @@ func (self *Node) Delete(k []byte, swarmdb *SwarmDB, columntype ColumnType) (new
 		self.Stored = false
 		found = true
 		self.Bin[bin] = nil
-/*
-		bincount := 0
-		pos := -1
-		for i, b := range self.Bin {
-			if b != nil {
-				bincount++
-				pos = i
-			}
-		}
-		if bincount == 1 {
-			self.Bin[pos].Level = self.Bin[pos].Level - 1
-			self.Bin[pos].Stored = false
-			self = self.Bin[pos]
-			return self, found
-		}
-*/
 	}
 	return self, found
 }
 
 func (self *Node) shiftUpper()(*Node){
 	for i, bin := range self.Bin{
-		if bin.Next == true{
-			bin = bin.shiftUpper()
-		}	
-		bin.Level = bin.Level - 1
-		self.Bin[i] = bin
+		if bin != nil{ 
+			if bin.Next == true{
+				bin = bin.shiftUpper()
+			}	
+			bin.Level = bin.Level - 1
+			self.Bin[i] = bin
+		}
 	}
 	return self
 }
@@ -829,12 +814,10 @@ func (self *HashdbCursor) seekprev()(error){
         if lastpos < 0 {
                 lastpos = 63
 	}else if lastpos == 0{
-///// need something
                 lastpos = 63
         }else{
                 lastpos = lastpos-1 
         }
-fmt.Println("seekprev = ", lastpos, self.bin.size, self.bin.data)
         for i := lastpos; i >= 0; i--{
                 if self.node.Bin[i] != nil && self.node.Bin[i].Value != 0 {
                         if self.node.Bin[i].Loaded == false{
@@ -857,9 +840,7 @@ fmt.Println("seekprev = ", lastpos, self.bin.size, self.bin.data)
                 }
         }
 	self.bin.Pop()
-fmt.Println("here", self.level, self.bin.data)
         if self.level == 0{
-fmt.Println("here", self.level, self.bin.data)
                 return io.EOF
         }
         self.level = self.level-1
@@ -879,20 +860,6 @@ fmt.Println("here", self.level, self.bin.data)
                 self.level = self.level-1
         }
         self.node = self.hashdb.rootnode
-/*
-        for i := 0; i < self.bin.Size(); i++{
-                if self.bin.GetPos(i) == -1 {
-                        return fmt.Errorf("No Data")
-                }
-                if self.node.Bin[self.bin.GetPos(i)] == nil{
-                }else{
-                        if self.node.Bin[self.bin.GetPos(i)].Loaded == false {
-                                self.node.Bin[self.bin.GetPos(i)].load(self.hashdb.swarmdb, self.hashdb.columnType)
-                        }
-                        return nil
-                }
-        }
-*/
         for i := 0; i < self.bin.Size()-1; i++{
                 if self.bin.GetPos(i) == -1 {
                         return fmt.Errorf("No Data")
@@ -902,7 +869,6 @@ fmt.Println("here", self.level, self.bin.data)
                         if self.node.Bin[self.bin.GetPos(i)].Loaded == false {
                                 self.node.Bin[self.bin.GetPos(i)].load(self.hashdb.swarmdb, self.hashdb.columnType)
                         }
-        fmt.Println("move = ", i, ":", self.bin.GetPos(i))
                         self.node = self.node.Bin[self.bin.GetPos(i)]
                         //return nil
                 }
@@ -910,40 +876,6 @@ fmt.Println("here", self.level, self.bin.data)
         err = self.seekprev()
         return err
 }
-
-
-/*
-func (self *HashdbCursor) seekprev() (err error){
-	l := self.level
-	node := self.node
-	for i := self.bin.GetLast() ; i >= 0; i--{
-		if node.Bin[i] != nil{
-			self.level = l+1
-			self.bin.Push(i)
-			self.node = node.Bin[i]
-			if node.Bin[i].Next == true{
-				err = self.seekprev()
-			}else{
-				return nil
-			}
-			return err
-		}
-	}
-// no next bin go upper level
-	if self.level == 0{
-		return fmt.Errorf("no data")
-	}
-        self.level = self.level-1
-        //bnum, _ := self.bin.Pop()
-        self.bin.Pop()
-	self.node = self.hashdb.rootnode
-        for i := 0; i < self.bin.Size(); i++{
-		self.node = self.node.Bin[self.bin.GetPos(i)]
-        }
-        err = self.seekprev()
-	return fmt.Errorf("no data")
-}
-*/
 
 func (self *HashdbCursor) seeklast()(error){
 	return nil
