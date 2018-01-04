@@ -150,21 +150,49 @@ func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 
 }
 
+//Insert is for adding new data to the table
 func (self SwarmDB) QueryInsert(query *QueryOption) (err error) {
-	// Alina: implementing with Put (=> Insert)
 
-	
+	table, err := self.GetTable(query.TableOwner, query.Table)
+	if err != nil {
+		return err
+	}
+	for _, row := range query.Inserts {
+		err := table.Put(row.cells) //make sure Put checks for duplicate rows
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
+
+//Update is for modifying existing data in the table (can use a Where clause)
 func (self SwarmDB) QueryUpdate(query *QueryOption) (err error) {
-	// Alina: implementing with Put (=> Insert)
+
+	table, err := self.GetTable(query.TableOwner, query.Table)
+	if err != nil {
+		return err
+	}
+	//...
+
 	return nil
 }
 
+//Delete is for deleting data rows (can use a Where clause, not just a key)
 func (self SwarmDB) QueryDelete(query *QueryOption) (err error) {
-	// Alina: implementing with Delete
+
+	table, err := self.GetTable(query.TableOwner, query.Table)
+	if err != nil {
+		return err
+	}
+
+	//...
+
 	return nil
 }
+
+//func (self SwarmDB) filterWhere(rawRows []Row)
 
 func (self SwarmDB) Query(query *QueryOption) (rows []Row, err error) {
 	switch query.Type {
@@ -252,7 +280,8 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			fmt.Printf("err1: %s\n", err)
 			return resp, err
 		} else {
-			err2 := tbl.Put(d.Rows)
+
+			err2 := tbl.Put(d.Rows[0].cells)
 			if err2 != nil {
 				fmt.Printf("Err putting: %s", err2)
 				return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
@@ -282,7 +311,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		err2 := tbl.Insert(d.Rows)
+		err2 := tbl.Insert(d.Rows[0].cells)
 		if err2 != nil {
 			return resp, err2
 		}
@@ -340,7 +369,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			return resp, err
 		}
 		query.TableOwner = d.Owner //probably should check the owner against the tableinfo owner here
-		
+
 		fmt.Printf("Table info gotten: [%+v] \n", tblInfo)
 		fmt.Printf("QueryOption is: [%+v] \n", query)
 
@@ -620,7 +649,21 @@ func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte,
 	return k, nil
 }
 
-func (t *Table) Put(jsonrecord map[string]string) (err error) {
+func convertRow(in map[string]interface{}) map[string]string {
+	out := make(map[string]string)
+	for key, value := range in {
+		switch value := value.(type) {
+		case string:
+			out[key] = value
+		}
+	}
+	return out
+}
+
+func (t *Table) Put(row map[string]interface{}) (err error) {
+
+	jsonrecord := convertRow(row)
+
 	value, err0 := json.Marshal(jsonrecord)
 	if err0 != nil {
 		return err0
@@ -689,27 +732,30 @@ func (t *Table) Put(jsonrecord map[string]string) (err error) {
 	return nil
 }
 
-func (t *Table) Insert(value map[string]string) (err error) {
-	/*
-		t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Insert|%s", value))
-		primaryColumnName := t.primaryColumnName
-		/// store value to kdb and get a hash
-		_, b, err := t.columns[primaryColumnName].dbaccess.Get([]byte(key))
-		if b {
-			var derr *DuplicateKeyError
-			return derr
-		}
-		if err != nil {
-			return err
-		}
+func (t *Table) Insert(row map[string]interface{}) (err error) {
 
-		t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName), t.bid, t.replication, t.encrypted)
-		k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
-		khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
-		if err != nil {
-			return err
-		}
-		_, err = t.columns[primaryColumnName].dbaccess.Insert(k, []byte(khash))
+	/*
+		        value := convertRow(row)
+
+			t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Insert|%s", value))
+			primaryColumnName := t.primaryColumnName
+			/// store value to kdb and get a hash
+			_, b, err := t.columns[primaryColumnName].dbaccess.Get([]byte(key))
+			if b {
+				var derr *DuplicateKeyError
+				return derr
+			}
+			if err != nil {
+				return err
+			}
+
+			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName), t.bid, t.replication, t.encrypted)
+			k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
+			khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
+			if err != nil {
+				return err
+			}
+			_, err = t.columns[primaryColumnName].dbaccess.Insert(k, []byte(khash))
 	*/
 	return err
 }
