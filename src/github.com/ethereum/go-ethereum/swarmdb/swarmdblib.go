@@ -145,10 +145,12 @@ func (dbc *SWARMDBConnection) CreateTable(tableName string, columns []Column, en
 func (t *SWARMDBTable) Put(row *Row) (response string, err error) {
 	// create request
 	var r RequestOption
+	var reqOptRow Row
 	r.RequestType = "Put"
 	r.Owner = t.dbc.ownerID
 	r.Table = t.tableName
-	r.Row = row.cells
+	reqOptRow.cells = row.cells
+	r.Rows = append(r.Rows, reqOptRow)
 
 	// send to server
 	return t.dbc.ProcessRequestResponseCommand(r)
@@ -157,10 +159,12 @@ func (t *SWARMDBTable) Put(row *Row) (response string, err error) {
 func (t *SWARMDBTable) Insert(row *Row) (response string, err error) {
 	// create request
 	var r RequestOption
+	var reqOptRow Row
 	r.RequestType = "Insert"
 	r.Owner = t.dbc.ownerID
 	r.Table = t.tableName
-	r.Row = row.cells
+	reqOptRow.cells = row.cells
+	r.Rows = append(r.Rows, reqOptRow)
 	// send to server
 	return t.dbc.ProcessRequestResponseCommand(r)
 }
@@ -239,7 +243,7 @@ func (t *SWARMDBTable) Close() {
 
 func NewRow() (r *Row) {
 	r = new(Row)
-	r.cells = make(map[string]string)
+	r.cells = make(map[string]interface{})
 	return r
 }
 
