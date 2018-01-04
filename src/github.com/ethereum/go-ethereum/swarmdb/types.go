@@ -4,8 +4,8 @@ import (
 	"bufio"
 	"crypto/sha256"
 	"database/sql"
-	"encoding/json"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
@@ -36,9 +36,9 @@ type RequestOption struct {
 	Replication int     `json:"replication,omitempty"`
 	Key         string  `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
 	// Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
-	Row      map[string]string `json:"row,omitempty"` //value of val, usually the whole json record
-	Columns  []Column          `json:"columns,omitempty"`
-	RawQuery string            `json:"rawquery,omitempty"` //"Select name, age from contacts where email = 'blah'"
+	Rows     []Row    `json:"rows,omitempty"` //value of val, usually the whole json record
+	Columns  []Column `json:"columns,omitempty"`
+	RawQuery string   `json:"rawquery,omitempty"` //"Select name, age from contacts where email = 'blah'"
 }
 
 type SWARMDBConnection struct {
@@ -152,8 +152,8 @@ type Table struct {
 }
 
 type Row struct {
-	primaryKeyValue interface{}
-	cells           map[string]interface{}
+	//primaryKeyValue interface{}
+	cells map[string]interface{}
 }
 
 type DBChunkstorage interface {
