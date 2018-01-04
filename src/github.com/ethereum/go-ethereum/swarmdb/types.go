@@ -153,7 +153,7 @@ type Table struct {
 
 type Row struct {
 	//primaryKeyValue interface{}
-	cells map[string]interface{}
+	Cells map[string]interface{}
 }
 
 type DBChunkstorage interface {
@@ -242,19 +242,19 @@ func checkDuplicateRow(row1 Row, row2 Row) bool {
 	//	return true
 	//}
 
-	for k1, r1 := range row1.cells {
-		if _, ok := row2.cells[k1]; !ok {
+	for k1, r1 := range row1.Cells {
+		if _, ok := row2.Cells[k1]; !ok {
 			return true
 		}
-		if r1 != row2.cells[k1] {
+		if r1 != row2.Cells[k1] {
 			return true
 		}
 	}
-	for k2, r2 := range row2.cells {
-		if _, ok := row1.cells[k2]; !ok {
+	for k2, r2 := range row2.Cells {
+		if _, ok := row1.Cells[k2]; !ok {
 			return true
 		}
-		if r2 != row1.cells[k2] {
+		if r2 != row1.Cells[k2] {
 			return true
 		}
 	}
@@ -266,7 +266,7 @@ func checkDuplicateRow(row1 Row, row2 Row) bool {
 func rowDataToJson(rows []Row) (string, error) {
 	var resMap map[string]interface{}
 	for _, row := range rows {
-		for key, val := range row.cells {
+		for key, val := range row.Cells {
 			if _, ok := resMap[key]; !ok {
 				resMap[key] = val
 			}
@@ -282,10 +282,10 @@ func rowDataToJson(rows []Row) (string, error) {
 //gets only the specified Columns (column name and value) out of a single Row, returns as a Row with only the relevant data
 func filterRowByColumns(row *Row, columns []Column) (filteredRow Row) {
 	//filteredRow.primaryKeyValue = row.primaryKeyValue
-	filteredRow.cells = make(map[string]interface{})
+	filteredRow.Cells = make(map[string]interface{})
 	for _, col := range columns {
-		if _, ok := row.cells[col.ColumnName]; ok {
-			filteredRow.cells[col.ColumnName] = row.cells[col.ColumnName]
+		if _, ok := row.Cells[col.ColumnName]; ok {
+			filteredRow.Cells[col.ColumnName] = row.Cells[col.ColumnName]
 		}
 	}
 	return filteredRow
