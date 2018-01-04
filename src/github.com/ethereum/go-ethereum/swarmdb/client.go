@@ -100,12 +100,12 @@ func AddRecord(owner string, table string, key string, value string) (err error)
 	req.Table = table
 	req.Key = key
 
-	vmap := make(map[string]string)
-	if err := json.Unmarshal([]byte(value), &vmap); err != nil {
+	var vmap Row
+	if err := json.Unmarshal([]byte(value), &vmap.cells); err != nil {
 		return fmt.Errorf("record is not proper json")
 	}
 	// vjson, _ := json.Marshal(vmap) //re-marshal to clean up any odd formatting
-	req.Row = vmap
+	req.Rows = append(req.Rows, vmap)
 	fmt.Printf("swarmdb.AddRecord(%+v)\n", req)
 
 	//new swarmdbserver
