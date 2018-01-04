@@ -282,7 +282,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		err2 := tbl.Insert(d.Row)
+		err2 := tbl.Insert(d.Rows)
 		if err2 != nil {
 			return resp, err2
 		}
