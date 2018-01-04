@@ -172,6 +172,7 @@ func (self SwarmDB) QueryUpdate(query *QueryOption) (err error) {
 
 	table, err := self.GetTable(query.TableOwner, query.Table)
 	if err != nil {
+		fmt.Printf("ERROR: Unable to get table [%s] [%+v]", query.Table, table)
 		return err
 	}
 	//...
@@ -184,6 +185,7 @@ func (self SwarmDB) QueryDelete(query *QueryOption) (err error) {
 
 	table, err := self.GetTable(query.TableOwner, query.Table)
 	if err != nil {
+		fmt.Printf("ERROR: Unable to get table [%s] [%+v]", query.Table, table)
 		return err
 	}
 
