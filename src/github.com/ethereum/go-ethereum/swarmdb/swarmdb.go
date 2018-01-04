@@ -195,7 +195,6 @@ func (self SwarmDB) QueryDelete(query *QueryOption) (err error) {
 //func (self SwarmDB) filterWhere(rawRows []Row)
 
 func (self SwarmDB) Query(query *QueryOption) (rows []Row, err error) {
-
 	switch query.Type {
 	case "Select":
 		rows, err := self.QuerySelect(query)
@@ -219,7 +218,6 @@ func (self SwarmDB) Query(query *QueryOption) (rows []Row, err error) {
 		return rows, err
 	}
 	return rows, nil
-
 }
 
 func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, ascending int) (rows []Row, err error) {
@@ -282,6 +280,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			fmt.Printf("err1: %s\n", err)
 			return resp, err
 		} else {
+
 			err2 := tbl.Put(d.Rows[0].cells)
 			if err2 != nil {
 				fmt.Printf("Err putting: %s", err2)
@@ -419,10 +418,12 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 				return string(retJson), nil
 			}
 		}
-
+		fmt.Printf("\nAbout to process query [%s]", query)
 		//process the query
 		qRows, err := self.Query(&query)
+		fmt.Printf("\nQRows: [%+v]",qRows)
 		if err != nil {
+			fmt.Printf("\nError processing query [%s] | Error: %s", query, err)
 			return resp, err
 		}
 		resp, err = rowDataToJson(qRows)
