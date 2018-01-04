@@ -78,7 +78,7 @@ func getSWARMDBTableSecondary(ownerId string, tableName string, primaryKeyName s
 		}
 
 		putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
-		var putjson map[string]string
+		var putjson map[string]interface{}
 		_ = json.Unmarshal([]byte(putstr), putjson)
 		tbl.Put(putjson)
 
@@ -128,10 +128,9 @@ func TestSetGetInt(t *testing.T) {
 		for _, k := range a {
 			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
 			fmt.Printf("%s\n", val)
-			var putjson map[string]string
+			var putjson map[string]interface{}
 			_ = json.Unmarshal([]byte(val), putjson)
 			r.Put(putjson)
-
 		}
 
 		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
@@ -156,10 +155,9 @@ func TestSetGetInt(t *testing.T) {
 		r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 		for _, k := range a {
 			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
-			var putjson map[string]string
+			var putjson map[string]interface{}
 			_ = json.Unmarshal([]byte(val), putjson)
 			r2.Put(putjson)
-
 		}
 
 		s2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
@@ -181,7 +179,7 @@ func TestTable(t *testing.T) {
 	tbl := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 
 	putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
-	var putjson map[string]string
+	var putjson map[string]interface{}
 	_ = json.Unmarshal([]byte(putstr), putjson)
 	tbl.Put(putjson)
 
@@ -305,7 +303,7 @@ func aTestPutInteger(t *testing.T) {
 	// write 20 values into B-tree (only kept in memory)
 	r.StartBuffer()
 	vals := rand.Perm(20)
-	var putjson map[string]string
+	var putjson map[string]interface{}
 	for _, i := range vals {
 		v := fmt.Sprintf(`{"%s":"%d", "email":"test%03d@wolk.com"}`, TEST_PKEY_INT, i, i)
 		_ = json.Unmarshal([]byte(v), putjson)
@@ -336,7 +334,7 @@ func aTestPutString(t *testing.T) {
 
 	r.StartBuffer()
 	vals := rand.Perm(20)
-	var putjson map[string]string
+	var putjson map[string]interface{}
 	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
 		v := fmt.Sprintf(`{"%s":"t%06x@wolk.com", "val":"valueof%06x"}`, TEST_PKEY_STRING, i, i)
@@ -365,7 +363,7 @@ func aTestPutFloat(t *testing.T) {
 
 	r.StartBuffer()
 	vals := rand.Perm(20)
-	var putjson map[string]string
+	var putjson map[string]interface{}
 	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
 		f := float64(i) + .3141519
@@ -398,7 +396,7 @@ func aTestSetGetString(t *testing.T) {
 	// put
 	key := "88"
 	val := fmt.Sprintf(`{"%s":"%s", "val":"valueof%06x"}`, TEST_PKEY_STRING, key, key)
-	var putjson map[string]string
+	var putjson map[string]interface{}
 	_ = json.Unmarshal([]byte(val), putjson)
 	r.Put(putjson)
 
@@ -453,7 +451,7 @@ func aTestDelete0(t *testing.T) {
 		t.Fatal(ok)
 	}
 
-	var putjson map[string]string
+	var putjson map[string]interface{}
 
 	if ok, _ := r.Delete(key1); ok {
 		t.Fatal(ok)
@@ -521,7 +519,7 @@ func aTestDelete1(t *testing.T) {
 		}
 		for _, k := range a {
 			v := fmt.Sprintf(`{"%s":"%d","val":"value%d"}`, TEST_PKEY_INT, k, k)
-			var putjson map[string]string
+			var putjson map[string]interface{}
 			_ = json.Unmarshal([]byte(v), putjson)
 			r.Put(putjson)
 
@@ -550,7 +548,7 @@ func aTestDelete2(t *testing.T) {
 		for i := range a {
 			a[i] = (rng.Next() ^ x) << 1
 		}
-		var putjson map[string]string
+		var putjson map[string]interface{}
 		for _, k := range a {
 
 			v := fmt.Sprintf(`{"%s":"%d","val":"value%d"`, TEST_PKEY_INT, k, k)
