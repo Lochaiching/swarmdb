@@ -644,10 +644,11 @@ func TestPut(t *testing.T) {
 	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOption.Table = "contacts"
 	testReqOption.Key = "rodneytest1@wolk.com"
-	testReqOption.Row = make(map[string]string)
+	//testReqOption.Row = make(map[string]interface{})
 	row := `{"name": "Rodney", "age": 37, "email": "rodneytest1@wolk.com"}`
 	rowObj := make(map[string]interface{})
 	_ = json.Unmarshal([]byte(row), &rowObj)
+	/*
 	for k, v := range rowObj {
 		switch v.(type) {
 		case float64:
@@ -656,7 +657,9 @@ func TestPut(t *testing.T) {
 		default:
 			testReqOption.Row[k] = v.(string)
 		}
-	}
+	 }*/
+	newRow := swarmdb.Row{Cells:rowObj}
+	testReqOption.Rows = append(testReqOption.Rows, newRow)
 	marshalTestReqOption, err := json.Marshal(testReqOption)
 	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
 	if err != nil {
@@ -697,11 +700,12 @@ func TestPutGet(t *testing.T) {
 	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOption.Table = "contacts"
 	testReqOption.Key = "alinatest@wolk.com"
-	testReqOption.Row = make(map[string]string)
+	//testReqOption.Row = make(map[string]interface{})
 	row := `{"name": "ZAlina", "age": 35, "email": "alinatest@wolk.com"}`
 
 	rowObj := make(map[string]interface{})
 	_ = json.Unmarshal([]byte(row), &rowObj)
+	/*
 	for k, v := range rowObj {
 		switch v.(type) {
 		case float64:
@@ -710,7 +714,9 @@ func TestPutGet(t *testing.T) {
 		default:
 			testReqOption.Row[k] = v.(string)
 		}
-	}
+	 }*/
+	newRow := swarmdb.Row{Cells:rowObj}
+	testReqOption.Rows = append(testReqOption.Rows, newRow)
 	marshalTestReqOption, err := json.Marshal(testReqOption)
 	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
 	if err != nil {

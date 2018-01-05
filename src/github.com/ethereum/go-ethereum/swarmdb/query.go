@@ -106,7 +106,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			insertCells[col] = trimQuotes(sqlparser.String(stmt.Rows.(sqlparser.Values)[0][i]))
 		}
 		//primarykeyvalue?
-		query.Inserts = append(query.Inserts, Row{cells: insertCells})
+		query.Inserts = append(query.Inserts, Row{Cells: insertCells})
 
 		//fmt.Printf("OnDup: %+v\n", stmt.OnDup)
 		//fmt.Printf("Rows: %+v\n", stmt.Rows.(sqlparser.Values))

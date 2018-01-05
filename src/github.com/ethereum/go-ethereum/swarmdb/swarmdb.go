@@ -104,12 +104,12 @@ func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 	//filter for correct columns and Where/Having
 	for _, row := range rawRows {
 		fRow := filterRowByColumns(&row, query.RequestColumns)
-		if len(fRow.cells) == 0 {
+		if len(fRow.Cells) == 0 {
 			return rows, err //no columns found
 		}
 
 		add := false
-		if _, ok := fRow.cells[query.Where.Left]; ok {
+		if _, ok := fRow.Cells[query.Where.Left]; ok {
 			/* //need to make these type dependent b/c of interface{}, also needs to be moved to a diff fcn
 			switch query.Where.Operator {
 			case "=":
@@ -158,7 +158,7 @@ func (self SwarmDB) QueryInsert(query *QueryOption) (err error) {
 		return err
 	}
 	for _, row := range query.Inserts {
-		err := table.Put(row.cells) //make sure Put checks for duplicate rows
+		err := table.Put(row.Cells) //make sure Put checks for duplicate rows
 		if err != nil {
 			return err
 		}
@@ -170,11 +170,11 @@ func (self SwarmDB) QueryInsert(query *QueryOption) (err error) {
 //Update is for modifying existing data in the table (can use a Where clause)
 func (self SwarmDB) QueryUpdate(query *QueryOption) (err error) {
 
-	table, err := self.GetTable(query.TableOwner, query.Table)
-	if err != nil {
-		fmt.Printf("ERROR: Unable to get table [%s] [%+v]", query.Table, table)
-		return err
-	}
+	/*
+		table, err := self.GetTable(query.TableOwner, query.Table)
+		if err != nil {
+			return err
+		}*/
 	//...
 
 	return nil
@@ -182,13 +182,12 @@ func (self SwarmDB) QueryUpdate(query *QueryOption) (err error) {
 
 //Delete is for deleting data rows (can use a Where clause, not just a key)
 func (self SwarmDB) QueryDelete(query *QueryOption) (err error) {
-
-	table, err := self.GetTable(query.TableOwner, query.Table)
-	if err != nil {
-		fmt.Printf("ERROR: Unable to get table [%s] [%+v]", query.Table, table)
-		return err
-	}
-
+	/*
+		table, err := self.GetTable(query.TableOwner, query.Table)
+		if err != nil {
+			return err
+		}
+	*/
 	//...
 
 	return nil
@@ -283,7 +282,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			return resp, err
 		} else {
 
-			err2 := tbl.Put(d.Rows[0].cells)
+			err2 := tbl.Put(d.Rows[0].Cells)
 			if err2 != nil {
 				fmt.Printf("Err putting: %s", err2)
 				return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
@@ -313,7 +312,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		err2 := tbl.Insert(d.Rows[0].cells)
+		err2 := tbl.Insert(d.Rows[0].Cells)
 		if err2 != nil {
 			return resp, err2
 		}
@@ -412,8 +411,8 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 				}
 
 				filteredRow := filterRowByColumns(&row, query.RequestColumns)
-				fmt.Printf("\nResponse filteredrow from Get: %s (%v)", filteredRow.cells, filteredRow.cells)
-				retJson, err := json.Marshal(filteredRow.cells)
+				fmt.Printf("\nResponse filteredrow from Get: %s (%v)", filteredRow.Cells, filteredRow.Cells)
+				retJson, err := json.Marshal(filteredRow.Cells)
 				if err != nil {
 					return resp, err
 				}
@@ -423,7 +422,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		fmt.Printf("\nAbout to process query [%s]", query)
 		//process the query
 		qRows, err := self.Query(&query)
-		fmt.Printf("\nQRows: [%+v]",qRows)
+		fmt.Printf("\nQRows: [%+v]", qRows)
 		if err != nil {
 			fmt.Printf("\nError processing query [%s] | Error: %s", query, err)
 			return resp, err
@@ -776,9 +775,9 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 
 func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	var row Row
-	row.cells = make(map[string]interface{})
+	row.Cells = make(map[string]interface{})
 	//row.primaryKeyValue = t.primaryColumnName
-	if err := json.Unmarshal(byteData, &row.cells); err != nil {
+	if err := json.Unmarshal(byteData, &row.Cells); err != nil {
 		return out, err
 	}
 	return row, nil

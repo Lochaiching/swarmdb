@@ -101,7 +101,7 @@ func AddRecord(owner string, table string, key string, value string) (err error)
 	req.Key = key
 
 	var vmap Row
-	if err := json.Unmarshal([]byte(value), &vmap.cells); err != nil {
+	if err := json.Unmarshal([]byte(value), &vmap.Cells); err != nil {
 		return fmt.Errorf("record is not proper json")
 	}
 	// vjson, _ := json.Marshal(vmap) //re-marshal to clean up any odd formatting
