@@ -104,12 +104,12 @@ func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 	//filter for correct columns and Where/Having
 	for _, row := range rawRows {
 		fRow := filterRowByColumns(&row, query.RequestColumns)
-		if len(fRow.cells) == 0 {
+		if len(fRow.Cells) == 0 {
 			return rows, err //no columns found
 		}
 
 		add := false
-		if _, ok := fRow.cells[query.Where.Left]; ok {
+		if _, ok := fRow.Cells[query.Where.Left]; ok {
 			/* //need to make these type dependent b/c of interface{}, also needs to be moved to a diff fcn
 			switch query.Where.Operator {
 			case "=":
@@ -150,24 +150,52 @@ func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 
 }
 
+//Insert is for adding new data to the table
 func (self SwarmDB) QueryInsert(query *QueryOption) (err error) {
-	// Alina: implementing with Put (=> Insert)
 
-	
+	table, err := self.GetTable(query.TableOwner, query.Table)
+	if err != nil {
+		return err
+	}
+	for _, row := range query.Inserts {
+		err := table.Put(row.Cells) //make sure Put checks for duplicate rows
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
+
+//Update is for modifying existing data in the table (can use a Where clause)
 func (self SwarmDB) QueryUpdate(query *QueryOption) (err error) {
-	// Alina: implementing with Put (=> Insert)
+
+	/*
+		table, err := self.GetTable(query.TableOwner, query.Table)
+		if err != nil {
+			return err
+		}*/
+	//...
+
 	return nil
 }
 
+//Delete is for deleting data rows (can use a Where clause, not just a key)
 func (self SwarmDB) QueryDelete(query *QueryOption) (err error) {
-	// Alina: implementing with Delete
+	/*
+		table, err := self.GetTable(query.TableOwner, query.Table)
+		if err != nil {
+			return err
+		}
+	*/
+	//...
+
 	return nil
 }
+
+//func (self SwarmDB) filterWhere(rawRows []Row)
 
 func (self SwarmDB) Query(query *QueryOption) (rows []Row, err error) {
-
 	switch query.Type {
 	case "Select":
 		rows, err := self.QuerySelect(query)
@@ -191,7 +219,6 @@ func (self SwarmDB) Query(query *QueryOption) (rows []Row, err error) {
 		return rows, err
 	}
 	return rows, nil
-
 }
 
 func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, ascending int) (rows []Row, err error) {
@@ -254,7 +281,8 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			fmt.Printf("err1: %s\n", err)
 			return resp, err
 		} else {
-			err2 := tbl.Put(d.Row)
+
+			err2 := tbl.Put(d.Rows[0].Cells)
 			if err2 != nil {
 				fmt.Printf("Err putting: %s", err2)
 				return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
@@ -284,7 +312,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		err2 := tbl.Insert(d.Row)
+		err2 := tbl.Insert(d.Rows[0].Cells)
 		if err2 != nil {
 			return resp, err2
 		}
@@ -342,7 +370,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			return resp, err
 		}
 		query.TableOwner = d.Owner //probably should check the owner against the tableinfo owner here
-		
+
 		fmt.Printf("Table info gotten: [%+v] \n", tblInfo)
 		fmt.Printf("QueryOption is: [%+v] \n", query)
 
@@ -383,18 +411,20 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 				}
 
 				filteredRow := filterRowByColumns(&row, query.RequestColumns)
-				fmt.Printf("\nResponse filteredrow from Get: %s (%v)", filteredRow.cells, filteredRow.cells)
-				retJson, err := json.Marshal(filteredRow.cells)
+				fmt.Printf("\nResponse filteredrow from Get: %s (%v)", filteredRow.Cells, filteredRow.Cells)
+				retJson, err := json.Marshal(filteredRow.Cells)
 				if err != nil {
 					return resp, err
 				}
 				return string(retJson), nil
 			}
 		}
-
+		fmt.Printf("\nAbout to process query [%s]", query)
 		//process the query
 		qRows, err := self.Query(&query)
+		fmt.Printf("\nQRows: [%+v]", qRows)
 		if err != nil {
+			fmt.Printf("\nError processing query [%s] | Error: %s", query, err)
 			return resp, err
 		}
 		resp, err = rowDataToJson(qRows)
@@ -620,7 +650,21 @@ func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte,
 	return k, nil
 }
 
-func (t *Table) Put(jsonrecord map[string]string) (err error) {
+func convertRow(in map[string]interface{}) map[string]string {
+	out := make(map[string]string)
+	for key, value := range in {
+		switch value := value.(type) {
+		case string:
+			out[key] = value
+		}
+	}
+	return out
+}
+
+func (t *Table) Put(row map[string]interface{}) (err error) {
+
+	jsonrecord := convertRow(row)
+
 	value, err0 := json.Marshal(jsonrecord)
 	if err0 != nil {
 		return err0
@@ -689,27 +733,30 @@ func (t *Table) Put(jsonrecord map[string]string) (err error) {
 	return nil
 }
 
-func (t *Table) Insert(value map[string]string) (err error) {
-	/*
-		t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Insert|%s", value))
-		primaryColumnName := t.primaryColumnName
-		/// store value to kdb and get a hash
-		_, b, err := t.columns[primaryColumnName].dbaccess.Get([]byte(key))
-		if b {
-			var derr *DuplicateKeyError
-			return derr
-		}
-		if err != nil {
-			return err
-		}
+func (t *Table) Insert(row map[string]interface{}) (err error) {
 
-		t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName), t.bid, t.replication, t.encrypted)
-		k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
-		khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
-		if err != nil {
-			return err
-		}
-		_, err = t.columns[primaryColumnName].dbaccess.Insert(k, []byte(khash))
+	/*
+		        value := convertRow(row)
+
+			t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Insert|%s", value))
+			primaryColumnName := t.primaryColumnName
+			/// store value to kdb and get a hash
+			_, b, err := t.columns[primaryColumnName].dbaccess.Get([]byte(key))
+			if b {
+				var derr *DuplicateKeyError
+				return derr
+			}
+			if err != nil {
+				return err
+			}
+
+			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName), t.bid, t.replication, t.encrypted)
+			k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
+			khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
+			if err != nil {
+				return err
+			}
+			_, err = t.columns[primaryColumnName].dbaccess.Insert(k, []byte(khash))
 	*/
 	return err
 }
@@ -728,9 +775,9 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 
 func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	var row Row
-	row.cells = make(map[string]interface{})
-	row.primaryKeyValue = t.primaryColumnName
-	if err := json.Unmarshal(byteData, &row.cells); err != nil {
+	row.Cells = make(map[string]interface{})
+	//row.primaryKeyValue = t.primaryColumnName
+	if err := json.Unmarshal(byteData, &row.Cells); err != nil {
 		return out, err
 	}
 	return row, nil

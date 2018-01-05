@@ -1,10 +1,10 @@
 package swarmdb_test
 
 import (
-	"testing"
 	"fmt"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
-	)
+	"testing"
+)
 
 const (
 	TEST_TABLE = "testtable"
@@ -28,19 +28,19 @@ func aTestAll(t *testing.T) {
 	var c swarmdb.Column
 	columns = append(columns, c)
 	ens, _ := swarmdb.NewENSSimulation("/tmp/ens.db")
-	tbl, _ := conn.CreateTable(TEST_TABLE, columns, ens) 
+	tbl, _ := conn.CreateTable(TEST_TABLE, columns, ens)
 
 	r := swarmdb.NewRow()
 	r.Set("email", "rodney@wolk.com")
 	r.Set("age", "38")
 	r.Set("gender", "M")
-	err = tbl.Put(r) 
-	if ( err != nil ) {
+	err = tbl.Put(r)
+	if err != nil {
 	}
 	r.Set("email", "minnie@gmail.com")
 	r.Set("age", "3")
 	r.Set("gender", "F")
-	err = tbl.Insert(r) 
+	err = tbl.Insert(r)
 
 	key := "minnie@gmail.com"
 	r, err = tbl.Get(key)
@@ -51,45 +51,44 @@ func aTestAll(t *testing.T) {
 	key = "minnie@gmail.com"
 	r, err = tbl.Get(key)
 
-	tbl.Scan(func(r swarmdb.SWARMDBRow) bool {
+	tbl.Scan(func(r swarmdb.Row) bool {
 		fmt.Printf("%v", r)
 		return true
 	})
 
 	sql := "select * from contacts"
-	tbl.Query(sql, func(r swarmdb.SWARMDBRow) bool {
+	tbl.Query(sql, func(r swarmdb.Row) bool {
 		fmt.Printf("%v", r)
 		return true
 	})
 }
 
 func bTestPut(t *testing.T) {
-	// create request 
+	// create request
 	// send to server
 }
 
 func bTestInsert(t *testing.T) {
-	// create request 
+	// create request
 	// send to server
 }
 
 func bTestGet(t *testing.T) {
-	// create request 
+	// create request
 	// send to server
 }
 
 func bTestDelete(t *testing.T) {
-	// create request 
+	// create request
 	// send to server
 }
 
 func bTestScan(t *testing.T) {
-	// create request 
+	// create request
 	// send to server
 }
 
 func bTestQuerySelect(t *testing.T) {
-	// create request 
+	// create request
 	// send to server
 }
-
