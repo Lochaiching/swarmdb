@@ -552,7 +552,7 @@ func (q *x) SWARMPut(swarmdb DBChunkstorage, columnType ColumnType) (new_hashid 
 	set_chunk_nodetype(sdata, "X")
 	set_chunk_childtype(sdata, childtype)
 
-	new_hashid, err := swarmdb.StoreDBChunk(sdata)
+	new_hashid, err := swarmdb.StoreDBChunk(sdata, 1)
 	if err != nil {
 		return q.hashid, false
 	}
@@ -598,8 +598,9 @@ func (q *d) SWARMPut(swarmdb DBChunkstorage, columnType ColumnType) (new_hashid 
 
 	set_chunk_nodetype(sdata, "D")
 	set_chunk_childtype(sdata, "C")
-	new_hashid, err := swarmdb.StoreDBChunk(sdata)
+	new_hashid, err := swarmdb.StoreDBChunk(sdata, 1)
 	if err != nil {
+		fmt.Printf("\nError calling StoreDBChunk: [%s]", err)
 		return q.hashid, false
 	}
 	q.hashid = new_hashid
