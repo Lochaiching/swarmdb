@@ -168,7 +168,7 @@ func GetQuery(owner string, table string, query string) (data []string, err erro
 	req.RequestType = "Get"
 	req.Owner = owner
 	req.Table = table
-	req.Encrypted = 1 //encrypted means table is? or data being passed back and forth is?
+	req.Encrypted = 1       //encrypted means table is? or data being passed back and forth is?
 	req.Bid = float64(1.11) //need to get this from the user
 	//req.Replication = ?
 
@@ -183,14 +183,11 @@ func GetQuery(owner string, table string, query string) (data []string, err erro
 	// call swarmdb handler here with query, is ok.
 	return data, err
 
-
-
 }
 
 func logDebug(format string, v ...interface{}) {
 	log.Debug(fmt.Sprintf("[SWARMDB] HTTP: "+format, v...))
 }
-
 
 /*
 //best place to call open/close client connections?
