@@ -102,12 +102,18 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			if _, ok := insertCells[col]; ok {
 				return query, fmt.Errorf("in Insert, can't have duplicate col %s", col)
 			}
-			//not sure if should detect type here:
-			insertCells[col] = trimQuotes(sqlparser.String(stmt.Rows.(sqlparser.Values)[0][i]))
+			//only detects string and float. how to do int? does it matter
+			value := sqlparser.String(stmt.Rows.(sqlparser.Values)[0][i])
+			if isQuoted(value) {
+				insertCells[col] = trimQuotes(value)
+			} else if isNumeric(value) {
+				insertCells[col], _ = strconv.ParseFloat(value, 64)
+			} else {
+				return query, fmt.Errorf("in Insert, value %s has unknown type", value)
+			}
+			//insertCells[col] = trimQuotes(sqlparser.String(stmt.Rows.(sqlparser.Values)[0][i]))
 		}
-		//primarykeyvalue?
 		query.Inserts = append(query.Inserts, Row{Cells: insertCells})
-
 		//fmt.Printf("OnDup: %+v\n", stmt.OnDup)
 		//fmt.Printf("Rows: %+v\n", stmt.Rows.(sqlparser.Values))
 		//fmt.Printf("Rows: %+v\n", sqlparser.String(stmt.Rows.(sqlparser.Values)))
