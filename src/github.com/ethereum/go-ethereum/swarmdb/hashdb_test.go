@@ -35,7 +35,7 @@ func TestPutInteger(t *testing.T) {
 	for _, i := range vals {
 		k := swarmdb.IntToByte(i)
 		v := []byte(fmt.Sprintf("valueof%06x", i))
-		// fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
+		fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
 		r.Put(k, v)
 	}
 	// flush B+tree in memory to SWARM
@@ -44,7 +44,7 @@ func TestPutInteger(t *testing.T) {
 
 	hashid, _ = r.GetRootHash()
 	s, _ := swarmdb.NewHashDB(hashid, getSwarmDB(t), swarmdb.CT_INTEGER)
-
+	//s.Print()
 	g, ok, err := s.Get(swarmdb.IntToByte(10))
 	if !ok || err != nil {
 		t.Fatal(g, err)
@@ -58,31 +58,31 @@ func TestPutInteger(t *testing.T) {
 	fmt.Printf("Get(1): [%s]\n", string(h))
 	// s.Print()
 
-        // ENUMERATOR
-        if false {
-                res, _ := s.SeekFirst()
-                records := 0
-                for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
-                        fmt.Printf(" *int*> %d: K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_INTEGER, k), string(v))
-                        records++
-                }
-                fmt.Printf("---- TestPutInteger Next (%d records)\n", records)
-        }
+	// ENUMERATOR
+	if false {
+		res, _ := s.SeekFirst()
+		records := 0
+		for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
+			fmt.Printf(" *int*> %d: K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_INTEGER, k), string(v))
+			records++
+		}
+		fmt.Printf("---- TestPutInteger Next (%d records)\n", records)
+	}
 
-        // ENUMERATOR
-        if true {
-                res, _ := s.SeekLast()
-                records := 0
-                for k, v, err := res.Prev(); ; k, v, err = res.Prev() {
-                        fmt.Printf(" *int*> %d: K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_INTEGER, k), string(v))
-                        records++
+	// ENUMERATOR
+	if true {
+		res, _ := s.SeekLast()
+		records := 0
+		for k, v, err := res.Prev(); ; k, v, err = res.Prev() {
+			fmt.Printf(" *int*> %d: K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_INTEGER, k), string(v))
+			records++
 			if err != nil {
 				fmt.Println("err = ", err)
 				break
 			}
-                }
-                fmt.Printf("---- TestPutInteger Prev (%d records)\n", records)
-        }
+		}
+		fmt.Printf("---- TestPutInteger Prev (%d records)\n", records)
+	}
 }
 
 func TestPutString(t *testing.T) {
@@ -113,14 +113,14 @@ func TestPutString(t *testing.T) {
 	fmt.Printf("Get(000001): %v\n", string(h))
 	// s.Print()
 
-        // ENUMERATOR
-        res, _, _ := r.Seek([]byte("000004"))
-        records := 0
-        for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
-                fmt.Printf(" *string*> %d K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_STRING, k), string(v))
-                records++
-        }
-        fmt.Printf("---- TestPutString DONE (%d records)\n", records)
+	// ENUMERATOR
+	res, _, _ := r.Seek([]byte("000004"))
+	records := 0
+	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
+		fmt.Printf(" *string*> %d K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_STRING, k), string(v))
+		records++
+	}
+	fmt.Printf("---- TestPutString DONE (%d records)\n", records)
 
 }
 
@@ -143,20 +143,20 @@ func TestPutFloat(t *testing.T) {
 	h, _, _ := r.Get(swarmdb.FloatToByte(0.314159))
 	fmt.Printf("Get(0.314159): %v\n", string(h))
 	// r.Print()
-       // ENUMERATOR
-        hashid, _ := r.GetRootHash()
-        s, _ := swarmdb.NewHashDB(hashid, getSwarmDB(t),  swarmdb.CT_FLOAT)
-        res, _, err := s.Seek(swarmdb.FloatToByte(0.314159))
-        if res == nil || err != nil {
-                t.Fatal(err)
+	// ENUMERATOR
+	hashid, _ := r.GetRootHash()
+	s, _ := swarmdb.NewHashDB(hashid, getSwarmDB(t), swarmdb.CT_FLOAT)
+	res, _, err := s.Seek(swarmdb.FloatToByte(0.314159))
+	if res == nil || err != nil {
+		t.Fatal(err)
 		return
 	}
-	
-        records := 0
-        for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
-                fmt.Printf(" *float*> %d: K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_FLOAT, k), string(v))
-                records++
-        }
+
+	records := 0
+	for k, v, err := res.Next(); err == nil; k, v, err = res.Next() {
+		fmt.Printf(" *float*> %d: K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_FLOAT, k), string(v))
+		records++
+	}
 }
 
 func TestSetGetString(t *testing.T) {
