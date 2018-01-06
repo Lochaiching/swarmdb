@@ -4,6 +4,7 @@ import (
 	"bytes"
 	//"encoding/binary"
 	"encoding/json"
+	//"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
 	"reflect"
@@ -62,8 +63,8 @@ func (self SwarmDB) RetrieveDBChunk(key []byte) (val []byte, err error) {
 	return val, err
 }
 
-func (self SwarmDB) StoreDBChunk(val []byte) (key []byte, err error) {
-	key, err = self.dbchunkstore.StoreChunk(val)
+func (self SwarmDB) StoreDBChunk(val []byte, encrypted int) (key []byte, err error) {
+	key, err = self.dbchunkstore.StoreChunk(val, encrypted)
 	return key, err
 }
 
@@ -245,12 +246,14 @@ func (self SwarmDB) GetTable(ownerID string, tableName string) (tbl *Table, err 
 		return tbl, nil
 	} else {
 		// this should throw an error if the table is not created
-		tbl = self.NewTable(ownerID, tableName)
-		err = tbl.OpenTable()
-		if err != nil {
-			return tbl, err
-		}
-		return tbl, nil
+		/*
+			tbl = self.NewTable(ownerID, tableName)
+			err = tbl.OpenTable()
+			if err != nil {
+				return tbl, err
+			}
+		*/
+		return tbl, &TableNotExistError{tableName: tableName, ownerID: ownerID}
 	}
 }
 
@@ -270,7 +273,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			return resp, fmt.Errorf(`ERR: empty table and column`)
 		}
 		//Upon further review, could make a NewTable and then call this from tbl. ---
-		_, err := self.CreateTable(ownerID, d.Table, d.Columns, d.Bid, d.Replication, d.Encrypted)
+		_, err := self.CreateTable(ownerID, d.Table, d.Columns, d.Encrypted)
 		if err != nil {
 			return resp, err
 		}
@@ -281,7 +284,6 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			fmt.Printf("err1: %s\n", err)
 			return resp, err
 		} else {
-
 			err2 := tbl.Put(d.Rows[0].Cells)
 			if err2 != nil {
 				fmt.Printf("Err putting: %s", err2)
@@ -491,11 +493,12 @@ func (t *Table) Scan(columnName string, ascending int) (rows []Row, err error) {
 }
 
 // Table
-func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
+func (self SwarmDB) NewTable(ownerID string, tableName string, encrypted int) *Table {
 	t := new(Table)
 	t.swarmdb = &self
 	t.ownerID = ownerID
 	t.tableName = tableName
+	t.encrypted = encrypted
 	t.columns = make(map[string]*ColumnInfo)
 
 	// register the Table in SwarmDB
@@ -504,14 +507,14 @@ func (self SwarmDB) NewTable(ownerID string, tableName string) *Table {
 	return t
 }
 
-func (swdb *SwarmDB) CreateTable(ownerID string, tableName string, columns []Column, bid float64, replication int, encrypted int) (tbl *Table, err error) {
+func (swdb *SwarmDB) CreateTable(ownerID string, tableName string, columns []Column, encrypted int) (tbl *Table, err error) {
 	columnsMax := 30
 	primaryColumnName := ""
 	if len(columns) > columnsMax {
 		fmt.Printf("\nMax Allowed Columns for a table is %s and you submit %s", columnsMax, len(columns))
 	}
 	buf := make([]byte, 4096)
-	tbl = swdb.NewTable(ownerID, tableName)
+	tbl = swdb.NewTable(ownerID, tableName, encrypted)
 	for i, columninfo := range columns {
 		copy(buf[2048+i*64:], columninfo.ColumnName)
 		b := make([]byte, 1)
@@ -531,20 +534,18 @@ func (swdb *SwarmDB) CreateTable(ownerID string, tableName string, columns []Col
 			// fmt.Printf("  ---> NOT primary\n")
 		}
 	}
-	bidBytes := FloatToByte(bid)
-	copy(buf[4000:4008], bidBytes)
-	copy(buf[4008:4016], IntToByte(replication))
-	copy(buf[4016:4024], IntToByte(encrypted))
-	swarmhash, err := swdb.StoreDBChunk(buf)
+	//Could (Should?) be less bytes, but leaving space in case more is to be there
+	copy(buf[4000:4024], IntToByte(tbl.encrypted))
+	swarmhash, err := swdb.StoreDBChunk(buf, tbl.encrypted)
 	if err != nil {
 		fmt.Printf(" problem storing chunk\n")
 		return
 	}
 	tbl.primaryColumnName = primaryColumnName
-	tbl.tableName = tableName
+	//tbl.tableName = tableName //Redundant? - because already set in NewTable?
 
-	fmt.Printf(" CreateTable primary: [%s] (%s) store root hash:  %s hash:[%x]\n", tbl.primaryColumnName, tbl.ownerID, tableName, swarmhash)
-	err = swdb.StoreRootHash([]byte(tableName), []byte(swarmhash))
+	fmt.Printf(" CreateTable primary: [%s] (%s) store root hash:  %s vs %s hash:[%x]\n", tbl.primaryColumnName, tbl.ownerID, tableName, tbl.tableName, swarmhash)
+	err = swdb.StoreRootHash([]byte(tbl.tableName), []byte(swarmhash))
 	if err != nil {
 		return tbl, err
 	} else {
@@ -560,6 +561,7 @@ func (swdb *SwarmDB) CreateTable(ownerID string, tableName string, columns []Col
 func (t *Table) OpenTable() (err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:OpenTable|%s", t.tableName))
 	t.columns = make(map[string]*ColumnInfo)
+
 	/// get Table RootHash to  retrieve the table descriptor
 	roothash, err := t.swarmdb.GetRootHash([]byte(t.tableName))
 	fmt.Printf("opening table @ %s roothash %s\n", t.tableName, roothash)
@@ -620,9 +622,7 @@ func (t *Table) OpenTable() (err error) {
 			}
 		}
 	}
-	t.bid = BytesToFloat(columnbuf[4000:4008])
-	t.replication = BytesToInt64(columnbuf[4008:4016])
-	t.encrypted = BytesToInt64(columnbuf[4016:4024])
+	//Redundant? -- t.encrypted = BytesToInt64(columnbuf[4000:4024])
 	return nil
 }
 
@@ -681,7 +681,7 @@ func (t *Table) Put(row map[string]interface{}) (err error) {
 			} else {
 				return fmt.Errorf("\nPrimary key %s not specified in input", t.primaryColumnName)
 			}
-			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.bid, t.replication, t.encrypted)
+			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
 			khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
 			if err != nil {
 				fmt.Errorf("\nKademlia Put Failed")
@@ -750,7 +750,7 @@ func (t *Table) Insert(row map[string]interface{}) (err error) {
 				return err
 			}
 
-			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName), t.bid, t.replication, t.encrypted)
+			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName), t.encrypted)
 			k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
 			khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
 			if err != nil {
@@ -793,7 +793,7 @@ func (t *Table) Get(key string) (out []byte, err error) {
 	} else {
 		// fmt.Printf("READY\n")
 	}
-	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.bid, t.replication, t.encrypted)
+	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
 	fmt.Printf("\n GET key: (%s)%v\n", key, key)
 	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
 	fmt.Printf("\n GET k: (%s)%v\n", k, k)
@@ -893,7 +893,8 @@ func (t *Table) updateTableInfo() (err error) {
 		copy(buf[2048+i*64+32:], c.roothash)
 		i++
 	}
-	swarmhash, err := t.swarmdb.StoreDBChunk(buf)
+	isEncrypted := 1
+	swarmhash, err := t.swarmdb.StoreDBChunk(buf, isEncrypted)
 	if err != nil {
 		return err
 	}
