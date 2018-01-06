@@ -17,18 +17,17 @@ func TestDBChunkStore(t *testing.T) {
 	v := make([]byte, 4096)
 	copy(v, r)
 
-	bid := float64(7.17)
-	encrypted := int64(1)
+	// encrypted := int(1)
 
 	// StoreChunk
-	k, err := store.StoreChunk(r)
+	k, err := store.StoreChunk(r, 1)
 	if err == nil {
 		t.Fatal("Failure to generate StoreChunk Err", k, v)
 	} else {
 		fmt.Printf("SUCCESS in StoreChunk Err (input only has %d bytes)\n", len(r))
 	}
 
-	k, err1 := store.StoreChunk(v)
+	k, err1 := store.StoreChunk(v, 1)
 	if err1 != nil {
 		t.Fatal("Failure to StoreChunk", k, v)
 	} else {
@@ -46,17 +45,37 @@ func TestDBChunkStore(t *testing.T) {
 	}
 
 	// StoreKChunk
-	err2 := store.StoreKChunk(k, v, bid, encrypted)
-	if err2 != nil {
-		t.Fatal("Failure to StoreKChunk ->", k, v, bid, encrypted)
-	} else {
-		fmt.Printf("SUCCESS in StoreKChunk:  %x => %v\n", string(k), string(v))
-	}
+	/*
+			Need to simulate building sdata for KChunk to test appropriately
+		kdb := swarmdb.NewKademliaDB(store)
+		kChunk := kdb.BuildSData(v)
+		fmt.Printf("StoreKChunk storing [%s]", v)
+		err2 := store.StoreKChunk(k, v, encrypted)
+		if err2 != nil {
+			t.Fatal("Failure to StoreKChunk ->", k, v, encrypted)
+		} else {
+			fmt.Printf("SUCCESS in StoreKChunk:  %x => %v\n", string(k), string(v))
+		}
 
-	err3 := store.StoreKChunk(k, r, bid, encrypted)
-	if err3 == nil {
-		t.Fatal("Failure to generate StoreKChunk Err", k, r)
-	} else {
-		fmt.Printf("SUCCESS in StoreKChunk Err (input only has %d bytes)\n", len(r))
-	}
+		// RetrieveKChunk
+		//	fmt.Printf("\nBEFORE RetrieveKChunk:  %x => %v\n", string(k), string(v))
+		valK, errK := store.RetrieveKChunk(k)
+		//	fmt.Printf("\nAFTER RetrieveKChunk:  %x => %v\n", string(k), string(v))
+		if errK != nil {
+			t.Fatal("Failure to RetrieveChunk: Failure to retrieve", k, v, valK)
+		}
+		if bytes.Compare(valK, v) != 0 {
+			fmt.Printf("Failure to RetrieveChunk: Incorrect match k[%s] v[%s], valK[%s]", k, v, valK)
+			t.Fatal("Failure to RetrieveChunk: Incorrect match", k, v, valK)
+		} else {
+			fmt.Printf("SUCCESS in RetrieveChunk:  %x => %v\n", string(k), string(v))
+		}
+
+		err3 := store.StoreKChunk(k, r, encrypted)
+		if err3 == nil {
+			t.Fatal("Failure to generate StoreKChunk Err", k, r)
+		} else {
+			fmt.Printf("SUCCESS in StoreKChunk Err (input only has %d bytes)\n", len(r))
+		}
+	*/
 }

@@ -25,14 +25,15 @@ const (
 )
 
 type DBChunk struct {
-	Key         []byte // 32
-	Val         []byte // 4096
-	Owner       []byte // 42
-	BuyAt       []byte // 32
-	Blocknumber []byte // 32
-	TableName   []byte // 32
-	TableId     []byte // 32
-	StoreDT     int64
+	Key          []byte // 32
+	Val          []byte // 4096
+	Owner        []byte // 42
+	BuyAt        []byte // 32
+	Blocknumber  []byte // 32
+	TableName    []byte // 32
+	TableId      []byte // 32
+	ChunkBirthDT int64
+	ChunkStoreDT int64
 }
 
 type ChunkStats struct {
@@ -183,13 +184,9 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
     chunkKey TEXT NOT NULL PRIMARY KEY,
     chunkVal BLOB,
     Owner TEXT,
-    BuyAt TEXT,
-    BlockNumber TEXT,
-    TableName TEXT,
-    TableId TEXT,
-    Bid TEXT,
     Encrypted TEXT,
-    storeDT DATETIME
+    chunkBirthDT DATETIME,
+    chunkStoreDT DATETIME
     );
     `
 	netstat_table := `
@@ -286,14 +283,14 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 	return
 }
 
-func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, bid float64, encrypted int64) (err error) {
+func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err error) {
 	//TODO get OWNER from CHUNK or get it from swarmdb into dbchunkstore
 	ts := time.Now()
 	if len(v) < minChunkSize {
 		return fmt.Errorf("chunk too small") // should be improved
 	}
 
-	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, Bid, Encrypted, storeDT ) values(?, ?, ?, ?, CURRENT_TIMESTAMP)`
+	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, Encrypted, chunkBirthDT, chunkStoreDT ) values(?, ?, ?, COALESCE((SELECT chunkBirthDT FROM chunk WHERE chunkKey=?),CURRENT_TIMESTAMP), COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=? ), CURRENT_TIMESTAMP))`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
 		fmt.Printf("\nError Preparing into Table: [%s]", err)
@@ -307,7 +304,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, bid float64, encrypted
 	var finalSdata [8192]byte
 	copy(finalSdata[0:577], v[0:577])
 	copy(finalSdata[577:], encRecordData)
-	_, err2 := stmt.Exec(k[:32], finalSdata[0:], bid, encrypted)
+	_, err2 := stmt.Exec(k[:32], finalSdata[0:], encrypted, k[:32], k[:32])
 	if err2 != nil {
 		fmt.Printf("\nError Inserting into Table: [%s]", err2)
 		fmt.Printf("Putting in this data: [%s]", finalSdata)
@@ -320,41 +317,10 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, bid float64, encrypted
 	return nil
 }
 
-func (self *DBChunkstore) StoreChunk(v []byte) (k []byte, err error) {
-	ts := time.Now()
-	if len(v) < minChunkSize {
-		return k, fmt.Errorf("chunk too small") // should be improved
-	}
-	inp := make([]byte, minChunkSize)
-	copy(inp, v[0:minChunkSize])
-	h := sha256.New()
-	h.Write([]byte(inp))
-	k = h.Sum(nil)
-
-	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, storeDT ) values(?, ?, CURRENT_TIMESTAMP)`
-	stmt, err := self.db.Prepare(sql_add)
-	if err != nil {
-		return k, err
-	}
-	defer stmt.Close()
-
-	encVal := self.km.EncryptData(v)
-	_, err2 := stmt.Exec(k, encVal)
-	if err2 != nil {
-		fmt.Printf("\nError Inserting into Table: [%s]", err)
-		return k, err2
-	}
-	stmt.Close()
-	self.netstat.LWriteDT = &ts
-	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
-	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
-	return k, nil
-}
-
 func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 	ts := time.Now()
 	val = make([]byte, 8192)
-	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
+	sql := `SELECT chunkKey, chunkVal, chunkBirthDT, chunkStoreDT, encrypted FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
 		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
@@ -370,19 +336,57 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		err2 := rows.Scan(&val)
+		var kV []byte
+		var bdt []byte
+		var sdt []byte
+		var enc []byte
+
+		err2 := rows.Scan(&kV, &val, &bdt, &sdt, &enc)
 		if err2 != nil {
 			return nil, err2
 		}
+		//fmt.Printf("\nQuery Key: [%x], [%s], [%s], [%s] with VAL: [%+v]", kV, bdt, sdt, enc, val)
 		jsonRecord := val[577:]
 		trimmedJson := bytes.TrimRight(jsonRecord, "\x00")
 		decVal := self.km.DecryptData(trimmedJson)
 		decVal = bytes.TrimRight(decVal, "\x00")
+		self.netstat.LReadDT = &ts
+		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
 		return decVal, nil
 	}
-	self.netstat.LReadDT = &ts
-	self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
 	return val, nil
+}
+
+func (self *DBChunkstore) StoreChunk(v []byte, encrypted int) (k []byte, err error) {
+	ts := time.Now()
+	if len(v) < minChunkSize {
+		return k, fmt.Errorf("chunk too small") // should be improved
+	}
+	inp := make([]byte, minChunkSize)
+	copy(inp, v[0:minChunkSize])
+	h := sha256.New()
+	h.Write([]byte(inp))
+	k = h.Sum(nil)
+
+	//sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, chunkBirthDT, chunkStoreDT ) values(?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, Encrypted, chunkBirthDT, chunkStoreDT ) values(?, ?, ?, COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=?),CURRENT_TIMESTAMP), COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=? ), CURRENT_TIMESTAMP))`
+	stmt, err := self.db.Prepare(sql_add)
+	if err != nil {
+		return k, err
+	}
+	defer stmt.Close()
+
+	encVal := self.km.EncryptData(v)
+	_, err2 := stmt.Exec(k, encVal, encrypted, k, k)
+	if err2 != nil {
+		fmt.Printf("\nError Inserting into Table: [%s]", err)
+		return k, err2
+	}
+	stmt.Close()
+	self.netstat.LWriteDT = &ts
+	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
+	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
+	return k, nil
 }
 
 func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
@@ -409,10 +413,10 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 			return nil, err2
 		}
 		decVal := self.km.DecryptData(val)
+		self.netstat.LReadDT = &ts
+		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
 		return decVal, nil
 	}
-	self.netstat.LReadDT = &ts
-	self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
 	return val, nil
 }
 
@@ -468,7 +472,7 @@ func (self *DBChunkstore) PrintDBChunk(columnType ColumnType, hashid []byte, c [
 
 func (self *DBChunkstore) ScanAll() (err error) {
 	ts := time.Now()
-	sql_readall := `SELECT chunkKey, chunkVal,strftime('%s',storeDT) FROM chunk ORDER BY storeDT DESC`
+	sql_readall := `SELECT chunkKey, chunkVal,strftime('%s',chunkStoreDT) FROM chunk ORDER BY chunkStoreDT DESC`
 	rows, err := self.db.Query(sql_readall)
 	if err != nil {
 		return err
@@ -479,7 +483,7 @@ func (self *DBChunkstore) ScanAll() (err error) {
 	var result []DBChunk
 	for rows.Next() {
 		c := DBChunk{}
-		err2 := rows.Scan(&c.Key, &c.Val, &c.StoreDT)
+		err2 := rows.Scan(&c.Key, &c.Val, &c.ChunkStoreDT)
 		if err2 != nil {
 			return err2
 		}
@@ -489,7 +493,7 @@ func (self *DBChunkstore) ScanAll() (err error) {
 			trimmedJson := bytes.TrimRight(jsonRecord, "\x00")
 			decVal := self.km.DecryptData(trimmedJson)
 			c.Val = bytes.TrimRight(decVal, "\x00")
-			fmt.Printf("[record] %x => %s [%v]\n", c.Key, c.Val, c.StoreDT)
+			fmt.Printf("[record] %x => %s [%v]\n", c.Key, c.Val, c.ChunkStoreDT)
 		*/
 		result = append(result, c)
 	}
