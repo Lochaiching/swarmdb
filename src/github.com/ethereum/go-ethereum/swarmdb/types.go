@@ -98,9 +98,7 @@ type KademliaDB struct {
 	owner        []byte
 	tableName    []byte
 	column       []byte
-	bid          float64
-	replication  int64
-	encrypted    int64
+	encrypted    int
 }
 
 type SwarmDB struct {
@@ -146,9 +144,7 @@ type Table struct {
 	roothash          []byte
 	columns           map[string]*ColumnInfo
 	primaryColumnName string
-	bid               float64
-	replication       int64
-	encrypted         int64
+	encrypted         int
 }
 
 type Row struct {
@@ -158,7 +154,7 @@ type Row struct {
 
 type DBChunkstorage interface {
 	RetrieveDBChunk(key []byte) (val []byte, err error)
-	StoreDBChunk(val []byte) (key []byte, err error)
+	StoreDBChunk(val []byte, encrypted int) (key []byte, err error)
 	PrintDBChunk(columnType ColumnType, hashid []byte, c []byte)
 }
 
@@ -424,10 +420,12 @@ func SHA256(inp string) (k []byte) {
 }
 
 type TableNotExistError struct {
+	tableName string
+	ownerID   string
 }
 
 func (t *TableNotExistError) Error() string {
-	return fmt.Sprintf("Table does not exist")
+	return fmt.Sprintf("Table [%s] with Owner [%s] does not exist", t.tableName, t.ownerID)
 }
 
 type KeyNotFoundError struct {
