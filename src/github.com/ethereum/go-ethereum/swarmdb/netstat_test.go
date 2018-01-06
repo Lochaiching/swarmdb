@@ -3,8 +3,8 @@ package swarmdb_test
 import (
 	"fmt"
 	//"bytes"
+	"github.com/ethereum/go-ethereum/swarmdb"
 	"testing"
-    "github.com/ethereum/go-ethereum/swarmdb"
 )
 
 var (
@@ -28,7 +28,7 @@ func TestDBChunkStore(t *testing.T) {
 			simdata := make([]byte, 4096)
 			tmp := fmt.Sprintf("%s%d", "randombytes", j)
 			copy(simdata, tmp)
-			simh, err := store.StoreChunk(simdata)
+			simh, err := store.StoreChunk(simdata, 1)
 			if err != nil {
 				t.Fatal("[FAILURE] writting record #%v [%x] => %v\n", j, simh, string(simdata[:]))
 			} else if j%50 == 0 {
@@ -85,9 +85,9 @@ func TestLoadDBChunkStore(t *testing.T) {
 			simdata := make([]byte, 4096)
 			tmp := fmt.Sprintf("%s%d", "randombytes", j)
 			copy(simdata, tmp)
-			simh, err := store.StoreChunk(simdata)
+			simh, err := store.StoreChunk(simdata, 1)
 			if err != nil {
-				t.Fatal("[FAILURE] writting record #%v [%x] => %v\n", j, simh, string(simdata[:]))
+				t.Fatal("[FAILURE] writting record #%v [%x] => %v %s\n", j, simh, string(simdata[:]), err)
 			} else if j%50 == 0 {
 				fmt.Printf("Generating record [%x] => %v ... ", simh, string(simdata[:]))
 				fmt.Printf("[SUCCESS] writing #%v chunk to %v\n", j, testDBPath)
@@ -134,12 +134,11 @@ func TestLoadDBChunkStore(t *testing.T) {
 		}
 	})
 
-    err = store.Save()
-    if err != nil {
-        t.Fatal("[FAILURE] to persist netstat\n")
-    } else {
-        fmt.Printf("[SUCCESS] persist netstat to local\n")
-    }
-    
-    
+	err = store.Save()
+	if err != nil {
+		t.Fatal("[FAILURE] to persist netstat\n")
+	} else {
+		fmt.Printf("[SUCCESS] persist netstat to local\n")
+	}
+
 }
