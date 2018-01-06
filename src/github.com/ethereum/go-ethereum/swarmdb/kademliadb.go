@@ -4,8 +4,8 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
-	"strconv"
-	"time"
+	//	"strconv"
+	//	"time"
 )
 
 const (
@@ -18,29 +18,23 @@ func NewKademliaDB(dbChunkstore *DBChunkstore) (*KademliaDB, error) {
 	return kd, nil
 }
 
-func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte, bid float64, replication int64, encrypted int64) (bool, error) {
+func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte, encrypted int) (bool, error) {
 	self.owner = owner
 	self.tableName = tableName
 	self.column = column
-	self.bid = bid
-	self.replication = replication
 	self.encrypted = encrypted
 
 	return true, nil
 }
 
 func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
-	buyAt := []byte("4096000000000000") //Need to research how to grab
-	timestamp := []byte(strconv.FormatInt(time.Now().Unix(), 10))
-	blockNumber := []byte("100")                         //How does this get retrieved? passed in?
 	wlksig := []byte("6909ea88ced9c594e5212a1292fcf73c") //md5("wolk4all")
 
 	var metadataBody []byte
 	metadataBody = make([]byte, 140)
+	nodeType := []byte{'K'}
 	copy(metadataBody[0:42], self.owner)
-	copy(metadataBody[42:60], buyAt)
-	copy(metadataBody[60:92], blockNumber)
-	copy(metadataBody[92:108], timestamp)
+	copy(metadataBody[42:43], nodeType)
 	copy(metadataBody[108:140], wlksig)
 	log.Debug("Metadata is [%+v]", metadataBody)
 
@@ -59,7 +53,7 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 func (self *KademliaDB) Put(k []byte, v []byte) ([]byte, error) {
 	sdata := self.buildSdata(k, v)
 	hashVal := sdata[512:544] // 32 bytes
-	_ = self.dbChunkstore.StoreKChunk(hashVal, sdata, self.bid, self.encrypted)
+	_ = self.dbChunkstore.StoreKChunk(hashVal, sdata, self.encrypted)
 	return hashVal, nil
 }
 
