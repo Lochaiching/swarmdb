@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
 	"reflect"
-	//"strconv"
+	"strconv"
 )
 
 func NewSwarmDB() *SwarmDB {
@@ -78,7 +78,11 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 
 // parse sql and return rows in bulk (order by, group by, etc.)
 func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
-	//where to switch on bplus or hashdb?
+
+	table, err := self.GetTable(query.TableOwner, query.Table)
+	if err != nil {
+		return rows, err
+	}
 
 	var rawRows []Row
 	for _, column := range query.RequestColumns {
@@ -101,56 +105,25 @@ func (self SwarmDB) QuerySelect(query *QueryOption) (rows []Row, err error) {
 		}
 	}
 
-	//filter for correct columns and Where/Having
-	for _, row := range rawRows {
+	//apply WHERE
+	whereRows, err := table.applyWhere(rawRows, query.Where)
+
+	//filter for requested columns
+	for _, row := range whereRows {
 		fRow := filterRowByColumns(&row, query.RequestColumns)
-		if len(fRow.Cells) == 0 {
-			return rows, err //no columns found
-		}
-
-		add := false
-		if _, ok := fRow.Cells[query.Where.Left]; ok {
-			/* //need to make these type dependent b/c of interface{}, also needs to be moved to a diff fcn
-			switch query.Where.Operator {
-			case "=":
-				if fRow.cells[query.Where.Left] == query.Where.Right {
-					add = true
-				}
-			case "<":
-				if fRow.cells[query.Where.Left] < query.Where.Right {
-					add = true
-				}
-
-			case "<=":
-				if fRow.cells[query.Where.Left] <= query.Where.Right {
-					add = true
-				}
-
-			case ">=":
-				if fRow.cells[query.Where.Left] >= query.Where.Right {
-					add = true
-				}
-
-			default:
-				return rows, fmt.Errorf("Operator [%s] not found", query.Where.Operator)
-			}
-			*/
-
-		} else {
-			return rows, fmt.Errorf("query.Where.Left [%s] not found in filtered row [%+v]", query.Where.Left, fRow)
-		}
-		if add == true {
+		if len(fRow.Cells) > 0 {
 			rows = append(rows, fRow)
 		}
 	}
 
-	//Put it in order for Ascending/GroupBy
+	//TODO: Put it in order for Ascending/GroupBy
 
 	return rows, nil
 
 }
 
 //Insert is for adding new data to the table
+//example: 'INSERT INTO tablename (col1, col2) VALUES (val1, val2)
 func (self SwarmDB) QueryInsert(query *QueryOption) (err error) {
 
 	table, err := self.GetTable(query.TableOwner, query.Table)
@@ -158,7 +131,18 @@ func (self SwarmDB) QueryInsert(query *QueryOption) (err error) {
 		return err
 	}
 	for _, row := range query.Inserts {
-		err := table.Put(row.Cells) //make sure Put checks for duplicate rows
+		//check if primary column exists in Row
+		if _, ok := row.Cells[table.primaryColumnName]; !ok {
+			return fmt.Errorf("Insert row %+v needs primary column '%s' value", row, table.primaryColumnName)
+		}
+		//check if Row already exists
+		existingByteRow, err := table.Get(row.Cells[table.primaryColumnName].(string))
+		if err != nil {
+			existingRow, _ := table.byteArrayToRow(existingByteRow)
+			return fmt.Errorf("Insert row key %s already exists: %+v", row.Cells[table.primaryColumnName], existingRow)
+		}
+		//put the new Row in
+		err = table.Put(row.Cells)
 		if err != nil {
 			return err
 		}
@@ -168,32 +152,232 @@ func (self SwarmDB) QueryInsert(query *QueryOption) (err error) {
 }
 
 //Update is for modifying existing data in the table (can use a Where clause)
+//example: 'UPDATE tablename SET col1=value1, col2=value2 WHERE col3 > 0'
 func (self SwarmDB) QueryUpdate(query *QueryOption) (err error) {
 
-	/*
-		table, err := self.GetTable(query.TableOwner, query.Table)
+	table, err := self.GetTable(query.TableOwner, query.Table)
+	if err != nil {
+		return err
+	}
+
+	//get all rows with Scan, using primary key column
+	rawRows, err := self.Scan(query.TableOwner, query.Table, table.primaryColumnName, query.Ascending)
+	if err != nil {
+		return err
+	}
+
+	//check to see if Update cols are in pulled set
+	for colname, _ := range query.Update {
+		if _, ok := table.columns[colname]; !ok {
+			return fmt.Errorf("Update SET column name %s is not in table", colname)
+		}
+	}
+
+	//apply WHERE clause
+	filteredRows, err := table.applyWhere(rawRows, query.Where)
+	if err != nil {
+		return err
+	}
+
+	//set the appropriate columns in filtered set
+	for i, row := range filteredRows {
+		for colname, value := range query.Update {
+			if _, ok := row.Cells[colname]; !ok {
+				return fmt.Errorf("Update SET column name %s is not in filtered rows", colname)
+			}
+			filteredRows[i].Cells[colname] = value
+		}
+	}
+
+	//put the changed rows back into the table
+	for _, row := range filteredRows {
+		err := table.Put(row.Cells)
 		if err != nil {
 			return err
-		}*/
-	//...
+		}
+	}
 
 	return nil
 }
 
 //Delete is for deleting data rows (can use a Where clause, not just a key)
+//example: 'DELETE FROM tablename WHERE col1 = value1'
 func (self SwarmDB) QueryDelete(query *QueryOption) (err error) {
-	/*
-		table, err := self.GetTable(query.TableOwner, query.Table)
+
+	table, err := self.GetTable(query.TableOwner, query.Table)
+	if err != nil {
+		return err
+	}
+
+	//get all rows with Scan, using Where's specified col
+	rawRows, err := self.Scan(query.TableOwner, query.Table, query.Where.Left, query.Ascending)
+	if err != nil {
+		return err
+	}
+
+	//apply WHERE clause
+	filteredRows, err := table.applyWhere(rawRows, query.Where)
+	if err != nil {
+		return err
+	}
+
+	//delete the selected rows
+	for _, row := range filteredRows {
+		_, err := table.Delete(row.Cells[table.primaryColumnName].(string))
 		if err != nil {
 			return err
 		}
-	*/
-	//...
+		//if !ok, what should happen?
+	}
 
 	return nil
 }
 
-//func (self SwarmDB) filterWhere(rawRows []Row)
+//there is a better way to do this.
+func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err error) {
+
+	for i, row := range rawRows {
+		if _, ok := row.Cells[where.Left]; !ok {
+			return filteredRows, fmt.Errorf("Where clause col %s doesn't exist in table")
+		}
+
+		switch where.Operator {
+
+		case "=":
+			switch t.columns[where.Left].columnType {
+			case CT_INTEGER:
+				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
+				if row.Cells[where.Left].(int) == right {
+					filteredRows[i].Cells[where.Left] = right
+				}
+			case CT_STRING:
+				if row.Cells[where.Left].(string) == where.Right {
+					filteredRows[i].Cells[where.Left] = where.Right
+				}
+			case CT_FLOAT:
+				right, _ := strconv.ParseFloat(where.Right, 64)
+				if row.Cells[where.Left].(float64) == right {
+					filteredRows[i].Cells[where.Left] = right
+				}
+			case CT_BLOB:
+				//??
+			default:
+				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
+			}
+
+		case "<":
+			switch t.columns[where.Left].columnType {
+			case CT_INTEGER:
+				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
+				if row.Cells[where.Left].(int) < right {
+					filteredRows[i].Cells[where.Left] = right
+				}
+			case CT_STRING:
+				if row.Cells[where.Left].(string) < where.Right {
+					filteredRows[i].Cells[where.Left] = where.Right
+				}
+			case CT_FLOAT:
+				right, _ := strconv.ParseFloat(where.Right, 64)
+				if row.Cells[where.Left].(float64) < right {
+					filteredRows[i].Cells[where.Left] = right
+				}
+			case CT_BLOB:
+				//??
+			default:
+				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
+			}
+		case "<=":
+			switch t.columns[where.Left].columnType {
+			case CT_INTEGER:
+				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
+				if row.Cells[where.Left].(int) <= right {
+					filteredRows[i].Cells[where.Left] = right
+				}
+			case CT_STRING:
+				if row.Cells[where.Left].(string) <= where.Right {
+					filteredRows[i].Cells[where.Left] = where.Right
+				}
+			case CT_FLOAT:
+				right, _ := strconv.ParseFloat(where.Right, 64)
+				if row.Cells[where.Left].(float64) <= right {
+					filteredRows[i].Cells[where.Left] = right
+				}
+			case CT_BLOB:
+				//??
+			default:
+				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
+			}
+		case ">":
+			switch t.columns[where.Left].columnType {
+			case CT_INTEGER:
+				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
+				if row.Cells[where.Left].(int) > right {
+					filteredRows[i].Cells[where.Left] = right
+				}
+			case CT_STRING:
+				if row.Cells[where.Left].(string) > where.Right {
+					filteredRows[i].Cells[where.Left] = where.Right
+				}
+			case CT_FLOAT:
+				right, _ := strconv.ParseFloat(where.Right, 64)
+				if row.Cells[where.Left].(float64) > right {
+					filteredRows[i].Cells[where.Left] = right
+				}
+			case CT_BLOB:
+				//??
+			default:
+				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
+			}
+		case ">=":
+			switch t.columns[where.Left].columnType {
+			case CT_INTEGER:
+				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
+				if row.Cells[where.Left].(int) >= right {
+					filteredRows[i].Cells[where.Left] = right
+				}
+			case CT_STRING:
+				if row.Cells[where.Left].(string) >= where.Right {
+					filteredRows[i].Cells[where.Left] = where.Right
+				}
+			case CT_FLOAT:
+				right, _ := strconv.ParseFloat(where.Right, 64)
+				if row.Cells[where.Left].(float64) >= right {
+					filteredRows[i].Cells[where.Left] = right
+				}
+			case CT_BLOB:
+				//??
+			default:
+				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
+			}
+		case "!=":
+			switch t.columns[where.Left].columnType {
+			case CT_INTEGER:
+				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
+				if row.Cells[where.Left].(int) != right {
+					filteredRows[i].Cells[where.Left] = right
+				}
+			case CT_STRING:
+				if row.Cells[where.Left].(string) != where.Right {
+					filteredRows[i].Cells[where.Left] = where.Right
+				}
+			case CT_FLOAT:
+				right, _ := strconv.ParseFloat(where.Right, 64)
+				if row.Cells[where.Left].(float64) != right {
+					filteredRows[i].Cells[where.Left] = right
+				}
+			case CT_BLOB:
+				//??
+			default:
+				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
+			}
+		default:
+			return filteredRows, fmt.Errorf("Operator %s not found", where.Operator)
+
+		}
+	}
+
+	return filteredRows, nil
+}
 
 func (self SwarmDB) Query(query *QueryOption) (rows []Row, err error) {
 	switch query.Type {
@@ -650,7 +834,7 @@ func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte,
 	return k, nil
 }
 
-func convertRow(in map[string]interface{}) map[string]string {
+func convertMapValuesToStrings(in map[string]interface{}) map[string]string {
 	out := make(map[string]string)
 	for key, value := range in {
 		switch value := value.(type) {
@@ -663,7 +847,7 @@ func convertRow(in map[string]interface{}) map[string]string {
 
 func (t *Table) Put(row map[string]interface{}) (err error) {
 
-	jsonrecord := convertRow(row)
+	jsonrecord := convertMapValuesToStrings(row)
 
 	value, err0 := json.Marshal(jsonrecord)
 	if err0 != nil {
@@ -736,7 +920,7 @@ func (t *Table) Put(row map[string]interface{}) (err error) {
 func (t *Table) Insert(row map[string]interface{}) (err error) {
 
 	/*
-		        value := convertRow(row)
+		        value := convertMapValuesToStrings(row)
 
 			t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Insert|%s", value))
 			primaryColumnName := t.primaryColumnName
