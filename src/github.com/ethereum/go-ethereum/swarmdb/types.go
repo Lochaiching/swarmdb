@@ -117,7 +117,8 @@ type QueryOption struct {
 	Table          string
 	TableOwner     string
 	RequestColumns []Column
-	Inserts        []Row //all values are strings in query parsing (ok?)
+	Inserts        []Row
+	Update         map[string]interface{} //'SET' portion: map[columnName]value
 	Where          Where
 	Ascending      int //1 true, 0 false (descending)
 }
