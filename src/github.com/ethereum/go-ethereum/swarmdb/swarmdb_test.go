@@ -649,16 +649,16 @@ func TestPut(t *testing.T) {
 	rowObj := make(map[string]interface{})
 	_ = json.Unmarshal([]byte(row), &rowObj)
 	/*
-	for k, v := range rowObj {
-		switch v.(type) {
-		case float64:
-			testReqOption.Row[k] = fmt.Sprintf("%f", v)
+		for k, v := range rowObj {
+			switch v.(type) {
+			case float64:
+				testReqOption.Row[k] = fmt.Sprintf("%f", v)
 
-		default:
-			testReqOption.Row[k] = v.(string)
-		}
-	 }*/
-	newRow := swarmdb.Row{Cells:rowObj}
+			default:
+				testReqOption.Row[k] = v.(string)
+			}
+		 }*/
+	newRow := swarmdb.Row{Cells: rowObj}
 	testReqOption.Rows = append(testReqOption.Rows, newRow)
 	marshalTestReqOption, err := json.Marshal(testReqOption)
 	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
@@ -706,16 +706,16 @@ func TestPutGet(t *testing.T) {
 	rowObj := make(map[string]interface{})
 	_ = json.Unmarshal([]byte(row), &rowObj)
 	/*
-	for k, v := range rowObj {
-		switch v.(type) {
-		case float64:
-			testReqOption.Row[k] = fmt.Sprintf("%f", v)
+		for k, v := range rowObj {
+			switch v.(type) {
+			case float64:
+				testReqOption.Row[k] = fmt.Sprintf("%f", v)
 
-		default:
-			testReqOption.Row[k] = v.(string)
-		}
-	 }*/
-	newRow := swarmdb.Row{Cells:rowObj}
+			default:
+				testReqOption.Row[k] = v.(string)
+			}
+		 }*/
+	newRow := swarmdb.Row{Cells: rowObj}
 	testReqOption.Rows = append(testReqOption.Rows, newRow)
 	marshalTestReqOption, err := json.Marshal(testReqOption)
 	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
