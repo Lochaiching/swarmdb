@@ -13,6 +13,10 @@ all:
 	-go test ./keymanager/keymanager_test.go
 	@echo "test bplus."
 	-go test ./bplus_test.go
+	@echo "test query."
+	-go test ./query_test.go
+	@echo "test swarmdb."
+	-go test ./swarmdb_test.go
 	@echo "test client."
 	-go test ./client_test.go
 	@echo "test kademliadb."
@@ -41,6 +45,14 @@ keymanager:
 bplus:
 	@echo "test bplus."
 	go test bplus_test.go
+
+query:
+	@echo "test query."
+	go test ./query_test.go
+
+swarmdb:
+	@echo "test swarmdb."
+	go test ./swarmdb_test.go
 
 client:
 	@echo "test client."
