@@ -18,8 +18,9 @@ import (
 
 const (
 	PATH                 = "/swarmdb/data/keystore"
-	WOLKSWARMDB_ADDRESS  = "9982ad7bfbe62567287dafec879d20687e4b76f5" // b6d1561697854dfa502140c8e2128f4ca4015b59
+	WOLKSWARMDB_ADDRESS  = "9982ad7bfbe62567287dafec879d20687e4b76f5" 
 	WOLKSWARMDB_PASSWORD = "wolkwolkwolk"
+	WOLKSWARMDB_TESTKEY  = "4b0d79af51456172dfcc064c1b4b8f45f363a80a434664366045165ba5217d53"
 )
 
 type KeyManager struct {
@@ -53,9 +54,9 @@ func NewKeyManager(path string, ownerAddress string, passphrase string) (keymgr 
 					keymgr.OwnerAccount = a
 					keymgr.sk = crypto.FromECDSA(k.PrivateKey)
 					keymgr.pk = crypto.FromECDSAPub(&k.PrivateKey.PublicKey)
+					// fmt.Printf("NewKeyManager secretkey: %x\n",  keymgr.sk)
 					copy(keymgr.publicK[0:], keymgr.pk[0:])
 					copy(keymgr.secretK[0:], keymgr.sk[0:])
-
 					aescipher, errcip := aes.NewCipher(keymgr.sk)
 					if errcip != nil {
 						return keymgr, err
@@ -76,42 +77,45 @@ func (self *KeyManager) GetPublicKey() []byte {
 	return self.pk // crypto.FromECDSAPub(signerKey)
 }
 
+// sign message with the Keymanager initiated
 func (self *KeyManager) SignMessage(msg_hash []byte) (sig []byte, err error) {
-	// TODO: hard coded secret key right now to test Web3-based authentication, use keystore.SignHash instead!!!
-	secretKeyRaw := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-	secretKey, err := crypto.HexToECDSA(secretKeyRaw) 
+	secretKeyRaw := fmt.Sprintf("%x", self.sk) 
+	// secretKeyRaw = SWARMDB_TESTKEY
+	secretKey, err := crypto.HexToECDSA(secretKeyRaw)
+
 	if err != nil {
 		return sig, fmt.Errorf("Failure to get secretKey");
 	} else {
-		address := crypto.PubkeyToAddress(secretKey.PublicKey) 
-		fmt.Printf("Key: %x Address: %x\n", secretKey, address)
+		// sig, err = self.keystore.SignHash(self.OwnerAccount, msg_hash)
+		sig, err2 := crypto.Sign(msg_hash, secretKey)
+		if err2 != nil {
+			return sig, err2
+		} 
+		return sig, nil
 	}
-	sig, err2 := crypto.Sign(msg_hash, secretKey)
-	if err2 != nil {
-		return sig, err2
-	} 
-	
-	/*
-	 sig, err = self.keystore.SignHash(self.OwnerAccount, msg_hash)
-	if err != nil {
-		return sig, err
-	}
-	 */
-	return sig, nil
 }
 
 
 func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (verified bool, err error) {
 	pubKey, err := crypto.SigToPub(msg_hash, sig)
 	if err != nil {
-		fmt.Printf("111: invalid sig\n")
 		return false, fmt.Errorf("invalid signature - cannot get public key")
+	} else {
+		address2 := crypto.PubkeyToAddress(*pubKey)
+		wallets := self.keystore.Wallets()
+		for _, w := range wallets {
+			accounts := w.Accounts()
+			for _, a := range accounts {
+				if bytes.Compare(a.Address.Bytes(), address2.Bytes()) == 0 {
+					// FOUND MATCH
+					return true, nil
+				}
+
+			}
+		}
+
 	}
-	if !bytes.Equal(crypto.FromECDSAPub(pubKey), self.pk) {
-		fmt.Printf("222: signer mismatch: [%x] != [%x]\n", crypto.FromECDSAPub(pubKey), self.pk)
-		return false, fmt.Errorf("signer mismatch: %x != %x", crypto.FromECDSAPub(pubKey), self.pk)
-	}
-	return true, nil
+	return false, fmt.Errorf("signer mismatch: %x != %x", crypto.FromECDSAPub(pubKey), self.pk)
 
 }
 

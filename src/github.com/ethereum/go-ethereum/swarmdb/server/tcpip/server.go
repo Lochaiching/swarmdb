@@ -12,6 +12,7 @@ import (
 	"io"
 	"bufio"
 	common "github.com/ethereum/go-ethereum/swarmdb"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"sync"
 )
@@ -55,12 +56,9 @@ func RandStringRunes(n int) string {
 
 // Handles incoming requests.
 func handleRequest(conn net.Conn, svr *TCPIPServer) {
-	// generate a random 32 byte challenge (64 hex chars)
-	// challenge = "27bd4896d883198198dc2a6213957bc64352ea35a4398e2f47bb67bffa5a1669"
-	// challenge := RandStringRunes(64)
-	// temporary test
-	challenge := "Hello, world!"
-	
+	// generate a random 50 char challenge (64 hex chars)
+	challenge := RandStringRunes(50)
+	// challenge := "Hello, world!"
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
@@ -74,11 +72,9 @@ func handleRequest(conn net.Conn, svr *TCPIPServer) {
  	fmt.Fprintf(writer, "%s\n", challenge)
 	writer.Flush()
 
-	fmt.Printf("accepted connection [%s]\n", challenge);
-	// Make a buffer to hold incoming data.
-	//buf := make([]byte, 1024)
-	// Read the incoming connection into the buffer.
-	// reqLen, err := conn.Read(buf)
+	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(challenge), challenge)
+	challenge_bytes := crypto.Keccak256([]byte(msg))
+	
 	resp, err := reader.ReadString('\n')
 	if err != nil {
 		fmt.Println("Error reading:", err.Error())
@@ -88,28 +84,19 @@ func handleRequest(conn net.Conn, svr *TCPIPServer) {
 	}
 
 	// this should be the signed challenge, verify using valid_response
-	challenge_bytes, err2 := hex.DecodeString(challenge)
-	if err2 != nil {
-		fmt.Printf("ERR decoding challenge:[%s]\n", challenge)
-	}
-	// resp = "6b1c7b37285181ef74fb1946968c675c09f7967a3e69888ee37c42df14a043ac2413d19f96760143ee8e8d58e6b0bda4911f642912d2b81e1f2834814fcfdad700"
-	// fmt.Printf("BUF %d: %v\n", len([]byte(resp)), []byte(resp))
-
 	response_bytes, err3 := hex.DecodeString(resp)
-	// fmt.Printf("Response: [%d] %s \n", len(response_bytes), resp);
 	if err3 != nil {
 		fmt.Printf("ERR decoding response:[%s]\n", resp)
-	}
-	
+	}	
 	verified, err := svr.keymanager.VerifyMessage(challenge_bytes, response_bytes)
 	if err != nil {
-		resp = "OK"
+		resp = "ERR"
 	}  else if verified {
 		resp = "OK"
 	} else {
 		resp = "INVALID"
 	}
-	fmt.Printf("%s C: %x R: %x\n", resp, challenge_bytes, response_bytes);
+	fmt.Printf("%s Server Challenge [%s]-ethsign->[%x] Client %d byte Response:[%s] \n", resp,  challenge, challenge_bytes, len(response_bytes), resp);
 	// fmt.Fprintf(writer, resp)
 	writer.Flush()
 	if ( resp == "OK" ) {
