@@ -229,7 +229,7 @@ func (l *d) mvR(r *d, c int) {
 
 // BPlusTree returns a newly created, empty Tree. The compare function is used
 // for key collation.
-func NewBPlusTreeDB(swarmdb SwarmDB, hashid []byte, columnType ColumnType, secondary bool, columnTypePrimary ColumnType) *Tree {
+func NewBPlusTreeDB(u *SWARMDBUser, swarmdb SwarmDB, hashid []byte, columnType ColumnType, secondary bool, columnTypePrimary ColumnType) *Tree {
 	var t *Tree
 	cmpPrimary := cmpBytes
 	if secondary == true {
@@ -258,19 +258,19 @@ func NewBPlusTreeDB(swarmdb SwarmDB, hashid []byte, columnType ColumnType, secon
 	t.hashid = hashid
 	t.swarmdb = swarmdb
 	t.secondary = secondary
-	t.SWARMGet()
+	t.SWARMGet(u)
 	return t
 }
 
-func (t *Tree) StartBuffer() (ok bool, err error) {
+func (t *Tree) StartBuffer(u *SWARMDBUser) (ok bool, err error) {
 	t.buffered = true
 	return true, nil
 }
 
-func (t *Tree) FlushBuffer() (ok bool, err error) {
+func (t *Tree) FlushBuffer(u *SWARMDBUser) (ok bool, err error) {
 	if t.buffered {
 		t.buffered = false
-		new_hashid, changed := t.SWARMPut()
+		new_hashid, changed := t.SWARMPut(u)
 		if changed {
 			t.hashid = new_hashid
 			return true, nil
@@ -282,12 +282,12 @@ func (t *Tree) FlushBuffer() (ok bool, err error) {
 	return true, nil
 }
 
-func (t *Tree) check_flush() (ok bool) {
+func (t *Tree) check_flush(u *SWARMDBUser) (ok bool) {
 	if t.buffered {
 		return false
 	}
 
-	new_hashid, changed := t.SWARMPut()
+	new_hashid, changed := t.SWARMPut(u)
 	if changed {
 		t.hashid = new_hashid
 		return true
@@ -297,9 +297,9 @@ func (t *Tree) check_flush() (ok bool) {
 
 // Close performs Clear and recycles t to a pool for possible later reuse. No
 // references to t should exist or such references must not be used afterwards.
-func (t *Tree) Close() (ok bool, err error) {
+func (t *Tree) Close(u *SWARMDBUser) (ok bool, err error) {
 	if t.buffered {
-		t.FlushBuffer()
+		t.FlushBuffer(u)
 	}
 	t.Clear()
 	*t = zt
@@ -329,17 +329,17 @@ func (t *Tree) GetRootHash() (hashid []byte, err error) {
 	return t.hashid, nil
 }
 
-func (t *Tree) SWARMGet() (success bool) {
+func (t *Tree) SWARMGet(u *SWARMDBUser) (success bool) {
 	if t.r != nil {
 		switch z := t.r.(type) {
 		case (*x):
-			return z.SWARMGet(t.swarmdb)
+			return z.SWARMGet(u, t.swarmdb)
 		case (*d):
-			return z.SWARMGet(t.swarmdb)
+			return z.SWARMGet(u, t.swarmdb)
 		}
 	}
 	// do a read from local file system, filling in: (a) hashid and (b) items
-	buf, err := t.swarmdb.RetrieveDBChunk(t.hashid)
+	buf, err := t.swarmdb.RetrieveDBChunk(u, t.hashid)
 	if err != nil {
 		fmt.Printf("SWARMGet FAIL (T): [%s]\n", err)
 		// return false
@@ -417,7 +417,7 @@ func valid_hashid(hashid []byte) (valid bool) {
 	return valid
 }
 
-func (q *x) SWARMGet(swarmdb DBChunkstorage) (changed bool) {
+func (q *x) SWARMGet(u *SWARMDBUser, swarmdb DBChunkstorage) (changed bool) {
 	if q.notloaded {
 	} else {
 		return false
@@ -425,7 +425,7 @@ func (q *x) SWARMGet(swarmdb DBChunkstorage) (changed bool) {
 
 	// X|0|29022ceec0d104f84d40b6cd0b0aa52fcf676b52e4f5660e9c070e09cc8c693b|437
 	// do a read from local file system, filling in: (a) hashid and (b) items
-	buf, err := swarmdb.RetrieveDBChunk(q.hashid)
+	buf, err := swarmdb.RetrieveDBChunk(u, q.hashid)
 	if err != nil {
 		fmt.Printf("SWARMGet FAIL X: [%s]\n", err)
 		// return false
@@ -463,7 +463,7 @@ func (q *x) SWARMGet(swarmdb DBChunkstorage) (changed bool) {
 	return true
 }
 
-func (q *d) SWARMGet(swarmdb DBChunkstorage) (changed bool) {
+func (q *d) SWARMGet(u *SWARMDBUser, swarmdb DBChunkstorage) (changed bool) {
 
 	if q.notloaded {
 	} else {
@@ -472,7 +472,7 @@ func (q *d) SWARMGet(swarmdb DBChunkstorage) (changed bool) {
 	}
 
 	// do a read from local file system, filling in: (a) hashid and (b) items
-	buf, err := swarmdb.RetrieveDBChunk(q.hashid)
+	buf, err := swarmdb.RetrieveDBChunk(u, q.hashid)
 	if err != nil {
 		fmt.Printf("SWARMGet FAIL (D): [%s]\n", err)
 	}
@@ -494,7 +494,7 @@ func (q *d) SWARMGet(swarmdb DBChunkstorage) (changed bool) {
 	return true
 }
 
-func (t *Tree) SWARMPut() (new_hashid []byte, changed bool) {
+func (t *Tree) SWARMPut(u *SWARMDBUser) (new_hashid []byte, changed bool) {
 	q := t.r
 	if q == nil {
 		return
@@ -503,13 +503,13 @@ func (t *Tree) SWARMPut() (new_hashid []byte, changed bool) {
 	switch x := q.(type) {
 	case *x: // intermediate node -- descend on the next pass
 		// fmt.Printf("ROOT XNode %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
-		new_hashid, changed = x.SWARMPut(t.swarmdb, t.columnType)
+		new_hashid, changed = x.SWARMPut(u, t.swarmdb, t.columnType)
 		if changed {
 			t.hashid = x.hashid
 		}
 	case *d: // data node -- EXACT match
 		// fmt.Printf("ROOT DNode %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
-		new_hashid, changed = x.SWARMPut(t.swarmdb, t.columnType)
+		new_hashid, changed = x.SWARMPut(u, t.swarmdb, t.columnType)
 		if changed {
 			t.hashid = x.hashid
 		}
@@ -518,18 +518,18 @@ func (t *Tree) SWARMPut() (new_hashid []byte, changed bool) {
 	return new_hashid, changed
 }
 
-func (q *x) SWARMPut(swarmdb DBChunkstorage, columnType ColumnType) (new_hashid []byte, changed bool) {
+func (q *x) SWARMPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnType) (new_hashid []byte, changed bool) {
 	// recurse through children
 	// fmt.Printf("put XNode [c=%d] %x [dirty=%v|notloaded=%v]\n", q.c, q.hashid, q.dirty, q.notloaded)
 	for i := 0; i <= q.c; i++ {
 		switch z := q.x[i].ch.(type) {
 		case *x:
 			if z.dirty {
-				z.SWARMPut(swarmdb, columnType)
+				z.SWARMPut(u, swarmdb, columnType)
 			}
 		case *d:
 			if z.dirty {
-				z.SWARMPut(swarmdb, columnType)
+				z.SWARMPut(u, swarmdb, columnType)
 			}
 		}
 	}
@@ -552,7 +552,7 @@ func (q *x) SWARMPut(swarmdb DBChunkstorage, columnType ColumnType) (new_hashid 
 	set_chunk_nodetype(sdata, "X")
 	set_chunk_childtype(sdata, childtype)
 
-	new_hashid, err := swarmdb.StoreDBChunk(sdata, 1)
+	new_hashid, err := swarmdb.StoreDBChunk(u, sdata, 1)
 	if err != nil {
 		return q.hashid, false
 	}
@@ -561,11 +561,11 @@ func (q *x) SWARMPut(swarmdb DBChunkstorage, columnType ColumnType) (new_hashid 
 	return new_hashid, true
 }
 
-func (q *d) SWARMPut(swarmdb DBChunkstorage, columnType ColumnType) (new_hashid []byte, changed bool) {
+func (q *d) SWARMPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnType) (new_hashid []byte, changed bool) {
 	// fmt.Printf("put DNode [c=%d] [dirty=%v|notloaded=%v, prev=%x, next=%x]\n", q.c, q.dirty, q.notloaded, q.prevhashid, q.nexthashid)
 	if q.n != nil {
 		if q.n.dirty {
-			q.n.SWARMPut(swarmdb, columnType)
+			q.n.SWARMPut(u, swarmdb, columnType)
 		}
 		q.nexthashid = q.n.hashid
 		// fmt.Printf(" -- NEXT: %x [%v]\n", q.nexthashid, q.n.dirty)
@@ -574,7 +574,7 @@ func (q *d) SWARMPut(swarmdb DBChunkstorage, columnType ColumnType) (new_hashid 
 
 	if q.p != nil {
 		if q.p.dirty {
-			q.p.SWARMPut(swarmdb, columnType)
+			q.p.SWARMPut(u, swarmdb, columnType)
 		}
 		q.prevhashid = q.p.hashid
 		// fmt.Printf(" -- PREV: %x [%v]\n", q.prevhashid, q.p.dirty)
@@ -598,7 +598,7 @@ func (q *d) SWARMPut(swarmdb DBChunkstorage, columnType ColumnType) (new_hashid 
 
 	set_chunk_nodetype(sdata, "D")
 	set_chunk_childtype(sdata, "C")
-	new_hashid, err := swarmdb.StoreDBChunk(sdata, 1)
+	new_hashid, err := swarmdb.StoreDBChunk(u, sdata, 1)
 	if err != nil {
 		fmt.Printf("\nError calling StoreDBChunk: [%s]", err)
 		return q.hashid, false
@@ -683,12 +683,12 @@ func (t *Tree) catX(p, q, r *x, pi int) {
 }
 
 // Delete removes the k's KV pair, if it exists, in which case Delete returns true.
-func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
+	func (t *Tree) Delete(u *SWARMDBUser, k []byte /*K*/) (ok bool, err error) {
 	pi := -1
 	var p *x
 	q := t.r
 	for {
-		checkload(t.swarmdb, q)
+		checkload(u, t.swarmdb, q)
 		var i int
 		i, ok = t.find(q, k)
 		if ok {
@@ -716,7 +716,7 @@ func (t *Tree) Delete(k []byte /*K*/) (ok bool, err error) {
 					t.Clear()
 				}
 				x.dirty = true // we found the key and  actually deleted it!
-				t.check_flush()
+				t.check_flush(u)
 				return true, nil
 			}
 		}
@@ -785,22 +785,22 @@ func (t *Tree) find(q interface{}, k []byte /*K*/) (i int, ok bool) {
 	return l, false
 }
 
-func checkload(swarmdb DBChunkstorage, q interface{}) {
+func checkload(u *SWARMDBUser, swarmdb DBChunkstorage, q interface{}) {
 	switch x := q.(type) {
 	case *x: // intermediate node -- descend on the next pass
 		if x.notloaded {
-			x.SWARMGet(swarmdb)
+			x.SWARMGet(u, swarmdb)
 		}
 	case *d: // data node -- EXACT match
 		if x.notloaded {
-			x.SWARMGet(swarmdb)
+			x.SWARMGet(u, swarmdb)
 		}
 	}
 }
 
 // Get returns the value associated with k and true if it exists. Otherwise Get
 // returns (zero-value, false).
-func (t *Tree) Get(key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
+	func (t *Tree) Get(u *SWARMDBUser, key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
 
 	q := t.r
 	//	if q == nil {
@@ -811,7 +811,7 @@ func (t *Tree) Get(key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
 	copy(k, key)
 
 	for {
-		checkload(t.swarmdb, q)
+		checkload(u, t.swarmdb, q)
 
 		var i int
 
@@ -861,7 +861,7 @@ func print_spaces(nspaces int) {
 }
 
 // NOTE: this only prints the portion of the tree that is actually LOADED
-func (t *Tree) Print() {
+func (t *Tree) Print(u *SWARMDBUser) {
 	q := t.r
 	if q == nil {
 		return
@@ -939,7 +939,7 @@ func (t *Tree) overflow(p *x, q *d, pi, i int, k []byte /*K*/, v []byte /*V*/) {
 // Seek returns an Enumerator positioned on an item such that k >= item's key.
 // ok reports if k == item.key The Enumerator's position is possibly after the
 // last item in the tree.
-func (t *Tree) Seek(key []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err error) {
+func (t *Tree) Seek(u *SWARMDBUser, key []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err error) {
 	k := make([]byte, K_SIZE)
 	copy(k, key)
 
@@ -950,7 +950,7 @@ func (t *Tree) Seek(key []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err err
 	}
 
 	for {
-		checkload(t.swarmdb, q)
+		checkload(u, t.swarmdb, q)
 		var i int
 		if i, ok = t.find(q, k); ok {
 			switch x := q.(type) {
@@ -973,7 +973,7 @@ func (t *Tree) Seek(key []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err err
 	return e, false, nil
 }
 
-func (t *Tree) SeekFirst() (e OrderedDatabaseCursor, err error) {
+func (t *Tree) SeekFirst(u *SWARMDBUser) (e OrderedDatabaseCursor, err error) {
 	k := make([]byte, K_SIZE)
 	q := t.r
 	if q == nil {
@@ -982,7 +982,7 @@ func (t *Tree) SeekFirst() (e OrderedDatabaseCursor, err error) {
 	}
 
 	for {
-		checkload(t.swarmdb, q)
+		checkload(u, t.swarmdb, q)
 		var i int
 
 		i = 0
@@ -996,7 +996,7 @@ func (t *Tree) SeekFirst() (e OrderedDatabaseCursor, err error) {
 	return e, nil
 }
 
-func (t *Tree) SeekLast() (e OrderedDatabaseCursor, err error) {
+func (t *Tree) SeekLast(u *SWARMDBUser) (e OrderedDatabaseCursor, err error) {
 	k := make([]byte, K_SIZE)
 	q := t.r
 	if q == nil {
@@ -1005,7 +1005,7 @@ func (t *Tree) SeekLast() (e OrderedDatabaseCursor, err error) {
 	}
 
 	for {
-		checkload(t.swarmdb, q)
+		checkload(u, t.swarmdb, q)
 		switch x := q.(type) {
 		case *x:
 			q = x.x[x.c].ch
@@ -1017,7 +1017,7 @@ func (t *Tree) SeekLast() (e OrderedDatabaseCursor, err error) {
 	return e, nil
 }
 
-func (t *Tree) Put(key []byte /*K*/, v []byte /*V*/) (okresult bool, err error) {
+func (t *Tree) Put(u *SWARMDBUser, key []byte /*K*/, v []byte /*V*/) (okresult bool, err error) {
 	// fmt.Printf(" -- B+ Tree Put: %s => %s\n", KeyToString(t.columnType, key), ValueToString(v))
 	k := make([]byte, K_SIZE)
 	copy(k, key)
@@ -1034,7 +1034,7 @@ func (t *Tree) Put(key []byte /*K*/, v []byte /*V*/) (okresult bool, err error) 
 
 	// go down each level, from the "x" intermediate nodes to the "d" data nodes
 	for {
-		checkload(t.swarmdb, q)
+		checkload(u, t.swarmdb, q)
 		i, ok := t.find(q, k)
 		if ok {
 			// the key is found
@@ -1052,7 +1052,7 @@ func (t *Tree) Put(key []byte /*K*/, v []byte /*V*/) (okresult bool, err error) 
 			case *d:
 				x.d[i].v = v
 				x.dirty = true // we updated the value but did not insert anything
-				t.check_flush()
+				t.check_flush(u)
 				return true, nil
 			}
 		}
@@ -1074,13 +1074,13 @@ func (t *Tree) Put(key []byte /*K*/, v []byte /*V*/) (okresult bool, err error) 
 				t.overflow(p, x, pi, i, k, v)
 			}
 			x.dirty = true // we inserted the value at the intermediate node or leaf node
-			t.check_flush()
+			t.check_flush(u)
 			return true, nil
 		}
 	}
 }
 
-func (t *Tree) Insert(k []byte /*K*/, v []byte /*V*/) (okres bool, err error) {
+func (t *Tree) Insert(u *SWARMDBUser, k []byte /*K*/, v []byte /*V*/) (okres bool, err error) {
 	pi := -1
 	var p *x
 	q := t.r
@@ -1093,7 +1093,7 @@ func (t *Tree) Insert(k []byte /*K*/, v []byte /*V*/) (okres bool, err error) {
 
 	// go down each level, from the "x" intermediate nodes to the "d" data nodes
 	for {
-		checkload(t.swarmdb, q)
+		checkload(u, t.swarmdb, q)
 		i, ok := t.find(q, k)
 		if ok {
 			var dkerr *DuplicateKeyError
@@ -1117,7 +1117,7 @@ func (t *Tree) Insert(k []byte /*K*/, v []byte /*V*/) (okres bool, err error) {
 				t.overflow(p, x, pi, i, k, v)
 			}
 			x.dirty = true // we inserted the value at the intermediate node or leaf node
-			t.check_flush()
+			t.check_flush(u)
 			return true, nil
 		}
 	}
@@ -1275,7 +1275,7 @@ func (e *Enumerator) Close() {
 // Next returns the currently enumerated item, if it exists and moves to the
 // next item in the key collation order. If there is no item to return, err ==
 // io.EOF is returned.
-func (e *Enumerator) Next() (k []byte /*K*/, v []byte /*V*/, err error) {
+func (e *Enumerator) Next(u *SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err error) {
 	if err = e.err; err != nil {
 		fmt.Printf("1 err %v\n", err)
 		return
@@ -1296,7 +1296,7 @@ func (e *Enumerator) Next() (k []byte /*K*/, v []byte /*V*/, err error) {
 	}
 
 	if e.i >= e.q.c {
-		if err = e.next(); err != nil {
+		if err = e.next(u); err != nil {
 			fmt.Printf("4 err %v\n", err)
 			return
 		}
@@ -1305,11 +1305,11 @@ func (e *Enumerator) Next() (k []byte /*K*/, v []byte /*V*/, err error) {
 	i := e.q.d[e.i]
 	k, v = i.k, i.v
 	e.k, e.hit = k, true
-	e.next()
+	e.next(u)
 	return
 }
 
-func (e *Enumerator) next() error {
+func (e *Enumerator) next(u *SWARMDBUser) error {
 	if e.q == nil {
 		e.err = io.EOF
 		fmt.Printf("5 EOF\n")
@@ -1326,7 +1326,7 @@ func (e *Enumerator) next() error {
 			r.p = e.q
 			r.hashid = e.q.nexthashid
 			r.notloaded = true
-			r.SWARMGet(e.t.swarmdb)
+			r.SWARMGet(u, e.t.swarmdb)
 			e.q = r
 			e.i = 0
 		} else {
@@ -1343,7 +1343,7 @@ func (e *Enumerator) next() error {
 // Prev returns the currently enumerated item, if it exists and moves to the
 // previous item in the key collation order. If there is no item to return, err
 // == io.EOF is returned.
-func (e *Enumerator) Prev() (k []byte /*K*/, v []byte /*V*/, err error) {
+func (e *Enumerator) Prev(u *SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err error) {
 	if err = e.err; err != nil {
 		return
 	}
@@ -1361,13 +1361,13 @@ func (e *Enumerator) Prev() (k []byte /*K*/, v []byte /*V*/, err error) {
 
 	if !e.hit {
 		// move to previous because Seek overshoots if there's no hit
-		if err = e.prev(); err != nil {
+		if err = e.prev(u); err != nil {
 			return
 		}
 	}
 
 	if e.i >= e.q.c {
-		if err = e.prev(); err != nil {
+		if err = e.prev(u); err != nil {
 			return
 		}
 	}
@@ -1375,11 +1375,11 @@ func (e *Enumerator) Prev() (k []byte /*K*/, v []byte /*V*/, err error) {
 	i := e.q.d[e.i]
 	k, v = i.k, i.v
 	e.k, e.hit = k, true
-	e.prev()
+	e.prev(u)
 	return
 }
 
-func (e *Enumerator) prev() error {
+func (e *Enumerator) prev(u *SWARMDBUser) error {
 	if e.q == nil {
 		e.err = io.EOF
 		return io.EOF
@@ -1393,7 +1393,7 @@ func (e *Enumerator) prev() error {
 			r := btDPool.Get().(*d)
 			r.hashid = e.q.prevhashid
 			r.notloaded = true
-			r.SWARMGet(e.t.swarmdb)
+			r.SWARMGet(u, e.t.swarmdb)
 			e.q = r
 			if r.c >= 0 {
 				e.i = r.c - 1

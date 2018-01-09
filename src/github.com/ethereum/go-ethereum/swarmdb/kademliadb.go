@@ -50,16 +50,16 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 	return (mergedBodycontent)
 }
 
-func (self *KademliaDB) Put(k []byte, v []byte) ([]byte, error) {
+func (self *KademliaDB) Put(u *SWARMDBUser, k []byte, v []byte) ([]byte, error) {
 	sdata := self.buildSdata(k, v)
 	hashVal := sdata[512:544] // 32 bytes
-	_ = self.dbChunkstore.StoreKChunk(hashVal, sdata, self.encrypted)
+	_ = self.dbChunkstore.StoreKChunk(u, hashVal, sdata, self.encrypted)
 	return hashVal, nil
 }
 
-func (self *KademliaDB) GetByKey(k []byte) ([]byte, bool, error) {
+func (self *KademliaDB) GetByKey(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
 	chunkKey := self.GenerateChunkKey(k)
-	content, _, err := self.Get(chunkKey)
+	content, _, err := self.Get(u, chunkKey)
 	if err != nil {
 		log.Debug("key not found %s: %s", chunkKey, err)
 		return nil, false, fmt.Errorf("key not found: %s", err)
@@ -67,8 +67,8 @@ func (self *KademliaDB) GetByKey(k []byte) ([]byte, bool, error) {
 	return content, true, nil
 }
 
-func (self *KademliaDB) Get(h []byte) ([]byte, bool, error) {
-	contentReader, err := self.dbChunkstore.RetrieveKChunk(h)
+func (self *KademliaDB) Get(u *SWARMDBUser, h []byte) ([]byte, bool, error) {
+	contentReader, err := self.dbChunkstore.RetrieveKChunk(u, h)
 	if err != nil {
 		log.Debug("key not found %s: %s", h, err)
 		return nil, false, fmt.Errorf("key not found: %s", err)
