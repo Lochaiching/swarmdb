@@ -12,7 +12,7 @@ func TestDBChunkStore(t *testing.T) {
 	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
 
-	store, err := swarmdb.NewDBChunkStore("/tmp/chunks.db")
+	store, err := swarmdb.NewDBChunkStore("chunks.db")
 	if err != nil {
 		t.Fatal("Failure to open NewDBChunkStore")
 	}
