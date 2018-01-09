@@ -1,135 +1,117 @@
 package swarmdb_test
 
 import (
-	//"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb"
+	"reflect"
+	"strings"
 	"testing"
 )
 
 func TestParseQuery(t *testing.T) {
 
-	/*
-		records := map[string]string{
-			"rodney@wolk.com": `{ "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }`,
-			"alina@wolk.com":  `{ "email": "alina@wolk.com", "name": "Alina", "age": 35 }`,
-			"who@wolk.com":    `{ "email": "who@wolk.com", "name": "Who", "age": 38 }`,
-		}
-
-		//btree only, need one for hashdb
-		treetype := "BT"
-		btreetestcols := map[string]string{
-			"email":  "string",
-			"name":   "string",
-			"age":    "int",
-			"gender": "string",
-		}
-		err := swarmdb.CreateTable(treetype, table, index, btreetestcols)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		for key, rec := range records {
-			err := swarmdb.AddRecord(owner, table, key, rec)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-	*/
-
 	rawqueries := map[string]string{
-		`precedence`:   `select * from a where a=b and c=d or e=f`,
-		`operator`:     `select name, age from contacts where age >= 35`,
-		`like`:         `select name, age from contacts where email like '%wolk%'`,
-		`is`:           `select name, age from contacts where age is not null`,
-		`get`:          `select name, age from contacts where email = 'rodney@wolk.com'`,
+		`get1`:         `select name from contacts where age >= 35`,
+		`get2`:         `select name, age from contacts where email = 'rodney@wolk.com'`,
 		`doublequotes`: `select name, age from contacts where email = "rodney@wolk.com"`,
-		`and`:          `select name, age from contacts where email = 'rodney@wolk.com' and age = 38`,
-		`or`:           `select name, age from contacts where email = 'rodney@wolk.com' or age = 35`,
 		`not`:          `select name, age from contacts where email != 'rodney@wolk.com'`,
-		`groupby`:      `select name, age from contacts where age >= 35 group by email`,
-		`syntax`:       `select age from test where email = 'test002@wolk.com'`,
+		`insert`:       `insert into contacts(email, name, age) values("bertie@gmail.com","Bertie Basset", 7)`,
+		`update`:       `UPDATE contacts set age = 8, name = "Bertie B" where email = "bertie@gmail.com"`,
+		`delete`:       `delete from contacts where age >= 25`,
+		//`precedence`:   `select * from a where a=b and c=d or e=f`,
+		//`like`:         `select name, age from contacts where email like '%wolk%'`,
+		//`is`:           `select name, age from contacts where age is not null`,
+		//`and`:          `select name, age from contacts where email = 'rodney@wolk.com' and age = 38`,
+		//`or`:           `select name, age from contacts where email = 'rodney@wolk.com' or age = 35`,
+		//`groupby`:      `select name, age from contacts where age >= 35 group by email`,
 	}
-	/*
-		test := `{"Type":"Select", "Table":"contacts", "TableOwner":, "RequestColumns":[{"ColumnName":"name", "IndexType":0, "ColumnType":0, "Primary":0}, {"ColumnName":"age", "IndexType":0, "ColumnType":0, "Primary":0}], "Where":{"Left":"email", "Right":"%wolk%", "Operator":"like"}, "Ascending":0}`
-		var q swarmdb.QueryOption
-		_ = json.Unmarshal([]byte(test), q)
 
-		fmt.Printf("q is:\n%+v\n", q)
-	*/
+	expected := make(map[string]swarmdb.QueryOption)
+	expected[`get1`] = swarmdb.QueryOption{
+		Type:  "Select",
+		Table: "contacts",
+		RequestColumns: []swarmdb.Column{
+			swarmdb.Column{ColumnName: "name"},
+		},
+		Where:     swarmdb.Where{Left: "age", Right: "35", Operator: ">="},
+		Ascending: 1,
+	}
+	expected[`get2`] = swarmdb.QueryOption{
+		Type:  "Select",
+		Table: "contacts",
+		RequestColumns: []swarmdb.Column{
+			swarmdb.Column{ColumnName: "name"},
+			swarmdb.Column{ColumnName: "age"},
+		},
+		Where:     swarmdb.Where{Left: "email", Right: "rodney@wolk.com", Operator: "="},
+		Ascending: 1,
+	}
+	expected[`doublequotes`] = swarmdb.QueryOption{
+		Type:  "Select",
+		Table: "contacts",
+		RequestColumns: []swarmdb.Column{
+			swarmdb.Column{ColumnName: "name"},
+			swarmdb.Column{ColumnName: "age"},
+		},
+		Where:     swarmdb.Where{Left: "email", Right: "rodney@wolk.com", Operator: "="},
+		Ascending: 1,
+	}
+	expected[`not`] = swarmdb.QueryOption{
+		Type:  "Select",
+		Table: "contacts",
+		RequestColumns: []swarmdb.Column{
+			swarmdb.Column{ColumnName: "name"},
+			swarmdb.Column{ColumnName: "age"},
+		},
+		Where:     swarmdb.Where{Left: "email", Right: "rodney@wolk.com", Operator: "!="},
+		Ascending: 1,
+	}
+	expected[`insert`] = swarmdb.QueryOption{
+		Type:  "Insert",
+		Table: "contacts",
+		Inserts: []swarmdb.Row{
+			swarmdb.Row{
+				Cells: map[string]interface{}{
+					"name":  "Bertie Basset",
+					"age":   float64(7),
+					"email": "bertie@gmail.com"},
+			},
+		},
+		Ascending: 1,
+	}
+	expected[`update`] = swarmdb.QueryOption{
+		Type:  "Update",
+		Table: "contacts",
+		Update: map[string]interface{}{
+			"age":  float64(8),
+			"name": "Bertie B",
+		},
+		Where:     swarmdb.Where{Left: "email", Right: "bertie@gmail.com", Operator: "="},
+		Ascending: 1,
+	}
+	expected[`delete`] = swarmdb.QueryOption{
+		Type:      "Delete",
+		Table:     "contacts",
+		Where:     swarmdb.Where{Left: "age", Right: "25", Operator: ">="},
+		Ascending: 1,
+	}
 
+	var fail []string
 	for testid, raw := range rawqueries {
-		fmt.Printf("[%s] raw: %s\n", testid, raw)
+
 		clean, err := swarmdb.ParseQuery(raw)
 		if err != nil {
 			t.Fatal(err)
 		}
-		fmt.Printf("clean: %+v\n\n", clean)
+		if !reflect.DeepEqual(clean, expected[testid]) {
+			fmt.Printf("\n[%s] raw: %s\n", testid, raw)
+			fmt.Printf("clean: %+v\n", clean)
+			fmt.Printf("expected: %+v\n\n", expected[testid])
+			fail = append(fail, testid)
+		}
+	}
+	if len(fail) > 0 {
+		t.Fatal(fmt.Errorf("tests [%s] failed", strings.Join(fail, ",")))
 	}
 
-	/*
-		expected := map[string][]string{
-			`get`: []string{`{"name": "Rodney", "age": 38}`},
-			`and`: []string{`{"name": "Rodney", "age": 38}`},
-			`or`:  []string{`{"name": "Rodney", "age": 38}`, `{"name": "Alina", "age": 35}`},
-			`not`: []string{`{"name": "Alina", "age": 35}`, `{"name": "Who", "age": 38}`},
-		}
-
-		for prefix, q := range queries {
-
-			fmt.Printf("Query test: %s: %s\n", prefix, q)
-			actual, err := swarmdb.Query(owner, table, q)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			//compare output slices (may be in a different order than 'expected', also values maybe in a different order.)
-
-			if len(expected[prefix]) != len(actual) {
-				t.Fatal(fmt.Errorf("expected and actual are not the same.\nexpected: %v\nactual: %v\n", expected[prefix], actual))
-			}
-
-			for _, exp := range expected[prefix] {
-
-				expmap := make(map[string]string)
-				if err := json.Unmarshal([]byte(exp), &expmap); err != nil {
-					t.Fatal(err)
-				}
-
-				found := false
-				for _, act := range actual {
-
-					actmap := make(map[string]string)
-					if err := json.Unmarshal([]byte(act), &actmap); err != nil {
-						t.Fatal(err)
-					}
-
-					if len(actmap) != len(expmap) {
-						continue //try next actual map
-					}
-
-					match := true
-					for key, expval := range expmap {
-						if actmap[key] != expval {
-							match = false
-							break
-						}
-					}
-					if match {
-						found = true
-						break
-					}
-
-				}
-
-				if found == false {
-					t.Fatal(fmt.Errorf("%s test. actual: %v, expected %v", prefix, actual, expected[prefix]))
-				}
-
-			}
-
-			fmt.Printf("success. %+v\n", actual)
-
-		}
-	*/
 }
