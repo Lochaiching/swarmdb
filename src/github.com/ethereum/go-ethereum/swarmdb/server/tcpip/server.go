@@ -1,19 +1,19 @@
 package main
 
 import (
-	"fmt"
-	"net"
-	"time"
-	"math/rand"
-	"os"
+	"bufio"
 	"encoding/hex"
-	"strings"
+	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
+	common "github.com/ethereum/go-ethereum/swarmdb"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
 	"io"
-	"bufio"
-	common "github.com/ethereum/go-ethereum/swarmdb"
-	"github.com/ethereum/go-ethereum/crypto"
+	"math/rand"
+	"net"
+	"os"
+	"strings"
 	"sync"
+	"time"
 )
 
 type ServerConfig struct {
@@ -42,7 +42,6 @@ const (
 	CONN_TYPE = "tcp"
 )
 
-
 func RandStringRunes(n int) string {
 	var letterRunes = []rune("0123456789abcdef")
 	b := make([]rune, n)
@@ -51,7 +50,6 @@ func RandStringRunes(n int) string {
 	}
 	return string(b)
 }
-
 
 // Handles incoming requests.
 func handleRequest(conn net.Conn, svr *TCPIPServer) {
@@ -68,12 +66,12 @@ func handleRequest(conn net.Conn, svr *TCPIPServer) {
 		svr:    svr,
 	}
 
- 	fmt.Fprintf(writer, "%s\n", challenge)
+	fmt.Fprintf(writer, "%s\n", challenge)
 	writer.Flush()
 
 	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(challenge), challenge)
 	challenge_bytes := crypto.Keccak256([]byte(msg))
-	
+
 	resp, err := reader.ReadString('\n')
 	if err != nil {
 		fmt.Println("Error reading:", err.Error())
@@ -86,22 +84,22 @@ func handleRequest(conn net.Conn, svr *TCPIPServer) {
 	response_bytes, err3 := hex.DecodeString(resp)
 	if err3 != nil {
 		fmt.Printf("ERR decoding response:[%s]\n", resp)
-	}	
+	}
 	u, err := svr.keymanager.VerifyMessage(challenge_bytes, response_bytes)
 	if err != nil {
 		conn.Close()
 	} else {
-		fmt.Printf("%s Server Challenge [%s]-ethsign->[%x] Client %d byte Response:[%s] \n", resp,  challenge, challenge_bytes, len(response_bytes), resp);
+		fmt.Printf("%s Server Challenge [%s]-ethsign->[%x] Client %d byte Response:[%s] \n", resp, challenge, challenge_bytes, len(response_bytes), resp)
 		// fmt.Fprintf(writer, resp)
 		writer.Flush()
 		for {
-	// Close the connection when you're done with it.
+			// Close the connection when you're done with it.
 			str, err := client.reader.ReadString('\n')
 			if err == io.EOF {
 				conn.Close()
 				break
 			}
-			if ( true ) {
+			if true {
 				resp, err := svr.swarmdb.SelectHandler(u, str)
 				if err != nil {
 					s := fmt.Sprintf("ERR: %s\n", err)
@@ -157,10 +155,9 @@ func StartTCPIPServer(sdb *common.SwarmDB, conf *swarmdb.SWARMDBConfig) (err err
 			os.Exit(1)
 		}
 		// Handle connections in a new goroutine.
-		go handleRequest(conn,  sv)
+		go handleRequest(conn, sv)
 	}
 }
-
 
 func main() {
 	fmt.Println("Launching server...")
@@ -168,7 +165,3 @@ func main() {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	StartTCPIPServer(swdb, &config)
 }
-
-
-
-
