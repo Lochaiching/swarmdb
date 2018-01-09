@@ -43,6 +43,11 @@ type DataReq struct {
 	RawQuery     string `json:"rawquery,omitempty"`
 }
 
+type HttpErrorResp struct {
+	ErrorCode string `json:"errorcode,omitempty"`
+	ErrorMsg string `json:"errormsg,omitepty"`
+}
+
 func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 	pathParts := strings.Split(path, "/")
 	if len(pathParts) < 2 {
@@ -90,7 +95,11 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
 		return
 	}
+
 	encAuthString := r.Header["Authorization"]
+	if( len(encAuthString) == 0 ) {
+		return
+	}
 	encAuthStringParts := strings.SplitN(encAuthString[0], " ", 2)
 
 	decAuthString, err := base64.StdEncoding.DecodeString(encAuthStringParts[1])
@@ -159,9 +168,13 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if dataReq.RequestType == "CreateTable" {
 				} else if dataReq.RequestType == "Query" {
 					//Don't pass table for now (rely on Query parsing)	
-					dataReq.RawQuery = bodyMap["rawquery"].(string) 
-					reqJson, err = json.Marshal(dataReq)
-					if err != nil {
+					if rq, ok := bodyMap["rawquery"]; ok { 
+						dataReq.RawQuery = rq.(string) 
+						reqJson, err = json.Marshal(dataReq)
+						if err != nil {
+						}
+					} else {
+						//Invalid Query Request: rawquery missing
 					}
 				} else if dataReq.RequestType == "Put" {
 					dataReq.Table = swReq.table
@@ -187,10 +200,13 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		//Redirect to SelectHandler after "building" GET RequestOption
-		//fmt.Printf("Sending this JSON to SelectHandler (%s) and Owner=[%s]", reqJson, keymanager.WOLKSWARMDB_ADDRESS)
+		fmt.Printf("Sending this JSON to SelectHandler (%s) and Owner=[%s]", reqJson, keymanager.WOLKSWARMDB_ADDRESS)
 		response, errResp := s.swarmdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(reqJson))
 		if errResp != nil {
 			fmt.Printf("\nResponse resulted in Error: %s", errResp)
+			httpErr := &HttpErrorResp { ErrorCode: "TBD", ErrorMsg:errResp.Error() }	
+			jHttpErr,_ := json.Marshal(httpErr)
+			fmt.Fprint(w, string(jHttpErr))
 		} else {
 			fmt.Fprintf(w, response)
 		}
