@@ -552,6 +552,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 
 		tbl, err := self.GetTable(u, d.Owner, d.Table)
+		if err != nil {
+			return resp, err
+		}
 		fmt.Printf("Returned table [%+v] when calling gettable with Owner[%s], Table[%s]\n", tbl, d.Owner, d.Table)
 		tblInfo, err := tbl.GetTableInfo()
 		if err != nil {
@@ -954,7 +957,8 @@ func (t *Table) getPrimaryColumn() (c *ColumnInfo, err error) {
 
 func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 	if t.columns[columnName] == nil {
-		var cerr *NoColumnError
+		//var cerr *NoColumnError
+		cerr := &NoColumnError{tableName: t.tableName, tableOwner: t.ownerID, columnName: columnName}
 		return c, cerr
 	}
 	return t.columns[columnName], nil

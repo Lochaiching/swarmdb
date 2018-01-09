@@ -94,7 +94,6 @@ func aTestPutString(t *testing.T) {
 	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
 
-
 	hashid := make([]byte, 32)
 	r := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING)
 
@@ -135,7 +134,6 @@ func aTestPutFloat(t *testing.T) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
-
 
 	hashid := make([]byte, 32)
 	r := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_FLOAT, false, swarmdb.CT_STRING)

@@ -77,7 +77,7 @@ func NewSWARMDBConnection() (dbc SWARMDBConnection, err error) {
 	if configerr != nil {
 		return dbc, err
 	}
-	km, kmerr := NewKeyManager(&config) 
+	km, kmerr := NewKeyManager(&config)
 	if err != nil {
 		return dbc, kmerr
 	} else {

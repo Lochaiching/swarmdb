@@ -33,6 +33,8 @@ func GenerateSampleSWARMDBConfig(privateKey string, address string, passphrase s
 	c.ListenAddrHTTP = "127.0.0.1"
 	c.PortHTTP = 8500
 
+	c.ChunkDBPath = "/swarmdb/data/keystore"
+
 	c.Address = u.Address
 	c.PrivateKey = privateKey
 	

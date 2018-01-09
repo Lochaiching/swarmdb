@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
+	"os"
 	"testing"
-	//	"os"
 	// "bytes"
 	"github.com/cznic/mathutil"
 	"math"
@@ -27,7 +27,12 @@ const (
 )
 
 func getUser() (u *swarmdb.SWARMDBUser) {
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	config, err := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	if err != nil {
+		fmt.Printf("No config error: ", err)
+		os.Exit(0)
+	}
+
 	swarmdb.NewKeyManager(&config)
 	user := config.GetSWARMDBUser()
 	return user
@@ -55,14 +60,14 @@ func getSWARMDBTable(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName st
 	return tbl
 }
 
-func getSWARMDBTableSecondary(ownerId string, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType,
+func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType,
 	secondaryKeyName string, secondaryIndexType swarmdb.IndexType, secondaryColumnType swarmdb.ColumnType,
 	create bool) (swarmdbObj *swarmdb.SwarmDB) {
 
 	swarmdbObj = swarmdb.NewSwarmDB()
 
 	// Commenting: (Rodney) -- CreateTable called from swarmdbObj and inside of that it calls NewTable
-	u := getUser()
+	//u := getUser()
 
 	// CreateTable
 	if create {
@@ -209,7 +214,7 @@ func TestTable(t *testing.T) {
 		tbl.Put(u, putjson)
 
 	}
-	
+
 	tbl2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
 	// Get
 	res, err := tbl2.Get(u, "rodney@wolk.com")
@@ -238,19 +243,19 @@ func TestTableSecondaryInt(t *testing.T) {
 	//	os.Exit(0)
 	// select * from table where age < 30
 	/*	sql := fmt.Sprintf("select * from %s where %s < 30", TEST_TABLE, TEST_SKEY_INT)
-	 rows, err := swarmdb.QuerySelect(u, sql)
-		if err != nil {
-		} else {
-			for i, row := range rows {
-				fmt.Printf("%d:%v\n", i, row)
-			}
-		} */
+		 rows, err := swarmdb.QuerySelect(u, sql)
+			if err != nil {
+			} else {
+				for i, row := range rows {
+					fmt.Printf("%d:%v\n", i, row)
+				}
+			} */
 }
 
 func TestTableSecondaryFloat(t *testing.T) {
 	t.SkipNow()
 	u := getUser()
-	swdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+	swdb := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_FLOAT, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
 	// select * from table where age < 30
 	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_FLOAT)
@@ -274,7 +279,7 @@ func TestTableSecondaryFloat(t *testing.T) {
 func TestTableSecondaryString(t *testing.T) {
 	t.SkipNow()
 	u := getUser()
-	swdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+	swdb := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_STRING)
 
@@ -536,7 +541,7 @@ func aTestDelete1(t *testing.T) {
 
 		}
 
-		s := getSWARMDBTable(u,  TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
+		s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 		for i, k := range a {
 			key := fmt.Sprintf("%d", k)
 			fmt.Printf("attempt delete [%s]\n", key)
@@ -554,7 +559,7 @@ func aTestDelete2(t *testing.T) {
 	u := getUser()
 
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := getSWARMDBTable(u,  TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
+		r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 		a := make([]int, N)
 		rng := rng()
 		for i := range a {
@@ -640,7 +645,8 @@ func TestGetTableFail(t *testing.T) {
 	swdb := swarmdb.NewSwarmDB()
 	ownerID := "BadOwner"
 	tableName := "BadTable"
-	_, err := swdb.GetTable(ownerID, tableName)
+	u := getUser()
+	_, err := swdb.GetTable(u, ownerID, tableName)
 	if err.Error() != `Table [`+tableName+`] with Owner [`+ownerID+`] does not exist` {
 		t.Fatalf("TestGetTableFail: FAILED")
 	}
