@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
 	"math/big"
@@ -207,16 +206,21 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 		fmt.Printf("Error Creating Stat Table")
 		return nil, err
 	}
+	config, errConfig := LoadSWARMDBConfig(SWARMDBCONF_FILE)
+	if errConfig != nil {
+		fmt.Printf("Error Creating KeyManager")
+		return nil, err
+	}
 
-	km, errKm := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
+	km, errKm := NewKeyManager(&config)
 
 	if errKm != nil {
 		fmt.Printf("Error Creating KeyManager")
 		return nil, err
 	}
 
-	nodeid := "abcd"
-	userWallet := "0x56ad284968f2c2edb44c1380411c2c3b12b26c3f"
+	userWallet := config.Address
+	nodeid := config.GetNodeID()
 	walletAddr := common.HexToAddress(userWallet)
 
 	netstat := NetstatFile{
@@ -270,7 +274,13 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 		return nil, err
 	}
 
-	km, errKm := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
+	config, errConfig := LoadSWARMDBConfig(SWARMDBCONF_FILE)
+	if errConfig != nil {
+		fmt.Printf("Error Creating KeyManager")
+		return nil, err
+	}
+
+	km, errKm := NewKeyManager(&config)
 	if errKm != nil {
 		fmt.Printf("Error Creating KeyManager")
 		return nil, err
@@ -283,7 +293,7 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 	return
 }
 
-func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err error) {
+func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, k []byte, v []byte, encrypted int) (err error) {
 	//TODO get OWNER from CHUNK or get it from swarmdb into dbchunkstore
 	ts := time.Now()
 	if len(v) < minChunkSize {
@@ -299,7 +309,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err er
 	defer stmt.Close()
 
 	recordData := v[577:4096]
-	encRecordData := self.km.EncryptData(recordData)
+	encRecordData := self.km.EncryptData(u, recordData)
 
 	var finalSdata [8192]byte
 	copy(finalSdata[0:577], v[0:577])
@@ -317,7 +327,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err er
 	return nil
 }
 
-func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
+func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	ts := time.Now()
 	val = make([]byte, 8192)
 	sql := `SELECT chunkKey, chunkVal, chunkBirthDT, chunkStoreDT, encrypted FROM chunk WHERE chunkKey = $1`
@@ -348,7 +358,7 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 		//fmt.Printf("\nQuery Key: [%x], [%s], [%s], [%s] with VAL: [%+v]", kV, bdt, sdt, enc, val)
 		jsonRecord := val[577:]
 		trimmedJson := bytes.TrimRight(jsonRecord, "\x00")
-		decVal := self.km.DecryptData(trimmedJson)
+		decVal := self.km.DecryptData(u, trimmedJson)
 		decVal = bytes.TrimRight(decVal, "\x00")
 		self.netstat.LReadDT = &ts
 		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
@@ -357,7 +367,7 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 	return val, nil
 }
 
-func (self *DBChunkstore) StoreChunk(v []byte, encrypted int) (k []byte, err error) {
+func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, v []byte, encrypted int) (k []byte, err error) {
 	ts := time.Now()
 	if len(v) < minChunkSize {
 		return k, fmt.Errorf("chunk too small") // should be improved
@@ -376,7 +386,7 @@ func (self *DBChunkstore) StoreChunk(v []byte, encrypted int) (k []byte, err err
 	}
 	defer stmt.Close()
 
-	encVal := self.km.EncryptData(v)
+	encVal := self.km.EncryptData(u, v)
 	_, err2 := stmt.Exec(k, encVal, encrypted, k, k)
 	if err2 != nil {
 		fmt.Printf("\nError Inserting into Table: [%s]", err)
@@ -389,7 +399,7 @@ func (self *DBChunkstore) StoreChunk(v []byte, encrypted int) (k []byte, err err
 	return k, nil
 }
 
-func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
+func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	ts := time.Now()
 	val = make([]byte, 8192)
 	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
@@ -412,7 +422,7 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 		if err2 != nil {
 			return nil, err2
 		}
-		decVal := self.km.DecryptData(val)
+		decVal := self.km.DecryptData(u, val)
 		self.netstat.LReadDT = &ts
 		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
 		return decVal, nil

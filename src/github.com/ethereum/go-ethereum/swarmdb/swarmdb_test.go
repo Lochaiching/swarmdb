@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
-	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"testing"
 	//	"os"
 	// "bytes"
@@ -27,7 +26,14 @@ const (
 	TEST_ENCRYPTED       = 1
 )
 
-func getSWARMDBTable(ownerId string, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType, create bool) (tbl *swarmdb.Table) {
+func getUser() (u *swarmdb.SWARMDBUser) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	user := config.GetSWARMDBUser()
+	return user
+}
+
+func getSWARMDBTable(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType, create bool) (tbl *swarmdb.Table) {
 	swarmdbObj := swarmdb.NewSwarmDB()
 
 	// Commenting: (Rodney) -- CreateTable called from swarmdbObj and inside of that it calls NewTable
@@ -38,11 +44,11 @@ func getSWARMDBTable(ownerId string, tableName string, primaryKeyName string, pr
 		var option []swarmdb.Column
 		o := swarmdb.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
 		option = append(option, o)
-		tbl, _ = swarmdbObj.CreateTable(ownerId, tableName, option, TEST_ENCRYPTED)
+		tbl, _ = swarmdbObj.CreateTable(u, tableName, option, TEST_ENCRYPTED)
 	}
 
 	// OpenTable
-	err := tbl.OpenTable()
+	err := tbl.OpenTable(u)
 	if err != nil {
 		fmt.Print("OPENTABLE ERR %v\n", err)
 	}
@@ -56,7 +62,7 @@ func getSWARMDBTableSecondary(ownerId string, tableName string, primaryKeyName s
 	swarmdbObj = swarmdb.NewSwarmDB()
 
 	// Commenting: (Rodney) -- CreateTable called from swarmdbObj and inside of that it calls NewTable
-	// tbl := swarmdbObj.NewTable(ownerID, tableName)
+	u := getUser()
 
 	// CreateTable
 	if create {
@@ -66,10 +72,10 @@ func getSWARMDBTableSecondary(ownerId string, tableName string, primaryKeyName s
 
 		s := swarmdb.Column{ColumnName: secondaryKeyName, Primary: 0, IndexType: secondaryIndexType, ColumnType: secondaryColumnType}
 		option = append(option, s)
-		tbl, _ := swarmdbObj.CreateTable(ownerId, tableName, option, TEST_ENCRYPTED)
+		tbl, _ := swarmdbObj.CreateTable(u, tableName, option, TEST_ENCRYPTED)
 
 		// OpenTable
-		err := tbl.OpenTable()
+		err := tbl.OpenTable(u)
 		if err != nil {
 			fmt.Printf("OPENTABLE ERR %v\n", err)
 		}
@@ -77,11 +83,11 @@ func getSWARMDBTableSecondary(ownerId string, tableName string, primaryKeyName s
 		putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
 		var putjson map[string]interface{}
 		_ = json.Unmarshal([]byte(putstr), putjson)
-		tbl.Put(putjson)
+		tbl.Put(u, putjson)
 
 		putstr = `{"email":"sourabh@wolk.com", "age": 45, "gender": "M", "weight": 210.5}`
 		_ = json.Unmarshal([]byte(putstr), putjson)
-		tbl.Put(putjson)
+		tbl.Put(u, putjson)
 
 		// Put
 		for i := 1; i < 10; i++ {
@@ -90,19 +96,19 @@ func getSWARMDBTableSecondary(ownerId string, tableName string, primaryKeyName s
 			putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
 				TEST_PKEY_STRING, i*2, i%5+21, g, w)
 			_ = json.Unmarshal([]byte(putstr), putjson)
-			tbl.Put(putjson)
+			tbl.Put(u, putjson)
 
 			g = "M"
 			w = float64(i) + float64(0.414159)
 			putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
 				TEST_PKEY_STRING, i*2+1, i%5+21, g, w)
 			_ = json.Unmarshal([]byte(putstr), putjson)
-			tbl.Put(putjson)
+			tbl.Put(u, putjson)
 
 		}
 	} else {
-		tbl, _ := swarmdbObj.GetTable(ownerId, tableName)
-		err := tbl.OpenTable()
+		tbl, _ := swarmdbObj.GetTable(u, u.Address, tableName)
+		err := tbl.OpenTable(u)
 		if err != nil {
 			fmt.Printf("OPENTABLE ERR %v\n", err)
 		}
@@ -113,9 +119,10 @@ func getSWARMDBTableSecondary(ownerId string, tableName string, primaryKeyName s
 func TestSetGetInt(t *testing.T) {
 	t.SkipNow()
 	const N = 4
+	u := getUser()
 
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
+		r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
 		a := make([]int, N)
 		for i := range a {
@@ -127,14 +134,14 @@ func TestSetGetInt(t *testing.T) {
 			fmt.Printf("%s\n", val)
 			var putjson map[string]interface{}
 			_ = json.Unmarshal([]byte(val), putjson)
-			r.Put(putjson)
+			r.Put(u, putjson)
 		}
 
-		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
+		s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 		for i, k := range a {
 			key := fmt.Sprintf("%d", k) // swarmdb.IntToByte(k)
 			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
-			v, err := s.Get(key)
+			v, err := s.Get(u, key)
 			if err != nil || strings.Compare(val, string(v)) != 0 {
 				t.Fatal(i, val, v)
 			} else {
@@ -143,25 +150,25 @@ func TestSetGetInt(t *testing.T) {
 
 			k |= 1
 			key = fmt.Sprintf("%d", k) // swarmdb.IntToByte(k)
-			v, err = s.Get(key)
+			v, err = s.Get(u, key)
 			if len(v) > 0 {
 				t.Fatal(i, k)
 			}
 		}
 
-		r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
+		r2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 		for _, k := range a {
 			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
 			var putjson map[string]interface{}
 			_ = json.Unmarshal([]byte(val), putjson)
-			r2.Put(putjson)
+			r2.Put(u, putjson)
 		}
 
-		s2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
+		s2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 		for i, k := range a {
 			key := fmt.Sprintf("%d", k)
 			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
-			v, err := s2.Get(key) //
+			v, err := s2.Get(u, key) //
 			if err != nil || strings.Compare(string(v), val) != 0 {
 				t.Fatal(i, v, val)
 			} else {
@@ -173,16 +180,17 @@ func TestSetGetInt(t *testing.T) {
 
 func TestTable(t *testing.T) {
 	t.SkipNow()
-	tbl := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
+	u := getUser()
+	tbl := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 
 	putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
 	var putjson map[string]interface{}
 	_ = json.Unmarshal([]byte(putstr), putjson)
-	tbl.Put(putjson)
+	tbl.Put(u, putjson)
 
 	putstr = `{"email":"sourabh@wolk.com", "age": 45, "gender": "M", "weight": 210.5}`
 	_ = json.Unmarshal([]byte(putstr), putjson)
-	tbl.Put(putjson)
+	tbl.Put(u, putjson)
 
 	// Put
 	for i := 1; i < 100; i++ {
@@ -191,34 +199,35 @@ func TestTable(t *testing.T) {
 		putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
 			TEST_PKEY_STRING, i, i, g, w)
 		_ = json.Unmarshal([]byte(putstr), putjson)
-		tbl.Put(putjson)
+		tbl.Put(u, putjson)
 
 		g = "M"
 		w = float64(i) + float64(0.414159)
 		putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
 			TEST_PKEY_STRING, i, i, g, w)
 		_ = json.Unmarshal([]byte(putstr), putjson)
-		tbl.Put(putjson)
+		tbl.Put(u, putjson)
 
 	}
-
-	tbl2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
+	
+	tbl2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
 	// Get
-	res, err := tbl2.Get("rodney@wolk.com")
+	res, err := tbl2.Get(u, "rodney@wolk.com")
 	fmt.Printf("Get %s %v \n", string(res), err)
 
 	// Get
-	fres, ferr := tbl2.Get("test010@wolk.com")
+	fres, ferr := tbl2.Get(u, "test010@wolk.com")
 	fmt.Printf("Get %s %v \n", string(fres), ferr)
 	//t.CloseTable()
 
 }
 
 func TestTableSecondaryInt(t *testing.T) {
-	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+	u := getUser()
+	swarmdb := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
-	rows, err := swarmdb.Scan(TEST_OWNER, TEST_TABLE, "age", 1)
+	rows, err := swarmdb.Scan(u, TEST_OWNER, TEST_TABLE, "age", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -229,7 +238,7 @@ func TestTableSecondaryInt(t *testing.T) {
 	//	os.Exit(0)
 	// select * from table where age < 30
 	/*	sql := fmt.Sprintf("select * from %s where %s < 30", TEST_TABLE, TEST_SKEY_INT)
-		rows, err := swarmdb.QuerySelect(sql)
+	 rows, err := swarmdb.QuerySelect(u, sql)
 		if err != nil {
 		} else {
 			for i, row := range rows {
@@ -240,6 +249,7 @@ func TestTableSecondaryInt(t *testing.T) {
 
 func TestTableSecondaryFloat(t *testing.T) {
 	t.SkipNow()
+	u := getUser()
 	swdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_FLOAT, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
 	// select * from table where age < 30
@@ -251,7 +261,7 @@ func TestTableSecondaryFloat(t *testing.T) {
 	}
 	query.TableOwner = TEST_OWNER
 
-	rows, err := swdb.QuerySelect(&query)
+	rows, err := swdb.QuerySelect(u, &query)
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -263,6 +273,7 @@ func TestTableSecondaryFloat(t *testing.T) {
 
 func TestTableSecondaryString(t *testing.T) {
 	t.SkipNow()
+	u := getUser()
 	swdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_STRING)
@@ -273,7 +284,7 @@ func TestTableSecondaryString(t *testing.T) {
 	}
 	query.TableOwner = TEST_OWNER
 
-	rows, err := swdb.QuerySelect(&query)
+	rows, err := swdb.QuerySelect(u, &query)
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -294,28 +305,30 @@ func rng() *mathutil.FC32 {
 // primary key is integer "accountID"
 func aTestPutInteger(t *testing.T) {
 	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
-	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
+	u := getUser()
+
+	r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
 	// write 20 values into B-tree (only kept in memory)
-	r.StartBuffer()
+	r.StartBuffer(u)
 	vals := rand.Perm(20)
 	var putjson map[string]interface{}
 	for _, i := range vals {
 		v := fmt.Sprintf(`{"%s":"%d", "email":"test%03d@wolk.com"}`, TEST_PKEY_INT, i, i)
 		_ = json.Unmarshal([]byte(v), putjson)
-		r.Put(putjson)
+		r.Put(u, putjson)
 	}
-	r.FlushBuffer()
+	r.FlushBuffer(u)
 
-	s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
+	s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 
-	g, err := s.Get("8")
+	g, err := s.Get(u, "8")
 	if err != nil {
 		t.Fatal(g, err)
 	} else {
 		fmt.Printf("Get(8): [%s]\n", string(g))
 	}
-	h, err2 := s.Get("1")
+	h, err2 := s.Get(u, "1")
 	if err2 != nil {
 		t.Fatal(h, err2)
 	}
@@ -325,39 +338,41 @@ func aTestPutInteger(t *testing.T) {
 
 func aTestPutString(t *testing.T) {
 	fmt.Printf("---- TestPutString: generate 20 strings and enumerate them\n")
+	u := getUser()
 
-	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
+	r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 
-	r.StartBuffer()
+	r.StartBuffer(u)
 	vals := rand.Perm(20)
 	var putjson map[string]interface{}
 	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
 		v := fmt.Sprintf(`{"%s":"t%06x@wolk.com", "val":"valueof%06x"}`, TEST_PKEY_STRING, i, i)
 		_ = json.Unmarshal([]byte(v), putjson)
-		r.Put(putjson)
+		r.Put(u, putjson)
 
 	}
 	// this writes B+tree to SWARM
-	r.FlushBuffer()
+	r.FlushBuffer(u)
 
-	s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
+	s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
 	k := "t000008@wolk.com"
-	g, _ := s.Get(k)
+	g, _ := s.Get(u, k)
 	fmt.Printf("Get(%s): %v\n", k, string(g))
 
 	k1 := "t000001@wolk.com"
-	h, _ := s.Get(k1)
+	h, _ := s.Get(u, k1)
 	fmt.Printf("Get(%s): %v\n", k1, string(h))
 
 }
 
 func aTestPutFloat(t *testing.T) {
 	fmt.Printf("---- TestPutFloat: generate 20 floats and enumerate them\n")
+	u := getUser()
 
-	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_FLOAT, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
+	r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_FLOAT, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
 
-	r.StartBuffer()
+	r.StartBuffer(u)
 	vals := rand.Perm(20)
 	var putjson map[string]interface{}
 	// write 20 values into B-tree (only kept in memory)
@@ -365,38 +380,39 @@ func aTestPutFloat(t *testing.T) {
 		f := float64(i) + .3141519
 		v := fmt.Sprintf(`{"%s":"%f", "val":"valueof%06x"}`, TEST_PKEY_FLOAT, f, i)
 		_ = json.Unmarshal([]byte(v), putjson)
-		r.Put(putjson)
+		r.Put(u, putjson)
 
 	}
 	// this writes B+tree to SWARM
-	r.FlushBuffer()
+	r.FlushBuffer(u)
 
-	s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
+	s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
 	i := 4
 	f := float64(i) + .3141519
 	k := fmt.Sprintf("%f", f)
-	g, _ := s.Get(k)
+	g, _ := s.Get(u, k)
 	fmt.Printf("Get(%s): %v\n", k, string(g))
 
 	i = 6
 	f = float64(i) + .3141519
 	k = fmt.Sprintf("%f", f)
-	h, _ := s.Get(k)
+	h, _ := s.Get(u, k)
 	fmt.Printf("Get(%s): %v\n", k, string(h))
 }
 
 func aTestSetGetString(t *testing.T) {
-	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
+	u := getUser()
+	r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
 
 	// put
 	key := "88"
 	val := fmt.Sprintf(`{"%s":"%s", "val":"valueof%06x"}`, TEST_PKEY_STRING, key, key)
 	var putjson map[string]interface{}
 	_ = json.Unmarshal([]byte(val), putjson)
-	r.Put(putjson)
+	r.Put(u, putjson)
 
 	// check put with get
-	g, err := r.Get(key)
+	g, err := r.Get(u, key)
 	if err != nil || strings.Compare(string(g), val) != 0 {
 		t.Fatal(g, val)
 	} else {
@@ -404,13 +420,13 @@ func aTestSetGetString(t *testing.T) {
 	}
 
 	// r2 put
-	r2 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, false)
+	r2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, false)
 	val2 := fmt.Sprintf(`{"%s":"%s", "val":"newvalueof%06x"}`, TEST_PKEY_STRING, key, key)
 	_ = json.Unmarshal([]byte(val2), putjson)
-	r.Put(putjson)
+	r.Put(u, putjson)
 
 	// check put with get
-	g2, err := r2.Get(key)
+	g2, err := r2.Get(u, key)
 	if err != nil || strings.Compare(string(g2), val2) != 0 {
 		t.Fatal(g2, val2)
 	} else {
@@ -418,13 +434,13 @@ func aTestSetGetString(t *testing.T) {
 	}
 
 	// r3 put
-	r3 := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, false)
+	r3 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, false)
 	val3 := fmt.Sprintf(`{"%s":"%s", "val":"valueof%06x"}`, TEST_PKEY_STRING, key, key)
 	_ = json.Unmarshal([]byte(val3), putjson)
-	r.Put(putjson)
+	r.Put(u, putjson)
 
 	// check put with get
-	g3, err := r3.Get(key)
+	g3, err := r3.Get(u, key)
 	if err != nil || strings.Compare(string(g3), val3) != 0 {
 		t.Fatal(g3, val3)
 	} else {
@@ -434,78 +450,80 @@ func aTestSetGetString(t *testing.T) {
 }
 
 func aTestDelete0(t *testing.T) {
-	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
+	u := getUser()
+	r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
 	key0 := "0"
 	key1 := "1"
 
 	val0 := fmt.Sprintf(`{"accountID":"%s","val":"%s"}`, key0, key0)
 	val1 := fmt.Sprintf(`{"accountID":"%s","val":"%s"}`, key1, key1)
-	if ok, _ := r.Delete(key0); ok {
+	if ok, _ := r.Delete(u, key0); ok {
 		t.Fatal(ok)
 	}
 
 	var putjson map[string]interface{}
 
-	if ok, _ := r.Delete(key1); ok {
+	if ok, _ := r.Delete(u, key1); ok {
 		t.Fatal(ok)
 	}
 
-	if ok, _ := r.Delete(key0); !ok {
+	if ok, _ := r.Delete(u, key0); !ok {
 		t.Fatal(ok)
 	}
 
-	if ok, _ := r.Delete(key0); ok {
-		t.Fatal(ok)
-	}
-
-	_ = json.Unmarshal([]byte(val0), putjson)
-	r.Put(putjson)
-	_ = json.Unmarshal([]byte(val1), putjson)
-	r.Put(putjson)
-
-	if ok, _ := r.Delete(key1); !ok {
-		t.Fatal(ok)
-	}
-
-	if ok, _ := r.Delete(key1); ok {
-		t.Fatal(ok)
-	}
-
-	if ok, _ := r.Delete(key0); !ok {
-		t.Fatal(ok)
-	}
-
-	if ok, _ := r.Delete(key0); ok {
+	if ok, _ := r.Delete(u, key0); ok {
 		t.Fatal(ok)
 	}
 
 	_ = json.Unmarshal([]byte(val0), putjson)
-	r.Put(putjson)
+	r.Put(u, putjson)
 	_ = json.Unmarshal([]byte(val1), putjson)
-	r.Put(putjson)
+	r.Put(u, putjson)
 
-	if ok, _ := r.Delete(key0); !ok {
+	if ok, _ := r.Delete(u, key1); !ok {
 		t.Fatal(ok)
 	}
 
-	if ok, _ := r.Delete(key0); ok {
+	if ok, _ := r.Delete(u, key1); ok {
 		t.Fatal(ok)
 	}
 
-	if ok, _ := r.Delete(key1); !ok {
+	if ok, _ := r.Delete(u, key0); !ok {
 		t.Fatal(ok)
 	}
 
-	if ok, _ := r.Delete(key1); ok {
+	if ok, _ := r.Delete(u, key0); ok {
+		t.Fatal(ok)
+	}
+
+	_ = json.Unmarshal([]byte(val0), putjson)
+	r.Put(u, putjson)
+	_ = json.Unmarshal([]byte(val1), putjson)
+	r.Put(u, putjson)
+
+	if ok, _ := r.Delete(u, key0); !ok {
+		t.Fatal(ok)
+	}
+
+	if ok, _ := r.Delete(u, key0); ok {
+		t.Fatal(ok)
+	}
+
+	if ok, _ := r.Delete(u, key1); !ok {
+		t.Fatal(ok)
+	}
+
+	if ok, _ := r.Delete(u, key1); ok {
 		t.Fatal(ok)
 	}
 }
 
 func aTestDelete1(t *testing.T) {
+	u := getUser()
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
+		r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 		a := make([]int, N)
 		for i := range a {
 			a[i] = (i ^ x) << 1
@@ -514,15 +532,15 @@ func aTestDelete1(t *testing.T) {
 			v := fmt.Sprintf(`{"%s":"%d","val":"value%d"}`, TEST_PKEY_INT, k, k)
 			var putjson map[string]interface{}
 			_ = json.Unmarshal([]byte(v), putjson)
-			r.Put(putjson)
+			r.Put(u, putjson)
 
 		}
 
-		s := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
+		s := getSWARMDBTable(u,  TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 		for i, k := range a {
 			key := fmt.Sprintf("%d", k)
 			fmt.Printf("attempt delete [%s]\n", key)
-			ok, _ := s.Delete(key)
+			ok, _ := s.Delete(u, key)
 			if !ok {
 				fmt.Printf("**** YIPES: [%s]\n", key)
 				t.Fatal(i, x, k)
@@ -533,9 +551,10 @@ func aTestDelete1(t *testing.T) {
 
 func aTestDelete2(t *testing.T) {
 	const N = 100
+	u := getUser()
 
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
+		r := getSWARMDBTable(u,  TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 		a := make([]int, N)
 		rng := rng()
 		for i := range a {
@@ -546,12 +565,12 @@ func aTestDelete2(t *testing.T) {
 
 			v := fmt.Sprintf(`{"%s":"%d","val":"value%d"`, TEST_PKEY_INT, k, k)
 			_ = json.Unmarshal([]byte(v), putjson)
-			r.Put(putjson)
+			r.Put(u, putjson)
 
 		}
 		for i, k := range a {
 			key := fmt.Sprintf("%d", k)
-			ok, _ := r.Delete(key)
+			ok, _ := r.Delete(u, key)
 			if !ok {
 				t.Fatal(i, x, k)
 			}
@@ -561,6 +580,7 @@ func aTestDelete2(t *testing.T) {
 
 func TestCreateTable(t *testing.T) {
 	t.SkipNow()
+	u := getUser()
 	swdb := swarmdb.NewSwarmDB()
 
 	var testColumn []swarmdb.Column
@@ -596,10 +616,11 @@ func TestCreateTable(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 
 	}
-	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	swdb.SelectHandler(u, string(marshalTestReqOption))
 }
 
 func TestOpenTable(t *testing.T) {
+	u := getUser()
 	swdb := swarmdb.NewSwarmDB()
 	var testReqOption swarmdb.RequestOption
 
@@ -612,7 +633,7 @@ func TestOpenTable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
-	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	swdb.SelectHandler(u, string(marshalTestReqOption))
 }
 
 func TestGetTableFail(t *testing.T) {
@@ -626,6 +647,7 @@ func TestGetTableFail(t *testing.T) {
 }
 
 func OpenTable(swdb *swarmdb.SwarmDB, owner string, table string) {
+	u := getUser()
 	var testReqOption swarmdb.RequestOption
 
 	testReqOption.RequestType = "OpenTable"
@@ -636,10 +658,11 @@ func OpenTable(swdb *swarmdb.SwarmDB, owner string, table string) {
 	if err != nil {
 		fmt.Printf("error marshaling testReqOption: %s", err)
 	}
-	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	swdb.SelectHandler(u, string(marshalTestReqOption))
 }
 
 func TestPut(t *testing.T) {
+	u := getUser()
 	swdb := swarmdb.NewSwarmDB()
 
 	var testReqOption swarmdb.RequestOption
@@ -669,10 +692,11 @@ func TestPut(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
 	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
-	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	swdb.SelectHandler(u, string(marshalTestReqOption))
 }
 
 func TestGet(t *testing.T) {
+	u := getUser()
 	swdb := swarmdb.NewSwarmDB()
 
 	var testReqOption swarmdb.RequestOption
@@ -688,7 +712,7 @@ func TestGet(t *testing.T) {
 	}
 	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
 
-	resp, err := swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	resp, err := swdb.SelectHandler(u, string(marshalTestReqOption))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -696,6 +720,7 @@ func TestGet(t *testing.T) {
 }
 
 func TestPutGet(t *testing.T) {
+	u := getUser()
 	swdb := swarmdb.NewSwarmDB()
 
 	var testReqOption swarmdb.RequestOption
@@ -727,8 +752,7 @@ func TestPutGet(t *testing.T) {
 	}
 	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
 
-	fmt.Printf("\nOpening with: [%s]", keymanager.WOLKSWARMDB_ADDRESS)
-	resp, err := swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	resp, err := swdb.SelectHandler(u, string(marshalTestReqOption))
 	if err != nil {
 		t.Fatal(err)
 	} else {
@@ -749,7 +773,7 @@ func TestPutGet(t *testing.T) {
 	}
 	OpenTable(swdb, testReqOptionGet.Owner, testReqOptionGet.Table)
 
-	resp, err2 := swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
+	resp, err2 := swdb.SelectHandler(u, string(marshalTestReqOption))
 	if err2 != nil {
 		t.Fatal(err)
 	}

@@ -1,15 +1,11 @@
-package keymanager_test
+package swarmdb_test
 
 import (
 	"bytes"
 	"crypto/sha256"
-	// "github.com/ethereum/go-ethereum/crypto"
-	// "github.com/ethereum/go-ethereum/crypto"
-	// "encoding/binary"
-	// "strings"
 	"encoding/hex"
 	"fmt"
-	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
+	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
 	"testing"
 )
 
@@ -26,7 +22,12 @@ func okTestSignVerifyMessage(t *testing.T) {
 	}
 	fmt.Printf("Sig: %d Chall: %d\n", len(sig_bytes), len(challenge_bytes))
 
-	km, err := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
+	config, errConfig := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	if errConfig != nil {
+		t.Fatal("Failure to open Config", errConfig)
+	}
+
+	km, err := swarmdb.NewKeyManager(&config)
 	if err != nil {
 		t.Fatal("Failure to open KeyManager", err)
 	}
@@ -79,46 +80,23 @@ func okTestSignVerifyMessage(t *testing.T) {
 	}
 }
 
-/*
-func failTestEncryptDecryptAES(t *testing.T) {
-	km, err := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
-	if err != nil {
-		t.Fatal("Failure to open KeyManager", err)
-	}
-
-	msg := "0123456789abcdef"
-	r := []byte(msg)
-
-	encData, err2 := km.EncryptDataAES(r)
-	if err2 != nil {
-		t.Fatal(err2)
-	}
-	decData, err3 := km.DecryptDataAES(encData)
-	if err3 != nil {
-		t.Fatal(err3)
-	}
-	a := bytes.Compare(decData, r)
-	if a != 0 {
-		fmt.Printf("Encrypted data is [%v][%x]", encData, encData)
-		fmt.Printf("Decrypted data is [%v][%s] => %d", decData, decData, a)
-		t.Fatal("Failure to decrypt")
-	} else {
-		fmt.Printf("Success %s\n", msg)
-	}
-
-}
-*/
 func TestEncryptDecrypt(t *testing.T) {
-	km, err := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
+	config, errConfig := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	if errConfig != nil {
+		t.Fatal("Failure to open Config", errConfig)
+	}
+
+	km, err := swarmdb.NewKeyManager(&config)
 	if err != nil {
 		t.Fatal("Failure to open KeyManager", err)
 	}
 
 	msg := "0123456789abcdef"
 	r := []byte(msg)
+	u := config.GetSWARMDBUser()
 
-	encData := km.EncryptData(r)
-	decData := km.DecryptData(encData)
+	encData := km.EncryptData(u, r)
+	decData := km.DecryptData(u, encData)
 	a := bytes.Compare(decData, r)
 	if a != 0 {
 		fmt.Printf("Encrypted data is [%v][%x]", encData, encData)

@@ -66,6 +66,10 @@ func TestKademliaPutGetByKey(t *testing.T) {
 	tc.Column = []byte(`yob`)
 	tc.Encrypted = 1
 
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
 	dbchunkstore, err := swarmdb.NewDBChunkStore("/tmp/testchunk.db")
 	kdb, err := swarmdb.NewKademliaDB(dbchunkstore)
 	if err != nil {
@@ -73,17 +77,17 @@ func TestKademliaPutGetByKey(t *testing.T) {
 	}
 
 	kdb.Open(tc.Owner, tc.TableName, tc.Column, tc.Encrypted)
-	_, err = kdb.Put(tc.Key, tc.Value)
+	_, err = kdb.Put(u, tc.Key, tc.Value)
 	if err != nil {
 		t.Fatal(err)
 	}
-	val, _, _ := kdb.GetByKey(tc.Key)
+	val, _, _ := kdb.GetByKey(u, tc.Key)
 	if bytes.Compare(val, tc.Value) != 0 {
 		t.Fatal("The value retrieved is incorrect [", val, "] and doesn't match expected value of [", tc.Value, "]")
 	}
 
 	hash := []byte{232, 13, 189, 249, 19, 48, 66, 109, 189, 89, 16, 49, 191, 59, 245, 251, 210, 223, 121, 151, 165, 252, 232, 245, 156, 183, 4, 176, 14, 37, 155, 30}
-	valByHash, _, _ := kdb.Get(hash)
+	valByHash, _, _ := kdb.Get(u, hash)
 
 	if bytes.Compare(valByHash, tc.Value) != 0 {
 		t.Fatal("The value retrieved is incorrect [", val, "] and doesn't match expected value of [", tc.Value, "]")
