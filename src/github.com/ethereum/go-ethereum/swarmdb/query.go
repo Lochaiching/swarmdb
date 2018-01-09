@@ -40,29 +40,27 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		//Where & Having
 		//fmt.Printf("where or having: %s \n", readable(stmt.Where.Expr))
 		if stmt.Where.Type == sqlparser.WhereStr { //Where
-
 			//fmt.Printf("type: %s\n", stmt.Where.Type)
 			query.Where, err = parseWhere(stmt.Where.Expr)
 			//this is where recursion for nested parentheses should take place
 			if err != nil {
 				return query, err
 			}
-			return query, err
-
 		} else if stmt.Where.Type == sqlparser.HavingStr { //Having
 			fmt.Printf("type: %s\n", stmt.Where.Type)
 			//fill in having
 		}
 
 		//GroupBy ([]Expr)
-		for _, g := range stmt.GroupBy {
-			fmt.Printf("groupby: %s \n", readable(g))
-		}
+		//for _, g := range stmt.GroupBy {
+		//	fmt.Printf("groupby: %s \n", readable(g))
+		//}
 
 		//OrderBy
 		query.Ascending = 1 //default if nothing?
 
-	//Limit
+		//Limit
+		return query, nil
 
 	/* Other options inside Select:
 	   type Select struct {
@@ -107,7 +105,10 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			if isQuoted(value) {
 				insertCells[col] = trimQuotes(value)
 			} else if isNumeric(value) {
-				insertCells[col], _ = strconv.ParseFloat(value, 64)
+				insertCells[col], err = strconv.ParseFloat(value, 64)
+				if err != nil {
+					return query, err
+				}
 			} else {
 				return query, fmt.Errorf("in Insert, value %s has unknown type", value)
 			}
@@ -122,12 +123,79 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		//}
 
 	case *sqlparser.Update:
+
 		query.Type = "Update"
-		//fill in
+		//fmt.Printf("Comments: %+v \n", stmt.Comments)
+		query.Table = sqlparser.String(stmt.TableExprs[0])
+		query.Update = make(map[string]interface{})
+		for _, expr := range stmt.Exprs {
+			col := sqlparser.String(expr.Name)
+			//fmt.Printf("col: %+v\n", col)
+			if _, ok := query.Update[col]; ok {
+				return query, fmt.Errorf("in Update, can't hcave duplicate col %s", col)
+			}
+			value := readable(expr.Expr)
+			if isQuoted(value) {
+				query.Update[col] = trimQuotes(value)
+			} else if isNumeric(value) {
+				query.Update[col], err = strconv.ParseFloat(value, 64)
+				if err != nil {
+					return query, err
+				}
+			} else {
+				return query, fmt.Errorf("in Update, value %s has unknown type", value)
+			}
+			//fmt.Printf("val: %v \n", query.Update[col])
+		}
+
+		//Where
+		if stmt.Where.Type == sqlparser.WhereStr { //Where
+
+			query.Where, err = parseWhere(stmt.Where.Expr)
+			//this is where recursion for nested parentheses should take place
+			if err != nil {
+				return query, err
+			}
+			//fmt.Printf("Where: %+v\n", query.Where)
+
+		}
+		//what if no Where? throw an error or go ahead and modify all?
+
+		//OrderBy
+		query.Ascending = 1 //default if nothing?
+
+		//Limit
+		//fmt.Printf("Limit: %v \n", stmt.Limit)
+		return query, nil
 
 	case *sqlparser.Delete:
 		query.Type = "Delete"
-		//fill in
+		query.Table = sqlparser.String(stmt.TableExprs[0])
+		//fmt.Printf("Comments: %+v \n", stmt.Comments)
+
+		//Targets
+		for _, t := range stmt.Targets {
+			fmt.Printf("Targets: %s\n", t.Name)
+		}
+
+		//Where
+		if stmt.Where.Type == sqlparser.WhereStr { //Where
+			query.Where, err = parseWhere(stmt.Where.Expr)
+			//this is where recursion for nested parentheses should take place
+			if err != nil {
+				return query, err
+			}
+			//fmt.Printf("Where: %+v\n", query.Where)
+		}
+		//what if there is no Where? throw an error or go ahead and modify all?
+
+		//OrderBy
+		query.Ascending = 1 //default if nothing?
+
+		//Limit
+		//fmt.Printf("Limit: %v \n", stmt.Limit)
+
+		return query, nil
 
 		/* Other Options for type of Query:
 		   func (*Union) iStatement()      {}
