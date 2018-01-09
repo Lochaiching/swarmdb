@@ -66,54 +66,26 @@ func (self *KeyManager) SignMessage(msg_hash []byte) (sig []byte, err error) {
 }
 
 // TCP server + HTTP use client response  to a challenge to determine which account the user is
-func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (verified bool, err error) {
+func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUser, err error) {
 	pubKey, err := crypto.SigToPub(msg_hash, sig)
 	if err != nil {
-		return false, fmt.Errorf("invalid signature - cannot get public key")
+		return u, fmt.Errorf("invalid signature - cannot get public key")
 	} else {
 		address2 := crypto.PubkeyToAddress(*pubKey)
-		wallets := self.keystore.Wallets()
-		for _, w := range wallets {
-			accounts := w.Accounts()
-			for _, a := range accounts {
-				if bytes.Compare(a.Address.Bytes(), address2.Bytes()) == 0 {
-					// FOUND MATCH
-					return true, nil
-				}
-
+		for _, u0 := range self.config.Users {
+			a := common.HexToAddress(u0.Address)
+			fmt.Printf("%v \n", u0)
+			if bytes.Compare(a.Bytes(), address2.Bytes()) == 0 {
+				fmt.Printf("FOUND \n")
+				return &u0, nil
 			}
 		}
-
-		return false, fmt.Errorf("address not found: %x", address2.Bytes())
+		fmt.Printf("NOT FOUND \n")
+		return u, fmt.Errorf("address not found: %x", address2.Bytes())
 	}
 
 }
 
-/*
-func (self *KeyManager) DecryptDataAES(src []byte) (dst []byte, err error) {
-	mode := ecb.NewECBEncrypter(self.aescipher)
-	padder := padding.NewPkcs7Padding(mode.BlockSize())
-	dst, err = padder.Pad(src) // padd last block of plaintext if block size less than block cipher size
-	if err != nil {
-		return dst, err
-	}
-	dst = make([]byte, len(dst))
-	mode.CryptBlocks(dst, src)
-	return dst, err
-}
-
-func (self *KeyManager) EncryptDataAES(src []byte) (dst []byte, err error) {
-	mode := ecb.NewECBDecrypter(self.aescipher)
-	dst = make([]byte, len(src))
-	mode.CryptBlocks(dst, src)
-	padder := padding.NewPkcs7Padding(mode.BlockSize())
-	dst, err = padder.Unpad(dst) // unpad plaintext after decryption
-	if err != nil {
-		return dst, err
-	}
-	return dst, err
-}
-*/
 func (self *KeyManager) DecryptData(u *SWARMDBUser, data []byte) []byte {
 	var decryptNonce [24]byte
 	copy(decryptNonce[:], data[:24])

@@ -13,7 +13,6 @@ import (
 	"bufio"
 	common "github.com/ethereum/go-ethereum/swarmdb"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"sync"
 )
 
@@ -33,7 +32,7 @@ type Client struct {
 type TCPIPServer struct {
 	swarmdb    *common.SwarmDB
 	listener   net.Listener
-	keymanager keymanager.KeyManager
+	keymanager swarmdb.KeyManager
 	lock       sync.Mutex
 }
 
@@ -88,26 +87,22 @@ func handleRequest(conn net.Conn, svr *TCPIPServer) {
 	if err3 != nil {
 		fmt.Printf("ERR decoding response:[%s]\n", resp)
 	}	
-	verified, err := svr.keymanager.VerifyMessage(challenge_bytes, response_bytes)
+	u, err := svr.keymanager.VerifyMessage(challenge_bytes, response_bytes)
 	if err != nil {
-		resp = "ERR"
-	}  else if verified {
-		resp = "OK"
+		conn.Close()
 	} else {
-		resp = "INVALID"
-	}
-	fmt.Printf("%s Server Challenge [%s]-ethsign->[%x] Client %d byte Response:[%s] \n", resp,  challenge, challenge_bytes, len(response_bytes), resp);
-	// fmt.Fprintf(writer, resp)
-	writer.Flush()
-	if ( resp == "OK" ) {
+		fmt.Printf("%s Server Challenge [%s]-ethsign->[%x] Client %d byte Response:[%s] \n", resp,  challenge, challenge_bytes, len(response_bytes), resp);
+		// fmt.Fprintf(writer, resp)
+		writer.Flush()
 		for {
+	// Close the connection when you're done with it.
 			str, err := client.reader.ReadString('\n')
 			if err == io.EOF {
 				conn.Close()
 				break
 			}
 			if ( true ) {
-				resp, err := svr.swarmdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, str)
+				resp, err := svr.swarmdb.SelectHandler(u, str)
 				if err != nil {
 					s := fmt.Sprintf("ERR: %s\n", err)
 					fmt.Printf(s)
@@ -117,23 +112,21 @@ func handleRequest(conn net.Conn, svr *TCPIPServer) {
 					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, resp)
 					writer.WriteString(resp + "\n")
 					writer.Flush()
-// 					fmt.Fprintf(client.writer, resp + "\n")
+					// 					fmt.Fprintf(client.writer, resp + "\n")
 				}
 			} else {
 				writer.WriteString("OK\n")
 				writer.Flush()
 			}
 		}
-	} else {
-		conn.Close()
 	}
-	// Close the connection when you're done with it.
 }
 
-func StartTCPIPServer(swarmdb *common.SwarmDB, config *ServerConfig) (err error) {
+func StartTCPIPServer(sdb *common.SwarmDB, conf *swarmdb.SWARMDBConfig) (err error) {
+
 	sv := new(TCPIPServer)
-	sv.swarmdb = swarmdb
-	km, errkm := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
+	sv.swarmdb = sdb
+	km, errkm := swarmdb.NewKeyManager(conf)
 	if errkm != nil {
 		return err
 	} else {
@@ -172,11 +165,8 @@ func StartTCPIPServer(swarmdb *common.SwarmDB, config *ServerConfig) (err error)
 func main() {
 	fmt.Println("Launching server...")
 	swdb := swarmdb.NewSwarmDB()
-	tcpaddr := net.JoinHostPort("127.0.0.1", "2000")
-	StartTCPIPServer(swdb, &ServerConfig{
-		Addr: tcpaddr,
-		Port: "2000",
-	})
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	StartTCPIPServer(swdb, &config)
 }
 
 
