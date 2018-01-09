@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
 	"math"
 	"math/big"
@@ -43,7 +42,7 @@ type RequestOption struct {
 
 type SWARMDBConnection struct {
 	connection net.Conn
-	keymanager keymanager.KeyManager
+	keymanager KeyManager
 	ownerID    string
 	reader     *bufio.Reader
 	writer     *bufio.Writer
@@ -75,7 +74,7 @@ type NetstatFile struct {
 
 type DBChunkstore struct {
 	db       *sql.DB
-	km       *keymanager.KeyManager
+	km       *KeyManager
 	farmer   ethcommon.Address
 	netstat  *NetstatFile
 	filepath string
@@ -154,8 +153,8 @@ type Row struct {
 }
 
 type DBChunkstorage interface {
-	RetrieveDBChunk(key []byte) (val []byte, err error)
-	StoreDBChunk(val []byte, encrypted int) (key []byte, err error)
+	RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error)
+	StoreDBChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error)
 	PrintDBChunk(columnType ColumnType, hashid []byte, c []byte)
 }
 
@@ -165,36 +164,36 @@ type Database interface {
 	// Insert: adds key-value pair (value is an entire recrod)
 	// ok - returns true if new key added
 	// Possible Errors: KeySizeError, ValueSizeError, DuplicateKeyError, NetworkError, BufferOverflowError
-	Insert(key []byte, value []byte) (bool, error)
+	Insert(u *SWARMDBUser, key []byte, value []byte) (bool, error)
 
 	// Put -- inserts/updates key-value pair (value is an entire record)
 	// ok - returns true if new key added
 	// Possible Errors: KeySizeError, ValueSizeError, NetworkError, BufferOverflowError
-	Put(key []byte, value []byte) (bool, error)
+	Put(u *SWARMDBUser, key []byte, value []byte) (bool, error)
 
 	// Get - gets value of key (value is an entire record)
 	// ok - returns true if key found, false if not found
 	// Possible errors: KeySizeError, NetworkError
-	Get(key []byte) ([]byte, bool, error)
+	Get(u *SWARMDBUser, key []byte) ([]byte, bool, error)
 
 	// Delete - deletes key
 	// ok - returns true if key found, false if not found
 	// Possible errors: KeySizeError, NetworkError, BufferOverflowError
-	Delete(key []byte) (bool, error)
+	Delete(u *SWARMDBUser, key []byte) (bool, error)
 
 	// Start/Flush - any buffered updates will be flushed to SWARM on FlushBuffer
 	// ok - returns true if buffer started / flushed
 	// Possible errors: NoBufferError, NetworkError
-	StartBuffer() (bool, error)
-	FlushBuffer() (bool, error)
+	StartBuffer(u *SWARMDBUser) (bool, error)
+	FlushBuffer(u *SWARMDBUser) (bool, error)
 
 	// Close - if buffering, then will flush buffer
 	// ok - returns true if operation successful
 	// Possible errors: NetworkError
-	Close() (bool, error)
+	Close(u *SWARMDBUser) (bool, error)
 
 	// prints what is in memory
-	Print()
+	Print(u *SWARMDBUser)
 }
 
 type OrderedDatabase interface {
@@ -203,14 +202,14 @@ type OrderedDatabase interface {
 	// Seek -- moves cursor to key k
 	// ok - returns true if key found, false if not found
 	// Possible errors: KeySizeError, NetworkError
-	Seek(k []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err error)
-	SeekFirst() (e OrderedDatabaseCursor, err error)
-	SeekLast() (e OrderedDatabaseCursor, err error)
+	Seek(u *SWARMDBUser, k []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err error)
+	SeekFirst(u *SWARMDBUser) (e OrderedDatabaseCursor, err error)
+	SeekLast(u *SWARMDBUser) (e OrderedDatabaseCursor, err error)
 }
 
 type OrderedDatabaseCursor interface {
-	Next() (k []byte /*K*/, v []byte /*V*/, err error)
-	Prev() (k []byte /*K*/, v []byte /*V*/, err error)
+	Next(*SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err error)
+	Prev(*SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err error)
 }
 
 type ColumnType uint8
@@ -231,6 +230,38 @@ const (
 	IT_FULLTEXT    = 3
 	IT_FRACTALTREE = 4
 )
+
+
+// SwarmDB Configuration for a node kept here
+const (
+	SWARMDBCONF_FILE = "/swarmdb/swarmdb.conf"
+)
+
+type SWARMDBConfig struct {
+	ChunkDBPath         string        `json:"chunkDBPath,omitempty"`         // 
+
+	Address       string        `json:"address,omitempty"`             // the address that earns, must be in keystore directory
+	PrivateKey    string        `json:"privateKey,omitempty"`          // to access child chain
+	Currency            string        `json:"currency,omitempty"`            //
+	TargetCostStorage   float64       `json:"targetCostStorage,omitempty"`   //
+	TargetCostBandwidth float64       `json:"targetCostBandwidth,omitempty"` //
+
+	Users               []SWARMDBUser `json:"users,omitempty"`               // array of users with permissions
+}
+
+type SWARMDBUser struct {
+	Address        string `json:"address,omitempty"`        //value of val, usually the whole json record
+	Passphrase       string `json:"passphrase,omitempty"`       // password to unlock key in keystore directory
+	MinReplication int    `json:"minReplication,omitempty"` // should this be in config
+	MaxReplication int    `json:"maxReplication,omitempty"` // should this be in config
+	AutoRenew      int    `json:"autoRenew,omitempty"`      // should this be in config
+	Encrypted      int    `json:"encrypted,omitempty"`      // should this be in config
+	pk           []byte
+	sk           []byte
+	publicK      [32]byte
+	secretK      [32]byte
+}
+
 
 //for comparing rows in two different sets of data
 func checkDuplicateRow(row1 Row, row2 Row) bool {

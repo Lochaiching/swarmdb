@@ -8,6 +8,10 @@ import (
 )
 
 func TestDBChunkStore(t *testing.T) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
 	store, err := swarmdb.NewDBChunkStore("/tmp/chunks.db")
 	if err != nil {
 		t.Fatal("Failure to open NewDBChunkStore")
@@ -20,21 +24,21 @@ func TestDBChunkStore(t *testing.T) {
 	// encrypted := int(1)
 
 	// StoreChunk
-	k, err := store.StoreChunk(r, 1)
+	k, err := store.StoreChunk(u, r, 1)
 	if err == nil {
 		t.Fatal("Failure to generate StoreChunk Err", k, v)
 	} else {
 		fmt.Printf("SUCCESS in StoreChunk Err (input only has %d bytes)\n", len(r))
 	}
 
-	k, err1 := store.StoreChunk(v, 1)
+	k, err1 := store.StoreChunk(u, v, 1)
 	if err1 != nil {
 		t.Fatal("Failure to StoreChunk", k, v)
 	} else {
 		fmt.Printf("SUCCESS in StoreChunk:  %x => %v\n", string(k), string(v))
 	}
 	// RetrieveChunk
-	val, err := store.RetrieveChunk(k)
+	val, err := store.RetrieveChunk(u, k)
 	if err != nil {
 		t.Fatal("Failure to RetrieveChunk: Failure to retrieve", k, v, val)
 	}

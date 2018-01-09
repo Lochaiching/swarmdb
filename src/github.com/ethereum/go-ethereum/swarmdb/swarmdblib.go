@@ -11,7 +11,7 @@ import (
 	// "encoding/gob"
 	"bufio"
 	"encoding/json"
-	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
+	// "github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"time"
 )
 
@@ -73,12 +73,17 @@ func NewGoClient() {
 func NewSWARMDBConnection() (dbc SWARMDBConnection, err error) {
 	// open a TCP connection to ip port
 	// dbc = new(SWARMDBConnection)
-	km, kmerr := keymanager.NewKeyManager(keymanager.PATH, keymanager.WOLKSWARMDB_ADDRESS, keymanager.WOLKSWARMDB_PASSWORD)
+	config, configerr := LoadSWARMDBConfig(SWARMDBCONF_FILE)
+	if configerr != nil {
+		return dbc, err
+	}
+	km, kmerr := NewKeyManager(&config) 
 	if err != nil {
 		return dbc, kmerr
 	} else {
 		dbc.keymanager = km
 	}
+
 	conn, err := net.Dial(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
 	if err != nil {
 		return dbc, err
