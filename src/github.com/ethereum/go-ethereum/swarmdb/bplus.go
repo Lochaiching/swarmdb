@@ -683,7 +683,7 @@ func (t *Tree) catX(p, q, r *x, pi int) {
 }
 
 // Delete removes the k's KV pair, if it exists, in which case Delete returns true.
-	func (t *Tree) Delete(u *SWARMDBUser, k []byte /*K*/) (ok bool, err error) {
+func (t *Tree) Delete(u *SWARMDBUser, k []byte /*K*/) (ok bool, err error) {
 	pi := -1
 	var p *x
 	q := t.r
@@ -800,7 +800,7 @@ func checkload(u *SWARMDBUser, swarmdb DBChunkstorage, q interface{}) {
 
 // Get returns the value associated with k and true if it exists. Otherwise Get
 // returns (zero-value, false).
-	func (t *Tree) Get(u *SWARMDBUser, key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
+func (t *Tree) Get(u *SWARMDBUser, key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
 
 	q := t.r
 	//	if q == nil {
