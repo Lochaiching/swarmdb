@@ -457,6 +457,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			return resp, fmt.Errorf(`ERR: empty table and column`)
 		}
 		//Upon further review, could make a NewTable and then call this from tbl. ---
+		//For CreateTable, requesterID and d.Owner should match -- consider doing check here?  OR just go with requester
 		_, err := self.CreateTable(ownerID, d.Table, d.Columns, d.Encrypted)
 		if err != nil {
 			return resp, err
@@ -550,6 +551,9 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 
 		tbl, err := self.GetTable(ownerID, d.Table)
 		fmt.Printf("Returned table [%+v] when calling gettable with Owner[%s], Table[%s]\n", tbl, ownerID, d.Table)
+		if err != nil {
+			return resp, err
+		}
 		tblInfo, err := tbl.GetTableInfo()
 		if err != nil {
 			fmt.Printf("tblInfo err \n")
@@ -951,7 +955,8 @@ func (t *Table) getPrimaryColumn() (c *ColumnInfo, err error) {
 
 func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 	if t.columns[columnName] == nil {
-		var cerr *NoColumnError
+		//var cerr *NoColumnError
+		cerr := &NoColumnError{tableName: t.tableName, tableOwner: t.ownerID, columnName: columnName}
 		return c, cerr
 	}
 	return t.columns[columnName], nil
