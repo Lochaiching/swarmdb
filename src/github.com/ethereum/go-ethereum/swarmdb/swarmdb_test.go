@@ -23,8 +23,6 @@ const (
 	TEST_SKEY_STRING     = "gender"
 	TEST_SKEY_FLOAT      = "weight"
 	TEST_TABLE_INDEXTYPE = swarmdb.IT_BPLUSTREE
-	TEST_BID             = 7.07
-	TEST_REPLICATION     = 3
 	TEST_ENCRYPTED       = 1
 )
 
@@ -226,7 +224,7 @@ func TestTable(t *testing.T) {
 
 func TestTableSecondaryInt(t *testing.T) {
 	u := getUser()
-	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+	swarmdb := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
 	rows, err := swarmdb.Scan(u, TEST_OWNER, TEST_TABLE, "age", 1)
@@ -523,7 +521,6 @@ func aTestDelete0(t *testing.T) {
 
 func aTestDelete1(t *testing.T) {
 	u := getUser()
-
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
 		r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
@@ -637,6 +634,16 @@ func TestOpenTable(t *testing.T) {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
 	swdb.SelectHandler(u, string(marshalTestReqOption))
+}
+
+func TestGetTableFail(t *testing.T) {
+	swdb := swarmdb.NewSwarmDB()
+	ownerID := "BadOwner"
+	tableName := "BadTable"
+	_, err := swdb.GetTable(ownerID, tableName)
+	if err.Error() != `Table [`+tableName+`] with Owner [`+ownerID+`] does not exist` {
+		t.Fatalf("TestGetTableFail: FAILED")
+	}
 }
 
 func OpenTable(swdb *swarmdb.SwarmDB, owner string, table string) {
