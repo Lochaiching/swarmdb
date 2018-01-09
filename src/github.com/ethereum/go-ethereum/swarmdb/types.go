@@ -486,8 +486,11 @@ func (t *RequestFormatError) Error() string {
 }
 
 type NoColumnError struct {
+	tableOwner string
+	tableName string
+	columnName string
 }
 
 func (t *NoColumnError) Error() string {
-	return fmt.Sprintf("No column --- in the table")
+	return fmt.Sprintf("No column [%s] in the table [%s] owned by [%s]", t.tableName, t.columnName, t.tableOwner)
 }
