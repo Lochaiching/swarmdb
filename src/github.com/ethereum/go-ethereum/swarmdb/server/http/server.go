@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
-	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"github.com/rs/cors"
 	"io/ioutil"
 	"net"
@@ -24,7 +23,7 @@ type ServerConfig struct {
 type HTTPServer struct {
 	swarmdb    *swarmdb.SwarmDB
 	listener   net.Listener
-	keymanager keymanager.KeyManager
+	keymanager swarmdb.KeyManager
 	//lock       sync.Mutex
 }
 
@@ -200,8 +199,8 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		//Redirect to SelectHandler after "building" GET RequestOption
-		fmt.Printf("Sending this JSON to SelectHandler (%s) and Owner=[%s]", reqJson, keymanager.WOLKSWARMDB_ADDRESS)
-		response, errResp := s.swarmdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(reqJson))
+		//fmt.Printf("Sending this JSON to SelectHandler (%s) and Owner=[%s]", reqJson, keymanager.WOLKSWARMDB_ADDRESS)
+		response, errResp := s.swarmdb.SelectHandler(WOLKSWARMDB_ADDRESS, string(reqJson))
 		if errResp != nil {
 			fmt.Printf("\nResponse resulted in Error: %s", errResp)
 			httpErr := &HttpErrorResp { ErrorCode: "TBD", ErrorMsg:errResp.Error() }	
