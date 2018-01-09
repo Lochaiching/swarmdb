@@ -12,7 +12,7 @@ func (self *SWARMDBConfig) GetNodeID() (out string) {
 
 func (self *SWARMDBConfig) GetSWARMDBUser() (u *SWARMDBUser) {
 	for _, user := range self.Users {
-		fmt.Printf("%x pk:%x sk:%x\n", user.Address, user.pk, user.sk);
+		fmt.Printf("%x pk:%x sk:%x\n", user.Address, user.pk, user.sk)
 		return &user
 	}
 	return u
@@ -28,7 +28,7 @@ func GenerateSampleSWARMDBConfig(privateKey string, address string, passphrase s
 	u.AutoRenew = 1
 	u.Encrypted = 1
 
-	c.ChunkDBPath     = "/swarmdb/data/keystore"
+	c.ChunkDBPath = "/swarmdb/data/keystore"
 	c.Address = u.Address
 	c.PrivateKey = privateKey
 	c.TargetCostStorage = 2.14159
