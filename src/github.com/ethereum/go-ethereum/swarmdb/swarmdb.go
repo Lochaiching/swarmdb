@@ -423,6 +423,9 @@ func (self SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName stri
 	if len(tableName) == 0 {
 		return tbl, fmt.Errorf("Invalid table [%s]", tableName)
 	}
+	if len(tableOwnerID) == 0 {
+		tableOwnerID = u.Address
+	}
 	tblKey := self.GetTableKey(tableOwnerID, tableName)
 
 	if tbl, ok := self.tables[tblKey]; ok {
