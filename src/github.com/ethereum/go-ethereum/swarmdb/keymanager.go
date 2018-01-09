@@ -17,8 +17,8 @@ import (
 )
 
 type KeyManager struct {
-	config       *SWARMDBConfig
-	keystore     *keystore.KeyStore
+	config   *SWARMDBConfig
+	keystore *keystore.KeyStore
 }
 
 func NewKeyManager(c *SWARMDBConfig) (keymgr KeyManager, err error) {
@@ -40,7 +40,7 @@ func NewKeyManager(c *SWARMDBConfig) (keymgr KeyManager, err error) {
 					} else {
 						u.sk = crypto.FromECDSA(k.PrivateKey)
 						u.pk = crypto.FromECDSAPub(&k.PrivateKey.PublicKey)
-						
+
 						copy(u.publicK[0:], u.pk[0:])
 						copy(u.secretK[0:], u.sk[0:])
 					}
@@ -55,12 +55,12 @@ func NewKeyManager(c *SWARMDBConfig) (keymgr KeyManager, err error) {
 func (self *KeyManager) SignMessage(msg_hash []byte) (sig []byte, err error) {
 	secretKey, err := crypto.HexToECDSA(self.config.PrivateKey)
 	if err != nil {
-		return sig, fmt.Errorf("Failure to get secretKey");
+		return sig, fmt.Errorf("Failure to get secretKey")
 	} else {
 		sig, err2 := crypto.Sign(msg_hash, secretKey)
 		if err2 != nil {
 			return sig, err2
-		} 
+		}
 		return sig, nil
 	}
 }
@@ -103,7 +103,7 @@ func (self *KeyManager) EncryptData(u *SWARMDBUser, data []byte) []byte {
 	// fix required
 	nonce = [24]byte{4, 0, 50, 203, 12, 81, 11, 49, 236, 255, 155, 11, 101, 6, 97, 233, 94, 169, 107, 4, 37, 57, 106, 151}
 	msg := data //[]byte("Alas, poor Yorick! I knew him, Horatio")
-	// encrypted := box.Seal(nonce[:], msg, &nonce, &self.publicK, &self.secretK) 
-	encrypted := box.Seal(nonce[:], msg, &nonce, &u.publicK, &u.secretK) // TODO 
+	// encrypted := box.Seal(nonce[:], msg, &nonce, &self.publicK, &self.secretK)
+	encrypted := box.Seal(nonce[:], msg, &nonce, &u.publicK, &u.secretK) // TODO
 	return encrypted
 }
