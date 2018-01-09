@@ -231,37 +231,35 @@ const (
 	IT_FRACTALTREE = 4
 )
 
-
 // SwarmDB Configuration for a node kept here
 const (
 	SWARMDBCONF_FILE = "/swarmdb/swarmdb.conf"
 )
 
 type SWARMDBConfig struct {
-	ChunkDBPath         string        `json:"chunkDBPath,omitempty"`         // 
+	ChunkDBPath string `json:"chunkDBPath,omitempty"` //
 
-	Address       string        `json:"address,omitempty"`             // the address that earns, must be in keystore directory
-	PrivateKey    string        `json:"privateKey,omitempty"`          // to access child chain
-	Currency            string        `json:"currency,omitempty"`            //
-	TargetCostStorage   float64       `json:"targetCostStorage,omitempty"`   //
-	TargetCostBandwidth float64       `json:"targetCostBandwidth,omitempty"` //
+	Address             string  `json:"address,omitempty"`             // the address that earns, must be in keystore directory
+	PrivateKey          string  `json:"privateKey,omitempty"`          // to access child chain
+	Currency            string  `json:"currency,omitempty"`            //
+	TargetCostStorage   float64 `json:"targetCostStorage,omitempty"`   //
+	TargetCostBandwidth float64 `json:"targetCostBandwidth,omitempty"` //
 
-	Users               []SWARMDBUser `json:"users,omitempty"`               // array of users with permissions
+	Users []SWARMDBUser `json:"users,omitempty"` // array of users with permissions
 }
 
 type SWARMDBUser struct {
 	Address        string `json:"address,omitempty"`        //value of val, usually the whole json record
-	Passphrase       string `json:"passphrase,omitempty"`       // password to unlock key in keystore directory
+	Passphrase     string `json:"passphrase,omitempty"`     // password to unlock key in keystore directory
 	MinReplication int    `json:"minReplication,omitempty"` // should this be in config
 	MaxReplication int    `json:"maxReplication,omitempty"` // should this be in config
 	AutoRenew      int    `json:"autoRenew,omitempty"`      // should this be in config
 	Encrypted      int    `json:"encrypted,omitempty"`      // should this be in config
-	pk           []byte
-	sk           []byte
-	publicK      [32]byte
-	secretK      [32]byte
+	pk             []byte
+	sk             []byte
+	publicK        [32]byte
+	secretK        [32]byte
 }
-
 
 //for comparing rows in two different sets of data
 func checkDuplicateRow(row1 Row, row2 Row) bool {
@@ -518,7 +516,7 @@ func (t *RequestFormatError) Error() string {
 
 type NoColumnError struct {
 	tableOwner string
-	tableName string
+	tableName  string
 	columnName string
 }
 
