@@ -24,13 +24,10 @@ const (
 	TEST_SKEY_STRING     = "gender"
 	TEST_SKEY_FLOAT      = "weight"
 	TEST_TABLE_INDEXTYPE = swarmdb.IT_BPLUSTREE
-	TEST_BID             = 7.07
-	TEST_REPLICATION     = 3
 	TEST_ENCRYPTED       = 1
 )
 
 func getSWARMDBTable(ownerId string, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType, create bool) (tbl *swarmdb.Table) {
-
 	swarmdbObj := swarmdb.NewSwarmDB()
 
 	// Commenting: (Rodney) -- CreateTable called from swarmdbObj and inside of that it calls NewTable
@@ -41,7 +38,7 @@ func getSWARMDBTable(ownerId string, tableName string, primaryKeyName string, pr
 		var option []swarmdb.Column
 		o := swarmdb.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
 		option = append(option, o)
-		tbl, _ = swarmdbObj.CreateTable(ownerId, tableName, option, TEST_BID, TEST_REPLICATION, TEST_ENCRYPTED)
+		tbl, _ = swarmdbObj.CreateTable(ownerId, tableName, option, TEST_ENCRYPTED)
 	}
 
 	// OpenTable
@@ -69,7 +66,7 @@ func getSWARMDBTableSecondary(ownerId string, tableName string, primaryKeyName s
 
 		s := swarmdb.Column{ColumnName: secondaryKeyName, Primary: 0, IndexType: secondaryIndexType, ColumnType: secondaryColumnType}
 		option = append(option, s)
-		tbl, _ := swarmdbObj.CreateTable(ownerId, tableName, option, TEST_BID, TEST_REPLICATION, TEST_ENCRYPTED)
+		tbl, _ := swarmdbObj.CreateTable(ownerId, tableName, option, TEST_ENCRYPTED)
 
 		// OpenTable
 		err := tbl.OpenTable()
@@ -218,7 +215,6 @@ func TestTable(t *testing.T) {
 }
 
 func TestTableSecondaryInt(t *testing.T) {
-
 	swarmdb := getSWARMDBTableSecondary(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
@@ -390,7 +386,6 @@ func aTestPutFloat(t *testing.T) {
 }
 
 func aTestSetGetString(t *testing.T) {
-
 	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
 
 	// put
@@ -439,7 +434,6 @@ func aTestSetGetString(t *testing.T) {
 }
 
 func aTestDelete0(t *testing.T) {
-
 	r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
 	key0 := "0"
@@ -509,7 +503,6 @@ func aTestDelete0(t *testing.T) {
 }
 
 func aTestDelete1(t *testing.T) {
-
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
 		r := getSWARMDBTable(TEST_OWNER, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
@@ -622,6 +615,16 @@ func TestOpenTable(t *testing.T) {
 	swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
 }
 
+func TestGetTableFail(t *testing.T) {
+	swdb := swarmdb.NewSwarmDB()
+	ownerID := "BadOwner"
+	tableName := "BadTable"
+	_, err := swdb.GetTable(ownerID, tableName)
+	if err.Error() != `Table [`+tableName+`] with Owner [`+ownerID+`] does not exist` {
+		t.Fatalf("TestGetTableFail: FAILED")
+	}
+}
+
 func OpenTable(swdb *swarmdb.SwarmDB, owner string, table string) {
 	var testReqOption swarmdb.RequestOption
 
@@ -724,6 +727,7 @@ func TestPutGet(t *testing.T) {
 	}
 	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
 
+	fmt.Printf("\nOpening with: [%s]", keymanager.WOLKSWARMDB_ADDRESS)
 	resp, err := swdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, string(marshalTestReqOption))
 	if err != nil {
 		t.Fatal(err)
