@@ -16,11 +16,6 @@ import (
 	"sync"
 )
 
-type ServerConfig struct {
-	Addr string
-	Port string
-}
-
 type Client struct {
 	conn   net.Conn
 	reader *bufio.Reader
@@ -37,11 +32,10 @@ type TCPIPServer struct {
 }
 
 const (
-	CONN_HOST = "127.0.0.1" // telnet 10.128.0.7 8501
-	CONN_PORT = "2000"
+	CONN_HOST = "127.0.0.1" 
+	CONN_PORT = 2000
 	CONN_TYPE = "tcp"
 )
-
 
 func RandStringRunes(n int) string {
 	var letterRunes = []rune("0123456789abcdef")
@@ -92,12 +86,12 @@ func handleRequest(conn net.Conn, svr *TCPIPServer) {
 		conn.Close()
 	} else {
 		fmt.Printf("%s Server Challenge [%s]-ethsign->[%x] Client %d byte Response:[%s] \n", resp,  challenge, challenge_bytes, len(response_bytes), resp);
-		// fmt.Fprintf(writer, resp)
+		fmt.Fprintf(writer, "OK\n")
 		writer.Flush()
 		for {
-	// Close the connection when you're done with it.
 			str, err := client.reader.ReadString('\n')
 			if err == io.EOF {
+				// Close the connection when done
 				conn.Close()
 				break
 			}
@@ -134,13 +128,23 @@ func StartTCPIPServer(sdb *common.SwarmDB, conf *swarmdb.SWARMDBConfig) (err err
 	}
 
 	// Listen for incoming connections.
-	l, err := net.Listen(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
-	// l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%s", config.Port))
+	host := CONN_HOST
+	port := CONN_PORT
+	if len(conf.ListenAddrTCP) > 0 {
+		host = conf.ListenAddrTCP
+	}
+	if conf.PortTCP > 0 {
+		port = conf.PortTCP
+	}
+
+	host_port := fmt.Sprintf("%s:%d", host, port)
+	l, err := net.Listen(CONN_TYPE, host_port)
+
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
 		os.Exit(1)
 	} else {
-		fmt.Println("Listening on " + CONN_HOST + ":" + CONN_PORT)
+		fmt.Println("Listening on " + host_port )
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
