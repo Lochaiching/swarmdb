@@ -67,6 +67,9 @@ func (self *KeyManager) SignMessage(msg_hash []byte) (sig []byte, err error) {
 
 // TCP server + HTTP use client response  to a challenge to determine which account the user is
 func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUser, err error) {
+	if sig[64] > 4 {
+		sig[64] -= 27  // covers web3 (1b/1c) + go client (00/01)
+	}
 	pubKey, err := crypto.SigToPub(msg_hash, sig)
 	if err != nil {
 		return u, fmt.Errorf("invalid signature - cannot get public key")
