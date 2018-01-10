@@ -424,6 +424,7 @@ func (self SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName stri
 	if len(tableOwnerID) == 0 {
 		tableOwnerID = u.Address
 	}
+	fmt.Printf("\nGetting Table [%s] with the Owner [%s]", tableName, tableOwnerID)
 	tblKey := self.GetTableKey(tableOwnerID, tableName)
 
 	if tbl, ok := self.tables[tblKey]; ok {
@@ -431,14 +432,12 @@ func (self SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName stri
 		return tbl, nil
 	} else {
 		// this should throw an error if the table is not created
-		/*
-			tbl = self.NewTable(ownerID, tableName)
-			err = tbl.OpenTable()
-			if err != nil {
-				return tbl, err
-			}
-		*/
-		return tbl, &TableNotExistError{tableName: tableName, ownerID: tableOwnerID}
+		tbl = self.NewTable(tableOwnerID, tableName, 1) //TODO: encrypted needed
+		err = tbl.OpenTable(u)
+		if err != nil {
+			return tbl, &TableNotExistError{tableName: tableName, ownerID: tableOwnerID}
+		}
+		return tbl, nil
 	}
 }
 
@@ -464,6 +463,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 		return "ok", err
 	case "Put":
+		fmt.Printf("\nDATA: [%+v]", d)
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
 			fmt.Printf("err1: %s\n", err)
@@ -702,6 +702,7 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 		fmt.Printf("\nMax Allowed Columns for a table is %s and you submit %s", columnsMax, len(columns))
 	}
 	buf := make([]byte, 4096)
+	fmt.Printf("\nCreating Table [%s] with the Owner [%s]", tableName, u.Address)
 	tbl = swdb.NewTable(u.Address, tableName, encrypted)
 	for i, columninfo := range columns {
 		copy(buf[2048+i*64:], columninfo.ColumnName)
@@ -755,6 +756,10 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 	fmt.Printf("opening table @ %s roothash %s\n", t.tableName, roothash)
 	if err != nil {
 		fmt.Printf("Error retrieving Index Root Hash for table [%s]: %s", t.tableName, err)
+		return err
+	}
+	if len(roothash) == 0 {
+		fmt.Printf("Empty hash retrieved")
 		return err
 	}
 	setprimary := false
