@@ -34,17 +34,20 @@ type DBChunk struct {
 }
 
 type ChunkLog struct {
-	ChunkHash        []byte
-	ChunkBD          int
-	ReplicationLevel int
-	Renewable        int
-	Claimable        int
+	Farmer           string `json:"farmer"`
+	ChunkID          string `json:"chunkID"`
+	ChunkHash        []byte `json:"-"`
+	ChunkBD          int    `json:"chunkBD"`
+	ChunkSD          int    `json:"chunkSD"`
+	ReplicationLevel int    `json:"rep"`
+	Renewable        int    `json:"renewable"`
+	//Claimable        int
 }
 
 type ChunkStats struct {
-	CurrentTS   int64 `json:"CurrentTS`
-	ChunkRead   int64 `json:"ChunkRead`
-	ChunkWrite  int64 `json:"ChunkWrite`
+	CurrentTS   int64 `json:"CurrentTS"`
+	ChunkRead   int64 `json:"ChunkRead"`
+	ChunkWrite  int64 `json:"ChunkWrite"`
 	ChunkStored int64 `json:"ChunkStored"`
 }
 
@@ -97,6 +100,8 @@ func (self *DBChunkstore) MarshalJSON() ([]byte, error) {
 
 	return json.Marshal(file)
 }
+
+
 
 func (self *DBChunkstore) UnmarshalJSON(data []byte) error {
 	var file = NetstatFile{
@@ -538,12 +543,14 @@ func (self *DBChunkstore) ScanAll() (err error) {
 
 func (self *DBChunkstore) GenerateFarmerLog() (err error) {
 
+	farmerAddr := self.farmer.Hex()
+
 	/*
 	   currentTS:= time.Now().Unix()
 	   contractInterval := 3600*7 //Test renewal interval
 	*/
 
-	sql_readall := `SELECT chunkKey,strftime('%s',chunkBirthDT) as chunkBirthTS, replication, renewal FROM chunk where replication > 0 ORDER BY chunkStoreDT DESC`
+	sql_readall := `SELECT chunkKey,strftime('%s',chunkBirthDT) as chunkBirthTS, strftime('%s',chunkStoreDT) as chunkStoreTS, replication, renewal FROM chunk where replication > 0 ORDER BY chunkStoreTS DESC`
 	rows, err := self.db.Query(sql_readall)
 	if err != nil {
 		return err
@@ -553,12 +560,20 @@ func (self *DBChunkstore) GenerateFarmerLog() (err error) {
 	var result []ChunkLog
 	for rows.Next() {
 		c := ChunkLog{}
-		err2 := rows.Scan(&c.ChunkHash, &c.ChunkBD, &c.ReplicationLevel, &c.Renewable)
+		c.Farmer = farmerAddr
+
+		err2 := rows.Scan(&c.ChunkHash, &c.ChunkBD, &c.ChunkSD, &c.ReplicationLevel, &c.Renewable)
 		if err2 != nil {
 			return err2
 		}
+		c.ChunkID = fmt.Sprintf("%x", c.ChunkHash)
+		chunklog, err := json.Marshal(c)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%s\n", chunklog)
 
-		fmt.Printf("%x|%v|%v|%v|%v\n", c.ChunkHash, c.ChunkBD, c.ReplicationLevel, c.Renewable)
+		//fmt.Printf("%v|%x|%v|%v|%v|%v\n", c.Farmer, c.ChunkHash, c.ChunkBD, c.ChunkSD, c.ReplicationLevel, c.Renewable)
 		result = append(result, c)
 	}
 	rows.Close()

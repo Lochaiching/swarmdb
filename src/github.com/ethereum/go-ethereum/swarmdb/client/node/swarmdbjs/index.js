@@ -84,7 +84,7 @@ Connection.prototype = {
         var that = this;
         var msg = JSON.stringify({
             "requesttype": "CreateTable",
-            "owner": OWNER,
+            "tableowner": OWNER,
             "table": table,
             "columns": columns
         }) + "\n";
@@ -96,7 +96,7 @@ Connection.prototype = {
         var that = this;
         var msg = JSON.stringify({
             "requesttype": "Get",
-            "owner": OWNER,
+            "tableowner": OWNER,
             "table": table,
             "key": key,
             "columns": null
@@ -109,7 +109,7 @@ Connection.prototype = {
         var that = this;
         var msg = JSON.stringify({
             "requesttype": "Put",
-            "owner": OWNER,
+            "tableowner": OWNER,
             "table": table,
             "rows": row,
             "columns": null
@@ -122,7 +122,7 @@ Connection.prototype = {
         var that = this;
         var msg = JSON.stringify({
             "requesttype": "Query",
-            "owner": OWNER,
+            "tableowner": OWNER,
             "RawQuery": queryStatement
         }) + "\n";
         this.promise.then(() => {
