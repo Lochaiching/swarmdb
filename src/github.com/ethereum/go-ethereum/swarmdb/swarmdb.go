@@ -407,7 +407,6 @@ func (self SwarmDB) Query(u *SWARMDBUser, query *QueryOption) (rows []Row, err e
 }
 
 func (self SwarmDB) Scan(u *SWARMDBUser, tableOwnerID string, tableName string, columnName string, ascending int) (rows []Row, err error) {
-
 	tblKey := self.GetTableKey(tableOwnerID, tableName)
 	if tbl, ok := self.tables[tblKey]; ok {
 		rows, err = tbl.Scan(u, columnName, ascending)
@@ -419,7 +418,6 @@ func (self SwarmDB) Scan(u *SWARMDBUser, tableOwnerID string, tableName string, 
 }
 
 func (self SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName string) (tbl *Table, err error) {
-
 	if len(tableName) == 0 {
 		return tbl, fmt.Errorf("Invalid table [%s]", tableName)
 	}
@@ -452,7 +450,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		return resp, err
 	}
 
-	tblKey := self.GetTableKey(d.Owner, d.Table)
+	tblKey := self.GetTableKey(d.TableOwner, d.Table)
 
 	switch d.RequestType {
 	case "CreateTable":
@@ -466,7 +464,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 		return "ok", err
 	case "Put":
-		tbl, err := self.GetTable(u, d.Owner, d.Table)
+		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
 			fmt.Printf("err1: %s\n", err)
 			return resp, err
@@ -483,7 +481,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if len(d.Key) == 0 {
 			return resp, fmt.Errorf("Missing key in GET")
 		}
-		tbl, err := self.GetTable(u, d.Owner, d.Table)
+		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
 			return resp, err
 		}
@@ -497,7 +495,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if len(d.Key) == 0 {
 			return resp, fmt.Errorf("Missing Key/Value")
 		}
-		tbl, err := self.GetTable(u, d.Owner, d.Table)
+		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
 			return resp, err
 		}
@@ -510,7 +508,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if len(d.Key) == 0 {
 			return resp, fmt.Errorf("Missing key")
 		}
-		tbl, err := self.GetTable(u, d.Owner, d.Table)
+		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
 			return resp, err
 		}
@@ -551,24 +549,24 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
 
-		tbl, err := self.GetTable(u, d.Owner, d.Table)
+		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
 			return resp, err
 		}
-		fmt.Printf("Returned table [%+v] when calling gettable with Owner[%s], Table[%s]\n", tbl, d.Owner, d.Table)
+		fmt.Printf("Returned table [%+v] when calling gettable with Owner[%s], Table[%s]\n", tbl, d.TableOwner, d.Table)
 		tblInfo, err := tbl.GetTableInfo()
 		if err != nil {
 			fmt.Printf("tblInfo err \n")
 			return resp, err
 		}
-		query.TableOwner = d.Owner //probably should check the owner against the tableinfo owner here
+		query.TableOwner = d.TableOwner //probably should check the owner against the tableinfo owner here
 
 		fmt.Printf("Table info gotten: [%+v] \n", tblInfo)
 		fmt.Printf("QueryOption is: [%+v] \n", query)
 
 		/*
 			fmt.Printf("The other way of getting tableinfo\n")
-			tblKey := self.GetTableKey(d.Owner, d.Table)
+			tblKey := self.GetTableKey(d.TableOwner, d.Table)
 			tblInfo, err := self.tables[tblKey].GetTableInfo()
 			if err != nil {
 			        return resp, err
@@ -892,7 +890,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 				//return fmt.Errorf("Column [%s] not found in [%+v]", c.columnName, jsonrecord)
 			}
 			fmt.Printf(" - secondary %s %x | %x\n", c.columnName, k2, k)
-			_, err = t.columns[c.columnName].dbaccess.Put(u, k2, k) 
+			_, err = t.columns[c.columnName].dbaccess.Put(u, k2, k)
 			if err != nil {
 				fmt.Errorf("\nDB Put Failed")
 			} else {
