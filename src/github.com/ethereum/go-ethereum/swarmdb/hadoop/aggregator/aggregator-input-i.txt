@@ -1,0 +1,2 @@
+{"insurer":"insurer_publickey","buyer":"0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","chunks":3,"valid":3}
+{"insurer":"insurer_publickey","buyer":"0xd80a4004350027f618107fe3240937d54e46c21b","chunks":3,"valid":3}

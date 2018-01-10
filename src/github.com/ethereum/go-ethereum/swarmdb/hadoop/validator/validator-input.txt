@@ -1,0 +1,6 @@
+{"farmer":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","chunkID":"1d4b6e4aa86d48c464c9adf83940d4e00df8affc","ip":"127.0.0.1","port": 8500}
+{"farmer":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","chunkID":"4b09668b93c718092a408c4222867968fcd3ad98","ip":"127.0.0.1","port": 8500}
+{"farmer":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","chunkID":"d368b1c09e7ddfb6aff24e8e6f181ffeea905d31","ip":"127.0.0.1","port": 8500}
+{"farmer":"0xfd990c3c42446f6705dd66376bf5820cf2c09527","chunkID":"aeec6f5aca72f3a005af1b3420ab8c8c7009bac8","ip":"127.0.0.1","port": 8500}
+{"farmer":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","chunkID":"aeec6f5aca72f3a005af1b3420ab8c8c7009bac8","ip":"127.0.0.1","port": 8500}
+{"farmer":"0xfd990c3c42446f6705dd66376bf5820cf2c09527","chunkID":"1d4b6e4aa86d48c464c9adf83940d4e00df8affc","ip":"127.0.0.1","port": 8500}
