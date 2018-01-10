@@ -33,6 +33,7 @@ type HTTPServer struct {
 
 type SwarmDBReq struct {
 	protocol string
+	owner string
 	table    string
 	key      string
 }
@@ -47,12 +48,20 @@ func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 	if len(pathParts) < 2 {
 		return swdbReq, fmt.Errorf("Invalid Path")
 	} else {
-		swdbReq.protocol = pathParts[1]
-		if len(pathParts) > 2 {
-			swdbReq.table = pathParts[2]
-		}
-		if len(pathParts) == 4 {
-			swdbReq.key = pathParts[3]
+		for k,v := range pathParts {
+			switch k {
+				case 1:
+				swdbReq.protocol = v 
+					
+				case 2:
+				swdbReq.owner = v
+
+				case 3:
+				swdbReq.table = v
+
+				case 4:
+				swdbReq.key = v
+			}
 		}
 	}
 	return swdbReq, nil
@@ -141,6 +150,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	//fmt.Println("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
 	swReq, _ := parsePath(r.URL.Path)
+	fmt.Printf("\nSWREQ: [%+v]", swReq)
 	//Parse BodyContent
 
 	var dataReq swarmdb.RequestOption
@@ -171,7 +181,9 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if reqType, ok := bodyMap["requesttype"]; ok {
 				dataReq.RequestType = reqType.(string)
 				if dataReq.RequestType == "CreateTable" {
+					dataReq.TableOwner = verifiedUser.Address //bodyMap["tableowner"].(string);
 				} else if dataReq.RequestType == "Query" {
+					dataReq.TableOwner = swReq.table 
 					//Don't pass table for now (rely on Query parsing)
 					if rq, ok := bodyMap["rawquery"]; ok {
 						dataReq.RawQuery = rq.(string)
@@ -183,6 +195,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				} else if dataReq.RequestType == "Put" {
 					dataReq.Table = swReq.table
+					dataReq.TableOwner = swReq.owner 
 					if row, ok := bodyMap["row"]; ok {
 						//rowObj := make(map[string]interface{})
 						//_ = json.Unmarshal([]byte(string(row.(map[string]interface{}))), &rowObj)
