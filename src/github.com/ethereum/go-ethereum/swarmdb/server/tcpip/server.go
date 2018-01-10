@@ -86,7 +86,7 @@ func handleRequest(conn net.Conn, svr *TCPIPServer) {
 		conn.Close()
 	} else {
 		fmt.Printf("%s Server Challenge [%s]-ethsign->[%x] Client %d byte Response:[%s] \n", resp,  challenge, challenge_bytes, len(response_bytes), resp);
-		fmt.Fprintf(writer, "OK\n")
+		// fmt.Fprintf(writer, "OK\n")
 		writer.Flush()
 		for {
 			str, err := client.reader.ReadString('\n')

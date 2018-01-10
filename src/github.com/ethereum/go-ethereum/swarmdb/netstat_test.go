@@ -4,6 +4,7 @@ import (
 	"fmt"
 	//"bytes"
 	"github.com/ethereum/go-ethereum/swarmdb"
+	"math/rand"
 	"testing"
 )
 
@@ -15,6 +16,10 @@ var (
 func TestDBChunkStore(t *testing.T) {
 
 	//General Connection
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
 	store, err := swarmdb.NewDBChunkStore(testDBPath)
 	if err != nil {
 		t.Fatal("[FAILURE] to open DBChunkStore\n")
@@ -28,12 +33,13 @@ func TestDBChunkStore(t *testing.T) {
 			simdata := make([]byte, 4096)
 			tmp := fmt.Sprintf("%s%d", "randombytes", j)
 			copy(simdata, tmp)
-			simh, err := store.StoreChunk(simdata, 1)
+			enc := rand.Intn(2)
+			simh, err := store.StoreChunk(u, simdata, enc)
 			if err != nil {
 				t.Fatal("[FAILURE] writting record #%v [%x] => %v\n", j, simh, string(simdata[:]))
 			} else if j%50 == 0 {
 				fmt.Printf("Generating record [%x] => %v ... ", simh, string(simdata[:]))
-				fmt.Printf("[SUCCESS] writing #%v chunk to %v\n", j, testDBPath)
+				fmt.Printf("[SUCCESS] writing #%v chunk | Encryption: %v\n", j, enc)
 			}
 		}
 		_ = store.Save()
@@ -72,11 +78,15 @@ func TestDBChunkStore(t *testing.T) {
 func TestLoadDBChunkStore(t *testing.T) {
 
 	//Opening existing DB
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
 	store, err := swarmdb.LoadDBChunkStore(testDBPath)
 	if err != nil {
-		t.Fatal("[FAILURE] to open existing DBChunkStore\n")
+		t.Fatal("[FAILURE] to open DBChunkStore\n")
 	} else {
-		fmt.Printf("[SUCCESS] open exsisting DBChunkStore\n")
+		fmt.Printf("[SUCCESS] open DBChunkStore\n")
 	}
 
 	t.Run("EWrite=1", func(t *testing.T) {
@@ -85,12 +95,13 @@ func TestLoadDBChunkStore(t *testing.T) {
 			simdata := make([]byte, 4096)
 			tmp := fmt.Sprintf("%s%d", "randombytes", j)
 			copy(simdata, tmp)
-			simh, err := store.StoreChunk(simdata, 1)
+			enc := rand.Intn(2)
+			simh, err := store.StoreChunk(u, simdata, enc)
 			if err != nil {
 				t.Fatal("[FAILURE] writting record #%v [%x] => %v %s\n", j, simh, string(simdata[:]), err)
 			} else if j%50 == 0 {
 				fmt.Printf("Generating record [%x] => %v ... ", simh, string(simdata[:]))
-				fmt.Printf("[SUCCESS] writing #%v chunk to %v\n", j, testDBPath)
+				fmt.Printf("[SUCCESS] writing #%v chunk | Encryption: %v\n", j, enc)
 			}
 		}
 		_ = store.Flush()
@@ -102,6 +113,16 @@ func TestLoadDBChunkStore(t *testing.T) {
 			t.Fatal("[FAILURE] ScanAll Error\n")
 		} else {
 			fmt.Printf("[SUCCESS] ScanAll Operation\n")
+		}
+		_ = store.Flush()
+	})
+
+	t.Run("EFarmLog=1", func(t *testing.T) {
+		err := store.GenerateFarmerLog()
+		if err != nil {
+			t.Fatal("[FAILURE] Farmer log Error\n")
+		} else {
+			fmt.Printf("[SUCCESS] Farmer Operation completed\n")
 		}
 		_ = store.Flush()
 	})
