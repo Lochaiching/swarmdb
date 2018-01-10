@@ -647,6 +647,9 @@ func TestGetTableFail(t *testing.T) {
 	tableName := "BadTable"
 	u := getUser()
 	_, err := swdb.GetTable(u, ownerID, tableName)
+	if err == nil {
+		t.Fatalf("TestGetTableFail: FAILED")
+	}
 	if err.Error() != `Table [`+tableName+`] with Owner [`+ownerID+`] does not exist` {
 		t.Fatalf("TestGetTableFail: FAILED")
 	}
