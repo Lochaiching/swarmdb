@@ -28,7 +28,7 @@ type Column struct {
 //for passing request data from client to server
 type RequestOption struct {
 	RequestType string  `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	TableOwner  string  `json:"owner,omitempty"`
+	TableOwner  string  `json:"tableowner,omitempty"`
 	Table       string  `json:"table,omitempty"` //"contacts"
 	Encrypted   int     `json:"encrypted,omitempty"`
 	Bid         float64 `json:"bid,omitempty"`
