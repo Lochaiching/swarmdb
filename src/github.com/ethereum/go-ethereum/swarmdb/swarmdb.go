@@ -7,16 +7,19 @@ import (
 	//"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
+	"path/filepath"
 	"reflect"
 	"strconv"
 )
 
-func NewSwarmDB() *SwarmDB {
+func NewSwarmDB(ensPath string, chunkDBPath string) *SwarmDB {
 	sd := new(SwarmDB)
 
 	// ownerID, tableName => *Table
 	sd.tables = make(map[string]*Table)
-	dbchunkstore, err := NewDBChunkStore("/tmp/chunk.db")
+	chunkdbFileName := "chunk.db"
+	dbChunkStoreFullPath := filepath.Join(chunkDBPath, chunkdbFileName)
+	dbchunkstore, err := NewDBChunkStore(dbChunkStoreFullPath)
 	if err != nil {
 		// TODO: PANIC
 		fmt.Printf("NO CHUNK STORE!\n")
@@ -24,7 +27,10 @@ func NewSwarmDB() *SwarmDB {
 		sd.dbchunkstore = dbchunkstore
 	}
 
-	ens, err := NewENSSimulation("/tmp/ens.db")
+	//default /tmp/ens.db
+	ensdbFileName := "ens.db"
+	ensdbFullPath := filepath.Join(ensPath, ensdbFileName)
+	ens, err := NewENSSimulation(ensdbFullPath)
 	if err != nil {
 		// TODO: PANIC
 		fmt.Printf("NO ENS!\n")
@@ -54,16 +60,16 @@ func (self *SwarmDB) StoreKDBChunk(key []byte, val []byte) (err error) {
 }
 */
 
-func (self SwarmDB) PrintDBChunk(columnType ColumnType, hashid []byte, c []byte) {
+func (self *SwarmDB) PrintDBChunk(columnType ColumnType, hashid []byte, c []byte) {
 	self.dbchunkstore.PrintDBChunk(columnType, hashid, c)
 }
 
-func (self SwarmDB) RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
+func (self *SwarmDB) RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	val, err = self.dbchunkstore.RetrieveChunk(u, key)
 	return val, err
 }
 
-func (self SwarmDB) StoreDBChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
+func (self *SwarmDB) StoreDBChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
 	key, err = self.dbchunkstore.StoreChunk(u, val, encrypted)
 	return key, err
 }
@@ -78,7 +84,7 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 }
 
 // parse sql and return rows in bulk (order by, group by, etc.)
-func (self SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row, err error) {
+func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row, err error) {
 
 	table, err := self.GetTable(u, query.TableOwner, query.Table)
 	if err != nil {
@@ -125,7 +131,7 @@ func (self SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row,
 
 //Insert is for adding new data to the table
 //example: 'INSERT INTO tablename (col1, col2) VALUES (val1, val2)
-func (self SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error) {
+func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error) {
 
 	table, err := self.GetTable(u, query.TableOwner, query.Table)
 	if err != nil {
@@ -154,7 +160,7 @@ func (self SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error) 
 
 //Update is for modifying existing data in the table (can use a Where clause)
 //example: 'UPDATE tablename SET col1=value1, col2=value2 WHERE col3 > 0'
-func (self SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (err error) {
+func (self *SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (err error) {
 
 	table, err := self.GetTable(u, query.TableOwner, query.Table)
 	if err != nil {
@@ -203,7 +209,7 @@ func (self SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (err error) 
 
 //Delete is for deleting data rows (can use a Where clause, not just a key)
 //example: 'DELETE FROM tablename WHERE col1 = value1'
-func (self SwarmDB) QueryDelete(u *SWARMDBUser, query *QueryOption) (err error) {
+func (self *SwarmDB) QueryDelete(u *SWARMDBUser, query *QueryOption) (err error) {
 
 	table, err := self.GetTable(u, query.TableOwner, query.Table)
 	if err != nil {
@@ -380,7 +386,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 	return filteredRows, nil
 }
 
-func (self SwarmDB) Query(u *SWARMDBUser, query *QueryOption) (rows []Row, err error) {
+func (self *SwarmDB) Query(u *SWARMDBUser, query *QueryOption) (rows []Row, err error) {
 	switch query.Type {
 	case "Select":
 		rows, err := self.QuerySelect(u, query)
@@ -406,7 +412,7 @@ func (self SwarmDB) Query(u *SWARMDBUser, query *QueryOption) (rows []Row, err e
 	return rows, nil
 }
 
-func (self SwarmDB) Scan(u *SWARMDBUser, tableOwnerID string, tableName string, columnName string, ascending int) (rows []Row, err error) {
+func (self *SwarmDB) Scan(u *SWARMDBUser, tableOwnerID string, tableName string, columnName string, ascending int) (rows []Row, err error) {
 	tblKey := self.GetTableKey(tableOwnerID, tableName)
 	if tbl, ok := self.tables[tblKey]; ok {
 		rows, err = tbl.Scan(u, columnName, ascending)
@@ -417,7 +423,7 @@ func (self SwarmDB) Scan(u *SWARMDBUser, tableOwnerID string, tableName string, 
 
 }
 
-func (self SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName string) (tbl *Table, err error) {
+func (self *SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName string) (tbl *Table, err error) {
 	if len(tableName) == 0 {
 		return tbl, fmt.Errorf("Invalid table [%s]", tableName)
 	}
@@ -681,9 +687,9 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 }
 
 // Table
-func (self SwarmDB) NewTable(ownerID string, tableName string, encrypted int) *Table {
+func (self *SwarmDB) NewTable(ownerID string, tableName string, encrypted int) *Table {
 	t := new(Table)
-	t.swarmdb = &self
+	t.swarmdb = self
 	t.ownerID = ownerID
 	t.tableName = tableName
 	t.encrypted = encrypted
