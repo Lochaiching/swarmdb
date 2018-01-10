@@ -1,0 +1,7 @@
+{"buyer":"0xd80a4004350027f618107fe3240937d54e46c21b","chunkID":"1d4b6e4aa86d48c464c9adf83940d4e00df8affc","ip":"127.0.0.1","port": 8500,"minReplication":3,"maxReplication":5}
+{"buyer":"0xd80a4004350027f618107fe3240937d54e46c21b","chunkID":"4b09668b93c718092a408c4222867968fcd3ad98","ip":"127.0.0.1","port": 8500,"minReplication":3,"maxReplication":5}
+{"buyer":"0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","chunkID":"aeec6f5aca72f3a005af1b3420ab8c8c7009bac8","ip":"127.0.0.1","port": 8500,"minReplication":2,"maxReplication":15}
+{"buyer":"0xd80a4004350027f618107fe3240937d54e46c21b","chunkID":"aeec6f5aca72f3a005af1b3420ab8c8c7009bac8","ip":"127.0.0.1","port": 8500,"minReplication":3,"maxReplication":5}
+{"buyer":"0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","chunkID":"1d4b6e4aa86d48c464c9adf83940d4e00df8affc","ip":"127.0.0.1","port": 8500,"minReplication":2,"maxReplication":15}
+{"buyer":"0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","chunkID":"d368b1c09e7ddfb6aff24e8e6f181ffeea905d31","ip":"127.0.0.1","port": 8500,"minReplication":3,"maxReplication":5}
+
