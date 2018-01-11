@@ -28,7 +28,7 @@ type Column struct {
 //for passing request data from client to server
 type RequestOption struct {
 	RequestType string  `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	Owner       string  `json:"owner,omitempty"`
+	TableOwner  string  `json:"tableowner,omitempty"`
 	Table       string  `json:"table,omitempty"` //"contacts"
 	Encrypted   int     `json:"encrypted,omitempty"`
 	Bid         float64 `json:"bid,omitempty"`
@@ -237,23 +237,23 @@ const (
 )
 
 type SWARMDBConfig struct {
-	ListenAddrTCP       string  `json:"listenAddrTCP,omitempty"`       // IP for TCP server
-	PortTCP             int     `json:"portTCP,omitempty"`             // port for TCP server
+	ListenAddrTCP string `json:"listenAddrTCP,omitempty"` // IP for TCP server
+	PortTCP       int    `json:"portTCP,omitempty"`       // port for TCP server
 
-	ListenAddrHTTP      string  `json:"listenAddrHTTP,omitempty"`      // IP for HTTP server
-	PortHTTP            int     `json:"portHTTP,omitempty"`            // port for HTTP server
+	ListenAddrHTTP string `json:"listenAddrHTTP,omitempty"` // IP for HTTP server
+	PortHTTP       int    `json:"portHTTP,omitempty"`       // port for HTTP server
 
-	Address       string        `json:"address,omitempty"`             // the address that earns, must be in keystore directory
-	PrivateKey    string        `json:"privateKey,omitempty"`          // to access child chain
-	
-	ChunkDBPath         string  `json:"chunkDBPath,omitempty"`         // the directory of the SQLite3 chunk databases
-	Authentication      int     `json:"authentication,omitempty"`      // 0 - authentication is not required, 1 - required 2 - only users data stored
-	UsersKeyPath        string  `json:"usersKeysPath,omitempty"`       // directory containing the keystore of Ethereum wallets
-	Users               []SWARMDBUser `json:"users,omitempty"`         // array of users with permissions
+	Address    string `json:"address,omitempty"`    // the address that earns, must be in keystore directory
+	PrivateKey string `json:"privateKey,omitempty"` // to access child chain
 
-	Currency            string        `json:"currency,omitempty"`            //
-	TargetCostStorage   float64       `json:"targetCostStorage,omitempty"`   //
-	TargetCostBandwidth float64       `json:"targetCostBandwidth,omitempty"` //
+	ChunkDBPath    string        `json:"chunkDBPath,omitempty"`    // the directory of the SQLite3 chunk databases
+	Authentication int           `json:"authentication,omitempty"` // 0 - authentication is not required, 1 - required 2 - only users data stored
+	UsersKeyPath   string        `json:"usersKeysPath,omitempty"`  // directory containing the keystore of Ethereum wallets
+	Users          []SWARMDBUser `json:"users,omitempty"`          // array of users with permissions
+
+	Currency            string  `json:"currency,omitempty"`            //
+	TargetCostStorage   float64 `json:"targetCostStorage,omitempty"`   //
+	TargetCostBandwidth float64 `json:"targetCostBandwidth,omitempty"` //
 }
 
 type SWARMDBUser struct {
@@ -262,10 +262,10 @@ type SWARMDBUser struct {
 	MinReplication int    `json:"minReplication,omitempty"` // should this be in config
 	MaxReplication int    `json:"maxReplication,omitempty"` // should this be in config
 	AutoRenew      int    `json:"autoRenew,omitempty"`      // should this be in config
-	pk           []byte
-	sk           []byte
-	publicK      [32]byte
-	secretK      [32]byte
+	pk             []byte
+	sk             []byte
+	publicK        [32]byte
+	secretK        [32]byte
 }
 
 //for comparing rows in two different sets of data

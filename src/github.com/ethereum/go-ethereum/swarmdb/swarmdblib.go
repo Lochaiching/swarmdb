@@ -131,7 +131,7 @@ func (dbc *SWARMDBConnection) CreateTable(tableName string, columns []Column, en
 	// create request
 	var r RequestOption
 	r.RequestType = "CreateTable"
-	r.Owner = dbc.ownerID
+	r.TableOwner = dbc.ownerID
 	r.Table = tableName
 	r.Columns = columns
 
@@ -152,7 +152,7 @@ func (t *SWARMDBTable) Put(row *Row) (response string, err error) {
 	var r RequestOption
 	var reqOptRow Row
 	r.RequestType = "Put"
-	r.Owner = t.dbc.ownerID
+	r.TableOwner = t.dbc.ownerID
 	r.Table = t.tableName
 	reqOptRow.Cells = row.Cells
 	r.Rows = append(r.Rows, reqOptRow)
@@ -166,7 +166,7 @@ func (t *SWARMDBTable) Insert(row *Row) (response string, err error) {
 	var r RequestOption
 	var reqOptRow Row
 	r.RequestType = "Insert"
-	r.Owner = t.dbc.ownerID
+	r.TableOwner = t.dbc.ownerID
 	r.Table = t.tableName
 	reqOptRow.Cells = row.Cells
 	r.Rows = append(r.Rows, reqOptRow)
@@ -209,7 +209,7 @@ func (t *SWARMDBTable) Get(key string) (row *Row, err error) {
 	// create request
 	var r RequestOption
 	r.RequestType = "Get"
-	r.Owner = t.dbc.ownerID
+	r.TableOwner = t.dbc.ownerID
 	r.Table = t.tableName
 	r.Key = key
 	return t.dbc.ProcessRequestResponseRow(r)
@@ -219,7 +219,7 @@ func (t *SWARMDBTable) Delete(key string) (response string, err error) {
 	// send to server
 	var r RequestOption
 	r.RequestType = "Delete"
-	r.Owner = t.dbc.ownerID
+	r.TableOwner = t.dbc.ownerID
 	r.Table = t.tableName
 	r.Key = key
 	return t.dbc.ProcessRequestResponseCommand(r)
@@ -235,7 +235,7 @@ func (t *SWARMDBTable) Query(sql string, f func(r Row) bool) (err error) {
 	// create request
 	var r RequestOption
 	r.RequestType = "Query"
-	r.Owner = t.dbc.ownerID
+	r.TableOwner = t.dbc.ownerID
 	r.Table = t.tableName
 	r.RawQuery = sql
 	return nil

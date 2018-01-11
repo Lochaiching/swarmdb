@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/ethereum/go-ethereum/crypto"
+
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -8,17 +10,12 @@ import (
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
 	"github.com/rs/cors"
 	"io/ioutil"
+	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 )
-
-// ServerConfig is the basic configuration needed for the HTTP server and also
-// includes CORS settings.
-type ServerConfig struct {
-	Addr       string
-	CorsString string
-}
 
 type HTTPServer struct {
 	swarmdb    *swarmdb.SwarmDB
@@ -29,22 +26,14 @@ type HTTPServer struct {
 
 type SwarmDBReq struct {
 	protocol string
+	owner string
 	table    string
 	key      string
 }
 
-type DataReq struct {
-	RequestType string            `json:"requesttype,omitempty"`
-	Table       string            `json:"table,omitempty"`
-	Key         string            `json:"key,omitempty"`
-	Columns     []interface{}     `json:"columns,omitempty"`
-	Row         map[string]string `json:"row,omitempty"`
-	RawQuery     string `json:"rawquery,omitempty"`
-}
-
 type HttpErrorResp struct {
 	ErrorCode string `json:"errorcode,omitempty"`
-	ErrorMsg string `json:"errormsg,omitepty"`
+	ErrorMsg  string `json:"errormsg,omitepty"`
 }
 
 func parsePath(path string) (swdbReq SwarmDBReq, err error) {
@@ -52,21 +41,35 @@ func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 	if len(pathParts) < 2 {
 		return swdbReq, fmt.Errorf("Invalid Path")
 	} else {
-		swdbReq.protocol = pathParts[1]
-		if len(pathParts) > 2 {
-			swdbReq.table = pathParts[2]
-		}
-		if len(pathParts) == 4 {
-			swdbReq.key = pathParts[3]
+		for k,v := range pathParts {
+			switch k {
+				case 1:
+				swdbReq.protocol = v 
+					
+				case 2:
+				swdbReq.owner = v
+
+				case 3:
+				swdbReq.table = v
+
+				case 4:
+				swdbReq.key = v
+			}
 		}
 	}
 	return swdbReq, nil
 }
 
-func StartHttpServer(config *ServerConfig) {
+func StartHttpServer(config *swarmdb.SWARMDBConfig) {
 	fmt.Println("\nstarting http server")
 	httpSvr := new(HTTPServer)
 	httpSvr.swarmdb = swarmdb.NewSwarmDB()
+	km, errkm := swarmdb.NewKeyManager(config)
+	if errkm != nil {
+		//return errkm
+	} else {
+		httpSvr.keymanager = km
+	}
 	var allowedOrigins []string
 	/*
 	   for _, domain := range strings.Split(config.CorsString, ",") {
@@ -83,8 +86,10 @@ func StartHttpServer(config *ServerConfig) {
 	hdlr := c.Handler(httpSvr)
 
 	fmt.Printf("\nRunning ListenAndServe")
+	fmt.Printf("\nListening on %s and port %d\n", config.ListenAddrHTTP, config.PortHTTP)
+	addr := net.JoinHostPort(config.ListenAddrHTTP, strconv.Itoa(config.PortHTTP))
 	//go http.ListenAndServe(config.Addr, hdlr)
-	http.ListenAndServe(config.Addr, hdlr)
+	log.Fatal(http.ListenAndServe(addr, hdlr))
 }
 
 func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -96,48 +101,49 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	encAuthString := r.Header["Authorization"]
-	if( len(encAuthString) == 0 ) {
-		return
+	var vUser *swarmdb.SWARMDBUser
+	var errVerified error
+	if len(encAuthString) == 0 {
+		us := []byte("Hello, world!")
+		msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(us), us)
+		msg_hash := crypto.Keccak256([]byte(msg))
+		fmt.Printf("\nMessage Hash: [%s][%x]", msg_hash, msg_hash)
+
+		pa, _ := s.keymanager.SignMessage(msg_hash)
+		fmt.Printf("\nUser: [%s], SignedMsg: [%x]", us, pa)
+		vUser, errVerified = s.keymanager.VerifyMessage(msg_hash, pa)
+	} else {
+		encAuthStringParts := strings.SplitN(encAuthString[0], " ", 2)
+
+		decAuthString, err := base64.StdEncoding.DecodeString(encAuthStringParts[1])
+		if err != nil {
+			return
+		}
+
+		decAuthStringParts := strings.SplitN(string(decAuthString), ":", 2)
+		ethAddr := decAuthStringParts[0]
+		ethAddrSigned := decAuthStringParts[1]
+
+		ethAddrBytes, errEthAddr := hex.DecodeString(ethAddr)
+		if errEthAddr != nil {
+			fmt.Printf("ERR decoding eth Address:[%s]\n", ethAddrBytes)
+		}
+
+		ethAddrSignedBytes, errEthAddrSigned := hex.DecodeString(ethAddrSigned)
+		if errEthAddrSigned != nil {
+			fmt.Printf("ERR decoding response:[%s]\n", ethAddrSignedBytes)
+		}
+		vUser, errVerified = s.keymanager.VerifyMessage(ethAddrBytes, ethAddrSignedBytes)
+		if errVerified != nil {
+			fmt.Printf("\nError: %s", errVerified)
+		}
 	}
-	encAuthStringParts := strings.SplitN(encAuthString[0], " ", 2)
-
-	decAuthString, err := base64.StdEncoding.DecodeString(encAuthStringParts[1])
-	if err != nil {
-		return 
-	}
-	decAuthStringParts := strings.SplitN(string(decAuthString), ":", 2)
-	ethAddr := decAuthStringParts[0]
-	ethAddrSigned := decAuthStringParts[1]
-
-	ethAddrBytes, errEthAddr := hex.DecodeString(ethAddr)
-        if errEthAddr != nil {
-                fmt.Printf("ERR decoding eth Address:[%s]\n", ethAddr)
-        }
-
-       	ethAddrSignedBytes, errEthAddrSigned := hex.DecodeString(ethAddrSigned)
-        if errEthAddrSigned != nil {
-                fmt.Printf("ERR decoding response:[%s]\n", ethAddrSignedBytes)
-        }
-
-        verified, errVerified := s.keymanager.VerifyMessage(ethAddrBytes, ethAddrSignedBytes)
-	var resp string
-        if errVerified != nil {
-                resp = "OK"
-        }  else if verified {
-                resp = "OK"
-        } else {
-                resp = "INVALID"
-        }	
-
-	if resp == "INVALID" {
-		return
-	}
+	verifiedUser := vUser
 
 	//fmt.Println("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
 	swReq, _ := parsePath(r.URL.Path)
-	//Parse BodyContent
 
-	var dataReq DataReq
+	var dataReq swarmdb.RequestOption
 	var reqJson []byte
 	if swReq.protocol != "swarmdb:" {
 		//Invalid Protocol: Throw Error
@@ -159,16 +165,18 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var bodyMapInt interface{}
 			json.Unmarshal(bodyContent, &bodyMapInt)
-			fmt.Println("\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
+			//fmt.Println("\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
 			//fmt.Fprintf(w, "\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
 			bodyMap := bodyMapInt.(map[string]interface{})
 			if reqType, ok := bodyMap["requesttype"]; ok {
 				dataReq.RequestType = reqType.(string)
 				if dataReq.RequestType == "CreateTable" {
+					dataReq.TableOwner = verifiedUser.Address //bodyMap["tableowner"].(string);
 				} else if dataReq.RequestType == "Query" {
-					//Don't pass table for now (rely on Query parsing)	
-					if rq, ok := bodyMap["rawquery"]; ok { 
-						dataReq.RawQuery = rq.(string) 
+					dataReq.TableOwner = swReq.table 
+					//Don't pass table for now (rely on Query parsing)
+					if rq, ok := bodyMap["rawquery"]; ok {
+						dataReq.RawQuery = rq.(string)
 						reqJson, err = json.Marshal(dataReq)
 						if err != nil {
 						}
@@ -177,18 +185,12 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				} else if dataReq.RequestType == "Put" {
 					dataReq.Table = swReq.table
+					dataReq.TableOwner = swReq.owner 
 					if row, ok := bodyMap["row"]; ok {
-						dataReq.Row = make(map[string]string)
-						for k, v := range row.(map[string]interface{}) {
-							switch v.(type) {
-							case float64:
-								dataReq.Row[k] = fmt.Sprintf("%f", v)
-
-							default:
-								dataReq.Row[k] = v.(string)
-							}
-							//fmt.Printf("\nRow: %s",dataReq.Row[k])
-						}
+						//rowObj := make(map[string]interface{})
+						//_ = json.Unmarshal([]byte(string(row.(map[string]interface{}))), &rowObj)
+						newRow := swarmdb.Row{Cells: row.(map[string]interface{})}
+						dataReq.Rows = append(dataReq.Rows, newRow)
 					}
 					reqJson, err = json.Marshal(dataReq)
 					if err != nil {
@@ -200,11 +202,11 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		//Redirect to SelectHandler after "building" GET RequestOption
 		//fmt.Printf("Sending this JSON to SelectHandler (%s) and Owner=[%s]", reqJson, keymanager.WOLKSWARMDB_ADDRESS)
-		response, errResp := s.swarmdb.SelectHandler(WOLKSWARMDB_ADDRESS, string(reqJson))
+		response, errResp := s.swarmdb.SelectHandler(verifiedUser, string(reqJson))
 		if errResp != nil {
 			fmt.Printf("\nResponse resulted in Error: %s", errResp)
-			httpErr := &HttpErrorResp { ErrorCode: "TBD", ErrorMsg:errResp.Error() }	
-			jHttpErr,_ := json.Marshal(httpErr)
+			httpErr := &HttpErrorResp{ErrorCode: "TBD", ErrorMsg: errResp.Error()}
+			jHttpErr, _ := json.Marshal(httpErr)
 			fmt.Fprint(w, string(jHttpErr))
 		} else {
 			fmt.Fprintf(w, response)
@@ -212,102 +214,11 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-/*
-func handleRequest(conn net.Conn, svr *TCPIPServer) {
-        // generate a random 32 byte challenge (64 hex chars)
-        // challenge = "27bd4896d883198198dc2a6213957bc64352ea35a4398e2f47bb67bffa5a1669"
-        challenge := RandStringRunes(64)
-
-        reader := bufio.NewReader(conn)
-        writer := bufio.NewWriter(conn)
-
-        client := &Client{
-                conn:   conn,
-                reader: reader,
-                writer: writer,
-                svr:    svr,
-        }
-
-        fmt.Fprintf(writer, "%s\n", challenge)
-        writer.Flush()
-
-        fmt.Printf("accepted connection [%s]\n", challenge);
-        // Make a buffer to hold incoming data.
-        //buf := make([]byte, 1024)
-        // Read the incoming connection into the buffer.
-        // reqLen, err := conn.Read(buf)
-        resp, err := reader.ReadString('\n')
-        if err != nil {
-                fmt.Println("Error reading:", err.Error())
-        } else {
-                resp = strings.Trim(resp, "\r")
-                resp = strings.Trim(resp, "\n")
-        }
-
-        // this should be the signed challenge, verify using valid_response
-        challenge_bytes, err2 := hex.DecodeString(challenge)
-        if err2 != nil {
-                fmt.Printf("ERR decoding challenge:[%s]\n", challenge)
-        }
-        // resp = "6b1c7b37285181ef74fb1946968c675c09f7967a3e69888ee37c42df14a043ac2413d19f96760143ee8e8d58e6b0bda4911f642912d2b81e1f2834814fcfdad700"
-        // fmt.Printf("BUF %d: %v\n", len([]byte(resp)), []byte(resp))
-
-        response_bytes, err3 := hex.DecodeString(resp)
-        // fmt.Printf("Response: [%d] %s \n", len(response_bytes), resp);
-        if err3 != nil {
-                fmt.Printf("ERR decoding response:[%s]\n", resp)
-        }
-
-        verified, err := svr.keymanager.VerifyMessage(challenge_bytes, response_bytes)
-        if err != nil {
-                resp = "ERR"
-        }  else if verified {
-                resp = "OK"
-        } else {
-                resp = "INVALID"
-        }
-        fmt.Printf("%s C: %x R: %x\n", resp, challenge_bytes, response_bytes);
-        // fmt.Fprintf(writer, resp)
-        writer.Flush()
-        if ( resp == "OK" ) {
-                for {
-                        str, err := client.reader.ReadString('\n')
-                        if err == io.EOF {
-                                conn.Close()
-                                break
-                        }
-                        if ( true ) {
-                                resp, err := svr.swarmdb.SelectHandler(keymanager.WOLKSWARMDB_ADDRESS, str)
-                                if err != nil {
-                                        s := fmt.Sprintf("ERR: %s\n", err)
-                                        writer.WriteString(s)
-                                        writer.Flush()
-                                } else {
-                                        fmt.Printf("Read: [%s] Wrote: [%s]\n", str, resp)
-                                        fmt.Fprintf(client.writer, resp)
-                                }
-                        } else {
-                                writer.WriteString("OK\n")
-                                writer.Flush()
-                        }
-                }
-        } else {
-                conn.Close()
-        }
-        // Close the connection when you're done with it.
-}
-*/
-
 func main() {
 	fmt.Println("Launching server...")
-	listenerAddress := "localhost"
-	listenerPort := "8100"
 
 	// start swarm http proxy server
-	addr := net.JoinHostPort(listenerAddress, listenerPort)
-	StartHttpServer(&ServerConfig{
-		Addr:       addr,
-		CorsString: "",
-	})
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	StartHttpServer(&config)
 	fmt.Println("\nAfter StartHttpServer Addr")
 }

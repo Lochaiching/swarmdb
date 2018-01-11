@@ -608,7 +608,7 @@ func TestCreateTable(t *testing.T) {
 	var testReqOption swarmdb.RequestOption
 
 	testReqOption.RequestType = "CreateTable"
-	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOption.Table = "contacts"
 	testReqOption.Bid = 7.07
 	testReqOption.Replication = 3
@@ -630,7 +630,7 @@ func TestOpenTable(t *testing.T) {
 	var testReqOption swarmdb.RequestOption
 
 	testReqOption.RequestType = "OpenTable"
-	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOption.Table = "contacts"
 
 	marshalTestReqOption, err := json.Marshal(testReqOption)
@@ -647,6 +647,9 @@ func TestGetTableFail(t *testing.T) {
 	tableName := "BadTable"
 	u := getUser()
 	_, err := swdb.GetTable(u, ownerID, tableName)
+	if err == nil {
+		t.Fatalf("TestGetTableFail: FAILED")
+	}
 	if err.Error() != `Table [`+tableName+`] with Owner [`+ownerID+`] does not exist` {
 		t.Fatalf("TestGetTableFail: FAILED")
 	}
@@ -657,7 +660,7 @@ func OpenTable(swdb *swarmdb.SwarmDB, owner string, table string) {
 	var testReqOption swarmdb.RequestOption
 
 	testReqOption.RequestType = "OpenTable"
-	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOption.Table = "contacts"
 
 	marshalTestReqOption, err := json.Marshal(testReqOption)
@@ -673,7 +676,7 @@ func TestPut(t *testing.T) {
 
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = "Put"
-	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOption.Table = "contacts"
 	testReqOption.Key = "rodneytest1@wolk.com"
 	//testReqOption.Row = make(map[string]interface{})
@@ -697,7 +700,7 @@ func TestPut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
-	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
+	OpenTable(swdb, testReqOption.TableOwner, testReqOption.Table)
 	swdb.SelectHandler(u, string(marshalTestReqOption))
 }
 
@@ -707,7 +710,7 @@ func TestGet(t *testing.T) {
 
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = "Get"
-	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOption.Table = "contacts"
 	testReqOption.Key = "rodneytest1@wolk.com"
 
@@ -716,7 +719,7 @@ func TestGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
-	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
+	OpenTable(swdb, testReqOption.TableOwner, testReqOption.Table)
 
 	resp, err := swdb.SelectHandler(u, string(marshalTestReqOption))
 	if err != nil {
@@ -731,7 +734,7 @@ func TestPutGet(t *testing.T) {
 
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = "Put"
-	testReqOption.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOption.Table = "contacts"
 	testReqOption.Key = "alinatest@wolk.com"
 	//testReqOption.Row = make(map[string]interface{})
@@ -756,7 +759,7 @@ func TestPutGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
-	OpenTable(swdb, testReqOption.Owner, testReqOption.Table)
+	OpenTable(swdb, testReqOption.TableOwner, testReqOption.Table)
 
 	resp, err := swdb.SelectHandler(u, string(marshalTestReqOption))
 	if err != nil {
@@ -767,7 +770,7 @@ func TestPutGet(t *testing.T) {
 
 	var testReqOptionGet swarmdb.RequestOption
 	testReqOptionGet.RequestType = "Get"
-	testReqOptionGet.Owner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
+	testReqOptionGet.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOptionGet.Table = "contacts"
 	testReqOptionGet.Key = "rodneytest1@wolk.com"
 	testReqOptionGet.Key = "alinatest@wolk.com"
@@ -777,7 +780,7 @@ func TestPutGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
-	OpenTable(swdb, testReqOptionGet.Owner, testReqOptionGet.Table)
+	OpenTable(swdb, testReqOptionGet.TableOwner, testReqOptionGet.Table)
 
 	resp, err2 := swdb.SelectHandler(u, string(marshalTestReqOption))
 	if err2 != nil {

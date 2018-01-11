@@ -256,7 +256,7 @@ func NewBPlusTreeDB(u *SWARMDBUser, swarmdb SwarmDB, hashid []byte, columnType C
 	t.columnType = columnType
 	t.columnTypePrimary = columnType
 	t.hashid = hashid
-	t.swarmdb = swarmdb
+	t.swarmdb = &swarmdb
 	t.secondary = secondary
 	t.SWARMGet(u)
 	return t

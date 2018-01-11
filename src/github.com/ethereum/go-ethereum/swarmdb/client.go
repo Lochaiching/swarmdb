@@ -96,7 +96,7 @@ func AddRecord(owner string, table string, key string, value string) (err error)
 
 	var req RequestOption
 	req.RequestType = "Insert" //does not allow duplicates...?
-	req.Owner = owner
+	req.TableOwner = owner
 	req.Table = table
 	req.Key = key
 
@@ -133,7 +133,7 @@ func GetRecord(owner string, table string, key string) (value string, err error)
 
 	var req RequestOption
 	req.RequestType = "Get"
-	req.Owner = owner
+	req.TableOwner = owner
 	req.Table = table
 	req.Key = key
 	fmt.Printf("swarmdb.GetRecord(%+v)\n", req)
@@ -166,7 +166,7 @@ func GetQuery(owner string, table string, query string) (data []string, err erro
 
 	var req RequestOption
 	req.RequestType = "Get"
-	req.Owner = owner
+	req.TableOwner = owner
 	req.Table = table
 	req.Encrypted = 1       //encrypted means table is? or data being passed back and forth is?
 	req.Bid = float64(1.11) //need to get this from the user

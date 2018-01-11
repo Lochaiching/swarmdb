@@ -15,10 +15,10 @@ We will be developing a sharded processing model:
 Farmers SWARMDB nodes generate outputs like:
 
      $ cat validator-input.txt
-     {"farmer":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","chunkID":"1d4b6e4aa86d48c464c9adf83940d4e00df8affc","ip":"127.0.0.1","port": 8500}
-     ...
-     {"farmer":"0xfd990c3c42446f6705dd66376bf5820cf2c09527","chunkID":"aeec6f5aca72f3a005af1b3420ab8c8c7009bac8","ip":"127.0.0.1","port": 8500}
-
+     {"farmer":"0x68988336d54ecd93bd9098607c32497bd7df0015","chunkID":"2b3b7615443069fa6886eec0283d23b09b54a906f78df2d1e537db0ebbf148ca","chunkBD":1515542149,"chunkSD":1515542149,"rep":5,"renewable":1,"ip":"127.0.0.3","port": 8500}
+     ...     
+     {"farmer":"0xfd990c3c42446f6705dd66376bf5820cf2c09527","chunkID":"215b892e8f44980fbbbcc3ee8f92ddad558bcfdcc0f89d6d4852aa62e1a63ebb","chunkBD":1515542149,"chunkSD":1515542157,"rep":5,"renewable":1,"ip":"127.0.0.1","port": 8500}
+    
 which can be stored in SWARM but for now are being retrieved on demand by the validators.
 
      http://ip:port/farmer
