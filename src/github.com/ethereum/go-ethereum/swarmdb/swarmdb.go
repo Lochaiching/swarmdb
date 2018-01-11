@@ -853,6 +853,12 @@ func convertMapValuesToStrings(in map[string]interface{}) map[string]string {
 	out := make(map[string]string)
 	for key, value := range in {
 		switch value := value.(type) {
+		case int:
+			out[key] = strconv.Itoa(value)
+		case int64:
+			out[key] = strconv.FormatInt(value, 10)
+		case float64:
+			out[key] = strconv.FormatFloat(value, 'f', -1, 64)
 		case string:
 			out[key] = value
 		}
@@ -862,26 +868,24 @@ func convertMapValuesToStrings(in map[string]interface{}) map[string]string {
 
 func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 
-	jsonrecord := convertMapValuesToStrings(row)
-
-	value, err0 := json.Marshal(jsonrecord)
+	rawvalue, err0 := json.Marshal(row)
 	if err0 != nil {
 		return err0
 	} else {
-		t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Put|%s", value))
+		t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Put|%s", rawvalue))
 	}
 	k := make([]byte, 32)
 
 	for _, c := range t.columns {
 		//fmt.Printf("\nProcessing a column %s and primary is %d", c.columnName, c.primary)
 		if c.primary > 0 {
-			if pvalue, ok := jsonrecord[t.primaryColumnName]; ok {
+			if pvalue, ok := row[t.primaryColumnName]; ok {
 				k, _ = convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, pvalue)
 			} else {
 				return fmt.Errorf("\nPrimary key %s not specified in input", t.primaryColumnName)
 			}
 			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
-			khash, err := t.swarmdb.kaddb.Put(u, k, []byte(value)) // TODO -- use u (sk)
+			khash, err := t.swarmdb.kaddb.Put(u, k, []byte(rawvalue)) // TODO -- use u (sk)
 			if err != nil {
 				fmt.Errorf("\nKademlia Put Failed")
 				// TODO
@@ -891,9 +895,11 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 			//			t.columns[c.columnName].dbaccess.Print()
 		} else {
 			k2 := make([]byte, 32)
-			if pvalue, ok := jsonrecord[c.columnName]; ok {
-				k2, _ = convertJSONValueToKey(c.columnType, pvalue)
-				if err != nil {
+			var errPvalue error
+			if pvalue, ok := row[c.columnName]; ok {
+				k2, errPvalue = convertJSONValueToKey(c.columnType, pvalue)
+				if errPvalue != nil {
+					fmt.Printf("\nERROR: [%s]", errPvalue)
 					// TODO
 				}
 			} else {
