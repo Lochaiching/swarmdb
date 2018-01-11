@@ -1,49 +1,49 @@
 package main
 
 import (
-	"github.com/ethereum/go-ethereum/crypto"
 	"bufio"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
 	"github.com/rs/cors"
+	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net"
 	"net/http"
-	"io"
-	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"os"
 )
 
 type Client struct {
-        conn   net.Conn
-        reader *bufio.Reader
-        writer *bufio.Writer
-        svr    *TCPIPServer
-        table  *swarmdb.Table // holds ownerID, tableName
+	conn   net.Conn
+	reader *bufio.Reader
+	writer *bufio.Writer
+	svr    *TCPIPServer
+	table  *swarmdb.Table // holds ownerID, tableName
 }
 
 type TCPIPServer struct {
-        swarmdb    *swarmdb.SwarmDB
-        listener   net.Listener
-        keymanager swarmdb.KeyManager
-        lock       sync.Mutex
+	swarmdb    *swarmdb.SwarmDB
+	listener   net.Listener
+	keymanager swarmdb.KeyManager
+	lock       sync.Mutex
 }
 
 func RandStringRunes(n int) string {
-        var letterRunes = []rune("0123456789abcdef")
-        b := make([]rune, n)
-        for i := range b {
-                b[i] = letterRunes[rand.Intn(len(letterRunes))]
-        }
-        return string(b)
+	var letterRunes = []rune("0123456789abcdef")
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }
 
 type HTTPServer struct {
@@ -55,7 +55,7 @@ type HTTPServer struct {
 
 type SwarmDBReq struct {
 	protocol string
-	owner string
+	owner    string
 	table    string
 	key      string
 }
@@ -145,13 +145,13 @@ func StartTcpipServer(sdb *swarmdb.SwarmDB, conf *swarmdb.SWARMDBConfig) (err er
 	}
 
 	host := "127.0.0.1"
-	port := "2000"
+	port := 2000
 	// Listen for incoming connections.
 	if len(conf.ListenAddrTCP) > 0 {
 		host = conf.ListenAddrTCP
 	}
 	if conf.PortTCP > 0 {
-		port = strconv.Itoa(conf.PortTCP)
+		port = conf.PortTCP
 	}
 
 	//TODO: Do we want default host/port if not in config?
@@ -163,7 +163,7 @@ func StartTcpipServer(sdb *swarmdb.SwarmDB, conf *swarmdb.SWARMDBConfig) (err er
 		fmt.Println("Error listening:", err.Error())
 		os.Exit(1)
 	} else {
-		fmt.Println("Listening on " + host_port)
+		fmt.Println("TCPIP Server Listening on " + host_port)
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
@@ -189,18 +189,18 @@ func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 	if len(pathParts) < 2 {
 		return swdbReq, fmt.Errorf("Invalid Path")
 	} else {
-		for k,v := range pathParts {
+		for k, v := range pathParts {
 			switch k {
-				case 1:
-				swdbReq.protocol = v 
-					
-				case 2:
+			case 1:
+				swdbReq.protocol = v
+
+			case 2:
 				swdbReq.owner = v
 
-				case 3:
+			case 3:
 				swdbReq.table = v
 
-				case 4:
+			case 4:
 				swdbReq.key = v
 			}
 		}
@@ -234,7 +234,7 @@ func StartHttpServer(sdb *swarmdb.SwarmDB, config *swarmdb.SWARMDBConfig) {
 	hdlr := c.Handler(httpSvr)
 
 	fmt.Printf("\nRunning ListenAndServe")
-	fmt.Printf("\nListening on %s and port %d\n", config.ListenAddrHTTP, config.PortHTTP)
+	fmt.Printf("\nHTTP Listening on %s and port %d\n", config.ListenAddrHTTP, config.PortHTTP)
 	addr := net.JoinHostPort(config.ListenAddrHTTP, strconv.Itoa(config.PortHTTP))
 	//go http.ListenAndServe(config.Addr, hdlr)
 	log.Fatal(http.ListenAndServe(addr, hdlr))
@@ -321,7 +321,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if dataReq.RequestType == "CreateTable" {
 					dataReq.TableOwner = verifiedUser.Address //bodyMap["tableowner"].(string);
 				} else if dataReq.RequestType == "Query" {
-					dataReq.TableOwner = swReq.table 
+					dataReq.TableOwner = swReq.table
 					//Don't pass table for now (rely on Query parsing)
 					if rq, ok := bodyMap["rawquery"]; ok {
 						dataReq.RawQuery = rq.(string)
@@ -333,7 +333,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				} else if dataReq.RequestType == "Put" {
 					dataReq.Table = swReq.table
-					dataReq.TableOwner = swReq.owner 
+					dataReq.TableOwner = swReq.owner
 					if row, ok := bodyMap["row"]; ok {
 						//rowObj := make(map[string]interface{})
 						//_ = json.Unmarshal([]byte(string(row.(map[string]interface{}))), &rowObj)
@@ -368,10 +368,10 @@ func main() {
 	// start swarm http proxy server
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	ensdbPath := "/tmp"
-        swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-	StartHttpServer(swdb, &config)
+	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+	go StartHttpServer(swdb, &config)
 	fmt.Println("\nHttpServer Started\n")
 
-        fmt.Println("Launching TCPIP server...")
-        StartTcpipServer(swdb, &config)
+	fmt.Println("Launching TCPIP server...")
+	StartTcpipServer(swdb, &config)
 }
