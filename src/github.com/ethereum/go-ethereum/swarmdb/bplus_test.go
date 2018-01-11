@@ -19,7 +19,9 @@ func rng() *mathutil.FC32 {
 }
 
 func getSwarmDB(t *testing.T) (a swarmdb.SwarmDB) {
-	swarmdb := swarmdb.NewSwarmDB()
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := "/tmp"
+	swarmdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 	return *swarmdb
 }
 
