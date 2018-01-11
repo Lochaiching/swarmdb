@@ -17,13 +17,6 @@ import (
 	"strings"
 )
 
-// ServerConfig is the basic configuration needed for the HTTP server and also
-// includes CORS settings.
-type ServerConfig struct {
-	Addr       string
-	CorsString string
-}
-
 type HTTPServer struct {
 	swarmdb    *swarmdb.SwarmDB
 	listener   net.Listener
@@ -93,8 +86,7 @@ func StartHttpServer(config *swarmdb.SWARMDBConfig) {
 	hdlr := c.Handler(httpSvr)
 
 	fmt.Printf("\nRunning ListenAndServe")
-	fmt.Printf("\nListening on %s and port %d", config.ListenAddrHTTP, config.PortHTTP)
-	//addr := net.JoinHostPort(config.ListenAddrHTTP, string(config.PortHTTP))
+	fmt.Printf("\nListening on %s and port %d\n", config.ListenAddrHTTP, config.PortHTTP)
 	addr := net.JoinHostPort(config.ListenAddrHTTP, strconv.Itoa(config.PortHTTP))
 	//go http.ListenAndServe(config.Addr, hdlr)
 	log.Fatal(http.ListenAndServe(addr, hdlr))
@@ -150,8 +142,6 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	//fmt.Println("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
 	swReq, _ := parsePath(r.URL.Path)
-	fmt.Printf("\nSWREQ: [%+v]", swReq)
-	//Parse BodyContent
 
 	var dataReq swarmdb.RequestOption
 	var reqJson []byte
@@ -175,7 +165,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var bodyMapInt interface{}
 			json.Unmarshal(bodyContent, &bodyMapInt)
-			fmt.Println("\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
+			//fmt.Println("\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
 			//fmt.Fprintf(w, "\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
 			bodyMap := bodyMapInt.(map[string]interface{})
 			if reqType, ok := bodyMap["requesttype"]; ok {
