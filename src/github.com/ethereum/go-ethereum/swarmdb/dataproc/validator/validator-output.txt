@@ -1,0 +1,4 @@
+{"validator":"validator_publickey","id":"0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","b":3,"f":0}
+{"validator":"validator_publickey","id":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","b":0,"f":4}
+{"validator":"validator_publickey","id":"0xfd990c3c42446f6705dd66376bf5820cf2c09527","b":0,"f":2}
+{"validator":"validator_publickey","id":"0xd80a4004350027f618107fe3240937d54e46c21b","b":1,"f":0}
