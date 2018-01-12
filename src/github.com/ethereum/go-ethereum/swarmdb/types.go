@@ -92,12 +92,17 @@ type IncomingInfo struct {
 }
 
 type KademliaDB struct {
-	dbChunkstore *DBChunkstore
-	mutex        sync.Mutex
-	owner        []byte
-	tableName    []byte
-	column       []byte
-	encrypted    int
+	dbChunkstore   *DBChunkstore
+	mutex          sync.Mutex
+	owner          []byte
+	tableName      []byte
+	column         []byte
+	nodeType       []byte
+	updateCount    int
+	encrypted      int
+	autoRenew      int
+	minReplication int
+	maxReplication int
 }
 
 type SwarmDB struct {
