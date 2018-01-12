@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
@@ -362,15 +363,22 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	configFileLocation := flag.String("config", "/swarmdb/swarmdb.conf", "Full path location to SWARMDB configuration file.")
+	flag.Parse()
 	fmt.Println("Launching HTTP server...")
 
 	// start swarm http proxy server
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	fmt.Printf("Starting SWARMDB using [%s]", *configFileLocation)
+	config, err := swarmdb.LoadSWARMDBConfig(*configFileLocation)
+	if err != nil {
+		fmt.Printf("\n The config file location provided [%s] is invalid.  Exiting ...\n", *configFileLocation)
+		os.Exit(1)
+	}
 	ensdbPath := "/tmp"
 	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 	go StartHttpServer(swdb, &config)
 	fmt.Println("\nHttpServer Started\n")
 
-	fmt.Println("Launching TCPIP server...")
+	fmt.Println("Launching TCPIP server...\n")
 	StartTcpipServer(swdb, &config)
 }
