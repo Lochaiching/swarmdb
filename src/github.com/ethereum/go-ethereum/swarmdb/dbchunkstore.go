@@ -195,7 +195,9 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
     payer TEXT,
     encrypted INTEGER DEFAULT 1,
     renewal INTEGER DEFAULT 1,
-    replication INTEGER DEFAULT 1,
+    minReplication INTEGER DEFAULT 1,
+    maxReplication INTEGER DEFAULT 1,
+    version INTEGER DEFAULT 0,
     chunkBirthDT DATETIME,
     chunkStoreDT DATETIME
     );
@@ -312,7 +314,7 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, k []byte, v []byte, encryp
 		return fmt.Errorf("chunk too small") // should be improved
 	}
 
-	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, encrypted, chunkBirthDT, chunkStoreDT, renewal, replication, payer) values(?, ?, ?, COALESCE((SELECT chunkBirthDT FROM chunk WHERE chunkKey=?),CURRENT_TIMESTAMP), COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=? ), CURRENT_TIMESTAMP), ?, ?, ?)`
+	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, encrypted, chunkBirthDT, chunkStoreDT, renewal, minReplication, maxReplication, payer, version) values(?, ?, ?, COALESCE((SELECT chunkBirthDT FROM chunk WHERE chunkKey=?),CURRENT_TIMESTAMP), COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=? ), CURRENT_TIMESTAMP), ?, ?, ?, ?, COALESCE((SELECT version+1 FROM chunk where chunkKey=?),0))`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
 		fmt.Printf("\nError Preparing into Table: [%s]", err)
@@ -321,15 +323,17 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, k []byte, v []byte, encryp
 	defer stmt.Close()
 
 	recordData := v[577:4096]
-	encRecordData := self.km.EncryptData(u, recordData)
+	if encrypted == 1 {
+		recordData = self.km.EncryptData(u, recordData)
+	}
 
 	var finalSdata [8192]byte
 	copy(finalSdata[0:577], v[0:577])
-	copy(finalSdata[577:], encRecordData)
-	_, err2 := stmt.Exec(k[:32], finalSdata[0:], encrypted, k[:32], k[:32], u.AutoRenew, u.MaxReplication, u.Address)
+	copy(finalSdata[577:], recordData)
+	_, err2 := stmt.Exec(k[:32], finalSdata[0:], encrypted, k[:32], k[:32], u.AutoRenew, u.MinReplication, u.MaxReplication, u.Address, k[:32])
 	if err2 != nil {
 		fmt.Printf("\nError Inserting into Table: [%s]", err2)
-		fmt.Printf("Putting in this data: [%s]", finalSdata)
+		fmt.Printf("\nPutting in this data: [%s]", finalSdata)
 		return (err2)
 	}
 	stmt.Close()
@@ -361,7 +365,7 @@ func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte
 		var kV []byte
 		var bdt []byte
 		var sdt []byte
-		var enc []byte
+		var enc int
 
 		err2 := rows.Scan(&kV, &val, &bdt, &sdt, &enc)
 		if err2 != nil {
@@ -370,11 +374,15 @@ func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte
 		//fmt.Printf("\nQuery Key: [%x], [%s], [%s], [%s] with VAL: [%+v]", kV, bdt, sdt, enc, val)
 		jsonRecord := val[577:]
 		trimmedJson := bytes.TrimRight(jsonRecord, "\x00")
-		decVal := self.km.DecryptData(u, trimmedJson)
-		decVal = bytes.TrimRight(decVal, "\x00")
+		var retVal []byte
+		retVal = trimmedJson
+		if enc == 1 {
+			retVal = self.km.DecryptData(u, trimmedJson)
+			retVal = bytes.TrimRight(retVal, "\x00")
+		}
 		self.netstat.LReadDT = &ts
 		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
-		return decVal, nil
+		return retVal, nil
 	}
 	return val, nil
 }
@@ -391,15 +399,19 @@ func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, v []byte, encrypted int) (k
 	k = h.Sum(nil)
 
 	//sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, chunkBirthDT, chunkStoreDT ) values(?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, encrypted, chunkBirthDT, chunkStoreDT, renewal, replication, payer) values(?, ?, ?, COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=?),CURRENT_TIMESTAMP), COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=? ), CURRENT_TIMESTAMP), ?, ?, ?)`
+	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, encrypted, chunkBirthDT, chunkStoreDT, renewal, minReplication, maxReplication, payer, version) values(?, ?, ?, COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=?),CURRENT_TIMESTAMP), COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=? ), CURRENT_TIMESTAMP), ?, ?, ?, ?, COALESCE((SELECT version+1 FROM chunk where chunkKey=?),0))`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
 		return k, err
 	}
 	defer stmt.Close()
 
-	encVal := self.km.EncryptData(u, v)
-	_, err2 := stmt.Exec(k, encVal, encrypted, k, k, u.AutoRenew, u.MaxReplication, u.Address)
+	var chunkVal []byte
+	chunkVal = v
+	if encrypted == 1 {
+		chunkVal = self.km.EncryptData(u, v)
+	}
+	_, err2 := stmt.Exec(k, chunkVal, encrypted, k, k, u.AutoRenew, u.MinReplication, u.MaxReplication, u.Address, k)
 	if err2 != nil {
 		fmt.Printf("\nError Inserting into Table: [%s]", err)
 		return k, err2
@@ -414,7 +426,7 @@ func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, v []byte, encrypted int) (k
 func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	ts := time.Now()
 	val = make([]byte, 8192)
-	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
+	sql := `SELECT chunkVal, encrypted FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
 		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
@@ -430,14 +442,19 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 	defer rows.Close()
 
 	for rows.Next() {
-		err2 := rows.Scan(&val)
+		var enc int
+		err2 := rows.Scan(&val, &enc)
 		if err2 != nil {
 			return nil, err2
 		}
-		decVal := self.km.DecryptData(u, val)
+		var retVal []byte
+		retVal = val
+		if enc == 1 {
+			retVal = self.km.DecryptData(u, val)
+		}
 		self.netstat.LReadDT = &ts
 		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
-		return decVal, nil
+		return retVal, nil
 	}
 	return val, nil
 }
@@ -548,7 +565,7 @@ func (self *DBChunkstore) GenerateFarmerLog() (err error) {
 	   contractInterval := 3600*7 //Test renewal interval
 	*/
 
-	sql_readall := `SELECT chunkKey,strftime('%s',chunkBirthDT) as chunkBirthTS, strftime('%s',chunkStoreDT) as chunkStoreTS, replication, renewal FROM chunk where replication > 0 ORDER BY chunkStoreTS DESC`
+	sql_readall := `SELECT chunkKey,strftime('%s',chunkBirthDT) as chunkBirthTS, strftime('%s',chunkStoreDT) as chunkStoreTS, maxReplication, renewal FROM chunk where maxReplication > 0 ORDER BY chunkStoreTS DESC`
 	rows, err := self.db.Query(sql_readall)
 	if err != nil {
 		return err
