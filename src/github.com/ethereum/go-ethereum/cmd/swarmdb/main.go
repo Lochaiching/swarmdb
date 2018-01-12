@@ -301,7 +301,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		var err error
 		if r.Method == "GET" {
-			fmt.Fprintf(w, "Processing [%s] protocol request with Body of () \n", swReq.protocol)
+			//fmt.Fprintf(w, "Processing [%s] protocol request with Body of () \n", swReq.protocol)
 			dataReq.RequestType = "Get"
 			dataReq.Table = swReq.table
 			dataReq.Key = swReq.key
