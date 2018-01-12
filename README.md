@@ -1,5 +1,6 @@
 
 
+
 # How to Install SwarmDB
 
 # Install Docker CE (Community Edition)
@@ -14,35 +15,27 @@ https://www.docker.com/community-edition#/download
 * Others:
   - https://www.docker.com/community-edition#/download
   
-# Prerequisites
-* CentOS 7.x 64-bit.
-* Red Hat Enterprise Linux (RHEL) 7.x 64-bit.
+# System Prerequisites
 
-* Debian 64-bit:
-Debian stretch (testing),
-Debian Jessie 8.0,
-Debian Wheezy 7.7.
-
-* Fedora 64-bit:
-Fedora 25,
-Fedora 24.
-
-* Ubuntu versions:
-Zesty 17.04 (LTS),
-Yakkety 16.10,
-Xenial 16.04 (LTS),
-Trusty 14.04 (LTS).
-
-* MAC OSX Yosemite 10.10.3 or above.
-* MS Windows 10 Professional or Enterprise 64-bit.
+|OS| Prerequisite |
+|--|:--|
+|CentOS|7.x (64-bit)|
+|RedHat|RHEL 7.x (64-bit)|
+|Debian|Stretch, Jessie 8.0, Wheezy 7.7 (64-bit)|
+|Fedora|Fedora 25, Fedora 24 (64-bit)|
+|Ubuntu|Zesty 17.04 (LTS),Yakkety 16.10, Xenial 16.04 (LTS),Trusty 14.04 (LTS)|
+|OSX|Yosemite 10.10.3 or above|
+|MS|Windows 10 Professional or Enterprise (64-bit)|
 
 # Getting SwarmDB Docker
 
 * Download the docker image:
-  - `$ sudo docker pull wolkinc/wolknode`
+
+      $ sudo docker pull wolkinc/wolknode
 
 * Deploy the docker image:
-  - `$ sudo docker run --name=wolknode --rm -it -p 8500:8500 -p 5001:5000 -p 30303:30303 -p 30399:30399 -p 30303:30303/udp -p 30399:30399/udp wolkinc/wolknode`
+
+      $ sudo docker run --name=wolknode --rm -it -p 8500:8500 -p 5001:5000 -p 30303:30303 -p 30399:30399 -p 30303:30303/udp -p 30399:30399/udp wolkinc/wolknode
 
 * Port Mapping:
 
@@ -59,19 +52,20 @@ Trusty 14.04 (LTS).
 # Running SwarmDB
 
 Deploying the image above will run GETH and SWARM in the Docker container. To verify if GETH and SWARM are running:
-  - `$ ps aux | grep -E 'geth|swarm' | grep -v grep`
+
+    $ ps aux | grep -E 'geth|swarm' | grep -v grep
 
 ## Configurations 
 
 * To check current geth account:
-  - `$ geth attach $DATADIR/geth.ipc --exec eth.accounts`
+
+      $ geth attach $DATADIR/geth.ipc --exec eth.accounts
 
 * To create new geth account:
-  - `$ geth --datadir $DATADIR account new`
+        
+      $ geth --datadir $DATADIR account new
 
-* Note: If you downloaded our docker image using instructions above, $DATADIR will point to: `/var/www/vhosts/data`. To check what your DATADIR is, run:
-  - `$ echo $DATADIR`  
+* Note: If you downloaded our docker image using instructions above, `$DATADIR` will by default point to: `/var/www/vhosts/data`. To check your current DATADIR setting, run: `echo $DATADIR`  
 
 #  Interfaces
-
-See [SwarmDB Wiki](https://github.com/wolktoken/swarm.wolk.com/wiki) for more
+See our [Wiki](https://github.com/wolktoken/swarm.wolk.com/wiki) for [Node.js](https://github.com/wolktoken/swarm.wolk.com/wiki/2.-Node.js-Interface), [Go](https://github.com/wolktoken/swarm.wolk.com/wiki/3.-Go-Interface), [Http](https://github.com/wolktoken/swarm.wolk.com/wiki/5.-HTTP-Interface), and [Command Line Interface](https://github.com/wolktoken/swarm.wolk.com/wiki/4.-CLI).
