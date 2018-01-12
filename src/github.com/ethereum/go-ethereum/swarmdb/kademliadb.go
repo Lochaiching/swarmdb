@@ -1,8 +1,10 @@
 package swarmdb
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	//	"strconv"
 	//	"time"
@@ -15,6 +17,7 @@ const (
 func NewKademliaDB(dbChunkstore *DBChunkstore) (*KademliaDB, error) {
 	kd := new(KademliaDB)
 	kd.dbChunkstore = dbChunkstore
+	kd.nodeType = []byte("K")
 	return kd, nil
 }
 
@@ -28,17 +31,31 @@ func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte, encr
 }
 
 func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
-	wlksig := []byte("6909ea88ced9c594e5212a1292fcf73c") //md5("wolk4all")
+	contentPrefix := BuildSwarmdbPrefix(self.owner, self.tableName, key)
+	config, errConfig := LoadSWARMDBConfig(SWARMDBCONF_FILE)
+	if errConfig != nil {
+		fmt.Printf("Failure to open Config", errConfig)
+	}
+	km, _ := NewKeyManager(&config)
 
 	var metadataBody []byte
-	metadataBody = make([]byte, 140)
-	nodeType := []byte{'K'}
-	copy(metadataBody[0:42], self.owner)
-	copy(metadataBody[42:43], nodeType)
-	copy(metadataBody[108:140], wlksig)
-	log.Debug("Metadata is [%+v]", metadataBody)
+	metadataBody = make([]byte, 156)
+	copy(metadataBody[0:40], self.owner)
+	copy(metadataBody[40:41], self.nodeType)
+	copy(metadataBody[41:42], IntToByte(self.encrypted))
+	copy(metadataBody[42:43], IntToByte(self.autoRenew))
+	copy(metadataBody[43:51], IntToByte(self.minReplication))
+	copy(metadataBody[51:59], IntToByte(self.maxReplication))
 
-	contentPrefix := BuildSwarmdbPrefix(self.owner, self.tableName, key)
+	unencryptedMetadata := metadataBody[0:59]
+	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(unencryptedMetadata), unencryptedMetadata)
+	msg_hash := crypto.Keccak256([]byte(msg))
+	copy(metadataBody[59:91], msg_hash)
+
+	sdataSig, _ := km.SignMessage(msg_hash)
+
+	copy(metadataBody[91:156], sdataSig)
+	log.Debug("Metadata is [%+v]", metadataBody)
 
 	var mergedBodycontent []byte
 	mergedBodycontent = make([]byte, chunkSize)
@@ -51,29 +68,35 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 }
 
 func (self *KademliaDB) Put(u *SWARMDBUser, k []byte, v []byte) ([]byte, error) {
+	self.autoRenew = u.AutoRenew
+	self.minReplication = u.MinReplication
+	self.maxReplication = u.MaxReplication
 	sdata := self.buildSdata(k, v)
 	hashVal := sdata[512:544] // 32 bytes
 	_ = self.dbChunkstore.StoreKChunk(u, hashVal, sdata, self.encrypted)
 	return hashVal, nil
 }
 
-func (self *KademliaDB) GetByKey(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
+func (self *KademliaDB) GetByKey(u *SWARMDBUser, k []byte) ([]byte, error) {
 	chunkKey := self.GenerateChunkKey(k)
-	content, _, err := self.Get(u, chunkKey)
+	content, err := self.Get(u, chunkKey)
 	if err != nil {
 		log.Debug("key not found %s: %s", chunkKey, err)
-		return nil, false, fmt.Errorf("key not found: %s", err)
+		return nil, fmt.Errorf("key not found: %s", err)
 	}
-	return content, true, nil
+	return content, nil
 }
 
-func (self *KademliaDB) Get(u *SWARMDBUser, h []byte) ([]byte, bool, error) {
+func (self *KademliaDB) Get(u *SWARMDBUser, h []byte) ([]byte, error) {
 	contentReader, err := self.dbChunkstore.RetrieveKChunk(u, h)
+	if bytes.Trim(contentReader, "\x00") == nil {
+		return nil, nil
+	}
 	if err != nil {
 		log.Debug("key not found %s: %s", h, err)
-		return nil, false, fmt.Errorf("key not found: %s", err)
+		return nil, fmt.Errorf("key not found: %s", err)
 	}
-	return contentReader, true, nil
+	return contentReader, nil
 }
 
 func (self *KademliaDB) GenerateChunkKey(k []byte) []byte {
