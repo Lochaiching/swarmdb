@@ -10,7 +10,7 @@ all:
 	@echo "test server."
 	-go test ./server/server_test.go
 	@echo "test keymanager."
-	-go test ./keymanager/keymanager_test.go
+	-go test ./keymanager_test.go
 	@echo "test bplus."
 	-go test ./bplus_test.go
 	@echo "test query."
@@ -40,7 +40,7 @@ server:
 
 keymanager:
 	@echo "test keymanager."
-	go test ./keymanager/keymanager_test.go
+	go test ./keymanager_test.go
 
 bplus:
 	@echo "test bplus."
