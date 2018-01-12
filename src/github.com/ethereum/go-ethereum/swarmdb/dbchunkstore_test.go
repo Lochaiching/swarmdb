@@ -33,7 +33,7 @@ func TestDBChunkStore(t *testing.T) {
 
 	k, err1 := store.StoreChunk(u, v, 1)
 	if err1 != nil {
-		t.Fatal("Failure to StoreChunk", k, v)
+		t.Fatal("Failure to StoreChunk", k, v, err1)
 	} else {
 		fmt.Printf("SUCCESS in StoreChunk:  %x => %v\n", string(k), string(v))
 	}
