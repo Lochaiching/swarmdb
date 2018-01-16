@@ -111,12 +111,12 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 			}
 		}
 	}
-	fmt.Printf("\nNumber of RAW rows returned : %d", len(rawRows)
+	fmt.Printf("\nNumber of RAW rows returned : %d", len(rawRows))
 
 	//apply WHERE
 	whereRows, err := table.applyWhere(rawRows, query.Where)
 
-	fmt.Printf("\nNumber of WHERE rows returned : %d", len(whereRows)
+	fmt.Printf("\nNumber of WHERE rows returned : %d", len(whereRows))
 	//filter for requested columns
 	for _, row := range whereRows {
 		fRow := filterRowByColumns(&row, query.RequestColumns)
@@ -124,7 +124,7 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 			rows = append(rows, fRow)
 		}
 	}
-	fmt.Printf("\nNumber of FINAL rows returned : %d", len(fRows)
+	fmt.Printf("\nNumber of FINAL rows returned : %d", len(fRows))
 
 	//TODO: Put it in order for Ascending/GroupBy
 
