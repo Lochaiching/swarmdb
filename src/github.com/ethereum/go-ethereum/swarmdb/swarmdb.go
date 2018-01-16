@@ -94,8 +94,10 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 	for _, column := range query.RequestColumns {
 		colRows, err := self.Scan(u, query.TableOwner, query.Table, column.ColumnName, query.Ascending)
 		if err != nil {
+			fmt.Printf("\nError Scanning table [%s] : [%s]",query.Table, err)
 			return rows, err
 		}
+		fmt.Printf("\nNumber of rows scanned: %d", len(colRows))
 		for _, colRow := range colRows {
 			dupe := false
 			for _, row := range rawRows {
