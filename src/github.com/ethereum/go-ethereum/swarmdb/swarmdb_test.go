@@ -127,6 +127,7 @@ func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryK
 
 func TestSetGetInt(t *testing.T) {
 	t.SkipNow()
+	/*
 	const N = 4
 	u := getUser()
 
@@ -185,10 +186,12 @@ func TestSetGetInt(t *testing.T) {
 			}
 		}
 	}
+*/
 }
 
 func TestTable(t *testing.T) {
 	t.SkipNow()
+	/*
 	u := getUser()
 	tbl := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 
@@ -228,6 +231,7 @@ func TestTable(t *testing.T) {
 	fres, ferr := tbl2.Get(u, "test010@wolk.com")
 	fmt.Printf("Get %s %v \n", string(fres), ferr)
 	//t.CloseTable()
+*/
 
 }
 
@@ -331,13 +335,13 @@ func aTestPutInteger(t *testing.T) {
 
 	s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
 
-	g, err := s.Get(u, "8")
+	g, err := s.Get(u, []byte("8"))
 	if err != nil {
 		t.Fatal(g, err)
 	} else {
 		fmt.Printf("Get(8): [%s]\n", string(g))
 	}
-	h, err2 := s.Get(u, "1")
+	h, err2 := s.Get(u, []byte("1"))
 	if err2 != nil {
 		t.Fatal(h, err2)
 	}
@@ -366,11 +370,11 @@ func aTestPutString(t *testing.T) {
 
 	s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
 	k := "t000008@wolk.com"
-	g, _ := s.Get(u, k)
+	g, _ := s.Get(u, []byte(k))
 	fmt.Printf("Get(%s): %v\n", k, string(g))
 
 	k1 := "t000001@wolk.com"
-	h, _ := s.Get(u, k1)
+	h, _ := s.Get(u, []byte(k1))
 	fmt.Printf("Get(%s): %v\n", k1, string(h))
 
 }
@@ -399,13 +403,13 @@ func aTestPutFloat(t *testing.T) {
 	i := 4
 	f := float64(i) + .3141519
 	k := fmt.Sprintf("%f", f)
-	g, _ := s.Get(u, k)
+	g, _ := s.Get(u, []byte(k))
 	fmt.Printf("Get(%s): %v\n", k, string(g))
 
 	i = 6
 	f = float64(i) + .3141519
 	k = fmt.Sprintf("%f", f)
-	h, _ := s.Get(u, k)
+	h, _ := s.Get(u, []byte(k))
 	fmt.Printf("Get(%s): %v\n", k, string(h))
 }
 
@@ -421,7 +425,7 @@ func aTestSetGetString(t *testing.T) {
 	r.Put(u, putjson)
 
 	// check put with get
-	g, err := r.Get(u, key)
+	g, err := r.Get(u, []byte(key))
 	if err != nil || strings.Compare(string(g), val) != 0 {
 		t.Fatal(g, val)
 	} else {
@@ -435,7 +439,7 @@ func aTestSetGetString(t *testing.T) {
 	r.Put(u, putjson)
 
 	// check put with get
-	g2, err := r2.Get(u, key)
+	g2, err := r2.Get(u, []byte(key))
 	if err != nil || strings.Compare(string(g2), val2) != 0 {
 		t.Fatal(g2, val2)
 	} else {
@@ -449,7 +453,7 @@ func aTestSetGetString(t *testing.T) {
 	r.Put(u, putjson)
 
 	// check put with get
-	g3, err := r3.Get(u, key)
+	g3, err := r3.Get(u, []byte(key))
 	if err != nil || strings.Compare(string(g3), val3) != 0 {
 		t.Fatal(g3, val3)
 	} else {
@@ -695,7 +699,10 @@ func TestPut(t *testing.T) {
 	//testReqOption.Row = make(map[string]interface{})
 	row := `{"name": "Rodney", "age": 37, "email": "rodneytest1@wolk.com"}`
 	rowObj := make(map[string]interface{})
-	_ = json.Unmarshal([]byte(row), &rowObj)
+	err := json.Unmarshal([]byte(row), &rowObj)
+	if err != nil {
+		t.Fatalf("json unmarshal err... %s", err)
+	}
 	/*
 		for k, v := range rowObj {
 			switch v.(type) {
@@ -718,6 +725,7 @@ func TestPut(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
+	
 	u := getUser()
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	ensdbPath := "/tmp"
@@ -741,6 +749,7 @@ func TestGet(t *testing.T) {
 		t.Fatal(err)
 	}
 	fmt.Printf("\nResponse of TestGet is [%s]", resp)
+
 }
 
 func TestPutGet(t *testing.T) {
