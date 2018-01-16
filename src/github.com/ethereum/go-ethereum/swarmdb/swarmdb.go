@@ -103,7 +103,7 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 		for _, colRow := range colRows {
 			dupe := false
 			for _, row := range rawRows {
-				if checkDuplicateRow(row, colRow) {
+				if isDuplicateRow(row, colRow) {
 					fmt.Printf("QS: found duped row! %+v\n", row)
 					dupe = true
 					break
