@@ -89,6 +89,20 @@ func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUs
 
 }
 
+func (self *KeyManager) RetrieveUserConfig(address []byte) (u *SWARMDBUser, err error) {
+	for _, u0 := range self.config.Users {
+		fmt.Printf("\nCHECKING")
+		a := []byte(u0.Address)
+		fmt.Printf("\n%+v \n| A vs a | [%v] [%v] -- [%s] [%s] \n", u0, a, address, a, address)
+		if bytes.Compare(a, address) == 0 {
+			fmt.Printf("FOUND \n")
+			return &u0, nil
+		}
+	}
+	fmt.Printf("NOT FOUND \n")
+	return u, fmt.Errorf("address not found: %x", address)
+}
+
 func (self *KeyManager) DecryptData(u *SWARMDBUser, data []byte) []byte {
 	var decryptNonce [24]byte
 	copy(decryptNonce[:], data[:24])

@@ -1012,7 +1012,7 @@ func (t *Table) Get(u *SWARMDBUser, key string) (out []byte, err error) {
 	}
 	if len(v) > 0 {
 		// get value from kdb
-		kres, _, err3 := t.swarmdb.kaddb.GetByKey(u, k)
+		kres, err3 := t.swarmdb.kaddb.GetByKey(u, k)
 		if err3 != nil {
 			return out, err3
 		}

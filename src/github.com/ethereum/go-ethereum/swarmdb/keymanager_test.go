@@ -36,7 +36,7 @@ func okTestSignVerifyMessage(t *testing.T) {
 	verified0, err2 := km.VerifyMessage(challenge_bytes, sig_bytes)
 	if err2 != nil {
 		fmt.Printf("Correct Reject0\n")
-	} else if verified0 {
+	} else if verified0 != nil {
 		t.Fatal("Failure to Reject0: %s", err2)
 	} else {
 		t.Fatal("Failure to Reject0: %s", err2)
@@ -56,7 +56,7 @@ func okTestSignVerifyMessage(t *testing.T) {
 	verified1, err3 := km.VerifyMessage(challenge_bytes, sig_bytes)
 	if err3 != nil {
 		t.Fatal(err3)
-	} else if verified1 {
+	} else if verified1 != nil {
 		fmt.Printf("Correct Accept1\n")
 	} else {
 		t.Fatal("Failure to Accept1: %s", err2)
@@ -73,7 +73,7 @@ func okTestSignVerifyMessage(t *testing.T) {
 	}
 
 	verified2, err5 := km.VerifyMessage(msg_hash, sig)
-	if err5 != nil || !verified2 {
+	if err5 != nil || (verified2 == nil) {
 		t.Fatal("verify2 err", err)
 	} else {
 		fmt.Printf("Verified challenge %x signature %x\n", msg_hash, sig)

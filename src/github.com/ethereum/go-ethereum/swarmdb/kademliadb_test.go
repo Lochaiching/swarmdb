@@ -81,13 +81,13 @@ func TestKademliaPutGetByKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	val, _, _ := kdb.GetByKey(u, tc.Key)
+	val, _ := kdb.GetByKey(u, tc.Key)
 	if bytes.Compare(val, tc.Value) != 0 {
 		t.Fatal("The value retrieved is incorrect [", val, "] and doesn't match expected value of [", tc.Value, "]")
 	}
 
 	hash := []byte{232, 13, 189, 249, 19, 48, 66, 109, 189, 89, 16, 49, 191, 59, 245, 251, 210, 223, 121, 151, 165, 252, 232, 245, 156, 183, 4, 176, 14, 37, 155, 30}
-	valByHash, _, _ := kdb.Get(u, hash)
+	valByHash, _ := kdb.Get(u, hash)
 
 	if bytes.Compare(valByHash, tc.Value) != 0 {
 		t.Fatal("The value retrieved is incorrect [", val, "] and doesn't match expected value of [", tc.Value, "]")

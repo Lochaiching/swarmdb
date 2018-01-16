@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
@@ -251,37 +252,39 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	encAuthString := r.Header["Authorization"]
 	var vUser *swarmdb.SWARMDBUser
 	var errVerified error
+	bodyContent, _ := ioutil.ReadAll(r.Body)
+	reqJson := bodyContent
 	if len(encAuthString) == 0 {
-		us := []byte("Hello, world!")
+		us := []byte(`{ "requesttype":"Put", "row":{"email":"rodney@wolk.com", "name":"Rodney F. Witcher", "age":370} }`)
 		msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(us), us)
 		msg_hash := crypto.Keccak256([]byte(msg))
 		fmt.Printf("\nMessage Hash: [%s][%x]", msg_hash, msg_hash)
 
 		pa, _ := s.keymanager.SignMessage(msg_hash)
-		fmt.Printf("\nUser: [%s], SignedMsg: [%x]", us, pa)
+		fmt.Printf("\nUser: [%s], Msg Hash [%x], SignedMsg: [%x]\n", us, msg_hash, pa)
 		vUser, errVerified = s.keymanager.VerifyMessage(msg_hash, pa)
 	} else {
 		encAuthStringParts := strings.SplitN(encAuthString[0], " ", 2)
-
 		decAuthString, err := base64.StdEncoding.DecodeString(encAuthStringParts[1])
 		if err != nil {
 			return
 		}
 
+		fmt.Printf("\nDecAuthString: [%x][%s]", decAuthString, decAuthString)
 		decAuthStringParts := strings.SplitN(string(decAuthString), ":", 2)
-		ethAddr := decAuthStringParts[0]
-		ethAddrSigned := decAuthStringParts[1]
+		inputSignedMsg := decAuthStringParts[0]
 
-		ethAddrBytes, errEthAddr := hex.DecodeString(ethAddr)
-		if errEthAddr != nil {
-			fmt.Printf("ERR decoding eth Address:[%s]\n", ethAddrBytes)
-		}
+		msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(bodyContent), bodyContent)
+		msg_hash := crypto.Keccak256([]byte(msg))
+		fmt.Printf("\nMessage Hash: [%s][%x]", msg_hash, msg_hash)
 
-		ethAddrSignedBytes, errEthAddrSigned := hex.DecodeString(ethAddrSigned)
-		if errEthAddrSigned != nil {
-			fmt.Printf("ERR decoding response:[%s]\n", ethAddrSignedBytes)
+		decSignedMsg, errDecSignedMsg := hex.DecodeString(inputSignedMsg)
+		if errDecSignedMsg != nil {
+			fmt.Printf("ERR decoding eth Address:[%s]\n", inputSignedMsg)
 		}
-		vUser, errVerified = s.keymanager.VerifyMessage(ethAddrBytes, ethAddrSignedBytes)
+		//fmt.Printf("\nSignedMsg: [%x][%s] | DecSignedMsg: [%x][%s]", signedMsg, signedMsg, decSignedMsg, decSignedMsg)
+
+		vUser, errVerified = s.keymanager.VerifyMessage(msg_hash, decSignedMsg)
 		if errVerified != nil {
 			fmt.Printf("\nError: %s", errVerified)
 		}
@@ -292,14 +295,13 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	swReq, _ := parsePath(r.URL.Path)
 
 	var dataReq swarmdb.RequestOption
-	var reqJson []byte
 	if swReq.protocol != "swarmdb:" {
 		//Invalid Protocol: Throw Error
 		//fmt.Fprintf(w, "The protocol sent in: %s is invalid | %+v\n", swReq.protocol, swReq)
 	} else {
 		var err error
 		if r.Method == "GET" {
-			fmt.Fprintf(w, "Processing [%s] protocol request with Body of () \n", swReq.protocol)
+			//fmt.Fprintf(w, "Processing [%s] protocol request with Body of () \n", swReq.protocol)
 			dataReq.RequestType = "Get"
 			dataReq.Table = swReq.table
 			dataReq.Key = swReq.key
@@ -307,8 +309,6 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 			}
 		} else if r.Method == "POST" {
-			bodyContent, _ := ioutil.ReadAll(r.Body)
-			reqJson = bodyContent
 			fmt.Printf("\nBODY Json: %s", reqJson)
 
 			var bodyMapInt interface{}
@@ -363,15 +363,22 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+	configFileLocation := flag.String("config", "/swarmdb/swarmdb.conf", "Full path location to SWARMDB configuration file.")
+	flag.Parse()
 	fmt.Println("Launching HTTP server...")
 
 	// start swarm http proxy server
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	fmt.Printf("Starting SWARMDB using [%s]", *configFileLocation)
+	config, err := swarmdb.LoadSWARMDBConfig(*configFileLocation)
+	if err != nil {
+		fmt.Printf("\n The config file location provided [%s] is invalid.  Exiting ...\n", *configFileLocation)
+		os.Exit(1)
+	}
 	ensdbPath := "/tmp"
 	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 	go StartHttpServer(swdb, &config)
 	fmt.Println("\nHttpServer Started\n")
 
-	fmt.Println("Launching TCPIP server...")
+	fmt.Println("Launching TCPIP server...\n")
 	StartTcpipServer(swdb, &config)
 }

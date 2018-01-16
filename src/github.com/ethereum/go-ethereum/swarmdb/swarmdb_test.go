@@ -39,7 +39,9 @@ func getUser() (u *swarmdb.SWARMDBUser) {
 }
 
 func getSWARMDBTable(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType, create bool) (tbl *swarmdb.Table) {
-	swarmdbObj := swarmdb.NewSwarmDB()
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := "/tmp"
+	swarmdbObj := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 
 	// Commenting: (Rodney) -- CreateTable called from swarmdbObj and inside of that it calls NewTable
 	// tbl = swarmdbObj.NewTable(ownerID, tableName)
@@ -64,7 +66,9 @@ func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryK
 	secondaryKeyName string, secondaryIndexType swarmdb.IndexType, secondaryColumnType swarmdb.ColumnType,
 	create bool) (swarmdbObj *swarmdb.SwarmDB) {
 
-	swarmdbObj = swarmdb.NewSwarmDB()
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := "/tmp"
+	swarmdbObj = swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 
 	// Commenting: (Rodney) -- CreateTable called from swarmdbObj and inside of that it calls NewTable
 	//u := getUser()
@@ -586,7 +590,10 @@ func aTestDelete2(t *testing.T) {
 func TestCreateTable(t *testing.T) {
 	t.SkipNow()
 	u := getUser()
-	swdb := swarmdb.NewSwarmDB()
+
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := "/tmp"
+	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 
 	var testColumn []swarmdb.Column
 	testColumn = make([]swarmdb.Column, 3)
@@ -626,7 +633,9 @@ func TestCreateTable(t *testing.T) {
 
 func TestOpenTable(t *testing.T) {
 	u := getUser()
-	swdb := swarmdb.NewSwarmDB()
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := "/tmp"
+	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 	var testReqOption swarmdb.RequestOption
 
 	testReqOption.RequestType = "OpenTable"
@@ -642,7 +651,9 @@ func TestOpenTable(t *testing.T) {
 }
 
 func TestGetTableFail(t *testing.T) {
-	swdb := swarmdb.NewSwarmDB()
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := "/tmp"
+	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 	ownerID := "BadOwner"
 	tableName := "BadTable"
 	u := getUser()
@@ -672,7 +683,9 @@ func OpenTable(swdb *swarmdb.SwarmDB, owner string, table string) {
 
 func TestPut(t *testing.T) {
 	u := getUser()
-	swdb := swarmdb.NewSwarmDB()
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := "/tmp"
+	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = "Put"
@@ -706,7 +719,9 @@ func TestPut(t *testing.T) {
 
 func TestGet(t *testing.T) {
 	u := getUser()
-	swdb := swarmdb.NewSwarmDB()
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := "/tmp"
+	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = "Get"
@@ -730,7 +745,9 @@ func TestGet(t *testing.T) {
 
 func TestPutGet(t *testing.T) {
 	u := getUser()
-	swdb := swarmdb.NewSwarmDB()
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := "/tmp"
+	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = "Put"
