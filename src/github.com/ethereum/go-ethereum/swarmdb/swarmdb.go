@@ -94,7 +94,7 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 	for _, column := range query.RequestColumns {
 		colRows, err := self.Scan(u, query.TableOwner, query.Table, column.ColumnName, query.Ascending)
 		if err != nil {
-			fmt.Printf("\nError Scanning table [%s] : [%s]",query.Table, err)
+			fmt.Printf("\nError Scanning table [%s] : [%s]", query.Table, err)
 			return rows, err
 		}
 		fmt.Printf("\nNumber of rows scanned: %d for column [%s]", len(colRows), column.ColumnName)
@@ -104,10 +104,9 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 				if checkDuplicateRow(row, colRow) {
 					dupe = true
 					break
+				} else {
+					rawRows = append(rawRows, colRow)
 				}
-			}
-			if dupe == false {
-				rawRows = append(rawRows, colRow)
 			}
 		}
 	}
@@ -146,7 +145,7 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error)
 			return fmt.Errorf("Insert row %+v needs primary column '%s' value", row, table.primaryColumnName)
 		}
 		//check if Row already exists
-		convertedKey,_ := convertJSONValueToKey(table.columns[table.primaryColumnName].columnType, row.Cells[table.primaryColumnName])
+		convertedKey, _ := convertJSONValueToKey(table.columns[table.primaryColumnName].columnType, row.Cells[table.primaryColumnName])
 		existingByteRow, err := table.Get(u, convertedKey)
 		if err != nil {
 			existingRow, _ := table.byteArrayToRow(existingByteRow)
@@ -499,7 +498,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		convertedKey,_ := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, d.Key)
+		convertedKey, _ := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, d.Key)
 		ret, err := tbl.Get(u, convertedKey)
 		if err != nil {
 			return resp, err
@@ -604,7 +603,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			//checking if the query is just a primary key Get
 			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
 				fmt.Printf("Calling Get from Query\n")
-				convertedKey,_ := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, query.Where.Right)
+				convertedKey, _ := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, query.Where.Right)
 
 				byteRow, err := tbl.Get(u, convertedKey)
 				if err != nil {
