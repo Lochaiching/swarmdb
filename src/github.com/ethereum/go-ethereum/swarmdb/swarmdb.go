@@ -97,12 +97,13 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 			fmt.Printf("\nError Scanning table [%s] : [%s]", query.Table, err)
 			return rows, err
 		}
-		fmt.Printf("\nNumber of rows scanned: %d for column [%s]\n", len(colRows), column.ColumnName)
+		fmt.Printf("QuerySelect scanned rows: %+v\n", colRows)
+		fmt.Printf("\nNumber of rows scanned: %d for column [%s]", len(colRows), column.ColumnName)
 		for _, colRow := range colRows {
-			//dupe := false
 			for _, row := range rawRows {
-				fmt.Printf("\nChecking dupes of ROW: %+v vs ColRow: %+v\n")
-				if checkDuplicateRow(row, colRow) {
+				if isDuplicateRow(row, colRow) {
+					fmt.Printf("QS: found duped row! %+v\n", row)
+				} else {
 					rawRows = append(rawRows, colRow)
 				}
 			}
@@ -112,11 +113,14 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 
 	//apply WHERE
 	whereRows, err := table.applyWhere(rawRows, query.Where)
+	fmt.Printf("QuerySelect applied where rows: %+v\n", whereRows)
 
 	fmt.Printf("\nNumber of WHERE rows returned : %d", len(whereRows))
 	//filter for requested columns
 	for _, row := range whereRows {
+		fmt.Printf("QS b4 filterRowByColumns row: %+v\n", row)
 		fRow := filterRowByColumns(&row, query.RequestColumns)
+		fmt.Printf("QS after filterRowByColumns row: %+v\n", fRow)
 		if len(fRow.Cells) > 0 {
 			rows = append(rows, fRow)
 		}
@@ -124,7 +128,7 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 	fmt.Printf("\nNumber of FINAL rows returned : %d", len(rows))
 
 	//TODO: Put it in order for Ascending/GroupBy
-
+	fmt.Printf("QS returning: %+v\n", rows)
 	return rows, nil
 
 }
@@ -424,6 +428,7 @@ func (self *SwarmDB) Scan(u *SWARMDBUser, tableOwnerID string, tableName string,
 	} else {
 		return rows, fmt.Errorf("No such table to scan %s - %s", tableOwnerID, tableName)
 	}
+	fmt.Printf("swarmdb Scan finished ok: %+v\n", rows)
 	return rows, nil
 
 }
@@ -496,7 +501,10 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		convertedKey, _ := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, d.Key)
+		convertedKey, err := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, d.Key)
+		if err != nil {
+			return resp, err
+		}
 		ret, err := tbl.Get(u, convertedKey)
 		if err != nil {
 			return resp, err
@@ -663,7 +671,7 @@ func parseData(data string) (*RequestOption, error) {
 func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []Row, err error) {
 	column, err := t.getColumn(columnName)
 	if err != nil {
-		fmt.Printf(" err %v \n", err)
+		fmt.Printf("table Scan getColumn err %v \n", err)
 		return rows, err
 	}
 	c := column.dbaccess.(OrderedDatabase)
@@ -676,8 +684,11 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 			records := 0
 			for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
 				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(column.columnType, k), v)
-				row := NewRow()
-				row.Set(KeyToString(column.columnType, k), v)
+				row, err := t.byteArrayToRow(v)
+				if err != nil {
+					return rows, err
+				}
+				fmt.Printf("table Scan, row set: %+v\n", row)
 				rows = append(rows, row)
 				records++
 			}
@@ -689,14 +700,18 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 		} else {
 			records := 0
 			for k, v, err := res.Prev(u); err == nil; k, v, err = res.Prev(u) {
-				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(column.columnType, k), v)
-				row := NewRow()
-				row.Set(KeyToString(column.columnType, k), v)
+				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(CT_STRING, k), KeyToString(column.columnType, v))
+				row, err := t.byteArrayToRow(v)
+				if err != nil {
+					return rows, err
+				}
+				fmt.Printf("table Scan, row set: %+v\n", row)
 				rows = append(rows, row)
 				records++
 			}
 		}
 	}
+	fmt.Printf("table Scan, rows returned: %+v\n", rows)
 	return rows, nil
 }
 
@@ -843,7 +858,7 @@ func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte,
 	switch svalue := pvalue.(type) {
 	case (int):
 		i := fmt.Sprintf("%d", svalue)
-		k = convertStringToKey(columnType, i)
+		k = StringToKey(columnType, i)
 	case (float64):
 		f := ""
 		switch columnType {
@@ -854,9 +869,9 @@ func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte,
 		case CT_STRING:
 			f = fmt.Sprintf("%f", svalue)
 		}
-		k = convertStringToKey(columnType, f)
+		k = StringToKey(columnType, f)
 	case (string):
-		k = convertStringToKey(columnType, svalue)
+		k = StringToKey(columnType, svalue)
 	default:
 		return k, fmt.Errorf("Unknown Type: %v\n", reflect.TypeOf(svalue))
 	}
@@ -970,7 +985,7 @@ func (t *Table) Insert(u *SWARMDBUser, row map[string]interface{}) (err error) {
 			}
 
 			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName), t.encrypted)
-			k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
+			k := StringToKey(t.columns[primaryColumnName].columnType, key)
 			khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
 			if err != nil {
 				return err
@@ -994,8 +1009,7 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 }
 
 func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
-	var row Row
-	row.Cells = make(map[string]interface{})
+	row := NewRow()
 	//row.primaryKeyValue = t.primaryColumnName
 	if err := json.Unmarshal(byteData, &row.Cells); err != nil {
 		return out, err
@@ -1039,7 +1053,7 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, err error) {
 func (t *Table) Delete(u *SWARMDBUser, key string) (ok bool, err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Delete|%s", key))
 	primaryColumnName := t.primaryColumnName
-	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
+	k := StringToKey(t.columns[primaryColumnName].columnType, key)
 	ok = false
 	for _, ip := range t.columns {
 		ok2, err := ip.dbaccess.Delete(u, k)

@@ -287,7 +287,8 @@ type SWARMDBUser struct {
 }
 
 //for comparing rows in two different sets of data
-func checkDuplicateRow(row1 Row, row2 Row) bool {
+//only 1 cell in the row has to be different in order for the rows to be different
+func isDuplicateRow(row1 Row, row2 Row) bool {
 
 	//if row1.primaryKeyValue == row2.primaryKeyValue {
 	//	return true
@@ -295,22 +296,23 @@ func checkDuplicateRow(row1 Row, row2 Row) bool {
 
 	for k1, r1 := range row1.Cells {
 		if _, ok := row2.Cells[k1]; !ok {
-			return true
+			return false
 		}
 		if r1 != row2.Cells[k1] {
-			return true
-		}
-	}
-	for k2, r2 := range row2.Cells {
-		if _, ok := row1.Cells[k2]; !ok {
-			return true
-		}
-		if r2 != row1.Cells[k2] {
-			return true
+			return false
 		}
 	}
 
-	return false
+	for k2, r2 := range row2.Cells {
+		if _, ok := row1.Cells[k2]; !ok {
+			return false
+		}
+		if r2 != row1.Cells[k2] {
+			return false
+		}
+	}
+
+	return true
 }
 
 //gets data (Row.Cells) out of a slice of Rows, and rtns as one json.
@@ -392,7 +394,7 @@ func ConvertStringToColumnType(in string) (out ColumnType, err error) {
 	return out, fmt.Errorf("columntype %s not found", in) //KeyNotFoundError?
 }
 
-func convertStringToKey(columnType ColumnType, key string) (k []byte) {
+func StringToKey(columnType ColumnType, key string) (k []byte) {
 	k = make([]byte, 32)
 	switch columnType {
 	case CT_INTEGER:
