@@ -99,10 +99,9 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 		}
 		fmt.Printf("\nNumber of rows scanned: %d for column [%s]", len(colRows), column.ColumnName)
 		for _, colRow := range colRows {
-			dupe := false
+			//dupe := false
 			for _, row := range rawRows {
 				if checkDuplicateRow(row, colRow) {
-					dupe = true
 					break
 				} else {
 					rawRows = append(rawRows, colRow)
