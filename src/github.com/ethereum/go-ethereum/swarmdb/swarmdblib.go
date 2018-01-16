@@ -46,6 +46,7 @@ func NewGoClient() {
 		// fmt.Printf("SUCCESS CREATE TABLE\n")
 	}
 	nrows := 5
+/*
 	for i := 0; i < nrows; i++ {
 		row := NewRow()
 		row.Set("email", fmt.Sprintf("test%03d@wolk.com", i))
@@ -57,7 +58,7 @@ func NewGoClient() {
 			// fmt.Printf("SUCCESS PUT %v %s\n", row, resp)
 		}
 	}
-
+*/
 	for i := 0; i < nrows; i++ {
 		key := fmt.Sprintf("test%03d@wolk.com", i)
 		row, err := tbl.Get(key)
@@ -245,7 +246,7 @@ func (t *SWARMDBTable) Close() {
 	// create request
 	// send to server
 }
-
+/*
 func NewRow() (r *Row) {
 	r = new(Row)
 	r.Cells = make(map[string]interface{})
@@ -256,3 +257,4 @@ func (r *Row) Set(columnName string, val string) (err error) {
 	r.Cells[columnName] = val
 	return nil
 }
+*/
