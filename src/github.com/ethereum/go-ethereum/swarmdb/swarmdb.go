@@ -670,7 +670,9 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 			records := 0
 			for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
 				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(column.columnType, k), v)
-				// put this into "Row" form
+				row := NewRow()
+				row.Set(KeyToString(column.columnType, k), v)
+				rows = append(rows, row)
 				records++
 			}
 		}
@@ -682,7 +684,9 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 			records := 0
 			for k, v, err := res.Prev(u); err == nil; k, v, err = res.Prev(u) {
 				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(column.columnType, k), v)
-				// put this into "Row" form
+				row := NewRow()
+				row.Set(KeyToString(column.columnType, k), v)
+				rows = append(rows, row)
 				records++
 			}
 		}

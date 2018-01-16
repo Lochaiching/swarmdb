@@ -50,13 +50,15 @@ type SWARMDBConnection struct {
 }
 
 type SWARMDBTable struct {
-	dbc       *SWARMDBConnection
-	tableName string
+	dbc         *SWARMDBConnection
+	tableName   string
+	encrypted   int //means all transactions on the table are encrypted
+	replication int
 }
 
-type SWARMDBRow struct {
-	cells map[string]string `json:"cells,omitempty"`
-}
+//type SWARMDBRow struct {
+//	cells map[string]string `json:"cells,omitempty"`
+//}
 
 type NetstatFile struct {
 	NodeID        string
@@ -156,6 +158,16 @@ type Table struct {
 type Row struct {
 	//primaryKeyValue interface{}
 	Cells map[string]interface{}
+}
+
+func NewRow() (r Row) {
+	//r = new(Row)
+	r.Cells = make(map[string]interface{})
+	return r
+}
+
+func (r Row) Set(columnName string, val interface{}) {
+	r.Cells[columnName] = val
 }
 
 type DBChunkstorage interface {
