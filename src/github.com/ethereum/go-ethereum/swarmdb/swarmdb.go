@@ -85,7 +85,6 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 
 // parse sql and return rows in bulk (order by, group by, etc.)
 func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row, err error) {
-
 	table, err := self.GetTable(u, query.TableOwner, query.Table)
 	if err != nil {
 		return rows, err
@@ -93,32 +92,30 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 
 	var rawRows []Row
 	for _, column := range query.RequestColumns {
-
 		colRows, err := self.Scan(u, query.TableOwner, query.Table, column.ColumnName, query.Ascending)
 		if err != nil {
-			fmt.Printf("err from self.Scan in QuerySelect\n")
+			fmt.Printf("\nError Scanning table [%s] : [%s]", query.Table, err)
 			return rows, err
 		}
 		fmt.Printf("QuerySelect scanned rows: %+v\n", colRows)
+		fmt.Printf("\nNumber of rows scanned: %d for column [%s]", len(colRows), column.ColumnName)
 		for _, colRow := range colRows {
-			dupe := false
 			for _, row := range rawRows {
 				if isDuplicateRow(row, colRow) {
 					fmt.Printf("QS: found duped row! %+v\n", row)
-					dupe = true
-					break
+				} else {
+					rawRows = append(rawRows, colRow)
 				}
-			}
-			if dupe == false {
-				rawRows = append(rawRows, colRow)
 			}
 		}
 	}
+	fmt.Printf("\nNumber of RAW rows returned : %d", len(rawRows))
 
 	//apply WHERE
 	whereRows, err := table.applyWhere(rawRows, query.Where)
 	fmt.Printf("QuerySelect applied where rows: %+v\n", whereRows)
 
+	fmt.Printf("\nNumber of WHERE rows returned : %d", len(whereRows))
 	//filter for requested columns
 	for _, row := range whereRows {
 		fmt.Printf("QS b4 filterRowByColumns row: %+v\n", row)
@@ -128,6 +125,7 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 			rows = append(rows, fRow)
 		}
 	}
+	fmt.Printf("\nNumber of FINAL rows returned : %d", len(rows))
 
 	//TODO: Put it in order for Ascending/GroupBy
 	fmt.Printf("QS returning: %+v\n", rows)
@@ -149,7 +147,8 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error)
 			return fmt.Errorf("Insert row %+v needs primary column '%s' value", row, table.primaryColumnName)
 		}
 		//check if Row already exists
-		existingByteRow, err := table.Get(u, row.Cells[table.primaryColumnName].(string))
+		convertedKey, _ := convertJSONValueToKey(table.columns[table.primaryColumnName].columnType, row.Cells[table.primaryColumnName])
+		existingByteRow, err := table.Get(u, convertedKey)
 		if err != nil {
 			existingRow, _ := table.byteArrayToRow(existingByteRow)
 			return fmt.Errorf("Insert row key %s already exists: %+v", row.Cells[table.primaryColumnName], existingRow)
@@ -422,6 +421,10 @@ func (self *SwarmDB) Scan(u *SWARMDBUser, tableOwnerID string, tableName string,
 	tblKey := self.GetTableKey(tableOwnerID, tableName)
 	if tbl, ok := self.tables[tblKey]; ok {
 		rows, err = tbl.Scan(u, columnName, ascending)
+		if err != nil {
+			fmt.Printf("\nError doing table scan: [%s]", err)
+			return rows, err
+		}
 	} else {
 		return rows, fmt.Errorf("No such table to scan %s - %s", tableOwnerID, tableName)
 	}
@@ -498,7 +501,11 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		ret, err := tbl.Get(u, d.Key)
+		convertedKey, err := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, d.Key)
+		if err != nil {
+			return resp, err
+		}
+		ret, err := tbl.Get(u, convertedKey)
 		if err != nil {
 			return resp, err
 		} else {
@@ -602,7 +609,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			//checking if the query is just a primary key Get
 			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
 				fmt.Printf("Calling Get from Query\n")
-				byteRow, err := tbl.Get(u, query.Where.Right)
+				convertedKey, _ := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, query.Where.Right)
+
+				byteRow, err := tbl.Get(u, convertedKey)
 				if err != nil {
 					fmt.Printf("Error Calling Get from Query [%s]\n", err)
 					return resp, err
@@ -670,12 +679,15 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 	if ascending == 1 {
 		res, err := c.SeekFirst(u)
 		if err != nil {
+			fmt.Printf("\nError in table.Scan: ", err)
 		} else {
 			records := 0
 			for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
-				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(CT_STRING, k), KeyToString(column.columnType, v))
-				row := NewRow()
-				row.Set(KeyToString(CT_STRING, k), KeyToString(column.columnType, v))
+				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(column.columnType, k), v)
+				row, err := t.byteArrayToRow(v)
+				if err != nil {
+					return rows, err
+				}
 				fmt.Printf("table Scan, row set: %+v\n", row)
 				rows = append(rows, row)
 				records++
@@ -684,12 +696,15 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 	} else {
 		res, err := c.SeekLast(u)
 		if err != nil {
+			fmt.Printf("\nError in table.Scan: ", err)
 		} else {
 			records := 0
 			for k, v, err := res.Prev(u); err == nil; k, v, err = res.Prev(u) {
 				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(CT_STRING, k), KeyToString(column.columnType, v))
-				row := NewRow()
-				row.Set(KeyToString(CT_STRING, k), KeyToString(column.columnType, v))
+				row, err := t.byteArrayToRow(v)
+				if err != nil {
+					return rows, err
+				}
 				fmt.Printf("table Scan, row set: %+v\n", row)
 				rows = append(rows, row)
 				records++
@@ -994,8 +1009,7 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 }
 
 func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
-	var row Row
-	row.Cells = make(map[string]interface{})
+	row := NewRow()
 	//row.primaryKeyValue = t.primaryColumnName
 	if err := json.Unmarshal(byteData, &row.Cells); err != nil {
 		return out, err
@@ -1003,7 +1017,7 @@ func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	return row, nil
 }
 
-func (t *Table) Get(u *SWARMDBUser, key string) (out []byte, err error) {
+func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Get|%s", key))
 	primaryColumnName := t.primaryColumnName
 	if t.columns[primaryColumnName] == nil {
@@ -1015,10 +1029,8 @@ func (t *Table) Get(u *SWARMDBUser, key string) (out []byte, err error) {
 	}
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
 	fmt.Printf("\n GET key: (%s)%v\n", key, key)
-	k := StringToKey(t.columns[primaryColumnName].columnType, key)
-	fmt.Printf("\n GET k: (%s)%v\n", k, k)
 
-	v, _, err2 := t.columns[primaryColumnName].dbaccess.Get(u, k)
+	v, _, err2 := t.columns[primaryColumnName].dbaccess.Get(u, key)
 	fmt.Printf("\n v retrieved from db traversal get = %s", v)
 	if err2 != nil {
 		fmt.Printf("\nError traversing tree: %s", err.Error())
@@ -1026,7 +1038,7 @@ func (t *Table) Get(u *SWARMDBUser, key string) (out []byte, err error) {
 	}
 	if len(v) > 0 {
 		// get value from kdb
-		kres, err3 := t.swarmdb.kaddb.GetByKey(u, k)
+		kres, err3 := t.swarmdb.kaddb.GetByKey(u, key)
 		if err3 != nil {
 			return out, err3
 		}

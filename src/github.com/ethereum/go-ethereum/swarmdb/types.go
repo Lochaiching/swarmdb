@@ -34,6 +34,7 @@ type RequestOption struct {
 	Bid         float64 `json:"bid,omitempty"`
 	Replication int     `json:"replication,omitempty"`
 	Key         string  `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
+	//TODO: Key should be a byte array or interface
 	// Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Rows     []Row    `json:"rows,omitempty"` //value of val, usually the whole json record
 	Columns  []Column `json:"columns,omitempty"`

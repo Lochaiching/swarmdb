@@ -9,6 +9,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "swarmdb.js": "0.0.3"
+    "swarmdb.js": "0.0.4-alpha.1"
   }
 }
