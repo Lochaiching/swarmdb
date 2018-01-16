@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+        "github.com/ethereum/go-ethereum/swarmdb"
 )
 
 // Handler for storage/retrieval related protocol requests
@@ -32,25 +33,19 @@ type Depo struct {
 	hashfunc   storage.Hasher
 	localStore storage.ChunkStore
 	netStore   storage.ChunkStore
-	manifestStore	*storage.LDBDatabase
+	sdbStore   *swarmdb.SwarmDB // will be change to ChunkStore
+	//sdbStore   storage.ChunkStore
 }
 
-func NewDepo(hash storage.Hasher, localStore, remoteStore storage.ChunkStore) *Depo {
+func NewDepo(hash storage.Hasher, localStore, remoteStore storage.ChunkStore, sdbStore *swarmdb.SwarmDB) *Depo {
 	return &Depo{
 		hashfunc:   hash,
 		localStore: localStore,
 		netStore:   remoteStore, // entrypoint internal
+		sdbStore:   sdbStore, 	//will be changed to ChunkStore 
 	}
 }
 
-func NewDepoTest(hash storage.Hasher, localStore, remoteStore storage.ChunkStore, ldb *storage.LDBDatabase) *Depo {
-	return &Depo{
-		hashfunc:   hash,
-		localStore: localStore,
-		netStore:   remoteStore, // entrypoint internal
-		manifestStore: 	ldb, 
-	}
-}
 
 // Handles UnsyncedKeysMsg after msg decoding - unsynced hashes upto sync state
 // * the remote sync state is just stored and handled in protocol
@@ -64,14 +59,22 @@ func (self *Depo) HandleUnsyncedKeysMsg(req *unsyncedKeysMsgData, p *peer) error
 	var chunk *storage.Chunk
 	var err error
 	for _, req := range unsynced {
-		// skip keys that are found,
-		chunk, err = self.localStore.Get(storage.Key(req.Key[:]))
-		if err != nil || chunk.SData == nil {
-			missing = append(missing, req)
+		log.Trace(fmt.Sprintf("Depo.HandleUnsyncedKeysMsg: received req %v %v", req, req.Key))
+		if req.Priority == 3{
+///// Mayumi : need to implement to store data to swarmdb
+			ret, _, err := self.sdbStore.RetrieveDB([]byte(req.Key))
+			if err != nil || ret == nil{
+				missing = append(missing, req)
+			}
+		} else {
+			// skip keys that are found,
+			chunk, err = self.localStore.Get(storage.Key(req.Key[:]))
+			if err != nil || chunk.SData == nil {
+				missing = append(missing, req)
+			}
 		}
 	}
 	log.Debug(fmt.Sprintf("Depo.HandleUnsyncedKeysMsg: received %v unsynced keys: %v missing. new state: %v", len(unsynced), len(missing), req.State))
-	log.Trace(fmt.Sprintf("Depo.HandleUnsyncedKeysMsg: received %v", unsynced))
 	// send delivery request with missing keys
 	err = p.deliveryRequest(missing)
 	if err != nil {
@@ -89,6 +92,8 @@ func (self *Depo) HandleUnsyncedKeysMsg(req *unsyncedKeysMsgData, p *peer) error
 // * the message implies remote peer wants more, so trigger for
 // * new outgoing unsynced keys message is fired
 func (self *Depo) HandleDeliveryRequestMsg(req *deliveryRequestMsgData, p *peer) error {
+	log.Trace(fmt.Sprintf("Depo.HandleDeliveryRequestMsg: req %v ", req))
+
 	deliver := req.Deliver
 	// queue the actual delivery of a chunk ()
 	log.Trace(fmt.Sprintf("Depo.HandleDeliveryRequestMsg: received %v delivery requests: %v", len(deliver), deliver))
@@ -152,6 +157,60 @@ func (self *Depo) HandleStoreRequestMsg(req *storeRequestMsgData, p *peer) {
 	chunk.Source = p
 	self.netStore.Put(chunk)
 }
+
+func (self *Depo) HandleSdbStoreRequestMsg(req *sDBStoreRequestMsgData, p *peer) {
+        //var islocal bool
+        req.from = p
+        _, err := self.sdbStore.RetrieveDBChunk(req.Key)
+	if err != nil{
+        	self.sdbStore.StoreKDBChunk([]byte(req.Key), req.SData)
+	}
+	ts := time.Now()
+        go self.sdbStore.SwarmStore.StoreDB([]byte(req.Key), req.SData, &ts)
+		
+/*
+        switch {
+        case err != nil:
+                log.Trace(fmt.Sprintf("Depo.handleStoreRequest: %v not found locally. create new chunk/request", req.Key))
+                // not found in memory cache, ie., a genuine store request
+                // create chunk
+                chunk = storage.NewChunk(req.Key, nil)
+
+        case chunk.SData == nil:
+                // found chunk in memory store, needs the data, validate now
+                log.Trace(fmt.Sprintf("Depo.HandleStoreRequest: %v. request entry found", req))
+
+        default:
+                // data is found, store request ignored
+                // this should update access count?
+                log.Trace(fmt.Sprintf("Depo.HandleStoreRequest: %v found locally. ignore.", req))
+                islocal = true
+                //return
+        }
+
+        hasher := self.hashfunc()
+        hasher.Write(req.SData)
+        log.Trace(fmt.Sprintf("Depo.HandleStoreRequest: SData: %v %v", req.SData, req))
+
+        if !bytes.Equal(hasher.Sum(nil), req.Key) {
+                // data does not validate, ignore
+                // TODO: peer should be penalised/dropped?
+                log.Warn(fmt.Sprintf("Depo.HandleStoreRequest: chunk invalid. store request ignored: %v", req))
+                return
+        }
+
+        if islocal {
+                return
+        }
+        // update chunk with size and data
+        chunk.SData = req.SData // protocol validates that SData is minimum 9 bytes long (int64 size  + at least one byte of data)
+        chunk.Size = int64(binary.LittleEndian.Uint64(req.SData[0:8]))
+        log.Trace(fmt.Sprintf("delivery of %v from %v", chunk, p))
+        chunk.Source = p
+*/
+}
+
+
 
 /// it accept only <4k byte data
 func (self *Depo) HandleStoreRequestDBMsg(req *storeRequestDBMsgData, p *peer) {

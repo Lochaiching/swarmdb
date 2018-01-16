@@ -1,7 +1,7 @@
 package swarmdb
 
 import (
-	"bytes"
+	//"bytes"
 	"crypto/sha256"
 	"database/sql"
 	//"encoding/binary"
@@ -9,6 +9,10 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
+	"github.com/ethereum/go-ethereum/swarm/storage"
+	//"github.com/ethereum/go-ethereum/swarm/network"
+        "github.com/ethereum/go-ethereum/log"
+
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
 	"math/big"
@@ -165,7 +169,7 @@ func (self *DBChunkstore) Flush() (err error) {
 	return nil
 }
 
-func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
+func NewDBChunkStore(path string, cloud storage.CloudStore) (self *DBChunkstore, err error) {
 	ts := time.Now()
 	claim := make(map[string]*big.Int)
 	chunkstat := map[string]*big.Int{"ChunkR": big.NewInt(0), "ChunkW": big.NewInt(0), "ChunkS": big.NewInt(0), "ChunkRL": big.NewInt(0), "ChunkWL": big.NewInt(0), "ChunkSL": big.NewInt(0)}
@@ -235,18 +239,19 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 		netstat:  &netstat,
 		filepath: path,
 		statpath: "netstat.json",
+		cloud:    cloud,
 	}
 	return
 }
 
-func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
+func LoadDBChunkStore(path string, cloud storage.CloudStore) (self *DBChunkstore, err error) {
 	var data []byte
 	defaultDBPath := "netstat.json"
 
 	data, err = ioutil.ReadFile(defaultDBPath)
 	if err != nil {
 		fmt.Printf("Error in Loading netStat from %s.. generating new Log instead\n", defaultDBPath)
-		self, _ = NewDBChunkStore(path)
+		self, _ = NewDBChunkStore(path, cloud)
 		return self, nil
 
 	}
@@ -258,7 +263,7 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 
 	if err != nil {
 		fmt.Printf("Error in Parsing netStat new Log created\n => %s\n", err)
-		self, _ = NewDBChunkStore(path)
+		self, _ = NewDBChunkStore(path, cloud)
 		return self, nil
 	}
 
@@ -314,6 +319,20 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err er
 	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
 	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
+/*
+        rows, err := self.db.Query("SELECT chunkBirthDT FROM chunk where chunkkey = k")
+        defer rows.Close()
+        var bts time.Time
+        for rows.Next() {
+                err = rows.Scan(&bts)
+                if err != nil {
+                        fmt.Printf("\nError Get birthDT: [%s]", err)
+                }
+        }
+*/
+	bts := ts
+log.Debug(fmt.Sprintf("dbchunkstore StoreKChunk calling storeDB %v %v %v", k,  v, bts))
+        self.cloud.StoreDB(k, v, &bts)
 	return nil
 }
 
@@ -345,11 +364,14 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 		if err2 != nil {
 			return nil, err2
 		}
+/*
 		//fmt.Printf("\nQuery Key: [%x], [%s], [%s], [%s] with VAL: [%+v]", kV, bdt, sdt, enc, val)
 		jsonRecord := val[577:]
 		trimmedJson := bytes.TrimRight(jsonRecord, "\x00")
 		decVal := self.km.DecryptData(trimmedJson)
 		decVal = bytes.TrimRight(decVal, "\x00")
+*/
+		decVal := val
 		self.netstat.LReadDT = &ts
 		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
 		return decVal, nil
@@ -386,6 +408,20 @@ func (self *DBChunkstore) StoreChunk(v []byte, encrypted int) (k []byte, err err
 	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
 	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
+	bts := ts
+/*
+	rows, err := self.db.Query("SELECT chunkBirthDT FROM chunk where chunkkey = k")
+	defer rows.Close()
+	var bts time.Time
+	for rows.Next() {
+		err = rows.Scan(&bts)
+		if err != nil {
+			fmt.Printf("\nError Get birthDT: [%s]", err)
+		}
+	}
+*/
+log.Debug(fmt.Sprintf("dbchunkstore calling storeDB %v %v %v", k,  v, bts))
+	self.cloud.StoreDB(k, v, &bts)
 	return k, nil
 }
 
@@ -419,6 +455,38 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 	}
 	return val, nil
 }
+
+func (self *DBChunkstore) RetrieveChunkTest(key []byte) (val []byte, err error) {
+        ts := time.Now()
+        val = make([]byte, 8192)
+        sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
+        stmt, err := self.db.Prepare(sql)
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return val, err
+        }
+        defer stmt.Close()
+
+        rows, err := stmt.Query(key)
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return nil, err
+        }
+        defer rows.Close()
+
+        for rows.Next() {
+                err2 := rows.Scan(&val)
+                if err2 != nil {
+                        return nil, err2
+                }
+                decVal := self.km.DecryptData(val)
+                self.netstat.LReadDT = &ts
+                self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
+                return decVal, nil
+        }
+        return val, nil
+}
+
 
 func valid_type(typ string) (valid bool) {
 	if typ == "X" || typ == "D" || typ == "H" || typ == "K" || typ == "C" {
@@ -580,4 +648,34 @@ func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 	} else {
 		return string(output), nil
 	}
+}
+
+func (self *DBChunkstore) RetrieveDB(key []byte) (val []byte, option *dData, err error){
+        sql := `SELECT chunkKey, chunkVal, chunkBirthDT FROM chunk WHERE chunkKey = $1`
+        stmt, err := self.db.Prepare(sql)
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return nil, nil, err
+        }
+        defer stmt.Close()
+
+        rows, err := stmt.Query(key)
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return nil, nil, err
+        }
+        defer rows.Close()
+
+        for rows.Next() {
+                var kV []byte
+                var bdt time.Time
+
+                err = rows.Scan(&kV, &val, &bdt)
+		if kV != nil {
+			opt := new(dData)
+			opt.birthDT = bdt
+			return val, opt, err
+		}
+	}
+	return nil, nil, err
 }

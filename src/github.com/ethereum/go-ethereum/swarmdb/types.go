@@ -10,6 +10,7 @@ import (
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
+	"github.com/ethereum/go-ethereum/swarm/storage"
 	"math"
 	"math/big"
 	"net"
@@ -80,6 +81,7 @@ type DBChunkstore struct {
 	netstat  *NetstatFile
 	filepath string
 	statpath string
+	cloud    storage.CloudStore
 }
 
 type ENSSimulation struct {
@@ -107,6 +109,7 @@ type SwarmDB struct {
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
 	kaddb        *KademliaDB
+	SwarmStore   storage.CloudStore
 }
 
 //for sql parsing
@@ -231,6 +234,10 @@ const (
 	IT_FULLTEXT    = 3
 	IT_FRACTALTREE = 4
 )
+
+type dData struct{
+	birthDT	time.Time
+}
 
 //for comparing rows in two different sets of data
 func checkDuplicateRow(row1 Row, row2 Row) bool {

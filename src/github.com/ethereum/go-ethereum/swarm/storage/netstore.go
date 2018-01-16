@@ -51,6 +51,7 @@ type NetStore struct {
 // bzz/network/forwarder. forwarder or IPFS or IPΞS
 type CloudStore interface {
 	Store(*Chunk)
+	StoreDB([]byte, []byte, *time.Time)
 	Deliver(*Chunk)
 	Retrieve(*Chunk)
 }
@@ -114,6 +115,11 @@ func (self *NetStore) Put(entry *Chunk) {
 		go self.cloud.Store(entry)
 	}
 }
+
+func (self *NetStore) PutDB(k, v []byte, ts *time.Time) {
+	self.cloud.StoreDB(k, v, ts)
+}
+
 
 // retrieve logic common for local and network chunk retrieval requests
 func (self *NetStore) Get(key Key) (*Chunk, error) {

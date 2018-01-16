@@ -7,16 +7,19 @@ import (
 	//"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
+	elog "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/swarm/storage"
 	"reflect"
 	"strconv"
 )
 
-func NewSwarmDB() *SwarmDB {
+func NewSwarmDB(cloud storage.CloudStore) *SwarmDB {
 	sd := new(SwarmDB)
+	sd.SwarmStore = cloud
 
 	// ownerID, tableName => *Table
 	sd.tables = make(map[string]*Table)
-	dbchunkstore, err := NewDBChunkStore("/tmp/chunk.db")
+	dbchunkstore, err := NewDBChunkStore("/tmp/chunk.db", cloud)
 	if err != nil {
 		// TODO: PANIC
 		fmt.Printf("NO CHUNK STORE!\n")
@@ -48,9 +51,17 @@ func (self *SwarmDB) RetrieveKDBChunk(key []byte) (val []byte, err error) {
 	return self.dbchunkstore.RetrieveKChunk(key)
 }
 
-/*
 func (self *SwarmDB) StoreKDBChunk(key []byte, val []byte) (err error) {
-	return self.dbchunkstore.StoreKChunk(key, val)
+	return self.dbchunkstore.StoreKChunk(key, val, 0)
+}
+
+func (self *SwarmDB) RetrieveDB(key []byte) (val []byte, options *dData, err error){
+	return self.dbchunkstore.RetrieveDB(key)
+}
+
+/*
+func (self *SwarmDB) StoreDB(key []byte, val []byte, options *dData) (err error){
+	return self.dbchunkstore.StoreDB(key, val, options)
 }
 */
 
@@ -59,7 +70,7 @@ func (self SwarmDB) PrintDBChunk(columnType ColumnType, hashid []byte, c []byte)
 }
 
 func (self SwarmDB) RetrieveDBChunk(key []byte) (val []byte, err error) {
-	val, err = self.dbchunkstore.RetrieveChunk(key)
+	val, err = self.dbchunkstore.RetrieveChunkTest(key)
 	return val, err
 }
 
@@ -450,6 +461,8 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 	}
 
 	tblKey := self.GetTableKey(d.Owner, d.Table)
+        elog.Debug(fmt.Sprintf("swarmdb SelectHandler"))
+
 
 	switch d.RequestType {
 	case "CreateTable":
@@ -463,9 +476,12 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 		}
 		return "ok", err
 	case "Put":
+		_, err := self.CreateTable(ownerID, d.Table, d.Columns, d.Encrypted)
+        elog.Debug(fmt.Sprintf("swarmdb SelectHandler Put create table %v", err))
 		tbl, err := self.GetTable(ownerID, d.Table)
 		if err != nil {
 			fmt.Printf("err1: %s\n", err)
+        elog.Debug(fmt.Sprintf("swarmdb SelectHandler Put err %v", err))
 			return resp, err
 		} else {
 			err2 := tbl.Put(d.Rows[0].Cells)
@@ -473,6 +489,7 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 				fmt.Printf("Err putting: %s", err2)
 				return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
 			} else {
+        elog.Debug(fmt.Sprintf("swarmdb SelectHandler Put ok"))
 				return "ok", nil
 			}
 		}
@@ -846,6 +863,7 @@ func convertMapValuesToStrings(in map[string]interface{}) map[string]string {
 }
 
 func (t *Table) Put(row map[string]interface{}) (err error) {
+        elog.Debug(fmt.Sprintf("swarmdb Tree Put %v", t))
 
 	jsonrecord := convertMapValuesToStrings(row)
 
@@ -858,15 +876,19 @@ func (t *Table) Put(row map[string]interface{}) (err error) {
 	k := make([]byte, 32)
 
 	for _, c := range t.columns {
+        elog.Debug(fmt.Sprintf("swarmdb Tree Put column %v", c))
 		//fmt.Printf("\nProcessing a column %s and primary is %d", c.columnName, c.primary)
 		if c.primary > 0 {
+        elog.Debug(fmt.Sprintf("swarmdb Tree Put column %v", c))
 			if pvalue, ok := jsonrecord[t.primaryColumnName]; ok {
 				k, _ = convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, pvalue)
 			} else {
 				return fmt.Errorf("\nPrimary key %s not specified in input", t.primaryColumnName)
 			}
 			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
+        elog.Debug(fmt.Sprintf("swarmdb Tree Put kaddb %v", k))
 			khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
+        elog.Debug(fmt.Sprintf("swarmdb Tree Put kaddb done %v", khash))
 			if err != nil {
 				fmt.Errorf("\nKademlia Put Failed")
 				// TODO
