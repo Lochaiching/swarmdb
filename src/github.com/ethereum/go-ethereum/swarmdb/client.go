@@ -41,11 +41,11 @@ func CreateTable(indextype string, table string, primarykey string, columntype m
 	//primary key generation
 	var primarycol Column
 	primarycol.ColumnName = primarykey
-	primarycol.IndexType, err = convertStringToIndexType(indextype)
+	primarycol.IndexType, err = ConvertStringToIndexType(indextype)
 	if err != nil {
 		return err
 	}
-	primarycol.ColumnType, _ = convertStringToColumnType(columntype[primarykey])
+	primarycol.ColumnType, _ = ConvertStringToColumnType(columntype[primarykey])
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func CreateTable(indextype string, table string, primarykey string, columntype m
 		if col != primarykey {
 			var secondarycol Column
 			secondarycol.ColumnName = col
-			secondarycol.ColumnType, err = convertStringToColumnType(coltype)
+			secondarycol.ColumnType, err = ConvertStringToColumnType(coltype)
 			if err != nil {
 				return err
 			}
