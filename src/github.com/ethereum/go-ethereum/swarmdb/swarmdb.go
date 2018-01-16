@@ -97,7 +97,7 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 			fmt.Printf("\nError Scanning table [%s] : [%s]",query.Table, err)
 			return rows, err
 		}
-		fmt.Printf("\nNumber of rows scanned: %d", len(colRows))
+		fmt.Printf("\nNumber of rows scanned: %d for column [%s]", len(colRows), column.ColumnName)
 		for _, colRow := range colRows {
 			dupe := false
 			for _, row := range rawRows {
@@ -111,10 +111,12 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 			}
 		}
 	}
+	fmt.Printf("\nNumber of RAW rows returned : %d", len(rawRows)
 
 	//apply WHERE
 	whereRows, err := table.applyWhere(rawRows, query.Where)
 
+	fmt.Printf("\nNumber of WHERE rows returned : %d", len(whereRows)
 	//filter for requested columns
 	for _, row := range whereRows {
 		fRow := filterRowByColumns(&row, query.RequestColumns)
@@ -122,6 +124,7 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 			rows = append(rows, fRow)
 		}
 	}
+	fmt.Printf("\nNumber of FINAL rows returned : %d", len(fRows)
 
 	//TODO: Put it in order for Ascending/GroupBy
 
@@ -417,6 +420,10 @@ func (self *SwarmDB) Scan(u *SWARMDBUser, tableOwnerID string, tableName string,
 	tblKey := self.GetTableKey(tableOwnerID, tableName)
 	if tbl, ok := self.tables[tblKey]; ok {
 		rows, err = tbl.Scan(u, columnName, ascending)
+		if err != nil {
+			fmt.Printf("\nError doing table scan: [%s]", err)
+			return rows, err
+		}
 	} else {
 		return rows, fmt.Errorf("No such table to scan %s - %s", tableOwnerID, tableName)
 	}
