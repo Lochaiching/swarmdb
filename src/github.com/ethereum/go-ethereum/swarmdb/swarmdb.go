@@ -85,7 +85,6 @@ func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err erro
 
 // parse sql and return rows in bulk (order by, group by, etc.)
 func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row, err error) {
-
 	table, err := self.GetTable(u, query.TableOwner, query.Table)
 	if err != nil {
 		return rows, err
@@ -93,7 +92,6 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 
 	var rawRows []Row
 	for _, column := range query.RequestColumns {
-
 		colRows, err := self.Scan(u, query.TableOwner, query.Table, column.ColumnName, query.Ascending)
 		if err != nil {
 			return rows, err
@@ -143,7 +141,8 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error)
 			return fmt.Errorf("Insert row %+v needs primary column '%s' value", row, table.primaryColumnName)
 		}
 		//check if Row already exists
-		existingByteRow, err := table.Get(u, row.Cells[table.primaryColumnName].(string))
+		convertedKey,_ := convertJSONValueToKey(table.columns[table.primaryColumnName].columnType, row.Cells[table.primaryColumnName])
+		existingByteRow, err := table.Get(u, convertedKey)
 		if err != nil {
 			existingRow, _ := table.byteArrayToRow(existingByteRow)
 			return fmt.Errorf("Insert row key %s already exists: %+v", row.Cells[table.primaryColumnName], existingRow)
@@ -491,7 +490,8 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		ret, err := tbl.Get(u, d.Key)
+		convertedKey,_ := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, d.Key)
+		ret, err := tbl.Get(u, convertedKey)
 		if err != nil {
 			return resp, err
 		} else {
@@ -595,7 +595,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			//checking if the query is just a primary key Get
 			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
 				fmt.Printf("Calling Get from Query\n")
-				byteRow, err := tbl.Get(u, query.Where.Right)
+				convertedKey,_ := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, query.Where.Right)
+
+				byteRow, err := tbl.Get(u, convertedKey)
 				if err != nil {
 					fmt.Printf("Error Calling Get from Query [%s]\n", err)
 					return resp, err
@@ -663,6 +665,7 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 	if ascending == 1 {
 		res, err := c.SeekFirst(u)
 		if err != nil {
+			fmt.Printf("\nError in table.Scan: ", err)
 		} else {
 			records := 0
 			for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
@@ -674,6 +677,7 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 	} else {
 		res, err := c.SeekLast(u)
 		if err != nil {
+			fmt.Printf("\nError in table.Scan: ", err)
 		} else {
 			records := 0
 			for k, v, err := res.Prev(u); err == nil; k, v, err = res.Prev(u) {
@@ -989,7 +993,7 @@ func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	return row, nil
 }
 
-func (t *Table) Get(u *SWARMDBUser, key string) (out []byte, err error) {
+func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Get|%s", key))
 	primaryColumnName := t.primaryColumnName
 	if t.columns[primaryColumnName] == nil {
@@ -1001,10 +1005,8 @@ func (t *Table) Get(u *SWARMDBUser, key string) (out []byte, err error) {
 	}
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
 	fmt.Printf("\n GET key: (%s)%v\n", key, key)
-	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
-	fmt.Printf("\n GET k: (%s)%v\n", k, k)
 
-	v, _, err2 := t.columns[primaryColumnName].dbaccess.Get(u, k)
+	v, _, err2 := t.columns[primaryColumnName].dbaccess.Get(u, key)
 	fmt.Printf("\n v retrieved from db traversal get = %s", v)
 	if err2 != nil {
 		fmt.Printf("\nError traversing tree: %s", err.Error())
@@ -1012,7 +1014,7 @@ func (t *Table) Get(u *SWARMDBUser, key string) (out []byte, err error) {
 	}
 	if len(v) > 0 {
 		// get value from kdb
-		kres, err3 := t.swarmdb.kaddb.GetByKey(u, k)
+		kres, err3 := t.swarmdb.kaddb.GetByKey(u, key)
 		if err3 != nil {
 			return out, err3
 		}
