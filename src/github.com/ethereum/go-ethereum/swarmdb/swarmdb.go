@@ -124,7 +124,7 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 			rows = append(rows, fRow)
 		}
 	}
-	fmt.Printf("\nNumber of FINAL rows returned : %d", len(fRows))
+	fmt.Printf("\nNumber of FINAL rows returned : %d", len(rows))
 
 	//TODO: Put it in order for Ascending/GroupBy
 
