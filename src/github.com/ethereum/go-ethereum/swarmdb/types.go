@@ -324,32 +324,52 @@ func filterRowByColumns(row *Row, columns []Column) (filteredRow Row) {
 	return filteredRow
 }
 
-//used in client.go for user input
-func convertStringToIndexType(in string) (out IndexType, err error) {
+//used in cli for user input
+func ConvertStringToIndexType(in string) (out IndexType, err error) {
 	switch in {
 	case "hashtree":
 		return IT_HASHTREE, nil
+	case "IT_HASHTREE":
+		return IT_HASHTREE, nil
 	case "bplustree":
+		return IT_BPLUSTREE, nil
+	case "IT_BPLUSTREE":
 		return IT_BPLUSTREE, nil
 	case "fulltext":
 		return IT_FULLTEXT, nil
+	case "IT_FULLTEXT":
+		return IT_FULLTEXT, nil
 	case "fractaltree":
 		return IT_FRACTALTREE, nil
+	case "IT_FRACTALTREE":
+		return IT_FRACTALTREE, nil
+	case "":
+		return out, fmt.Errorf("no index found")
 	}
 	return out, fmt.Errorf("index %s not found", in) //KeyNotFoundError?
 }
 
-//used in client.go for user input
-func convertStringToColumnType(in string) (out ColumnType, err error) {
+//used in cli for user input
+func ConvertStringToColumnType(in string) (out ColumnType, err error) {
 	switch in {
 	case "int":
 		return CT_INTEGER, nil
+	case "CT_INTEGER":
+		return CT_INTEGER, nil
 	case "string":
+		return CT_STRING, nil
+	case "CT_STRING":
 		return CT_STRING, nil
 	case "float":
 		return CT_FLOAT, nil
+	case "CT_FLOAT":
+		return CT_FLOAT, nil
 	case "blob":
 		return CT_BLOB, nil
+	case "CT_BLOB":
+		return CT_BLOB, nil
+	case "":
+		return out, fmt.Errorf("no column type found")
 	}
 	return out, fmt.Errorf("columntype %s not found", in) //KeyNotFoundError?
 }
