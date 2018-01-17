@@ -1,3 +1,22 @@
+// Copyright 2018 Wolk Inc. - SWARMDB Working Group
+// This file is part of a SWARMDB fork of the go-ethereum library.
+//
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARM ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
+// KeyManager is used to abstract the Ethereum wallet keystore (a local directory holding raw JSON files) for SWARMDB to:
+// (a) sign and verify messages [e.g. in SWARMDB TCP/IP client-server communications]  with SignMessage and VerifyMessage
+// (b) encrypt and decrypt chunks
 package swarmdb_test
 
 import (
@@ -9,18 +28,19 @@ import (
 	"testing"
 )
 
-func okTestSignVerifyMessage(t *testing.T) {
-
+// Test SignMessage and VerifyMessage
+func TestSignVerifyMessage(t *testing.T) {
+	// signatures are 65 bytes, 130 chars [this one is a bogus signature]
 	sig_bytes, e1 := hex.DecodeString("1f7b169c846f218ab552fa82fbf86758bf5c97d2d2a313e4f95957818a7b3edca492f2b8a67697c4f91d9b9332e8234783de17bd7a25e0a9f6813976eadf26deb5")
 	if e1 != nil {
 		t.Fatal(e1)
 	}
 
+	// challenges are 32 bytes, 64 bytes
 	challenge_bytes, e2 := hex.DecodeString("b0e33f362d4345fe36103d0f62f9ab8e480b0ed4467726b15733afed9a4d4cc1")
 	if e2 != nil {
 		t.Fatal(e2)
 	}
-	fmt.Printf("Sig: %d Chall: %d\n", len(sig_bytes), len(challenge_bytes))
 
 	config, errConfig := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	if errConfig != nil {
@@ -32,7 +52,7 @@ func okTestSignVerifyMessage(t *testing.T) {
 		t.Fatal("Failure to open KeyManager", err)
 	}
 
-	// bogus message
+	// Test if bogus signature is correctly rejected
 	verified0, err2 := km.VerifyMessage(challenge_bytes, sig_bytes)
 	if err2 != nil {
 		fmt.Printf("Correct Reject0\n")
@@ -42,6 +62,7 @@ func okTestSignVerifyMessage(t *testing.T) {
 		t.Fatal("Failure to Reject0: %s", err2)
 	}
 
+	// Test if a valid signture is correctly accepted
 	sig_bytes, e1 = hex.DecodeString("e90b1fe2bde828b08d86d1e399dc74117e9651fcf31c7fc5f63a109c9bde39863c8023c365da027bfc3e5c958e49633d102364fa26007ad285e691071e5cf7bb01")
 	if e1 != nil {
 		t.Fatal(e1)
@@ -52,7 +73,6 @@ func okTestSignVerifyMessage(t *testing.T) {
 		t.Fatal(e2)
 	}
 
-	// real signed message
 	verified1, err3 := km.VerifyMessage(challenge_bytes, sig_bytes)
 	if err3 != nil {
 		t.Fatal(err3)
@@ -62,6 +82,8 @@ func okTestSignVerifyMessage(t *testing.T) {
 		t.Fatal("Failure to Accept1: %s", err2)
 	}
 
+
+	// take a variable length message, hash it into "msg_hash", sign it with SignMessage, and see if it is verified
 	msg := "swarmdb"
 	h256 := sha256.New()
 	h256.Write([]byte(msg))
@@ -80,7 +102,10 @@ func okTestSignVerifyMessage(t *testing.T) {
 	}
 }
 
+// Test the KeyManager EncryptData and DecryptData 
 func TestEncryptDecrypt(t *testing.T) {
+
+	// need a config file with a specific user
 	config, errConfig := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	if errConfig != nil {
 		t.Fatal("Failure to open Config", errConfig)
@@ -95,6 +120,7 @@ func TestEncryptDecrypt(t *testing.T) {
 	r := []byte(msg)
 	u := config.GetSWARMDBUser()
 
+	// encrypt the msg using the specific users secret/private key
 	encData := km.EncryptData(u, r)
 	decData := km.DecryptData(u, encData)
 	a := bytes.Compare(decData, r)
@@ -105,5 +131,4 @@ func TestEncryptDecrypt(t *testing.T) {
 	} else {
 		fmt.Printf("Success %s\n", msg)
 	}
-
 }
