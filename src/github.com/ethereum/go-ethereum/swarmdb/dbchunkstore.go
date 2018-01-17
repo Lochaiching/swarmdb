@@ -219,10 +219,12 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
     );
     `
 	_, err = db.Exec(sql_table)
+	//TODO: confirm _ doesn't need handling/checking
 	if err != nil {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Chunk Table Creation]%s", err.Error())}
 	}
 	_, err = db.Exec(netstat_table)
+	//TODO: confirm _ doesn't need handling/checking
 	if err != nil {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Stat Table Creation]%s", err.Error())}
 	}
@@ -413,6 +415,7 @@ func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) 
 		chunkVal = self.km.EncryptData(u, val)
 	}
 	_, err2 := stmt.Exec(key, chunkVal, encrypted, key, key, u.AutoRenew, u.MinReplication, u.MaxReplication, u.Address, key)
+	//TODO: confirm _ doesn't need handling/checking
 	if err2 != nil {
 		fmt.Printf("\nError Inserting into Table: [%s]", err)
 		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Insert]%s | data:%s | encrypted:%s", err2.Error(), chunkVal, encrypted)}
@@ -547,6 +550,7 @@ func (self *DBChunkstore) ScanAll() (err error) {
 	defer stmt.Close()
 
 	_, err2 := stmt.Exec(rcnt)
+	//TODO: confirm _ doesn't need handling/checking
 	if err2 != nil {
 		fmt.Printf("\nError updating stat Table: [%s]", err2)
 		return err2
