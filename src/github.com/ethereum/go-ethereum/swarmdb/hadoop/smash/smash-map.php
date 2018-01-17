@@ -22,13 +22,15 @@ function validate_chunk($ip, $port, $chunkID)
 $thresh = 5000;  // after testing this many, output a tally
 while (($line = fgets(STDIN)) !== false) {
     $s = json_decode(trim($line), false);
-    if ( isset($s->chunkID) && isset($s->farmer) ) {
-        if ( validate_chunk($s->farmer, $chunkID) ) {
-            $chunkID = $s->chunkID; 
+    if ( isset($s->chunkID) ) {
+        $chunkID = $s->chunkID; 
+        if ( isset($s->farmer) ) {
+            if ( validate_chunk($s->farmer, $chunkID) ) {
+                echo $chunkID."\t".json_encode($s)."\n";
+            }
+        } else {
             echo $chunkID."\t".json_encode($s)."\n";
         }
-    } else {
-        print_r($s);
     }
 }
 ?>

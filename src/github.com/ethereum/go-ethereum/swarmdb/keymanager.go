@@ -111,7 +111,7 @@ func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUs
 				return &u0, nil
 			}
 		}
-		return u, fmt.Errorf("VerifyMessage: Address not found: %x", address2.Bytes())
+		return u, &SWARMDBError{ message: fmt.Printf("VerifyMessage: Address not found: %x", address2.Bytes()) }
 	}
 
 }

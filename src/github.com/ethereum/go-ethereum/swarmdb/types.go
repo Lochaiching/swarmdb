@@ -497,6 +497,15 @@ func SHA256(inp string) (k []byte) {
 	return k
 }
 
+type SWARMDBError struct {
+	message string
+}
+
+func (t *SWARMDBError) Error() string {
+	return t.message
+}
+
+
 type TableNotExistError struct {
 	tableName string
 	ownerID   string
