@@ -1,2 +1,0 @@
-{"validator":"validator_publickey","farmer":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","chunks":4,"valid":4}
-{"validator":"validator_publickey","farmer":"0xfd990c3c42446f6705dd66376bf5820cf2c09527","chunks":2,"valid":2}
