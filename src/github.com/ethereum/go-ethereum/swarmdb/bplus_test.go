@@ -1,3 +1,19 @@
+// Copyright 2018 Wolk Inc. - SWARMDB Working Group
+// This file is part of a SWARMDB fork of the go-ethereum library 
+
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARM ethereum library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 package swarmdb_test
 
 import (
@@ -8,6 +24,7 @@ import (
 	"math"
 	"math/rand"
 	"testing"
+	//"os"
 )
 
 func rng() *mathutil.FC32 {
@@ -45,7 +62,6 @@ func TestPutInteger(t *testing.T) {
 	}
 	// flush B+tree in memory to SWARM
 	r.FlushBuffer(u)
-	// r.Print()
 
 	hashid, _ = r.GetRootHash()
 	s := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING)
@@ -90,7 +106,7 @@ func TestPutInteger(t *testing.T) {
 	}
 }
 
-func aTestPutString(t *testing.T) {
+func TestPutString(t *testing.T) {
 	fmt.Printf("---- TestPutString: generate 20 strings and enumerate them\n")
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	swarmdb.NewKeyManager(&config)
@@ -131,7 +147,7 @@ func aTestPutString(t *testing.T) {
 	fmt.Printf("---- TestPutString DONE (%d records)\n", records)
 }
 
-func aTestPutFloat(t *testing.T) {
+func TestPutFloat(t *testing.T) {
 	fmt.Printf("---- TestPutFloat: generate 20 floats and enumerate them\n")
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	swarmdb.NewKeyManager(&config)
@@ -164,7 +180,7 @@ func aTestPutFloat(t *testing.T) {
 	}
 }
 
-func aTestSetGetString(t *testing.T) {
+func TestSetGetString(t *testing.T) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
@@ -223,7 +239,7 @@ func aTestSetGetString(t *testing.T) {
 
 }
 
-func aTestSetGetInt(t *testing.T) {
+func TestSetGetInt(t *testing.T) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
@@ -287,7 +303,10 @@ func aTestSetGetInt(t *testing.T) {
 	}
 }
 
-func aTestDelete0(t *testing.T) {
+func TestDelete0(t *testing.T) {
+	// TODO: make this test work!
+	t.SkipNow();
+
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
@@ -355,7 +374,10 @@ func aTestDelete0(t *testing.T) {
 	}
 }
 
-func aTestDelete1(t *testing.T) {
+func TestDelete1(t *testing.T) {
+	// TODO: make this test work!
+	t.SkipNow();
+
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
@@ -382,7 +404,10 @@ func aTestDelete1(t *testing.T) {
 	}
 }
 
-func aTestDelete2(t *testing.T) {
+func TestDelete2(t *testing.T) {
+	// TODO: make this test work!
+	t.SkipNow();
+
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
