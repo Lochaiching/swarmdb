@@ -161,7 +161,6 @@ type Row struct {
 }
 
 func NewRow() (r Row) {
-	//r = new(Row)
 	r.Cells = make(map[string]interface{})
 	return r
 }
@@ -327,6 +326,21 @@ func rowDataToJson(rows []Row) (string, error) {
 		return "", err
 	}
 	return string(resBytes), nil
+}
+
+//json input string should be []map[string]interface{} format
+func JsonDatatoRow(in string) (rows []Row, err error) {
+
+	var jsonRows []map[string]interface{}
+	if err = json.Unmarshal([]byte(in), &jsonRows); err != nil {
+		return rows, err
+	}
+	for _, jRow := range jsonRows {
+		row := NewRow()
+		row.Cells = jRow
+		rows = append(rows, row)
+	}
+	return rows, nil
 }
 
 //gets only the specified Columns (column name and value) out of a single Row, returns as a Row with only the relevant data
