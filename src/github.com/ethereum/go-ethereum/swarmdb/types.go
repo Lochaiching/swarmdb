@@ -318,6 +318,7 @@ func isDuplicateRow(row1 Row, row2 Row) bool {
 //gets data (Row.Cells) out of a slice of Rows, and rtns as one json.
 func rowDataToJson(rows []Row) (string, error) {
 	var resMap map[string]interface{}
+	resMap = make(map[string]interface{})
 	for _, row := range rows {
 		for key, val := range row.Cells {
 			if _, ok := resMap[key]; !ok {
