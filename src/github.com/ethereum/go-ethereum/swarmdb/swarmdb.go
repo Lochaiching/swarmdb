@@ -90,17 +90,20 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 		return rows, err
 	}
 
-	var rawRows []Row
+	//var rawRows []Row
+	colRows, err := self.Scan(u, query.TableOwner, query.Table, table.primaryColumnName, query.Ascending)
+	fmt.Printf("\nColRows = [%+v]", colRows)
+	/*
 	for _, column := range query.RequestColumns {
-		colRows, err := self.Scan(u, query.TableOwner, query.Table, column.ColumnName, query.Ascending)
 		if err != nil {
 			fmt.Printf("\nError Scanning table [%s] : [%s]", query.Table, err)
 			return rows, err
 		}
-		fmt.Printf("QuerySelect scanned rows: %+v\n", colRows)
+		fmt.Printf("\nQuerySelect scanned rows: %+v\n", colRows)
 		fmt.Printf("\nNumber of rows scanned: %d for column [%s]", len(colRows), column.ColumnName)
 		for _, colRow := range colRows {
 			for _, row := range rawRows {
+				fmt.Printf("\nComparing ROW [%v] vs ColRow [%v]", row, colRow)
 				if isDuplicateRow(row, colRow) {
 					fmt.Printf("QS: found duped row! %+v\n", row)
 				} else {
@@ -110,10 +113,10 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 		}
 	}
 	fmt.Printf("\nNumber of RAW rows returned : %d", len(rawRows))
-
+	*/
 	//apply WHERE
-	whereRows, err := table.applyWhere(rawRows, query.Where)
-	fmt.Printf("QuerySelect applied where rows: %+v\n", whereRows)
+	whereRows, err := table.applyWhere(colRows, query.Where)
+	fmt.Printf("\nQuerySelect applied where rows: %+v\n", whereRows)
 
 	fmt.Printf("\nNumber of WHERE rows returned : %d", len(whereRows))
 	//filter for requested columns
@@ -128,7 +131,7 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 	fmt.Printf("\nNumber of FINAL rows returned : %d", len(rows))
 
 	//TODO: Put it in order for Ascending/GroupBy
-	fmt.Printf("QS returning: %+v\n", rows)
+	fmt.Printf("\nQS returning: %+v\n", rows)
 	return rows, nil
 
 }
@@ -301,8 +304,20 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 		case "<=":
 			switch t.columns[where.Left].columnType {
 			case CT_INTEGER:
-				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
-				if row.Cells[where.Left].(int) <= right {
+				var cellValue int64
+        			switch cellType := row.Cells[where.Left].(type) {
+				        case (int):
+				                cellValue = int64(row.Cells[where.Left].(int))
+				        case (float64):
+				                cellValue = int64(row.Cells[where.Left].(float64))
+				        case (string):
+				                cellValue = BytesToInt64([]byte(row.Cells[where.Left].([]byte)))
+				        default:
+						fmt.Printf("\nInvalid type: %s", cellType)
+                				//return cellValue, fmt.Errorf("Unknown Type: %v\n")
+				}
+				right := BytesToInt64([]byte(where.Right)) //32 bit int, is this ok?
+				if cellValue <= right {
 					filteredRows[i].Cells[where.Left] = right
 				}
 			case CT_STRING:
@@ -322,9 +337,24 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 		case ">":
 			switch t.columns[where.Left].columnType {
 			case CT_INTEGER:
-				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
-				if row.Cells[where.Left].(int) > right {
-					filteredRows[i].Cells[where.Left] = right
+                                var cellValue int64
+                                switch cellType := row.Cells[where.Left].(type) {
+                                        case (int):
+                                                cellValue = int64(row.Cells[where.Left].(int))
+                                        case (float64):
+                                                cellValue = int64(row.Cells[where.Left].(float64))
+                                        case (string):
+                                                cellValue = BytesToInt64([]byte(row.Cells[where.Left].([]byte)))
+                                        default:
+                                                fmt.Printf("\nInvalid type: %s", cellType)
+                                                //return cellValue, fmt.Errorf("Unknown Type: %v\n")
+                                }
+				fmt.Printf("\nWHERE Right is: [%s] and Cell Val is [%d]", where.Right, cellValue)
+				rightRaw,_ := strconv.Atoi(where.Right) 
+				right := int64(rightRaw) //32 bit int, is this ok?
+				if cellValue > right {
+					fmt.Printf("\nLen of filtrows [%d] and index [%d]",len(filteredRows), i)
+					filteredRows = append(filteredRows, row)
 				}
 			case CT_STRING:
 				if row.Cells[where.Left].(string) > where.Right {
@@ -501,7 +531,8 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		convertedKey, err := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, d.Key)
+		primaryColumnColumnType := tbl.columns[tbl.primaryColumnName].columnType
+		convertedKey, err := convertJSONValueToKey(primaryColumnColumnType, d.Key)
 		if err != nil {
 			return resp, err
 		}
@@ -670,12 +701,18 @@ func parseData(data string) (*RequestOption, error) {
 
 func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []Row, err error) {
 	column, err := t.getColumn(columnName)
+	if t.primaryColumnName != columnName {
+		fmt.Printf("\nSkipping column [%s]", columnName)
+		return rows, err
+	}
 	if err != nil {
 		fmt.Printf("table Scan getColumn err %v \n", err)
 		return rows, err
 	}
 	c := column.dbaccess.(OrderedDatabase)
 	// TODO: Error checking
+
+	fmt.Printf("\nProcessing column [%s]", columnName)
 	if ascending == 1 {
 		res, err := c.SeekFirst(u)
 		if err != nil {
@@ -683,14 +720,15 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 		} else {
 			records := 0
 			for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
-				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(column.columnType, k), v)
-				row, err := t.byteArrayToRow(v)
+				fmt.Printf("\n *int*> %d: K: %s V: %v (%s) \n", records, KeyToString(column.columnType, k), v, v)
+				row,_ := t.Get(u,k)
+				rowObj,_ := t.byteArrayToRow(row)
 				if err != nil {
-					fmt.Printf("table Scan, byteArrayToRow err: %+v\n", err)
+					fmt.Printf("\nError converting v => [%s] bytearray to row: [%s]", v, err)
 					return rows, err
 				}
 				fmt.Printf("table Scan, row set: %+v\n", row)
-				rows = append(rows, row)
+				rows = append(rows, rowObj)
 				records++
 			}
 		}
@@ -1011,9 +1049,11 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 }
 
 func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
+	fmt.Printf("\nConverting bd [%s][%v]", byteData, byteData)
 	row := NewRow()
 	//row.primaryKeyValue = t.primaryColumnName
 	if err := json.Unmarshal(byteData, &row.Cells); err != nil {
+		fmt.Printf("\nReturning row [%+v] for bytedata[%v]", row, byteData)
 		return row, err
 	}
 	return row, nil
