@@ -133,7 +133,6 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 	//TODO: Put it in order for Ascending/GroupBy
 	fmt.Printf("\nQS returning: %+v\n", rows)
 	return rows, nil
-
 }
 
 //Insert is for adding new data to the table
@@ -671,6 +670,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			return resp, err
 		}
 		resp, err = rowDataToJson(qRows)
+		fmt.Printf("\nJSONED Row is: [%+v] [%s]", resp, resp)
 		if err != nil {
 			return resp, err
 		}
