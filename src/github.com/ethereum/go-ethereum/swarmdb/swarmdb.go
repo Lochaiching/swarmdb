@@ -94,25 +94,25 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 	colRows, err := self.Scan(u, query.TableOwner, query.Table, table.primaryColumnName, query.Ascending)
 	fmt.Printf("\nColRows = [%+v]", colRows)
 	/*
-	for _, column := range query.RequestColumns {
-		if err != nil {
-			fmt.Printf("\nError Scanning table [%s] : [%s]", query.Table, err)
-			return rows, err
-		}
-		fmt.Printf("\nQuerySelect scanned rows: %+v\n", colRows)
-		fmt.Printf("\nNumber of rows scanned: %d for column [%s]", len(colRows), column.ColumnName)
-		for _, colRow := range colRows {
-			for _, row := range rawRows {
-				fmt.Printf("\nComparing ROW [%v] vs ColRow [%v]", row, colRow)
-				if isDuplicateRow(row, colRow) {
-					fmt.Printf("QS: found duped row! %+v\n", row)
-				} else {
-					rawRows = append(rawRows, colRow)
+		for _, column := range query.RequestColumns {
+			if err != nil {
+				fmt.Printf("\nError Scanning table [%s] : [%s]", query.Table, err)
+				return rows, err
+			}
+			fmt.Printf("\nQuerySelect scanned rows: %+v\n", colRows)
+			fmt.Printf("\nNumber of rows scanned: %d for column [%s]", len(colRows), column.ColumnName)
+			for _, colRow := range colRows {
+				for _, row := range rawRows {
+					fmt.Printf("\nComparing ROW [%v] vs ColRow [%v]", row, colRow)
+					if isDuplicateRow(row, colRow) {
+						fmt.Printf("QS: found duped row! %+v\n", row)
+					} else {
+						rawRows = append(rawRows, colRow)
+					}
 				}
 			}
 		}
-	}
-	fmt.Printf("\nNumber of RAW rows returned : %d", len(rawRows))
+		fmt.Printf("\nNumber of RAW rows returned : %d", len(rawRows))
 	*/
 	//apply WHERE
 	whereRows, err := table.applyWhere(colRows, query.Where)
@@ -304,16 +304,16 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 			switch t.columns[where.Left].columnType {
 			case CT_INTEGER:
 				var cellValue int64
-        			switch cellType := row.Cells[where.Left].(type) {
-				        case (int):
-				                cellValue = int64(row.Cells[where.Left].(int))
-				        case (float64):
-				                cellValue = int64(row.Cells[where.Left].(float64))
-				        case (string):
-				                cellValue = BytesToInt64([]byte(row.Cells[where.Left].([]byte)))
-				        default:
-						fmt.Printf("\nInvalid type: %s", cellType)
-                				//return cellValue, fmt.Errorf("Unknown Type: %v\n")
+				switch cellType := row.Cells[where.Left].(type) {
+				case (int):
+					cellValue = int64(row.Cells[where.Left].(int))
+				case (float64):
+					cellValue = int64(row.Cells[where.Left].(float64))
+				case (string):
+					cellValue = BytesToInt64([]byte(row.Cells[where.Left].([]byte)))
+				default:
+					fmt.Printf("\nInvalid type: %s", cellType)
+					//return cellValue, fmt.Errorf("Unknown Type: %v\n")
 				}
 				right := BytesToInt64([]byte(where.Right)) //32 bit int, is this ok?
 				if cellValue <= right {
@@ -336,23 +336,23 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 		case ">":
 			switch t.columns[where.Left].columnType {
 			case CT_INTEGER:
-                                var cellValue int64
-                                switch cellType := row.Cells[where.Left].(type) {
-                                        case (int):
-                                                cellValue = int64(row.Cells[where.Left].(int))
-                                        case (float64):
-                                                cellValue = int64(row.Cells[where.Left].(float64))
-                                        case (string):
-                                                cellValue = BytesToInt64([]byte(row.Cells[where.Left].([]byte)))
-                                        default:
-                                                fmt.Printf("\nInvalid type: %s", cellType)
-                                                //return cellValue, fmt.Errorf("Unknown Type: %v\n")
-                                }
+				var cellValue int64
+				switch cellType := row.Cells[where.Left].(type) {
+				case (int):
+					cellValue = int64(row.Cells[where.Left].(int))
+				case (float64):
+					cellValue = int64(row.Cells[where.Left].(float64))
+				case (string):
+					cellValue = BytesToInt64([]byte(row.Cells[where.Left].([]byte)))
+				default:
+					fmt.Printf("\nInvalid type: %s", cellType)
+					//return cellValue, fmt.Errorf("Unknown Type: %v\n")
+				}
 				fmt.Printf("\nWHERE Right is: [%s] and Cell Val is [%d]", where.Right, cellValue)
-				rightRaw,_ := strconv.Atoi(where.Right) 
+				rightRaw, _ := strconv.Atoi(where.Right)
 				right := int64(rightRaw) //32 bit int, is this ok?
 				if cellValue > right {
-					fmt.Printf("\nLen of filtrows [%d] and index [%d]",len(filteredRows), i)
+					fmt.Printf("\nLen of filtrows [%d] and index [%d]", len(filteredRows), i)
 					filteredRows = append(filteredRows, row)
 				}
 			case CT_STRING:
@@ -721,8 +721,8 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 			records := 0
 			for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
 				fmt.Printf("\n *int*> %d: K: %s V: %v (%s) \n", records, KeyToString(column.columnType, k), v, v)
-				row,_ := t.Get(u,k)
-				rowObj,_ := t.byteArrayToRow(row)
+				row, _ := t.Get(u, k)
+				rowObj, _ := t.byteArrayToRow(row)
 				if err != nil {
 					fmt.Printf("\nError converting v => [%s] bytearray to row: [%s]", v, err)
 					return rows, err
