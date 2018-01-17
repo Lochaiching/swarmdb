@@ -149,10 +149,15 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error)
 			return fmt.Errorf("Insert row %+v needs primary column '%s' value", row, table.primaryColumnName)
 		}
 		//check if Row already exists
-		convertedKey, _ := convertJSONValueToKey(table.columns[table.primaryColumnName].columnType, row.Cells[table.primaryColumnName])
+		//TODO: convertJSONValueToKey ERROR
+		convertedKey, err := convertJSONValueToKey(table.columns[table.primaryColumnName].columnType, row.Cells[table.primaryColumnName])
+		if err != nil {
+			return err
+		}
 		existingByteRow, err := table.Get(u, convertedKey)
 		if err != nil {
 			existingRow, _ := table.byteArrayToRow(existingByteRow)
+			//TODO: Trying to insert duplicate row error
 			return fmt.Errorf("Insert row key %s already exists: %+v", row.Cells[table.primaryColumnName], existingRow)
 		}
 		//put the new Row in
@@ -183,6 +188,7 @@ func (self *SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (err error)
 	//check to see if Update cols are in pulled set
 	for colname, _ := range query.Update {
 		if _, ok := table.columns[colname]; !ok {
+			//TODO: 
 			return fmt.Errorf("Update SET column name %s is not in table", colname)
 		}
 	}
@@ -239,11 +245,12 @@ func (self *SwarmDB) QueryDelete(u *SWARMDBUser, query *QueryOption) (err error)
 	for _, row := range filteredRows {
 		_, err := table.Delete(u, row.Cells[table.primaryColumnName].(string))
 		if err != nil {
+			//TODO: expecting a certain error to bubble up notifying of a problem Deleting
 			return err
 		}
 		//if !ok, what should happen?
+		//TODO: return appropriate response -- number of records affected
 	}
-
 	return nil
 }
 
@@ -261,6 +268,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 			switch t.columns[where.Left].columnType {
 			case CT_INTEGER:
 				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
+				//TODO: TypeConversion Error
 				if row.Cells[where.Left].(int) == right {
 					filteredRows[i].Cells[where.Left] = right
 				}
@@ -270,6 +278,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 				}
 			case CT_FLOAT:
 				right, _ := strconv.ParseFloat(where.Right, 64)
+				//TODO: TypeConversion Error
 				if row.Cells[where.Left].(float64) == right {
 					filteredRows[i].Cells[where.Left] = right
 				}
@@ -283,6 +292,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 			switch t.columns[where.Left].columnType {
 			case CT_INTEGER:
 				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
+				//TODO: TypeConversion Error
 				if row.Cells[where.Left].(int) < right {
 					filteredRows[i].Cells[where.Left] = right
 				}
@@ -292,6 +302,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 				}
 			case CT_FLOAT:
 				right, _ := strconv.ParseFloat(where.Right, 64)
+				//TODO: TypeConversion Error
 				if row.Cells[where.Left].(float64) < right {
 					filteredRows[i].Cells[where.Left] = right
 				}
@@ -325,6 +336,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 				}
 			case CT_FLOAT:
 				right, _ := strconv.ParseFloat(where.Right, 64)
+				//TODO: TypeConversion Error
 				if row.Cells[where.Left].(float64) <= right {
 					filteredRows[i].Cells[where.Left] = right
 				}
@@ -350,6 +362,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 				}
 				fmt.Printf("\nWHERE Right is: [%s] and Cell Val is [%d]", where.Right, cellValue)
 				rightRaw, _ := strconv.Atoi(where.Right)
+				//TODO: TypeConversion Error
 				right := int64(rightRaw) //32 bit int, is this ok?
 				if cellValue > right {
 					fmt.Printf("\nLen of filtrows [%d] and index [%d]", len(filteredRows), i)
@@ -361,6 +374,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 				}
 			case CT_FLOAT:
 				right, _ := strconv.ParseFloat(where.Right, 64)
+				//TODO: TypeConversion Error
 				if row.Cells[where.Left].(float64) > right {
 					filteredRows[i].Cells[where.Left] = right
 				}
@@ -373,6 +387,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 			switch t.columns[where.Left].columnType {
 			case CT_INTEGER:
 				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
+				//TODO: TypeConversion Error
 				if row.Cells[where.Left].(int) >= right {
 					filteredRows[i].Cells[where.Left] = right
 				}
@@ -382,6 +397,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 				}
 			case CT_FLOAT:
 				right, _ := strconv.ParseFloat(where.Right, 64)
+				//TODO: TypeConversion Error
 				if row.Cells[where.Left].(float64) >= right {
 					filteredRows[i].Cells[where.Left] = right
 				}
@@ -394,6 +410,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 			switch t.columns[where.Left].columnType {
 			case CT_INTEGER:
 				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
+				//TODO: TypeConversion Error
 				if row.Cells[where.Left].(int) != right {
 					filteredRows[i].Cells[where.Left] = right
 				}
@@ -403,6 +420,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 				}
 			case CT_FLOAT:
 				right, _ := strconv.ParseFloat(where.Right, 64)
+				//TODO: TypeConversion Error
 				if row.Cells[where.Left].(float64) != right {
 					filteredRows[i].Cells[where.Left] = right
 				}
@@ -640,6 +658,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
 				fmt.Printf("Calling Get from Query\n")
 				convertedKey, _ := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, query.Where.Right)
+				//TODO: ConvertingJSONToKey Error
 
 				byteRow, err := tbl.Get(u, convertedKey)
 				if err != nil {
@@ -722,7 +741,9 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 			for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
 				fmt.Printf("\n *int*> %d: K: %s V: %v (%s) \n", records, KeyToString(column.columnType, k), v, v)
 				row, _ := t.Get(u, k)
+				//TODO: GetError
 				rowObj, _ := t.byteArrayToRow(row)
+				//TODO: ArrayToRowConversionError
 				if err != nil {
 					fmt.Printf("\nError converting v => [%s] bytearray to row: [%s]", v, err)
 					return rows, err
@@ -950,6 +971,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 		if c.primary > 0 {
 			if pvalue, ok := row[t.primaryColumnName]; ok {
 				k, _ = convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, pvalue)
+				//TODO: JSONtoKeyConversionError
 			} else {
 				return fmt.Errorf("\nPrimary key %s not specified in input", t.primaryColumnName)
 			}
@@ -960,7 +982,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 				// TODO
 			}
 			// fmt.Printf(" - primary  %s | %x\n", c.columnName, k)
-			_, err = t.columns[c.columnName].dbaccess.Put(u, k, khash) // TODO
+			_, err = t.columns[c.columnName].dbaccess.Put(u, k, khash) // TODO: Check Error for bplus/hashdb put
 			//			t.columns[c.columnName].dbaccess.Print()
 		} else {
 			k2 := make([]byte, 32)
@@ -979,9 +1001,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 			_, err = t.columns[c.columnName].dbaccess.Put(u, k2, k)
 			if err != nil {
 				fmt.Errorf("\nDB Put Failed")
-			} else {
 			}
-			//t.columns[c.columnName].dbaccess.Print()
 		}
 	}
 
@@ -1008,7 +1028,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 }
 
 func (t *Table) Insert(u *SWARMDBUser, row map[string]interface{}) (err error) {
-
+//TODO: Delete this?
 	/*
 		        value := convertMapValuesToStrings(row)
 
@@ -1072,13 +1092,14 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, err error) {
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
 	fmt.Printf("\n GET key: (%s)%v\n", key, key)
 
-	v, _, err2 := t.columns[primaryColumnName].dbaccess.Get(u, key)
+	v, ok, err2 := t.columns[primaryColumnName].dbaccess.Get(u, key)
+	//TODO: handle "ok"s
 	fmt.Printf("\n v retrieved from db traversal get = %s", v)
 	if err2 != nil {
 		fmt.Printf("\nError traversing tree: %s", err.Error())
 		return nil, err2
 	}
-	if len(v) > 0 {
+	if ok > 0 {
 		// get value from kdb
 		kres, err3 := t.swarmdb.kaddb.GetByKey(u, key)
 		if err3 != nil {
