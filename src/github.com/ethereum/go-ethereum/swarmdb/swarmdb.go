@@ -501,7 +501,8 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		convertedKey, err := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, d.Key)
+		primaryColumnColumnType := tbl.columns[tbl.primaryColumnName].columnType
+		convertedKey, err := convertJSONValueToKey(primaryColumnColumnType, d.Key)
 		if err != nil {
 			return resp, err
 		}
@@ -682,15 +683,19 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 			fmt.Printf("\nError in table.Scan: ", err)
 		} else {
 			records := 0
-			for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
-				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(column.columnType, k), v)
-				row, err := t.byteArrayToRow(v)
-				if err != nil {
-					return rows, err
+			//for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
+			for k, v, err := res.Next(u); err == nil; {
+				fmt.Printf("\n *int*> %d: K: %s V: %v\n", records, KeyToString(column.columnType, k), v)
+				if( v != nil ) {
+					row, err := t.byteArrayToRow(v)
+					if err != nil {
+						fmt.Printf("Error converting v => [%s] bytearray to row: [%s]", v, err)
+						return rows, err
+					}
+					fmt.Printf("table Scan, row set: %+v\n", row)
+					rows = append(rows, row)
+					records++
 				}
-				fmt.Printf("table Scan, row set: %+v\n", row)
-				rows = append(rows, row)
-				records++
 			}
 		}
 	} else {
@@ -1009,10 +1014,12 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 }
 
 func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
+	fmt.Printf("\nConverting bd [%s][%v]", byteData, byteData)
 	row := NewRow()
 	//row.primaryKeyValue = t.primaryColumnName
 	if err := json.Unmarshal(byteData, &row.Cells); err != nil {
-		return out, err
+		fmt.Printf("\nReturning row [%+v] for bytedata[%v]",row, byteData)
+		return row, err
 	}
 	return row, nil
 }
