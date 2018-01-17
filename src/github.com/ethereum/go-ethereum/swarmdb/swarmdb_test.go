@@ -592,7 +592,7 @@ func aTestDelete2(t *testing.T) {
 }
 
 func TestCreateTable(t *testing.T) {
-	t.SkipNow()
+	//t.SkipNow()
 	u := getUser()
 
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)

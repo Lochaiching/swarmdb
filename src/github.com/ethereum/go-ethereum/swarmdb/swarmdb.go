@@ -686,6 +686,7 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(column.columnType, k), v)
 				row, err := t.byteArrayToRow(v)
 				if err != nil {
+					fmt.Printf("table Scan, byteArrayToRow err: %+v\n", err)
 					return rows, err
 				}
 				fmt.Printf("table Scan, row set: %+v\n", row)
@@ -703,6 +704,7 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(CT_STRING, k), KeyToString(column.columnType, v))
 				row, err := t.byteArrayToRow(v)
 				if err != nil {
+					fmt.Printf("table Scan, byteArrayToRow err: %+v\n", err)
 					return rows, err
 				}
 				fmt.Printf("table Scan, row set: %+v\n", row)
@@ -1012,7 +1014,7 @@ func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	row := NewRow()
 	//row.primaryKeyValue = t.primaryColumnName
 	if err := json.Unmarshal(byteData, &row.Cells); err != nil {
-		return out, err
+		return row, err
 	}
 	return row, nil
 }
