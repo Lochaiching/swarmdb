@@ -253,24 +253,28 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 	return "", nil
 }
 
-//TODO: finish
-func (t *SWARMDBTable) Get(key string) (row *Row, err error) {
-	// create request
+//func (t *SWARMDBTable) Get(key string) (row *Row, err error) {
+func (t *SWARMDBTable) Get(key string) (response string, err error) {
+
 	var r RequestOption
 	r.RequestType = "Get"
 	r.TableOwner = t.dbc.ownerID
 	r.Table = t.tableName
+	r.Encrypted = t.encrypted
 	r.Key = key
-	return t.dbc.ProcessRequestResponseRow(r)
+
+	//return ProcessRequestResponseRow(r)
+	return t.dbc.ProcessRequestResponseCommand(r)
+
 }
 
-//TODO: finish
 func (t *SWARMDBTable) Delete(key string) (response string, err error) {
-	// send to server
+
 	var r RequestOption
 	r.RequestType = "Delete"
 	r.TableOwner = t.dbc.ownerID
 	r.Table = t.tableName
+	r.Encrypted = t.encrypted
 	r.Key = key
 	return t.dbc.ProcessRequestResponseCommand(r)
 }
@@ -282,15 +286,18 @@ func (t *SWARMDBTable) Scan(rowfunc func(r Row) bool) (err error) {
 	return nil
 }
 
-//TODO: finish
-func (t *SWARMDBTable) Query(sql string, f func(r Row) bool) (err error) {
-	// create request
+//func (t *SWARMDBTable) Query(sql string, f func(r Row) bool) (err error) {
+func (t *SWARMDBTable) Query(query string) (string, error) {
+
 	var r RequestOption
 	r.RequestType = "Query"
 	r.TableOwner = t.dbc.ownerID
 	r.Table = t.tableName
-	r.RawQuery = sql
-	return nil
+	r.Encrypted = t.encrypted
+	r.RawQuery = query
+
+	return t.dbc.ProcessRequestResponseCommand(r)
+
 }
 
 //TODO: what goes here?
