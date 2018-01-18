@@ -621,8 +621,8 @@ func TestCreateTable(t *testing.T) {
 	testReqOption.RequestType = "CreateTable"
 	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOption.Table = "contacts"
-	testReqOption.Bid = 7.07
-	testReqOption.Replication = 3
+	//testReqOption.Bid = 7.07
+	//testReqOption.Replication = 3
 	testReqOption.Encrypted = 1
 	testReqOption.Columns = testColumn
 
