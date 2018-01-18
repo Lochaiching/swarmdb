@@ -514,6 +514,9 @@ func (t *SWARMDBError) Error() string {
 	return t.message
 }
 
+func (t *SWARMDBError) SetError(m string) {
+	t.message = m
+}
 
 type TableNotExistError struct {
 	tableName string
