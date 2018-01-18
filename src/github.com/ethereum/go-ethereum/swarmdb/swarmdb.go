@@ -535,6 +535,15 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			fmt.Printf("err1: %s\n", err)
 			return resp, err
 		}
+		err2 := tbl.Put(u, d.Rows[0].Cells)
+		//TODO: Will we handle Multi-row puts?
+		if err2 != nil {
+			fmt.Printf("Err putting: %s", err2)
+			return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
+		} else {
+			return "ok", nil
+		}
+
 		err = tbl.Put(u, d.Rows[0].Cells)
 		if err != nil {
 			fmt.Printf("Err putting: %s", err)
@@ -561,6 +570,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		return string(ret), nil
 	case "Insert":
 		if len(d.Key) == 0 {
+			//TODO: Missing Key Handling
 			return resp, fmt.Errorf("Missing Key/Value")
 		}
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)

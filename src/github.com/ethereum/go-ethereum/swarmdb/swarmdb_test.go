@@ -128,110 +128,110 @@ func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryK
 func TestSetGetInt(t *testing.T) {
 	t.SkipNow()
 	/*
-	const N = 4
-	u := getUser()
+		const N = 4
+		u := getUser()
 
-	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
+		for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
+			r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
-		a := make([]int, N)
-		for i := range a {
-			a[i] = (i ^ x) << 1
-		}
-
-		for _, k := range a {
-			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
-			fmt.Printf("%s\n", val)
-			var putjson map[string]interface{}
-			_ = json.Unmarshal([]byte(val), putjson)
-			r.Put(u, putjson)
-		}
-
-		s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
-		for i, k := range a {
-			key := fmt.Sprintf("%d", k) // swarmdb.IntToByte(k)
-			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
-			v, err := s.Get(u, key)
-			if err != nil || strings.Compare(val, string(v)) != 0 {
-				t.Fatal(i, val, v)
-			} else {
-				fmt.Printf("Get(%s) => %s\n", key, val)
+			a := make([]int, N)
+			for i := range a {
+				a[i] = (i ^ x) << 1
 			}
 
-			k |= 1
-			key = fmt.Sprintf("%d", k) // swarmdb.IntToByte(k)
-			v, err = s.Get(u, key)
-			if len(v) > 0 {
-				t.Fatal(i, k)
+			for _, k := range a {
+				val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
+				fmt.Printf("%s\n", val)
+				var putjson map[string]interface{}
+				_ = json.Unmarshal([]byte(val), putjson)
+				r.Put(u, putjson)
+			}
+
+			s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
+			for i, k := range a {
+				key := fmt.Sprintf("%d", k) // swarmdb.IntToByte(k)
+				val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
+				v, err := s.Get(u, key)
+				if err != nil || strings.Compare(val, string(v)) != 0 {
+					t.Fatal(i, val, v)
+				} else {
+					fmt.Printf("Get(%s) => %s\n", key, val)
+				}
+
+				k |= 1
+				key = fmt.Sprintf("%d", k) // swarmdb.IntToByte(k)
+				v, err = s.Get(u, key)
+				if len(v) > 0 {
+					t.Fatal(i, k)
+				}
+			}
+
+			r2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
+			for _, k := range a {
+				val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
+				var putjson map[string]interface{}
+				_ = json.Unmarshal([]byte(val), putjson)
+				r2.Put(u, putjson)
+			}
+
+			s2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
+			for i, k := range a {
+				key := fmt.Sprintf("%d", k)
+				val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
+				v, err := s2.Get(u, key) //
+				if err != nil || strings.Compare(string(v), val) != 0 {
+					t.Fatal(i, v, val)
+				} else {
+					fmt.Printf("Get(%s) => %s\n", key, val)
+				}
 			}
 		}
-
-		r2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
-		for _, k := range a {
-			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
-			var putjson map[string]interface{}
-			_ = json.Unmarshal([]byte(val), putjson)
-			r2.Put(u, putjson)
-		}
-
-		s2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
-		for i, k := range a {
-			key := fmt.Sprintf("%d", k)
-			val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
-			v, err := s2.Get(u, key) //
-			if err != nil || strings.Compare(string(v), val) != 0 {
-				t.Fatal(i, v, val)
-			} else {
-				fmt.Printf("Get(%s) => %s\n", key, val)
-			}
-		}
-	}
-*/
+	*/
 }
 
 func TestTable(t *testing.T) {
 	t.SkipNow()
 	/*
-	u := getUser()
-	tbl := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
+		u := getUser()
+		tbl := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 
-	putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
-	var putjson map[string]interface{}
-	_ = json.Unmarshal([]byte(putstr), putjson)
-	tbl.Put(u, putjson)
-
-	putstr = `{"email":"sourabh@wolk.com", "age": 45, "gender": "M", "weight": 210.5}`
-	_ = json.Unmarshal([]byte(putstr), putjson)
-	tbl.Put(u, putjson)
-
-	// Put
-	for i := 1; i < 100; i++ {
-		g := "F"
-		w := float64(i) + .314159
-		putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
-			TEST_PKEY_STRING, i, i, g, w)
+		putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
+		var putjson map[string]interface{}
 		_ = json.Unmarshal([]byte(putstr), putjson)
 		tbl.Put(u, putjson)
 
-		g = "M"
-		w = float64(i) + float64(0.414159)
-		putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
-			TEST_PKEY_STRING, i, i, g, w)
+		putstr = `{"email":"sourabh@wolk.com", "age": 45, "gender": "M", "weight": 210.5}`
 		_ = json.Unmarshal([]byte(putstr), putjson)
 		tbl.Put(u, putjson)
 
-	}
+		// Put
+		for i := 1; i < 100; i++ {
+			g := "F"
+			w := float64(i) + .314159
+			putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
+				TEST_PKEY_STRING, i, i, g, w)
+			_ = json.Unmarshal([]byte(putstr), putjson)
+			tbl.Put(u, putjson)
 
-	tbl2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
-	// Get
-	res, err := tbl2.Get(u, "rodney@wolk.com")
-	fmt.Printf("Get %s %v \n", string(res), err)
+			g = "M"
+			w = float64(i) + float64(0.414159)
+			putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
+				TEST_PKEY_STRING, i, i, g, w)
+			_ = json.Unmarshal([]byte(putstr), putjson)
+			tbl.Put(u, putjson)
 
-	// Get
-	fres, ferr := tbl2.Get(u, "test010@wolk.com")
-	fmt.Printf("Get %s %v \n", string(fres), ferr)
-	//t.CloseTable()
-*/
+		}
+
+		tbl2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
+		// Get
+		res, err := tbl2.Get(u, "rodney@wolk.com")
+		fmt.Printf("Get %s %v \n", string(res), err)
+
+		// Get
+		fres, ferr := tbl2.Get(u, "test010@wolk.com")
+		fmt.Printf("Get %s %v \n", string(fres), ferr)
+		//t.CloseTable()
+	*/
 
 }
 
@@ -725,7 +725,7 @@ func TestPut(t *testing.T) {
 }
 
 func TestGet(t *testing.T) {
-	
+
 	u := getUser()
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	ensdbPath := "/tmp"
