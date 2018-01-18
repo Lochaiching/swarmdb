@@ -93,6 +93,8 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 	//var rawRows []Row
 	colRows, err := self.Scan(u, query.TableOwner, query.Table, table.primaryColumnName, query.Ascending)
 	fmt.Printf("\nColRows = [%+v]", colRows)
+
+	//TODO: 2ndary column scans
 	/*
 		for _, column := range query.RequestColumns {
 			if err != nil {
@@ -254,7 +256,7 @@ func (self *SwarmDB) QueryDelete(u *SWARMDBUser, query *QueryOption) (err error)
 	return nil
 }
 
-//there is a better way to do this.
+//TODO: there is a better way to do this.
 func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err error) {
 
 	for i, row := range rawRows {
@@ -283,7 +285,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 					filteredRows[i].Cells[where.Left] = right
 				}
 			case CT_BLOB:
-				//??
+				//TODO: not sure what a blob is supposed to be
 			default:
 				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
 			}
@@ -307,7 +309,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 					filteredRows[i].Cells[where.Left] = right
 				}
 			case CT_BLOB:
-				//??
+				//TODO: not sure what a blob is supposed to be
 			default:
 				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
 			}
@@ -324,7 +326,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 					cellValue = BytesToInt64([]byte(row.Cells[where.Left].([]byte)))
 				default:
 					fmt.Printf("\nInvalid type: %s", cellType)
-					//return cellValue, fmt.Errorf("Unknown Type: %v\n")
+					return filteredRows, fmt.Errorf("Unknown Type: %v\n")
 				}
 				right := BytesToInt64([]byte(where.Right)) //32 bit int, is this ok?
 				if cellValue <= right {
@@ -341,7 +343,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 					filteredRows[i].Cells[where.Left] = right
 				}
 			case CT_BLOB:
-				//??
+				//TODO: not sure what a blob is supposed to be?
 			default:
 				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
 			}
@@ -358,7 +360,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 					cellValue = BytesToInt64([]byte(row.Cells[where.Left].([]byte)))
 				default:
 					fmt.Printf("\nInvalid type: %s", cellType)
-					//return cellValue, fmt.Errorf("Unknown Type: %v\n")
+					return filteredRows, fmt.Errorf("Unknown Type: %v\n")
 				}
 				fmt.Printf("\nWHERE Right is: [%s] and Cell Val is [%d]", where.Right, cellValue)
 				rightRaw, _ := strconv.Atoi(where.Right)
@@ -379,7 +381,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 					filteredRows[i].Cells[where.Left] = right
 				}
 			case CT_BLOB:
-				//??
+				//TODO: not sure what a blob is supposed to be?
 			default:
 				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
 			}
@@ -402,7 +404,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 					filteredRows[i].Cells[where.Left] = right
 				}
 			case CT_BLOB:
-				//??
+				//TODO: not sure what a blob is supposed to be?
 			default:
 				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
 			}
@@ -425,7 +427,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err 
 					filteredRows[i].Cells[where.Left] = right
 				}
 			case CT_BLOB:
-				//??
+				////TODO: not sure what a blob is supposed to be?
 			default:
 				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
 			}
@@ -494,7 +496,7 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName str
 		fmt.Printf("\nprimary column name GetTable: %s -> columns: %v\n", tbl.columns, tbl.primaryColumnName)
 		return tbl, nil
 	} else {
-		// this should throw an error if the table is not created
+		//TODO: this should throw an error if the table is not created
 		tbl = self.NewTable(tableOwnerID, tableName, 1) //TODO: encrypted needed
 		err = tbl.OpenTable(u)
 		if err != nil {
@@ -504,6 +506,7 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName str
 	}
 }
 
+//TODO: correct all errorhandling to swarmdb defaults
 func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, err error) {
 	// var rerr *RequestFormatError
 	d, err := parseData(data)
@@ -519,7 +522,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if len(d.Table) == 0 || len(d.Columns) == 0 {
 			return resp, fmt.Errorf(`ERR: empty table and column`)
 		}
-		//Upon further review, could make a NewTable and then call this from tbl. ---
+		//TODO: Upon further review, could make a NewTable and then call this from tbl. ---
 		_, err := self.CreateTable(u, d.Table, d.Columns, d.Encrypted)
 		if err != nil {
 			return resp, err
@@ -531,16 +534,22 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if err != nil {
 			fmt.Printf("err1: %s\n", err)
 			return resp, err
-		} else {
-			err2 := tbl.Put(u, d.Rows[0].Cells)
-			//TODO: Will we handle Multi-row puts?
-			if err2 != nil {
-				fmt.Printf("Err putting: %s", err2)
-				return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
-			} else {
-				return "ok", nil
-			}
 		}
+		err2 := tbl.Put(u, d.Rows[0].Cells)
+		//TODO: Will we handle Multi-row puts?
+		if err2 != nil {
+			fmt.Printf("Err putting: %s", err2)
+			return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
+		} else {
+			return "ok", nil
+		}
+
+		err = tbl.Put(u, d.Rows[0].Cells)
+		if err != nil {
+			fmt.Printf("Err putting: %s", err)
+			return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
+		}
+		return "ok", nil
 	case "Get":
 		if len(d.Key) == 0 {
 			return resp, fmt.Errorf("Missing key in GET")
@@ -557,9 +566,8 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		ret, err := tbl.Get(u, convertedKey)
 		if err != nil {
 			return resp, err
-		} else {
-			return string(ret), nil
 		}
+		return string(ret), nil
 	case "Insert":
 		if len(d.Key) == 0 {
 			//TODO: Missing Key Handling
@@ -569,9 +577,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		err2 := tbl.Insert(u, d.Rows[0].Cells)
-		if err2 != nil {
-			return resp, err2
+		err = tbl.Insert(u, d.Rows[0].Cells)
+		if err != nil {
+			return resp, err
 		}
 		return "ok", nil
 	case "Delete":
@@ -582,26 +590,26 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if err != nil {
 			return resp, err
 		}
-		_, err2 := tbl.Delete(u, d.Key)
-		if err2 != nil {
-			return resp, err2
+		_, err = tbl.Delete(u, d.Key)
+		if err != nil {
+			return resp, err
 		}
 		return "ok", nil
-		/*
-			case "StartBuffer":
-				err := tbl.StartBuffer()
-				ret := "okay"
-				if err != nil{
-					ret = err.Error()
-				}
-				return ret
-			case "FlushBuffer":
-				err := tbl.FlushBuffer()
-				ret := "okay"
-				if err != nil{
-					ret = err.Error()
-				}
-				return ret
+		/* TODO:
+		case "StartBuffer":
+			err := tbl.StartBuffer()
+			ret := "okay"
+			if err != nil{
+				ret = err.Error()
+			}
+			return ret
+		case "FlushBuffer":
+			err := tbl.FlushBuffer()
+			ret := "okay"
+			if err != nil{
+				ret = err.Error()
+			}
+			return ret
 		*/
 	case "Query":
 		fmt.Printf("\nReceived GETQUERY\n")
@@ -659,14 +667,19 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			//checking if the query is just a primary key Get
 			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
 				fmt.Printf("Calling Get from Query\n")
-				convertedKey, _ := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, query.Where.Right)
-				//TODO: ConvertingJSONToKey Error
+
+				convertedKey, err := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, query.Where.Right)
+				if err != nil {
+					//TODO: ConvertingJSONToKey Error
+					return resp, err
+				}
 
 				byteRow, err := tbl.Get(u, convertedKey)
 				if err != nil {
 					fmt.Printf("Error Calling Get from Query [%s]\n", err)
 					return resp, err
 				}
+
 				row, err := tbl.byteArrayToRow(byteRow)
 				fmt.Printf("Response row from Get: %s (%v)\n", row, row)
 				if err != nil {
@@ -679,6 +692,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 				if err != nil {
 					return resp, err
 				}
+
 				return string(retJson), nil
 			}
 		}
@@ -778,7 +792,6 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 	return rows, nil
 }
 
-// Table
 func (self *SwarmDB) NewTable(ownerID string, tableName string, encrypted int) *Table {
 	t := new(Table)
 	t.swarmdb = self
@@ -826,7 +839,7 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 	swarmhash, err := swdb.StoreDBChunk(u, buf, tbl.encrypted) // TODO
 	if err != nil {
 		fmt.Printf(" problem storing chunk\n")
-		return
+		return tbl, err
 	}
 	tbl.primaryColumnName = primaryColumnName
 	//tbl.tableName = tableName //Redundant? - because already set in NewTable?
@@ -835,14 +848,13 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 	err = swdb.StoreRootHash([]byte(tbl.tableName), []byte(swarmhash))
 	if err != nil {
 		return tbl, err
-	} else {
-		err = tbl.OpenTable(u)
-		if err != nil {
-			return tbl, err
-		} else {
-			return tbl, nil
-		}
 	}
+	err = tbl.OpenTable(u)
+	if err != nil {
+		return tbl, err
+	}
+	return tbl, nil
+
 }
 
 func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
@@ -891,10 +903,11 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 		fmt.Printf("\n columnName: %s (%d) roothash: %x (secondary: %v) columnType: %d", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary, columninfo.columnType)
 		switch columninfo.indexType {
 		case IT_BPLUSTREE:
+			//need to add in err for NewBPlusTreeDB
 			bplustree := NewBPlusTreeDB(u, *t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType))
 			// bplustree.Print()
 			columninfo.dbaccess = bplustree
-			if err != nil {
+			if err != nil { //this should be the err for NewBPlusTreeDB
 				return err
 			}
 		case IT_HASHTREE:
@@ -941,8 +954,9 @@ func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte,
 	return k, nil
 }
 
-func convertMapValuesToStrings(in map[string]interface{}) map[string]string {
+func convertMapValuesToStrings(in map[string]interface{}) (map[string]string, error) {
 	out := make(map[string]string)
+	var err error
 	for key, value := range in {
 		switch value := value.(type) {
 		case int:
@@ -953,68 +967,80 @@ func convertMapValuesToStrings(in map[string]interface{}) map[string]string {
 			out[key] = strconv.FormatFloat(value, 'f', -1, 64)
 		case string:
 			out[key] = value
+		default:
+			err = fmt.Errorf("value %v has unknown type", value)
 		}
 	}
-	return out
+	return out, err
 }
 
 func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 
-	rawvalue, err0 := json.Marshal(row)
-	if err0 != nil {
-		return err0
-	} else {
-		t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Put|%s", rawvalue))
+	rawvalue, err := json.Marshal(row)
+	if err != nil {
+		return err
 	}
+	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Put|%s", rawvalue))
 	k := make([]byte, 32)
 
 	for _, c := range t.columns {
 		//fmt.Printf("\nProcessing a column %s and primary is %d", c.columnName, c.primary)
 		if c.primary > 0 {
-			if pvalue, ok := row[t.primaryColumnName]; ok {
-				k, _ = convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, pvalue)
-				//TODO: JSONtoKeyConversionError
-			} else {
+
+			pvalue, ok := row[t.primaryColumnName]
+			if !ok {
 				return fmt.Errorf("\nPrimary key %s not specified in input", t.primaryColumnName)
 			}
+			k, err = convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, pvalue)
+			if err != nil {
+				return err
+			}
+
 			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
 			khash, err := t.swarmdb.kaddb.Put(u, k, []byte(rawvalue)) // TODO -- use u (sk)
 			if err != nil {
-				fmt.Errorf("\nKademlia Put Failed")
-				// TODO
+				fmt.Printf("\nKademlia Put Failed")
+				return err
 			}
 			// fmt.Printf(" - primary  %s | %x\n", c.columnName, k)
 			_, err = t.columns[c.columnName].dbaccess.Put(u, k, khash) // TODO: Check Error for bplus/hashdb put
 			//			t.columns[c.columnName].dbaccess.Print()
+			if err != nil {
+				return err
+			}
 		} else {
 			k2 := make([]byte, 32)
 			var errPvalue error
-			if pvalue, ok := row[c.columnName]; ok {
-				k2, errPvalue = convertJSONValueToKey(c.columnType, pvalue)
-				if errPvalue != nil {
-					fmt.Printf("\nERROR: [%s]", errPvalue)
-					// TODO
-				}
-			} else {
-				//this is ok
+			pvalue, ok := row[c.columnName]
+			if !ok {
+				//this is ok <- WHY? TODO
 				//return fmt.Errorf("Column [%s] not found in [%+v]", c.columnName, jsonrecord)
 			}
+			k2, errPvalue = convertJSONValueToKey(c.columnType, pvalue)
+			if errPvalue != nil {
+				fmt.Printf("\nERROR: [%s]", errPvalue)
+				return err
+			}
+
 			fmt.Printf(" - secondary %s %x | %x\n", c.columnName, k2, k)
 			_, err = t.columns[c.columnName].dbaccess.Put(u, k2, k)
 			if err != nil {
 				fmt.Errorf("\nDB Put Failed")
+				return err
 			}
+
+			//t.columns[c.columnName].dbaccess.Print()
 		}
 	}
 
 	if t.buffered {
-
+		//TODO: is something supposed to be here?
 	} else {
 		err = t.FlushBuffer(u)
 		if err != nil {
 			fmt.Printf("flushing err %v\n")
 		} else {
-
+			//TODO: is something supposed to be here?
 		}
 	}
 	/*
@@ -1029,30 +1055,33 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 	return nil
 }
 
+//TODO: this is commented out because this insert: t.columns[primaryColumnName].dbaccess.Insert(k, []byte(khash))  doesn't have anything
 func (t *Table) Insert(u *SWARMDBUser, row map[string]interface{}) (err error) {
 	//TODO: Delete this?
 	/*
-		        value := convertMapValuesToStrings(row)
+		 value, err := convertMapValuesToStrings(row)
+		 if err != nil {
+		    return err
+		 }
+				t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Insert|%s", value))
+				primaryColumnName := t.primaryColumnName
+				/// store value to kdb and get a hash
+				_, b, err := t.columns[primaryColumnName].dbaccess.Get([]byte(key))
+				if b {
+					var derr *DuplicateKeyError
+					return derr
+				}
+				if err != nil {
+					return err
+				}
 
-			t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Insert|%s", value))
-			primaryColumnName := t.primaryColumnName
-			/// store value to kdb and get a hash
-			_, b, err := t.columns[primaryColumnName].dbaccess.Get([]byte(key))
-			if b {
-				var derr *DuplicateKeyError
-				return derr
-			}
-			if err != nil {
-				return err
-			}
-
-			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName), t.encrypted)
-			k := StringToKey(t.columns[primaryColumnName].columnType, key)
-			khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
-			if err != nil {
-				return err
-			}
-			_, err = t.columns[primaryColumnName].dbaccess.Insert(k, []byte(khash))
+				t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(primaryColumnName), t.encrypted)
+				k := StringToKey(t.columns[primaryColumnName].columnType, key)
+				khash, err := t.swarmdb.kaddb.Put(k, []byte(value))
+				if err != nil {
+					return err
+				}
+				_, err = t.columns[primaryColumnName].dbaccess.Insert(k, []byte(khash))
 	*/
 	return err
 }
@@ -1088,9 +1117,9 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, err error) {
 		fmt.Printf("NO COLUMN ERROR\n")
 		var cerr *NoColumnError
 		return nil, cerr
-	} else {
-		// fmt.Printf("READY\n")
 	}
+	// fmt.Printf("READY\n")
+
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
 	fmt.Printf("\n GET key: (%s)%v\n", key, key)
 
@@ -1109,10 +1138,10 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, err error) {
 		}
 		fres := bytes.Trim(kres, "\x00")
 		return fres, nil
-	} else {
-		fmt.Printf("\n MISSING RECORD %s\n", key)
-		return []byte(""), nil
 	}
+	fmt.Printf("\n MISSING RECORD %s\n", key)
+	return []byte(""), nil
+
 }
 
 func (t *Table) Delete(u *SWARMDBUser, key string) (ok bool, err error) {
