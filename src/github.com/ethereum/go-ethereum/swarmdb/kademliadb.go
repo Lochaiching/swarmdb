@@ -37,6 +37,7 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 		fmt.Printf("Failure to open Config", errConfig)
 	}
 	km, _ := NewKeyManager(&config)
+	//TODO: KeyManagerCreateError
 
 	var metadataBody []byte
 	metadataBody = make([]byte, 156)
@@ -53,6 +54,7 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 	copy(metadataBody[59:91], msg_hash)
 
 	sdataSig, _ := km.SignMessage(msg_hash)
+	//TODO: SignMessageError
 
 	copy(metadataBody[91:156], sdataSig)
 	log.Debug("Metadata is [%+v]", metadataBody)
@@ -73,7 +75,11 @@ func (self *KademliaDB) Put(u *SWARMDBUser, k []byte, v []byte) ([]byte, error) 
 	self.maxReplication = u.MaxReplication
 	sdata := self.buildSdata(k, v)
 	hashVal := sdata[512:544] // 32 bytes
-	_ = self.dbChunkstore.StoreKChunk(u, hashVal, sdata, self.encrypted)
+	err = self.dbChunkstore.StoreKChunk(u, hashVal, sdata, self.encrypted)
+	//TODO: PutError
+	if err != nil {
+		return hasVal, &SWARMDBError{ message: `Error putting data` + err.Error() }
+	}
 	return hashVal, nil
 }
 
@@ -143,6 +149,7 @@ func (self *KademliaDB) Print() {
 }
 
 /*
+//TODO: Implement Delete
 func (self *KademliaDB) Delete(k []byte) (bool, error) {
 	_, err := self.Put(k, nil)
 	if err != nil {
@@ -151,6 +158,7 @@ func (self *KademliaDB) Delete(k []byte) (bool, error) {
 	return true, err
 }
 
+//TODO: Define difference between Insert and Put
 func (self *KademliaDB) Insert(k, v []byte) (bool, error) {
 	res, _, _ := self.Get(k)
 	if res != nil {
@@ -164,6 +172,7 @@ func (self *KademliaDB) Insert(k, v []byte) (bool, error) {
 	return true, err
 }
 
+//TODO: Define difference between Update and Put
 func (self *Node) Update(updatekey []byte, updatevalue []byte) (newnode *Node, err error) {
 	res, _ := self.Get(updatekey)
 	if res != nil {
@@ -171,19 +180,5 @@ func (self *Node) Update(updatekey []byte, updatevalue []byte) (newnode *Node, e
 		return
 	}
 	return self, err
-}
-func convertToByte(a Val) []byte {
-	log.Trace(fmt.Sprintf("convertToByte type: %v '%v'", a, reflect.TypeOf(a)))
-	if va, ok := a.([]byte); ok {
-		log.Trace(fmt.Sprintf("convertToByte []byte: %v '%v' %s", a, va, string(va)))
-		return []byte(va)
-	}
-	if va, ok := a.(storage.Key); ok {
-		log.Trace(fmt.Sprintf("convertToByte storage.Key: %v '%v' %s", a, va, string(va)))
-		return []byte(va)
-	} else if va, ok := a.(string); ok {
-		return []byte(va)
-	}
-	return nil
 }
 */
