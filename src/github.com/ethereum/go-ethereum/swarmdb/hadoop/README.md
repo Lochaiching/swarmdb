@@ -1,3 +1,4 @@
+
 # SWARMDB Data Flow 
 
 All SwarmDB node types (farmers/buyers, validators) are required to register on child chain ENS in order to participate in SwarmDB services.   A SWARMDB public **swarmdb** table holds this registry:
@@ -52,7 +53,7 @@ where each buyer node's `<ip:port>` can be looked up from Wolk Chain ENS Registr
 
 # Validator
 
-Given the above SWARMDB HTTP interfaces, a validator (potentially, working on a specific shard **Shard**) for a given epoch identified by **EpochUnixTimestamp** and a list of active SWARMDB nodes from the **swarmdb** table will poll ALL SWARMDB nodes for their logs:
+Given the above SWARMDB HTTP interfaces, a validator (potentially, working on a specific  **Shard**) for a given epoch identified by **EpochUnixTimestamp** and a list of active SWARMDB nodes from the **swarmdb** table will poll ALL SWARMDB nodes for their logs:
 
      https://<ip:port>/farmerlog/<EpochUnixTimestamp>/<Shard(optional)>
      https://<ip:port>/buyerlog/<EpochUnixTimestamp>/<Shard(optional)>
@@ -71,7 +72,7 @@ Validators receive this as input and run MR1, mapreduce Hadoop job to summarize 
 
 The aggregator actually verifies via Tron's SMASH proof the correct storage of the chunk using the buyerlog provided smash proof by reaching out to the farmer node
 
-     https://ip:port/smash/<CHUNKID>
+     https://<ip:port>/<smash>/<CHUNKID>
 
 
 
@@ -85,8 +86,20 @@ If this is due to innocent reasons (corrupt disk, network issues, etc.), the far
 
 ### Farmer Response to Validator Claim of Invalid SMASH proof
 
-If the farmer is faced with a validator rejecting a SMASH proof, the Farmer can submit its claim to the Wolk Manager Contract via the following mechanism: 
-* [TODO: Michael] Please detail further
+If the farmer is faced with a validator maliciously rejecting a sound SMASH proof, the farmer can submit its counter-proof to a public swarmdb table holding active litigation in *recent epochs: 
+
+litigation table has following columns:
+	
+	chunkID			  string - hash
+	id                string - nodeID of the SWARMDB node
+    validatorID       string - public key of the validator node
+    validatorSig      string - Validator's signiture for signing a rejection
+	farmerSig		  string - farmer's signiture for signing such litigation
+    Crash			  string - Smash-proof in dispute 
+    epochtimestamp      int  - epoch of litigation
+    shard             string - the shard to which the validator belongs to
+       
+During Casper block proposal, validators will also vote on settling active litigations from recent epochs. If a farmer's litigations are found valid, such farmer shall be compensated and proper adjustments shall be made in proposed epoch. Honest validators will be rewarded with finder fees while malicious validator's deposit will be slashed. 
 
 ### Other Aspects of SMASH/SWINDLE System
 
@@ -117,7 +130,7 @@ The farmer may then mark the chunk for deletion, or delete all the buyers that d
 
 If the validator notices that a chunk is being overreplicated (by a factor of 2 over rep), the validator will ping the following end point of the farmer: 
 
-     https://ip:port/overreplication/<CHUNKID>/<Rep>/<NumOfFarmers>/<Hash:Validator_sig>
+     https://<ip:port>/overreplication/<CHUNKID>/<Rep>/<NumOfFarmers>/<Hash:Validator_sig>
 
 The farmer can decide to remove the chunk based on the supplied number of farmers.
 
@@ -125,7 +138,7 @@ The farmer can decide to remove the chunk based on the supplied number of farmer
 
 If the validator receives buyerlog that do not have sufficient replication (of at least 4 farmers), the validator will ping the following end point: 
 
-     https://ip:port/underreplication/<CHUNKID>/<NumOfFarmers>/<Hash:Validator_sig>
+     https://<ip:port>/underreplication/<CHUNKID>/<NumOfFarmers>/<Hash:Validator_sig>
 
 This ping could be sent to the buyers's designated guardian or insurer instead in a later version.
 
@@ -137,7 +150,7 @@ Validators must sign all feedback requests sent into SWARMDB nodes.   SWARMDB no
 
 The essence of the SWAP protocol is done *without* a checkbook using a record of peer-to-peer bandwidth logs retrieved on demand by the validator from the following http interface of SWARMDB:
 
-     https://ip:port/bandwidthlog
+     https://<ip:port>/bandwidthlog
      $ cat bandwidthlog-input1.txt
      {"id":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","remote":"0xfd990c3c42446f6705dd66376bf5820cf2c09527","s":123456,"receipt":"r1"}
 
@@ -179,7 +192,7 @@ the net for B would be **0**:
 
 If there is an unmatched claim detected by the aggregator, the aggregator should report it back to the farmer at the following report:
 
-     https://ip:port/failedbandwidthlog/<Peer>/<Receipt>/<Hash:Sig>
+     https://<ip:port>/failedbandwidthlog/<Peer>/<Receipt>/<Hash:Sig>
 
 The SWARMDB node may mark this peer as being untrustworthy and drop them for trading if the total amount of bandwidth exceeds an unacceptable threshold.
 
