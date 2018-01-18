@@ -50,21 +50,21 @@ import (
 )
 
 type Session struct {
-	TableOwner  string //might need []byte or hex?
-	Encrypted   *int
-	Replication *int
-	TableName   string
-	IsOpen      bool
-	DBTable     *swarmdb.SWARMDBTable
+	TableOwner string //might need []byte or hex?
+	Encrypted  *int
+	//Replication *int
+	TableName string
+	IsOpen    bool
+	DBTable   *swarmdb.SWARMDBTable
 }
 
 type IncomingInfo struct {
-	Bid  float64
+	//Bid  float64
 	Info []interface{} //usually []map[string]interface{}
 }
 
 type IncomingGet struct {
-	Bid float64
+	//Bid float64
 	Key string //must be primary key value
 }
 
@@ -76,12 +76,12 @@ func main() {
 	vm := otto.New()
 	session = NewSession()
 	var err error
-	
-		DBC, err := swarmdb.NewSWARMDBConnection()
-		if err != nil {
-			fmt.Printf("Err: %v\n", err)
-			os.Exit(0)
-		}
+
+	DBC, err := swarmdb.NewSWARMDBConnection()
+	if err != nil {
+		fmt.Printf("Err: %v\n", err)
+		os.Exit(0)
+	}
 
 	vm.Set("openSession", func(call otto.FunctionCall) otto.Value {
 
@@ -102,16 +102,16 @@ func main() {
 		if session.Encrypted == nil {
 			*session.Encrypted = 1 //if encrypted is omitted, defaults to yes
 		}
-		if session.Replication == nil {
-			//??
-		}
+		//if session.Replication == nil {
+		//??
+		//}
 		if len(session.TableName) == 0 {
 			result, _ := vm.ToValue("No table name")
 			return result
 		}
 
 		//open up session with table specified
-		session.DBTable, err = DBC.Open(session.TableName)
+		session.DBTable, err = DBC.Open(session.TableName, *session.Encrypted)
 		fmt.Printf("opening session...\n")
 
 		if err != nil {
@@ -173,10 +173,10 @@ func main() {
 			return result
 		}
 
-		if in.Bid == float64(0) {
-			result, _ := vm.ToValue("Cannot have 0 bid")
-			return result
-		}
+		//if in.Bid == float64(0) {
+		//	result, _ := vm.ToValue("Cannot have 0 bid")
+		//	return result
+		//}
 
 		var sCols []swarmdb.Column
 		hasPrimary := false
@@ -212,7 +212,7 @@ func main() {
 
 		//need to check for duplicate table here (need to hook up 'get table info' or use ens)
 
-		session.DBTable, err = DBC.CreateTable(session.TableOwner, *session.Encrypted, *session.Replication, in.Bid, session.TableName, sCols)
+		session.DBTable, err = DBC.CreateTable(session.TableOwner, *session.Encrypted, session.TableName, sCols)
 		if err != nil {
 			result, _ := vm.ToValue(err.Error())
 			return result
@@ -261,16 +261,16 @@ func main() {
 			result, _ := vm.ToValue("No rows specified")
 			return result
 		}
-		if in.Bid == float64(0) {
-			result, _ := vm.ToValue("Cannot have 0 bid")
-			return result
-		}
+		//if in.Bid == float64(0) {
+		//	result, _ := vm.ToValue("Cannot have 0 bid")
+		//	return result
+		//}
 
 		var sRows []swarmdb.Row
 		for _, row := range in.Info {
 			var sRow swarmdb.Row
 			sRow.Cells = make(map[string]interface{})
-			if err := json.Unmarshal(row, &sRow.Cells); err != nil {
+			if err := json.Unmarshal((row.([]byte)), &sRow.Cells); err != nil {
 				result, _ := vm.ToValue(err.Error())
 				return result
 			}
@@ -279,7 +279,7 @@ func main() {
 			//should check for rows that already exist here? -- or kick the can down the line?
 			sRows = append(sRows, sRow)
 		}
-		response, err := session.DBTable.Put(in.Bid, sRows)
+		response, err := session.DBTable.Put(sRows)
 		if err != nil {
 			result, _ := vm.ToValue(err.Error())
 			return result
@@ -339,10 +339,10 @@ func main() {
 				res, _ := vm.ToValue(err.Error())
 				return res
 			}
-			res, _ := vm.ToValue(jsonarray)
-			return res
-		*/
 
+		*/
+		res, _ := vm.ToValue(true)
+		return res
 	})
 
 	vm.Set("quit", func(call otto.FunctionCall) otto.Value {
@@ -364,7 +364,7 @@ func main() {
 }
 
 func NewSession() *Session {
-	return &Session{"", nil, nil, "", false, nil}
+	return &Session{"", nil, "", false, nil}
 }
 
 func replaceSwarmDBTypes(in []byte) []byte {
