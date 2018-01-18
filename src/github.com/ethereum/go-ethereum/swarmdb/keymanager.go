@@ -23,10 +23,10 @@ package swarmdb
 import (
 	"bytes"
 	"fmt"
-	"golang.org/x/crypto/nacl/box"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"golang.org/x/crypto/nacl/box"
 	// "os"
 )
 
@@ -34,7 +34,6 @@ type KeyManager struct {
 	config   *SWARMDBConfig
 	keystore *keystore.KeyStore
 }
-
 
 // KeyManager requires a swarmdb.conf loaded into SWARMDBConfig.  This config specifies a directory specified in the ChunkDBPath
 //  i.e.  "chunkDBPath": "/swarmdb/data/keystore"
@@ -85,15 +84,15 @@ func (self *KeyManager) SignMessage(msg_hash []byte) (sig []byte, err error) {
 	}
 }
 
-// Given a 32 byte hash of a message and a signature [signed with SignMessage above] 
-// returns the specific SWARMDBUser in the keystore 
-// If no user 
+// Given a 32 byte hash of a message and a signature [signed with SignMessage above]
+// returns the specific SWARMDBUser in the keystore
+// If no user
 // This is used in SWARMDB TCP server + HTTP use client response to a challenge to determine which account the user is
 func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUser, err error) {
 	// signatures are 65 byte RSV form - but RSV has the last 1-byte V [web3 (1b/1c) vs go client (00/01)]
 	if len(sig) >= 65 {
 		if sig[64] > 4 {
-			sig[64] -= 27 
+			sig[64] -= 27
 		}
 	} else {
 		// TODO: return invalid signature err
@@ -111,31 +110,30 @@ func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUs
 				return &u0, nil
 			}
 		}
-		return u, &SWARMDBError{ message: fmt.Sprintf("VerifyMessage: Address not found: %x", address2.Bytes()) }
+		return u, &SWARMDBError{message: fmt.Sprintf("VerifyMessage: Address not found: %x", address2.Bytes())}
 	}
 
 }
 
-
-// using a users public/secret key, decrypt the data 
+// using a users public/secret key, decrypt the data
 func (self *KeyManager) DecryptData(u *SWARMDBUser, data []byte) []byte {
 	var decryptNonce [24]byte
 	copy(decryptNonce[:], data[:24])
 
 	decrypted, ok := box.Open(nil, data[24:], &decryptNonce, &u.publicK, &u.secretK)
 	if !ok {
-		// TODO: replace this with a err 
+		// TODO: replace this with a err
 		panic("decryption error")
 	}
 	return decrypted
 }
 
-// using a users public/secret key, decrypt the data 
+// using a users public/secret key, decrypt the data
 func (self *KeyManager) EncryptData(u *SWARMDBUser, data []byte) []byte {
 	var nonce [24]byte
-	// TODO: make nonce random 
+	// TODO: make nonce random
 	nonce = [24]byte{4, 0, 50, 203, 12, 81, 11, 49, 236, 255, 155, 11, 101, 6, 97, 233, 94, 169, 107, 4, 37, 57, 106, 151}
-	msg := data 
+	msg := data
 	encrypted := box.Seal(nonce[:], msg, &nonce, &u.publicK, &u.secretK)
 	return encrypted
 }
