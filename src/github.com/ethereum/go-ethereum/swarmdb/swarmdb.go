@@ -188,7 +188,7 @@ func (self *SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (err error)
 	//check to see if Update cols are in pulled set
 	for colname, _ := range query.Update {
 		if _, ok := table.columns[colname]; !ok {
-			//TODO: 
+			//TODO:
 			return fmt.Errorf("Update SET column name %s is not in table", colname)
 		}
 	}
@@ -533,6 +533,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			return resp, err
 		} else {
 			err2 := tbl.Put(u, d.Rows[0].Cells)
+			//TODO: Will we handle Multi-row puts?
 			if err2 != nil {
 				fmt.Printf("Err putting: %s", err2)
 				return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
@@ -561,6 +562,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 	case "Insert":
 		if len(d.Key) == 0 {
+			//TODO: Missing Key Handling
 			return resp, fmt.Errorf("Missing Key/Value")
 		}
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
@@ -1028,7 +1030,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 }
 
 func (t *Table) Insert(u *SWARMDBUser, row map[string]interface{}) (err error) {
-//TODO: Delete this?
+	//TODO: Delete this?
 	/*
 		        value := convertMapValuesToStrings(row)
 
@@ -1099,7 +1101,7 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, err error) {
 		fmt.Printf("\nError traversing tree: %s", err.Error())
 		return nil, err2
 	}
-	if ok > 0 {
+	if ok {
 		// get value from kdb
 		kres, err3 := t.swarmdb.kaddb.GetByKey(u, key)
 		if err3 != nil {
