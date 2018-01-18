@@ -158,8 +158,6 @@ func (dbc *SWARMDBConnection) CreateTable(tableOwner string, encrypted int, repl
 	req.TableOwner = tableOwner //dbc.ownerID is the owner of the session, not always the table
 	req.Table = tableName
 	req.Encrypted = encrypted
-	req.Bid = bid
-	req.Replication = replication
 	req.Columns = columns
 	_, err = dbc.ProcessRequestResponseCommand(req)
 	if err != nil {
@@ -185,8 +183,6 @@ func (t *SWARMDBTable) Put(bid float64, row interface{}) (response string, err e
 	r.TableOwner = t.dbc.ownerID
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
-	r.Replication = t.replication
-	r.Bid = bid
 
 	switch row.(type) {
 	case Row:
@@ -210,8 +206,6 @@ func (t *SWARMDBTable) Insert(bid float64, rows []Row) (response string, err err
 	r.TableOwner = t.dbc.ownerID
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
-	r.Replication = t.replication
-	r.Bid = bid
 	switch row.(type) {
 	case Row:
 		r.Rows = append(r.Rows, row)
