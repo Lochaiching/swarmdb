@@ -31,8 +31,6 @@ type RequestOption struct {
 	TableOwner  string  `json:"tableowner,omitempty"`
 	Table       string  `json:"table,omitempty"` //"contacts"
 	Encrypted   int     `json:"encrypted,omitempty"`
-	Bid         float64 `json:"bid,omitempty"`
-	Replication int     `json:"replication,omitempty"`
 	Key         string  `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
 	//TODO: Key should be a byte array or interface
 	// Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
