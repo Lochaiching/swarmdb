@@ -8,11 +8,12 @@ import (
 	"flag"
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
 	"github.com/rs/cors"
 	"io"
 	"io/ioutil"
-	"log"
+	logger "log"
 	"math/rand"
 	"net"
 	"net/http"
@@ -115,14 +116,14 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 				break
 			}
 			if true {
-				resp, err := svr.swarmdb.SelectHandler(u, str)
+				resp, err := svr.swarmdb.SelectHandler(u, string(str))
 				if err != nil {
 					s := fmt.Sprintf("ERR: %s\n", err)
 					fmt.Printf(s)
 					writer.WriteString(s)
 					writer.Flush()
 				} else {
-					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, resp)
+					fmt.Printf("\nRead: [%s] Wrote: [%s]\n", str, resp)
 					writer.WriteString(resp + "\n")
 					writer.Flush()
 					// 					fmt.Fprintf(client.writer, resp + "\n")
@@ -238,7 +239,7 @@ func StartHttpServer(sdb *swarmdb.SwarmDB, config *swarmdb.SWARMDBConfig) {
 	fmt.Printf("\nHTTP Listening on %s and port %d\n", config.ListenAddrHTTP, config.PortHTTP)
 	addr := net.JoinHostPort(config.ListenAddrHTTP, strconv.Itoa(config.PortHTTP))
 	//go http.ListenAndServe(config.Addr, hdlr)
-	log.Fatal(http.ListenAndServe(addr, hdlr))
+	logger.Fatal(http.ListenAndServe(addr, hdlr))
 }
 
 func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -252,8 +253,15 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	encAuthString := r.Header["Authorization"]
 	var vUser *swarmdb.SWARMDBUser
 	var errVerified error
-	bodyContent, _ := ioutil.ReadAll(r.Body)
+	bodyContent, errReadBody := ioutil.ReadAll(r.Body)
+	if errReadBody != nil {
+		//TODO: Handle Reading Body error
+	}
 	reqJson := bodyContent
+	//fmt.Println("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
+	swReq, _ := parsePath(r.URL.Path)
+	//TODO: parsePath Error
+
 	if len(encAuthString) == 0 {
 		us := []byte(`{ "requesttype":"Put", "row":{"email":"rodney@wolk.com", "name":"Rodney F. Witcher", "age":370} }`)
 		msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(us), us)
@@ -261,9 +269,18 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("\nMessage Hash: [%s][%x]", msg_hash, msg_hash)
 
 		pa, _ := s.keymanager.SignMessage(msg_hash)
+		//TODO: SignMessageError
+
 		fmt.Printf("\nUser: [%s], Msg Hash [%x], SignedMsg: [%x]\n", us, msg_hash, pa)
 		vUser, errVerified = s.keymanager.VerifyMessage(msg_hash, pa)
+		if errVerified != nil {
+			//TODO: Show Error to Client
+		}
 	} else {
+		bodyContentSeed := bodyContent
+		if r.Method == "GET" {
+			bodyContentSeed = []byte(fmt.Sprintf("%s%s%s", swReq.owner, swReq.table, swReq.key))
+		}
 		encAuthStringParts := strings.SplitN(encAuthString[0], " ", 2)
 		decAuthString, err := base64.StdEncoding.DecodeString(encAuthStringParts[1])
 		if err != nil {
@@ -274,7 +291,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		decAuthStringParts := strings.SplitN(string(decAuthString), ":", 2)
 		inputSignedMsg := decAuthStringParts[0]
 
-		msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(bodyContent), bodyContent)
+		msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(bodyContentSeed), bodyContentSeed)
 		msg_hash := crypto.Keccak256([]byte(msg))
 		fmt.Printf("\nMessage Hash: [%s][%x]", msg_hash, msg_hash)
 
@@ -290,9 +307,6 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	verifiedUser := vUser
-
-	//fmt.Println("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
-	swReq, _ := parsePath(r.URL.Path)
 
 	var dataReq swarmdb.RequestOption
 	if swReq.protocol != "swarmdb:" {
@@ -314,7 +328,6 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var bodyMapInt interface{}
 			json.Unmarshal(bodyContent, &bodyMapInt)
 			//fmt.Println("\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
-			//fmt.Fprintf(w, "\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
 			bodyMap := bodyMapInt.(map[string]interface{})
 			if reqType, ok := bodyMap["requesttype"]; ok {
 				dataReq.RequestType = reqType.(string)
@@ -335,8 +348,6 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					dataReq.Table = swReq.table
 					dataReq.TableOwner = swReq.owner
 					if row, ok := bodyMap["row"]; ok {
-						//rowObj := make(map[string]interface{})
-						//_ = json.Unmarshal([]byte(string(row.(map[string]interface{}))), &rowObj)
 						newRow := swarmdb.Row{Cells: row.(map[string]interface{})}
 						dataReq.Rows = append(dataReq.Rows, newRow)
 					}
@@ -355,6 +366,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			fmt.Printf("\nResponse resulted in Error: %s", errResp)
 			httpErr := &HttpErrorResp{ErrorCode: "TBD", ErrorMsg: errResp.Error()}
 			jHttpErr, _ := json.Marshal(httpErr)
+			//TODO: Handle Error's back to client
 			fmt.Fprint(w, string(jHttpErr))
 		} else {
 			fmt.Fprintf(w, response)
@@ -374,6 +386,12 @@ func main() {
 		fmt.Printf("\n The config file location provided [%s] is invalid.  Exiting ...\n", *configFileLocation)
 		os.Exit(1)
 	}
+
+	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(4), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
+
+	log.Debug("[RODNEY] Starting SWARMDB log debugging")
+	log.Warn("[RODNEY] Starting SWARMDB log debugging")
+
 	ensdbPath := "/tmp"
 	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 	go StartHttpServer(swdb, &config)
