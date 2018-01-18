@@ -51,7 +51,7 @@ type SWARMDBTable struct {
 	dbc         *SWARMDBConnection
 	tableName   string
 	encrypted   int //means all transactions on the table are encrypted
-	replication int
+	//replication int
 }
 
 //type SWARMDBRow struct {
@@ -326,7 +326,7 @@ func rowDataToJson(rows []Row) (string, error) {
 }
 
 //json input string should be []map[string]interface{} format
-func JsonDatatoRow(in string) (rows []Row, err error) {
+func JsonDataToRow(in string) (rows []Row, err error) {
 
 	var jsonRows []map[string]interface{}
 	if err = json.Unmarshal([]byte(in), &jsonRows); err != nil {
