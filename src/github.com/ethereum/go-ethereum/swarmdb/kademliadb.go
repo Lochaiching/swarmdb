@@ -35,6 +35,7 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
 	config, errConfig := LoadSWARMDBConfig(SWARMDBCONF_FILE)
 	if errConfig != nil {
 		fmt.Printf("Failure to open Config", errConfig)
+		//TODO: Should we be passing in 'u' instead?
 	}
 	km, _ := NewKeyManager(&config)
 	//TODO: KeyManagerCreateError
@@ -78,7 +79,9 @@ func (self *KademliaDB) Put(u *SWARMDBUser, k []byte, v []byte) ([]byte, error) 
 	err := self.dbChunkstore.StoreKChunk(u, hashVal, sdata, self.encrypted)
 	//TODO: PutError
 	if err != nil {
-		return hashVal, &SWARMDBError{ message: `Error putting data` + err.Error() }
+		swErr := &SWARMDBError{ message: `Error putting data` + err.Error() }
+		log.Error(swErr.Error())
+		return hashVal, swErr
 	}
 	return hashVal, nil
 }
