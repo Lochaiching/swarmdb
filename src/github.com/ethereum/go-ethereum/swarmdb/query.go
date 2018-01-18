@@ -9,6 +9,7 @@ import (
 
 //at the moment, only parses a query with a single un-nested where clause, i.e.
 //'Select name, age from contacts where email = "rodney@wolk.com"'
+//TODO: nested where clauses
 func ParseQuery(rawQuery string) (query QueryOption, err error) {
 
 	//fmt.Printf("\nin ParseQuery\n")
@@ -29,7 +30,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			//fmt.Printf("select %d: %+v\n", i, sqlparser.String(column)) // stmt.(*sqlparser.Select).SelectExprs)
 			var newcolumn Column
 			newcolumn.ColumnName = sqlparser.String(column)
-			//should somehow get IndexType, ColumnType, Primary from table itself...(not here?)
+			//TODO: do we need to get IndexType, ColumnType, Primary from table itself...(not here?)
 			query.RequestColumns = append(query.RequestColumns, newcolumn)
 		}
 
@@ -48,15 +49,15 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			}
 		} else if stmt.Where.Type == sqlparser.HavingStr { //Having
 			fmt.Printf("type: %s\n", stmt.Where.Type)
-			//fill in having
+			//TODO: fill in having
 		}
 
-		//GroupBy ([]Expr)
+		//TODO: GroupBy ([]Expr)
 		//for _, g := range stmt.GroupBy {
 		//	fmt.Printf("groupby: %s \n", readable(g))
 		//}
 
-		//OrderBy
+		//TODO: OrderBy
 		query.Ascending = 1 //default if nothing?
 
 		//Limit
@@ -152,16 +153,16 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		if stmt.Where.Type == sqlparser.WhereStr { //Where
 
 			query.Where, err = parseWhere(stmt.Where.Expr)
-			//this is where recursion for nested parentheses should take place
+			//TODO: this is where recursion for nested parentheses should probably take place
 			if err != nil {
 				return query, err
 			}
 			//fmt.Printf("Where: %+v\n", query.Where)
 
 		}
-		//what if no Where? throw an error or go ahead and modify all?
+		//TODO: what if no Where? throw an error or go ahead and modify all?
 
-		//OrderBy
+		//TODO: OrderBy
 		query.Ascending = 1 //default if nothing?
 
 		//Limit
@@ -187,9 +188,9 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			}
 			//fmt.Printf("Where: %+v\n", query.Where)
 		}
-		//what if there is no Where? throw an error or go ahead and modify all?
+		//TODO: what if there is no Where? throw an error or go ahead and modify all?
 
-		//OrderBy
+		//TODO: OrderBy
 		query.Ascending = 1 //default if nothing?
 
 		//Limit
