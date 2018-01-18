@@ -1,5 +1,5 @@
 // Copyright 2018 Wolk Inc. - SWARMDB Working Group
-// This file is part of a SWARMDB fork of the go-ethereum library 
+// This file is part of a SWARMDB fork of the go-ethereum library
 
 // The SWARMDB library is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
@@ -305,7 +305,7 @@ func TestSetGetInt(t *testing.T) {
 
 func TestDelete0(t *testing.T) {
 	// TODO: make this test work!
-	t.SkipNow();
+	t.SkipNow()
 
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	swarmdb.NewKeyManager(&config)
@@ -376,7 +376,7 @@ func TestDelete0(t *testing.T) {
 
 func TestDelete1(t *testing.T) {
 	// TODO: make this test work!
-	t.SkipNow();
+	t.SkipNow()
 
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	swarmdb.NewKeyManager(&config)
@@ -406,7 +406,7 @@ func TestDelete1(t *testing.T) {
 
 func TestDelete2(t *testing.T) {
 	// TODO: make this test work!
-	t.SkipNow();
+	t.SkipNow()
 
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	swarmdb.NewKeyManager(&config)
