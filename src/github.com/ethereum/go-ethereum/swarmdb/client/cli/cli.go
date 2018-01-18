@@ -71,16 +71,25 @@ type IncomingGet struct {
 var session *Session
 var DBC *swarmdb.SWARMDBConnection
 
+var TEST_NOCONNECT bool
+
 func main() {
 
 	vm := otto.New()
 	session = NewSession()
 	var err error
 
-	DBC, err := swarmdb.NewSWARMDBConnection()
-	if err != nil {
-		fmt.Printf("Err: %v\n", err)
-		os.Exit(0)
+	TEST_NOCONNECT = false
+
+	if !TEST_NOCONNECT {
+		dbc, err := swarmdb.NewSWARMDBConnection()
+		DBC = &dbc
+		if err != nil {
+			fmt.Printf("Err: %v\n", err)
+			os.Exit(0)
+		}
+	} else {
+		fmt.Printf("DBC, err := swarmdb.NewSWARMDBConnection()\n")
 	}
 
 	vm.Set("openSession", func(call otto.FunctionCall) otto.Value {
@@ -111,7 +120,11 @@ func main() {
 		}
 
 		//open up session with table specified
-		session.DBTable, err = DBC.Open(session.TableName, *session.Encrypted)
+		if !(TEST_NOCONNECT) {
+			session.DBTable, err = DBC.Open(session.TableName, *session.Encrypted)
+		} else {
+			fmt.Printf("DBC.Open(%v, %v)\n", session.TableName, *session.Encrypted)
+		}
 		fmt.Printf("opening session...\n")
 
 		if err != nil {
@@ -121,8 +134,11 @@ func main() {
 
 		if len(session.TableOwner) == 0 {
 			//no input tableowner means session owner is table owner
-			session.TableOwner = DBC.GetOwnerID()
-			//session.TableOwner = "0xfaketableowner"
+			if !(TEST_NOCONNECT) {
+				session.TableOwner = DBC.GetOwnerID()
+			} else {
+				session.TableOwner = "0xfaketableowner"
+			}
 		}
 
 		fmt.Printf("Session opened.\n")
@@ -212,10 +228,14 @@ func main() {
 
 		//need to check for duplicate table here (need to hook up 'get table info' or use ens)
 
-		session.DBTable, err = DBC.CreateTable(session.TableOwner, *session.Encrypted, session.TableName, sCols)
-		if err != nil {
-			result, _ := vm.ToValue(err.Error())
-			return result
+		if !TEST_NOCONNECT {
+			session.DBTable, err = DBC.CreateTable(session.TableOwner, *session.Encrypted, session.TableName, sCols)
+			if err != nil {
+				result, _ := vm.ToValue(err.Error())
+				return result
+			}
+		} else {
+			fmt.Printf("DBC.CreateTable(%v, %v, %v, %+v)\n", session.TableOwner, *session.Encrypted, session.TableName, sCols)
 		}
 
 		fmt.Printf("Success.\n")
@@ -279,10 +299,16 @@ func main() {
 			//should check for rows that already exist here? -- or kick the can down the line?
 			sRows = append(sRows, sRow)
 		}
-		response, err := session.DBTable.Put(sRows)
-		if err != nil {
-			result, _ := vm.ToValue(err.Error())
-			return result
+
+		var response string
+		if !TEST_NOCONNECT {
+			response, err = session.DBTable.Put(sRows)
+			if err != nil {
+				result, _ := vm.ToValue(err.Error())
+				return result
+			}
+		} else {
+			fmt.Printf("session.DBTable.Put(%+v)\n", sRows)
 		}
 
 		result, _ := vm.ToValue(response)
@@ -311,20 +337,27 @@ func main() {
 	// swarmdb> get("contacts", "rodney@wolk.com")
 	// { "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }
 	vm.Set("get", func(call otto.FunctionCall) otto.Value {
-		/*
-			tbl_name := call.Argument(0).String() // e.g. "contacts"
-			id := call.Argument(1).String()       // e.g. "id"
-			jsonrecord, err := swarmdb.GetRecord(tbl_name, id)
-			if err != nil {
-				res, _ := vm.ToValue(err.Error())
-				return res
-			}
-			res, _ := vm.ToValue(jsonrecord)
-			return res
-		*/
+		if !session.IsOpen {
+			result, _ := vm.ToValue("Please open session first.")
+			return result
+		}
+		raw := call.Argument(0).String()
+		fmt.Printf("key:\n%s\n", raw)
 
-		res, _ := vm.ToValue(true)
-		return res
+		if !TEST_NOCONNECT {
+			dbResponse, err := session.DBTable.Get(raw)
+			if err != nil {
+				result, _ := vm.ToValue(err.Error())
+				return result
+			}
+			result, _ := vm.ToValue(dbResponse)
+			return result
+
+		} else {
+			fmt.Printf("session.DBTable.Get(%s)\n", raw)
+			result, _ := vm.ToValue("test response")
+			return result
+		}
 
 	})
 
@@ -332,18 +365,34 @@ func main() {
 	// records should come back with in an array
 	// [ {"name":"Sourabh Niyogi", "age":45 }, {"name":"Francesca Niyogi", "age":49} ...]
 	vm.Set("query", func(call otto.FunctionCall) otto.Value {
-		/*
-			sql := call.Argument(0).String()
-			jsonarray, err := swarmdb.Query(sql)
-			if err != nil {
-				res, _ := vm.ToValue(err.Error())
-				return res
-			}
 
-		*/
-		res, _ := vm.ToValue(true)
-		return res
+		if !session.IsOpen {
+			result, _ := vm.ToValue("Please open session first.")
+			return result
+		}
+		raw := call.Argument(0).String()
+		fmt.Printf("raw:\n%s\n", raw)
+
+		if !TEST_NOCONNECT {
+			dbResponse, err := session.DBTable.Query(raw)
+			if err != nil {
+				result, _ := vm.ToValue(err.Error())
+				return result
+			}
+			result, _ := vm.ToValue(dbResponse)
+			return result
+
+		} else {
+			fmt.Printf("session.DBTable.Query(%s)\n", raw)
+			result, _ := vm.ToValue("test response")
+			return result
+		}
+
 	})
+
+	//TODO:
+	//vm.Set("delete", func(call otto.FunctionCall) otto.Value {
+	//}
 
 	vm.Set("quit", func(call otto.FunctionCall) otto.Value {
 		os.Exit(0)
