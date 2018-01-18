@@ -15,7 +15,8 @@ import (
 
 //TODO: flags for host/port info
 const (
-	CONN_HOST = "127.0.0.1"
+	//CONN_HOST = "127.0.0.1"
+	CONN_HOST = "10.128.0.29"
 	CONN_PORT = "2000"
 	CONN_TYPE = "tcp"
 )
@@ -233,24 +234,22 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseRow(request RequestOption) (
 //TODO: make sure this returns the right string, in correct formatting
 func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOption) (response string, err error) {
 
+	fmt.Printf("\nprocess request response cmd: %+v\n", request)
 	message, err := json.Marshal(request)
 	if err != nil {
 		return response, err
 	}
 	str := string(message) + "\n"
+	fmt.Printf("Req: %v", str)
 	dbc.writer.WriteString(str)
 	dbc.writer.Flush()
-	fmt.Printf("Req: %s", str)
-	response, err2 := dbc.reader.ReadString('\n')
-	if err2 != nil {
+	response, err = dbc.reader.ReadString('\n')
+	if err != nil {
 		fmt.Printf("err: \n")
 		return response, err
 	}
-	fmt.Printf("Res: %s\n", response)
-	return response, nil
 
-	fmt.Printf("\nprocess request response cmd: %+v\n", request)
-	return "", nil
+	return response, nil
 }
 
 //func (t *SWARMDBTable) Get(key string) (row *Row, err error) {
