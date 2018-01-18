@@ -508,6 +508,8 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName str
 
 //TODO: correct all errorhandling to swarmdb defaults
 func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, err error) {
+
+	fmt.Printf("\n\nin swarmdb SelectHandler with data ... %s\n", data)
 	// var rerr *RequestFormatError
 	d, err := parseData(data)
 	if err != nil {
