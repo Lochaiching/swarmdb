@@ -321,6 +321,8 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			dataReq.Key = swReq.key
 			reqJson, err = json.Marshal(dataReq)
 			if err != nil {
+				//TODO: Return Error to Client
+				log.Error(err.Error())	
 			}
 		} else if r.Method == "POST" {
 			fmt.Printf("\nBODY Json: %s", reqJson)
@@ -353,6 +355,8 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 					reqJson, err = json.Marshal(dataReq)
 					if err != nil {
+				//TODO: Return Error to Client
+				log.Error(err.Error())	
 					}
 				}
 			} else {
