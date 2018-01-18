@@ -75,10 +75,10 @@ func (self *KademliaDB) Put(u *SWARMDBUser, k []byte, v []byte) ([]byte, error) 
 	self.maxReplication = u.MaxReplication
 	sdata := self.buildSdata(k, v)
 	hashVal := sdata[512:544] // 32 bytes
-	err = self.dbChunkstore.StoreKChunk(u, hashVal, sdata, self.encrypted)
+	err := self.dbChunkstore.StoreKChunk(u, hashVal, sdata, self.encrypted)
 	//TODO: PutError
 	if err != nil {
-		return hasVal, &SWARMDBError{ message: `Error putting data` + err.Error() }
+		return hashVal, &SWARMDBError{ message: `Error putting data` + err.Error() }
 	}
 	return hashVal, nil
 }
