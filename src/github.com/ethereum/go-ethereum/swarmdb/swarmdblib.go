@@ -32,7 +32,7 @@ func NewGoClient() {
 	//var ens ENSSimulation
 	tableName := "test"
 
-	tbl, err2 := dbc.Open(tableName, 1, 0)
+	tbl, err2 := dbc.Open(tableName, 1)
 	if err2 != nil {
 	}
 	var columns []Column
@@ -41,7 +41,7 @@ func NewGoClient() {
 	columns[0].Primary = 1              // What if this is inconsistent?
 	columns[0].IndexType = IT_BPLUSTREE //  What if this is inconsistent?
 	columns[0].ColumnType = CT_STRING
-	tbl, err3 := dbc.CreateTable(dbc.ownerID, 1, 0, 0.01, tableName, columns) //, ens)
+	tbl, err3 := dbc.CreateTable(dbc.ownerID, 1, tableName, columns) //, ens)
 	if err3 != nil {
 		fmt.Printf("ERR CREATE TABLE %v\n", err3)
 	} else {
@@ -57,7 +57,7 @@ func NewGoClient() {
 		row.Cells = make(map[string]interface{})
 		row.Cells["email"] = `"test%03d@wolk.com"`
 		row.Cells["age"] = i
-		_, err := tbl.Put(0.01, row)
+		_, err := tbl.Put(row)
 		if err != nil {
 			fmt.Printf("ERROR PUT %s %v\n", err, row)
 		} else {
@@ -109,7 +109,7 @@ func (dbc *SWARMDBConnection) Close(tbl *SWARMDBTable) (err error) {
 	return nil
 }
 
-func (dbc *SWARMDBConnection) Open(tableName string, encrypted int, replication int) (tbl *SWARMDBTable, err error) {
+func (dbc *SWARMDBConnection) Open(tableName string, encrypted int) (tbl *SWARMDBTable, err error) {
 
 	// read a random length string from the server
 	challenge, err := dbc.reader.ReadString('\n')
@@ -139,7 +139,7 @@ func (dbc *SWARMDBConnection) Open(tableName string, encrypted int, replication 
 	tbl.tableName = tableName
 	tbl.dbc = dbc
 	tbl.encrypted = encrypted
-	tbl.replication = replication
+	//tbl.replication = replication
 	return tbl, nil
 }
 
@@ -148,7 +148,7 @@ func (dbc *SWARMDBConnection) GetOwnerID() string {
 	return dbc.ownerID
 }
 
-func (dbc *SWARMDBConnection) CreateTable(tableOwner string, encrypted int, replication int, bid float64, tableName string, columns []Column) (tbl *SWARMDBTable, err error) {
+func (dbc *SWARMDBConnection) CreateTable(tableOwner string, encrypted int, tableName string, columns []Column) (tbl *SWARMDBTable, err error) {
 	//TODO: ens = ENSSimulation to verify if table exists already?
 	//TODO: GetTable lookup to verify if table exists already
 
@@ -169,14 +169,13 @@ func (dbc *SWARMDBConnection) CreateTable(tableOwner string, encrypted int, repl
 	tbl.tableName = tableName
 	tbl.dbc = dbc
 	tbl.encrypted = encrypted
-	tbl.replication = replication
+	//tbl.replication = replication
 	return tbl, nil
 
 }
 
 //allows to write multiple rows ([]Row) or single row (Row)
-//if writing multiple rows, bid applies for mass write (is this ok?)
-func (t *SWARMDBTable) Put(bid float64, row interface{}) (response string, err error) {
+func (t *SWARMDBTable) Put(row interface{}) (response string, err error) {
 
 	var r RequestOption
 	r.RequestType = "Put"
@@ -198,7 +197,7 @@ func (t *SWARMDBTable) Put(bid float64, row interface{}) (response string, err e
 
 /*
 //TODO: Insert. Also not sure how Insert differs from Put. This is b/c Insert is not fleshed out in swarmdb.go yet.
-func (t *SWARMDBTable) Insert(bid float64, rows []Row) (response string, err error) {
+func (t *SWARMDBTable) Insert(rows []Row) (response string, err error) {
 
 	var r RequestOption
 	var reqOptRow Row
