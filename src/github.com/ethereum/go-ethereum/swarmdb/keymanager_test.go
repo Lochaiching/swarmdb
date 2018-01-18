@@ -82,7 +82,6 @@ func TestSignVerifyMessage(t *testing.T) {
 		t.Fatal("Failure to Accept1: %s", err2)
 	}
 
-
 	// take a variable length message, hash it into "msg_hash", sign it with SignMessage, and see if it is verified
 	msg := "swarmdb"
 	h256 := sha256.New()
@@ -102,7 +101,7 @@ func TestSignVerifyMessage(t *testing.T) {
 	}
 }
 
-// Test the KeyManager EncryptData and DecryptData 
+// Test the KeyManager EncryptData and DecryptData
 func TestEncryptDecrypt(t *testing.T) {
 
 	// need a config file with a specific user
