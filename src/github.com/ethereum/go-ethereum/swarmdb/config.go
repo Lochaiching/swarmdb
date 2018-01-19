@@ -37,7 +37,7 @@ func GenerateSampleSWARMDBConfig(privateKey string, address string, passphrase s
 
 	c.Address = u.Address
 	c.PrivateKey = privateKey
-	
+
 	c.Authentication = 1
 	c.UsersKeyPath = "/swarmdb/data/keystore"
 	c.Users = append(c.Users, u)
@@ -53,8 +53,10 @@ func SaveSWARMDBConfig(c SWARMDBConfig, filename string) (err error) {
 	cout, err1 := json.Marshal(c)
 	if err1 != nil {
 		return err1
+		//TODO: SWARMDBError
 	} else {
 		err := ioutil.WriteFile(filename, cout, 0644)
+		//TODO: SWARMDBError
 		return err
 	}
 }
@@ -63,10 +65,12 @@ func LoadSWARMDBConfig(filename string) (c SWARMDBConfig, err error) {
 	// read file
 	dat, err := ioutil.ReadFile(filename)
 	if err != nil {
+		//TODO: SWARMDBError
 		return c, err
 	}
 	err1 := json.Unmarshal(dat, &c)
 	if err1 != nil {
+		//TODO: SWARMDBError
 		return c, err1
 	}
 	return c, nil
