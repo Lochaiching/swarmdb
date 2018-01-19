@@ -57,10 +57,19 @@ Deploying the image above will run SWARMDB in the Docker container. To verify if
 
       $ /swarmdb/bin/main
 
+### To start swarmDB `IN THE BACKGROUND` with the default config, run this on the command line:
+
+      $ /swarmdb/bin/main &
+      
 ### To start swarmDB with a modified config file located in a different location:
         
       $ /swarmdb/bin/main -config /path/to/swarmDB/config/file
 
+
+### To start swarmDB `IN THE BACKGROUND` with a modified config file located in a different location:
+        
+      $ /swarmdb/bin/main -config /path/to/swarmDB/config/file &
+      
 ### To see the `main` options:
       
       $ /swarmdb/bin/main -h
@@ -99,7 +108,7 @@ You can add new items in the `users` array and make sure to restart swarmDB afte
 
 ##### To restart:
 ###### 1. Kill the process named `main` 
-       $ sudo kill -9 `ps aux | grep main | grep -v grep | awk '{print$2}'
+       $ sudo kill -9 $(ps aux | grep main | grep -v grep | awk '{print$2}')
       
 ###### 2. Start `main`:
         $ /swarmdb/bin/main -config /path/to/swarmDB/config/file &
