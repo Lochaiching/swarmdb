@@ -481,12 +481,17 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName str
 	} else {
 		fmt.Printf("\ntable key isn't in self.tables! what is this path for?")
 		//TODO: this should throw an error if the table is not created
+	
+		return tbl, &TableNotExistError{tableName: tableName, ownerID: tableOwnerID}
+
+		/*
 		tbl = self.NewTable(tableOwnerID, tableName, 1) //TODO: encrypted needed
 		err = tbl.OpenTable(u)
 		if err != nil {
 			return tbl, &TableNotExistError{tableName: tableName, ownerID: tableOwnerID}
 		}
 		return tbl, nil
+		*/
 	}
 }
 
