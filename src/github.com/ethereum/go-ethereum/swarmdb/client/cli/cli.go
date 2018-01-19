@@ -1,38 +1,8 @@
 /*
 Wolk - SWARMDB Command line
 
-This is a STUB that combines the Otto Javascript parser (used in Ethereum Geth client) with a SQL parser
+This combines the Otto Javascript parser (used in Ethereum Geth client) with a SQL parser
 that aims to specify a clear Javascript + Go bridge to { Kademlia, HashDB, B+tree } indexes.
-
-Setup:
- go get -v github.com/robertkrimen/otto/otto
- go get -v github.com/robertkrimen/otto/repl
- go get -v github.com/xwb1989/sqlparser
-
-
-Major TODOs:
- Rodney + Mayumi to connect {SWARMDB_createTable, SWARMDB_add, SWARMDB_get } to dispatcher based on Table descriptor
- Alina to develop JSON object (in SWARMDB_get) + JSON array  (in SWARMDB_query) interface
-
-Current stub demo:
-[sourabh@www6001 swarmdb]$ ./swarmdb
-SWARMDB_createTable(contacts, column: email primary: true index: hash)
-SWARMDB_add(contacts,  key: email value: rodney@wolk.com key: name value: Rodney key: age value: 38)
-SWARMDB_get(contacts, rodney@wolk.com)
-SWARMDB_query(contacts,  field 0: name field 1: age)
-swarmdb> query("select name, age, email from contacts")
-SWARMDB_query(contacts,  field 0: name field 1: age field 2: email)
-true
-swarmdb> get("contacts", "alina@wolk.com")
-SWARMDB_get(contacts, alina@wolk.com)
-true
-swarmdb> createTable("contacts", {"column": "email", "primary": true, "index": "btree"})
-SWARMDB_createTable(contacts, column: email primary: true index: btree)
-true
-swarmdb> add("contacts", {"email": "alina@wolk.com", "gender": "F", "name": "Alina Chu"})
-SWARMDB_add(contacts,  key: email value: alina@wolk.com key: gender value: F key: name value: Alina Chu)
-true
-swarmdb> quit();
 */
 
 package main
@@ -127,12 +97,12 @@ func main() {
 			//no input tableowner means session owner is table owner
 			if !(TEST_NOCONNECT) {
 				session.TableOwner = DBC.GetOwnerID()
-				fmt.Printf("session's tableowner gotten from dbc: %v\n", session.TableOwner)
+				//fmt.Printf("session's tableowner gotten from dbc: %v\n", session.TableOwner)
 			} else {
 				session.TableOwner = "faketableowner"
 			}
 		} else {
-			fmt.Printf("session's tableowner is: %v\n", session.TableOwner)
+			//fmt.Printf("session's tableowner is: %v\n", session.TableOwner)
 		}
 
 		//open up session with table specified
@@ -141,16 +111,16 @@ func main() {
 		} else {
 			fmt.Printf("DBC.Open(%v, %v)\n", session.TableName, *session.Encrypted)
 		}
-		fmt.Printf("opening session...\n")
+		//fmt.Printf("opening session...\n")
 
 		if err != nil {
 			result, _ := vm.ToValue(err.Error())
 			return result
 		}
 
-		fmt.Printf("Session opened.\n")
+		//fmt.Printf("Session opened.\n")
 		session.IsOpen = true
-		fmt.Printf("session is: %+v\n", session)
+		//fmt.Printf("session is: %+v\n", session)
 		result, _ := vm.ToValue(true)
 		//TODO: Error Checking
 		return result
@@ -164,7 +134,7 @@ func main() {
 			return result
 		}
 
-		//need to close the connection?? this is a stub:
+		//TODO: need to close the connection?? this is a stub:
 		/*
 			err = DBC.Close(session.DBTable)
 			if err != nil {
@@ -186,7 +156,7 @@ func main() {
 			return result
 		}
 		raw := call.Argument(0).String()
-		fmt.Printf("raw:\n%s\n", raw)
+		//fmt.Printf("raw:\n%s\n", raw)
 
 		var in IncomingInfo
 		if err := json.Unmarshal([]byte(raw), &in); err != nil {
@@ -194,7 +164,7 @@ func main() {
 			//TODO: Error Checking
 			return result
 		}
-		fmt.Printf("incoming table:\n%+v\n", in)
+		//fmt.Printf("incoming table:\n%+v\n", in)
 
 		if len(in.Info) == 0 {
 			result, _ := vm.ToValue("No table columns specified")
@@ -212,8 +182,11 @@ func main() {
 		hasPrimary := false
 		for _, col := range in.Info {
 			var sCol swarmdb.Column
-			colbyte, _ := json.Marshal(col.(map[string]interface{}))
-			//TODO: Error Checking
+			colbyte, err := json.Marshal(col.(map[string]interface{}))
+			if err != nil {
+				result, _ := vm.ToValue(err.Error())
+				return result
+			}
 			colbyte = replaceSwarmDBTypes(colbyte)
 			if err := json.Unmarshal(colbyte, &sCol); err != nil {
 				result, _ := vm.ToValue(err.Error())
@@ -246,7 +219,7 @@ func main() {
 			return result
 		}
 
-		//need to check for duplicate table here (need to hook up 'get table info' or use ens)
+		//TODO: need to check for duplicate table here (need to hook up 'get table info' or use ens)
 
 		if !TEST_NOCONNECT {
 			session.DBTable, err = DBC.CreateTable(session.TableOwner, *session.Encrypted, session.TableName, sCols)
@@ -259,7 +232,7 @@ func main() {
 			fmt.Printf("DBC.CreateTable(%v, %v, %v, %+v)\n", session.TableOwner, *session.Encrypted, session.TableName, sCols)
 		}
 
-		fmt.Printf("Success.\n")
+		//fmt.Printf("Success.\n")
 		result, _ := vm.ToValue(true)
 		//TODO: Error Checking
 		return result
@@ -299,7 +272,7 @@ func main() {
 			return result
 		}
 		raw := call.Argument(0).String()
-		fmt.Printf("raw:\n%s\n", raw)
+		//fmt.Printf("raw:\n%s\n", raw)
 
 		var in IncomingInfo
 		if err := json.Unmarshal([]byte(raw), &in); err != nil {
@@ -307,7 +280,7 @@ func main() {
 			//TODO: Error Checking
 			return result
 		}
-		fmt.Printf("incoming rows:\n%+v\n", in)
+		//fmt.Printf("incoming rows:\n%+v\n", in)
 		if len(in.Info) == 0 {
 			result, _ := vm.ToValue("No rows specified")
 			//TODO: Error Checking
@@ -380,7 +353,7 @@ func main() {
 			return result
 		}
 		raw := call.Argument(0).String()
-		fmt.Printf("key:\n%s\n", raw)
+		//fmt.Printf("key:\n%s\n", raw)
 
 		if !TEST_NOCONNECT {
 			dbResponse, err := session.DBTable.Get(raw)
@@ -413,8 +386,8 @@ func main() {
 			return result
 		}
 		raw := call.Argument(0).String()
-		fmt.Printf("raw:\n%s\n", raw)
-		fmt.Printf("session used: %+v\n", session)
+		//fmt.Printf("raw:\n%s\n", raw)
+		//fmt.Printf("session used: %+v\n", session)
 		if !TEST_NOCONNECT {
 			dbResponse, err := session.DBTable.Query(raw)
 			if err != nil {
@@ -448,7 +421,7 @@ func main() {
 	//vm.Run(`createTable("contacts", {"column": "email", "type": "string", "primary": true, "index": "hash" })`)
 	//vm.Run(`add("contacts", { "email": "rodney@wolk.com", "name": "Rodney", "age": 38 })`)
 	//vm.Run(`get("contacts", "rodney@wolk.com")`)
-	vm.Run(`get("email", "r256hashZZ7")`)
+	//vm.Run(`get("email", "r256hashZZ7")`)
 	//vm.Run(`query("select name, age from contacts where age >= 38");`)
 
 	//run swarmdb prompt
