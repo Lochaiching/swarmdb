@@ -15,8 +15,8 @@ import (
 
 //TODO: flags for host/port info
 const (
-	//CONN_HOST = "127.0.0.1"
-	CONN_HOST = "10.128.0.29"
+	CONN_HOST = "127.0.0.1"
+	//CONN_HOST = "10.128.0.29"  //rodney's box
 	CONN_PORT = "2000"
 	CONN_TYPE = "tcp"
 )
@@ -33,7 +33,7 @@ func NewGoClient() {
 	//var ens ENSSimulation
 	tableName := "test"
 
-	tbl, err2 := dbc.Open(tableName, 1)
+	tbl, err2 := dbc.Open(tableName, dbc.ownerID, 1)
 	if err2 != nil {
 	}
 	var columns []Column
@@ -110,7 +110,7 @@ func (dbc *SWARMDBConnection) Close(tbl *SWARMDBTable) (err error) {
 	return nil
 }
 
-func (dbc *SWARMDBConnection) Open(tableName string, encrypted int) (tbl *SWARMDBTable, err error) {
+func (dbc *SWARMDBConnection) Open(tableName string, tableOwner string, encrypted int) (tbl *SWARMDBTable, err error) {
 
 	// read a random length string from the server
 	challenge, err := dbc.reader.ReadString('\n')
@@ -140,6 +140,7 @@ func (dbc *SWARMDBConnection) Open(tableName string, encrypted int) (tbl *SWARMD
 	tbl.tableName = tableName
 	tbl.dbc = dbc
 	tbl.encrypted = encrypted
+	tbl.tableOwner = tableOwner
 	//tbl.replication = replication
 	return tbl, nil
 }
@@ -170,6 +171,7 @@ func (dbc *SWARMDBConnection) CreateTable(tableOwner string, encrypted int, tabl
 	tbl.tableName = tableName
 	tbl.dbc = dbc
 	tbl.encrypted = encrypted
+	tbl.tableOwner = tableOwner
 	//tbl.replication = replication
 	return tbl, nil
 
@@ -180,7 +182,7 @@ func (t *SWARMDBTable) Put(row interface{}) (response string, err error) {
 
 	var r RequestOption
 	r.RequestType = "Put"
-	r.TableOwner = t.dbc.ownerID
+	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
 
@@ -203,7 +205,7 @@ func (t *SWARMDBTable) Insert(rows []Row) (response string, err error) {
 	var r RequestOption
 	var reqOptRow Row
 	r.RequestType = "Insert"
-	r.TableOwner = t.dbc.ownerID
+	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
 	switch row.(type) {
@@ -257,12 +259,13 @@ func (t *SWARMDBTable) Get(key string) (response string, err error) {
 
 	var r RequestOption
 	r.RequestType = "Get"
-	r.TableOwner = t.dbc.ownerID
+	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
 	r.Key = key
 
 	//return ProcessRequestResponseRow(r)
+	fmt.Printf("GET: the request being sent from client to server: [%+v]\n", r)
 	return t.dbc.ProcessRequestResponseCommand(r)
 
 }
@@ -271,7 +274,7 @@ func (t *SWARMDBTable) Delete(key string) (response string, err error) {
 
 	var r RequestOption
 	r.RequestType = "Delete"
-	r.TableOwner = t.dbc.ownerID
+	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
 	r.Key = key
@@ -290,11 +293,12 @@ func (t *SWARMDBTable) Query(query string) (string, error) {
 
 	var r RequestOption
 	r.RequestType = "Query"
-	r.TableOwner = t.dbc.ownerID
+	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
 	r.RawQuery = query
 
+	fmt.Printf("QUERY: the request being sent from client to server: [%+v]\n", r)
 	return t.dbc.ProcessRequestResponseCommand(r)
 
 }
