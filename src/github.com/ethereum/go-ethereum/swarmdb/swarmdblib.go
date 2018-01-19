@@ -95,7 +95,7 @@ func NewSWARMDBConnection() (dbc SWARMDBConnection, err error) {
 		return dbc, err
 	}
 	dbc.connection = conn
-	fmt.Printf("Opened connection: reading string...")
+	//fmt.Printf("Opened connection: reading string...")
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
@@ -128,12 +128,12 @@ func (dbc *SWARMDBConnection) Open(tableName string, tableOwner string, encrypte
 	sig, err := dbc.keymanager.SignMessage(challenge_bytes)
 	if err != nil {
 		return tbl, err
-	} else {
-		fmt.Printf("Challenge: [%x] Sig:[%x]\n", challenge_bytes, sig)
 	}
+	//fmt.Printf("Challenge: [%x] Sig:[%x]\n", challenge_bytes, sig)
+
 	// response = "6b1c7b37285181ef74fb1946968c675c09f7967a3e69888ee37c42df14a043ac2413d19f96760143ee8e8d58e6b0bda4911f642912d2b81e1f2834814fcfdad700"
 	response := fmt.Sprintf("%x", sig)
-	fmt.Printf("challenge:[%v] response:[%v]\n", challenge, response)
+	//fmt.Printf("challenge:[%v] response:[%v]\n", challenge, response)
 	dbc.writer.WriteString(response + "\n")
 	dbc.writer.Flush()
 
@@ -239,19 +239,19 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseRow(request RequestOption) (
 //TODO: make sure this returns the right string, in correct formatting
 func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOption) (response string, err error) {
 
-	fmt.Printf("\nprocess request response cmd: %+v\n", request)
+	//fmt.Printf("\nprocess request response cmd: %+v\n", request)
 	message, err := json.Marshal(request)
 	if err != nil {
 		return response, err
 		//TODO: SWARMDBError
 	}
 	str := string(message) + "\n"
-	fmt.Printf("Req: %v", str)
+	//fmt.Printf("Req: %v", str)
 	dbc.writer.WriteString(str)
 	dbc.writer.Flush()
 	response, err = dbc.reader.ReadString('\n')
 	if err != nil {
-		fmt.Printf("err: \n")
+		//fmt.Printf("err: \n")
 		return response, err
 		//TODO: SWARMDBError
 	}
@@ -270,7 +270,7 @@ func (t *SWARMDBTable) Get(key string) (response string, err error) {
 	r.Key = key
 
 	//return ProcessRequestResponseRow(r)
-	fmt.Printf("GET: the request being sent from client to server: [%+v]\n", r)
+	//fmt.Printf("GET: the request being sent from client to server: [%+v]\n", r)
 	return t.dbc.ProcessRequestResponseCommand(r)
 
 }
@@ -303,7 +303,7 @@ func (t *SWARMDBTable) Query(query string) (string, error) {
 	r.Encrypted = t.encrypted
 	r.RawQuery = query
 
-	fmt.Printf("QUERY: the request being sent from client to server: [%+v]\n", r)
+	//fmt.Printf("QUERY: the request being sent from client to server: [%+v]\n", r)
 	return t.dbc.ProcessRequestResponseCommand(r)
 
 }
