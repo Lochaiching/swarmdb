@@ -27,11 +27,11 @@ type Column struct {
 
 //for passing request data from client to server
 type RequestOption struct {
-	RequestType string  `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	TableOwner  string  `json:"tableowner,omitempty"`
-	Table       string  `json:"table,omitempty"` //"contacts"
-	Encrypted   int     `json:"encrypted,omitempty"`
-	Key         string  `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
+	RequestType string `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
+	TableOwner  string `json:"tableowner,omitempty"`
+	Table       string `json:"table,omitempty"` //"contacts"
+	Encrypted   int    `json:"encrypted,omitempty"`
+	Key         string `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
 	//TODO: Key should be a byte array or interface
 	// Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Rows     []Row    `json:"rows,omitempty"` //value of val, usually the whole json record
@@ -42,16 +42,17 @@ type RequestOption struct {
 type SWARMDBConnection struct {
 	connection net.Conn
 	keymanager KeyManager
-	ownerID    string
+	ownerID    string //owner of the connection opened
 	reader     *bufio.Reader
 	writer     *bufio.Writer
 }
 
 type SWARMDBTable struct {
-	dbc         *SWARMDBConnection
-	tableName   string
-	encrypted   int //means all transactions on the table are encrypted
+	dbc       *SWARMDBConnection
+	tableName string
+	encrypted int //means all transactions on the table are encrypted
 	//replication int
+	tableOwner string //owner of the table being accessed
 }
 
 //type SWARMDBRow struct {
@@ -340,6 +341,22 @@ func JsonDataToRow(in string) (rows []Row, err error) {
 	return rows, nil
 }
 
+func stringToColumnType(in string, columnType ColumnType) (out interface{}, err error) {
+	switch columnType {
+	case CT_INTEGER:
+		out, err = strconv.Atoi(in)
+	case CT_STRING:
+		out = in
+	case CT_FLOAT:
+		out, err = strconv.ParseFloat(in, 64)
+	//case: CT_BLOB:
+	//?
+	default:
+		err = fmt.Errorf("column type not found")
+	}
+	return out, err
+}
+
 //gets only the specified Columns (column name and value) out of a single Row, returns as a Row with only the relevant data
 func filterRowByColumns(row *Row, columns []Column) (filteredRow Row) {
 	//filteredRow.primaryKeyValue = row.primaryKeyValue
@@ -352,6 +369,41 @@ func filterRowByColumns(row *Row, columns []Column) (filteredRow Row) {
 	return filteredRow
 }
 
+func CheckColumnType(colType ColumnType) bool {
+	/*
+		var ct uint8
+		switch colType.(type) {
+		case int:
+			ct = uint8(colType.(int))
+		case uint8:
+			ct = colType.(uint8)
+		case float64:
+			ct = uint8(colType.(float64))
+		case string:
+			cttemp, _ := strconv.ParseUint(colType.(string), 10, 8)
+			ct = uint8(cttemp)
+		case ColumnType:
+			ct = colType.(ColumnType)
+		default:
+			fmt.Printf("CheckColumnType not a type I can work with\n")
+			return false
+		}
+	*/
+	ct := colType
+	if ct == CT_INTEGER || ct == CT_STRING || ct == CT_FLOAT { //|| ct == CT_BLOB {
+		return true
+	}
+	return false
+}
+
+func CheckIndexType(it IndexType) bool {
+	if it == IT_HASHTREE || it == IT_BPLUSTREE { //|| it == IT_FULLTEXT || it == IT_FRACTALTREE || it == IT_NONE {
+		return true
+	}
+	return false
+}
+
+/*
 //used in cli for user input
 func ConvertStringToIndexType(in string) (out IndexType, err error) {
 	switch in {
@@ -401,6 +453,7 @@ func ConvertStringToColumnType(in string) (out ColumnType, err error) {
 	}
 	return out, fmt.Errorf("columntype %s not found", in) //KeyNotFoundError?
 }
+*/
 
 func StringToKey(columnType ColumnType, key string) (k []byte) {
 	k = make([]byte, 32)
