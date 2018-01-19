@@ -92,6 +92,9 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 
 	//var rawRows []Row
 	colRows, err := self.Scan(u, query.TableOwner, query.Table, table.primaryColumnName, query.Ascending)
+	if err != nil {
+		return rows, err
+	}
 	fmt.Printf("\nColRows = [%+v]", colRows)
 
 	//TODO: 2ndary column scans
@@ -118,6 +121,9 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 	*/
 	//apply WHERE
 	whereRows, err := table.applyWhere(colRows, query.Where)
+	if err != nil {
+		return rows, err
+	}
 	fmt.Printf("\nQuerySelect applied where rows: %+v\n", whereRows)
 
 	fmt.Printf("\nNumber of WHERE rows returned : %d", len(whereRows))
@@ -256,188 +262,157 @@ func (self *SwarmDB) QueryDelete(u *SWARMDBUser, query *QueryOption) (err error)
 	return nil
 }
 
-//TODO: there is a better way to do this.
-func (t *Table) applyWhere(rawRows []Row, where Where) (filteredRows []Row, err error) {
-
-	for i, row := range rawRows {
-		if _, ok := row.Cells[where.Left]; !ok {
-			return filteredRows, fmt.Errorf("Where clause col %s doesn't exist in table")
-		}
-
-		switch where.Operator {
-
-		case "=":
-			switch t.columns[where.Left].columnType {
+func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
+	for _, row := range rows {
+		for name, value := range row.Cells {
+			switch t.columns[name].columnType {
 			case CT_INTEGER:
-				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
-				//TODO: TypeConversion Error
-				if row.Cells[where.Left].(int) == right {
-					filteredRows[i].Cells[where.Left] = right
-				}
-			case CT_STRING:
-				if row.Cells[where.Left].(string) == where.Right {
-					filteredRows[i].Cells[where.Left] = where.Right
-				}
-			case CT_FLOAT:
-				right, _ := strconv.ParseFloat(where.Right, 64)
-				//TODO: TypeConversion Error
-				if row.Cells[where.Left].(float64) == right {
-					filteredRows[i].Cells[where.Left] = right
-				}
-			case CT_BLOB:
-				//TODO: not sure what a blob is supposed to be
-			default:
-				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
-			}
-
-		case "<":
-			switch t.columns[where.Left].columnType {
-			case CT_INTEGER:
-				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
-				//TODO: TypeConversion Error
-				if row.Cells[where.Left].(int) < right {
-					filteredRows[i].Cells[where.Left] = right
-				}
-			case CT_STRING:
-				if row.Cells[where.Left].(string) < where.Right {
-					filteredRows[i].Cells[where.Left] = where.Right
-				}
-			case CT_FLOAT:
-				right, _ := strconv.ParseFloat(where.Right, 64)
-				//TODO: TypeConversion Error
-				if row.Cells[where.Left].(float64) < right {
-					filteredRows[i].Cells[where.Left] = right
-				}
-			case CT_BLOB:
-				//TODO: not sure what a blob is supposed to be
-			default:
-				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
-			}
-		case "<=":
-			switch t.columns[where.Left].columnType {
-			case CT_INTEGER:
-				var cellValue int64
-				switch cellType := row.Cells[where.Left].(type) {
-				case (int):
-					cellValue = int64(row.Cells[where.Left].(int))
-				case (float64):
-					cellValue = int64(row.Cells[where.Left].(float64))
-				case (string):
-					cellValue = BytesToInt64([]byte(row.Cells[where.Left].([]byte)))
+				switch value.(type) {
+				case int:
+					row.Cells[name] = value.(int)
+				case float64:
+					row.Cells[name] = int(value.(float64))
 				default:
-					fmt.Printf("\nInvalid type: %s", cellType)
-					return filteredRows, fmt.Errorf("Unknown Type: %v\n")
-				}
-				right := BytesToInt64([]byte(where.Right)) //32 bit int, is this ok?
-				if cellValue <= right {
-					filteredRows[i].Cells[where.Left] = right
+					return rows, fmt.Errorf("TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType)
 				}
 			case CT_STRING:
-				if row.Cells[where.Left].(string) <= where.Right {
-					filteredRows[i].Cells[where.Left] = where.Right
-				}
-			case CT_FLOAT:
-				right, _ := strconv.ParseFloat(where.Right, 64)
-				//TODO: TypeConversion Error
-				if row.Cells[where.Left].(float64) <= right {
-					filteredRows[i].Cells[where.Left] = right
-				}
-			case CT_BLOB:
-				//TODO: not sure what a blob is supposed to be?
-			default:
-				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
-			}
-		case ">":
-			switch t.columns[where.Left].columnType {
-			case CT_INTEGER:
-				var cellValue int64
-				switch cellType := row.Cells[where.Left].(type) {
-				case (int):
-					cellValue = int64(row.Cells[where.Left].(int))
-				case (float64):
-					cellValue = int64(row.Cells[where.Left].(float64))
-				case (string):
-					cellValue = BytesToInt64([]byte(row.Cells[where.Left].([]byte)))
+				switch value.(type) {
+				case string:
+					row.Cells[name] = value.(string)
+				case int:
+					row.Cells[name] = strconv.Itoa(value.(int))
+				case float64:
+					row.Cells[name] = strconv.FormatFloat(value.(float64), 'E', -1, 64)
 				default:
-					fmt.Printf("\nInvalid type: %s", cellType)
-					return filteredRows, fmt.Errorf("Unknown Type: %v\n")
-				}
-				fmt.Printf("\nWHERE Right is: [%s] and Cell Val is [%d]", where.Right, cellValue)
-				rightRaw, _ := strconv.Atoi(where.Right)
-				//TODO: TypeConversion Error
-				right := int64(rightRaw) //32 bit int, is this ok?
-				if cellValue > right {
-					fmt.Printf("\nLen of filtrows [%d] and index [%d]", len(filteredRows), i)
-					filteredRows = append(filteredRows, row)
-				}
-			case CT_STRING:
-				if row.Cells[where.Left].(string) > where.Right {
-					filteredRows[i].Cells[where.Left] = where.Right
+					return rows, fmt.Errorf("TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType)
 				}
 			case CT_FLOAT:
-				right, _ := strconv.ParseFloat(where.Right, 64)
-				//TODO: TypeConversion Error
-				if row.Cells[where.Left].(float64) > right {
-					filteredRows[i].Cells[where.Left] = right
+				switch value.(type) {
+				case float64:
+					row.Cells[name] = value.(float64)
+				case int:
+					row.Cells[name] = float64(value.(int))
+				default:
+					return rows, fmt.Errorf("TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType)
 				}
 			case CT_BLOB:
-				//TODO: not sure what a blob is supposed to be?
+				//TODO?
 			default:
-				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
+				return rows, fmt.Errorf("Coltype not found", t.columns[name].columnType)
 			}
-		case ">=":
-			switch t.columns[where.Left].columnType {
-			case CT_INTEGER:
-				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
-				//TODO: TypeConversion Error
-				if row.Cells[where.Left].(int) >= right {
-					filteredRows[i].Cells[where.Left] = right
-				}
-			case CT_STRING:
-				if row.Cells[where.Left].(string) >= where.Right {
-					filteredRows[i].Cells[where.Left] = where.Right
-				}
-			case CT_FLOAT:
-				right, _ := strconv.ParseFloat(where.Right, 64)
-				//TODO: TypeConversion Error
-				if row.Cells[where.Left].(float64) >= right {
-					filteredRows[i].Cells[where.Left] = right
-				}
-			case CT_BLOB:
-				//TODO: not sure what a blob is supposed to be?
-			default:
-				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
-			}
-		case "!=":
-			switch t.columns[where.Left].columnType {
-			case CT_INTEGER:
-				right, _ := strconv.Atoi(where.Right) //32 bit int, is this ok?
-				//TODO: TypeConversion Error
-				if row.Cells[where.Left].(int) != right {
-					filteredRows[i].Cells[where.Left] = right
-				}
-			case CT_STRING:
-				if row.Cells[where.Left].(string) != where.Right {
-					filteredRows[i].Cells[where.Left] = where.Right
-				}
-			case CT_FLOAT:
-				right, _ := strconv.ParseFloat(where.Right, 64)
-				//TODO: TypeConversion Error
-				if row.Cells[where.Left].(float64) != right {
-					filteredRows[i].Cells[where.Left] = right
-				}
-			case CT_BLOB:
-				////TODO: not sure what a blob is supposed to be?
-			default:
-				return filteredRows, fmt.Errorf("Coltype %v not found", t.columns[where.Left].columnType)
-			}
-		default:
-			return filteredRows, fmt.Errorf("Operator %s not found", where.Operator)
-
 		}
 	}
+	return rows, nil
+}
 
-	return filteredRows, nil
+//TODO: could overload the operators so this isn't so clunky
+//TODO: Blob types
+func (t *Table) applyWhere(rawRows []Row, where Where) (outRows []Row, err error) {
+	for _, row := range rawRows {
+		if _, ok := row.Cells[where.Left]; !ok {
+			return outRows, fmt.Errorf("Where clause col %s doesn't exist in table")
+		}
+		colType := t.columns[where.Left].columnType
+		right, err := stringToColumnType(where.Right, colType)
+		if err != nil {
+			return outRows, err
+		}
+		fRow := NewRow()
+		switch where.Operator {
+		case "=":
+			switch colType {
+			case CT_INTEGER:
+				if row.Cells[where.Left].(int) == right.(int) {
+					fRow.Cells = row.Cells
+				}
+			case CT_FLOAT:
+				if row.Cells[where.Left].(float64) == right.(float64) {
+					fRow.Cells = row.Cells
+				}
+			case CT_STRING:
+				if row.Cells[where.Left].(string) == right.(string) {
+					fRow.Cells = row.Cells
+				}
+			}
+		case "<":
+			switch colType {
+			case CT_INTEGER:
+				if row.Cells[where.Left].(int) < right.(int) {
+					fRow.Cells = row.Cells
+				}
+			case CT_FLOAT:
+				if row.Cells[where.Left].(float64) < right.(float64) {
+					fRow.Cells = row.Cells
+				}
+			case CT_STRING:
+				if row.Cells[where.Left].(string) < right.(string) {
+					fRow.Cells = row.Cells
+				}
+			}
+		case "<=":
+			switch colType {
+			case CT_INTEGER:
+				if row.Cells[where.Left].(int) <= right.(int) {
+					fRow.Cells = row.Cells
+				}
+			case CT_FLOAT:
+				if row.Cells[where.Left].(float64) <= right.(float64) {
+					fRow.Cells = row.Cells
+				}
+			case CT_STRING:
+				if row.Cells[where.Left].(string) <= right.(string) {
+					fRow.Cells = row.Cells
+				}
+			}
+		case ">":
+			switch colType {
+			case CT_INTEGER:
+				if row.Cells[where.Left].(int) > right.(int) {
+					fRow.Cells = row.Cells
+				}
+			case CT_FLOAT:
+				if row.Cells[where.Left].(float64) > right.(float64) {
+					fRow.Cells = row.Cells
+				}
+			case CT_STRING:
+				if row.Cells[where.Left].(string) > right.(string) {
+					fRow.Cells = row.Cells
+				}
+			}
+		case ">=":
+			switch colType {
+			case CT_INTEGER:
+				if row.Cells[where.Left].(int) >= right.(int) {
+					fRow.Cells = row.Cells
+				}
+			case CT_FLOAT:
+				if row.Cells[where.Left].(float64) >= right.(float64) {
+					fRow.Cells = row.Cells
+				}
+			case CT_STRING:
+				if row.Cells[where.Left].(string) >= right.(string) {
+					fRow.Cells = row.Cells
+				}
+			}
+		case "!=":
+			switch colType {
+			case CT_INTEGER:
+				if row.Cells[where.Left].(int) != right.(int) {
+					fRow.Cells = row.Cells
+				}
+			case CT_FLOAT:
+				if row.Cells[where.Left].(float64) != right.(float64) {
+					fRow.Cells = row.Cells
+				}
+			case CT_STRING:
+				if row.Cells[where.Left].(string) != right.(string) {
+					fRow.Cells = row.Cells
+				}
+			}
+		}
+		outRows = append(outRows, fRow)
+	}
+	return outRows, nil
 }
 
 func (self *SwarmDB) Query(u *SWARMDBUser, query *QueryOption) (rows []Row, err error) {
@@ -468,15 +443,21 @@ func (self *SwarmDB) Query(u *SWARMDBUser, query *QueryOption) (rows []Row, err 
 
 func (self *SwarmDB) Scan(u *SWARMDBUser, tableOwnerID string, tableName string, columnName string, ascending int) (rows []Row, err error) {
 	tblKey := self.GetTableKey(tableOwnerID, tableName)
-	if tbl, ok := self.tables[tblKey]; ok {
-		rows, err = tbl.Scan(u, columnName, ascending)
-		if err != nil {
-			fmt.Printf("\nError doing table scan: [%s]", err)
-			return rows, err
-		}
-	} else {
-		return rows, fmt.Errorf("No such table to scan %s - %s", tableOwnerID, tableName)
+	tbl, ok := self.tables[tblKey]
+	if !ok {
+		return rows, fmt.Errorf("No such table to scan [%s] - [%s]", tableOwnerID, tableName)
 	}
+	rows, err = tbl.Scan(u, columnName, ascending)
+	if err != nil {
+		fmt.Printf("\nError doing table scan: [%s]", err)
+		return rows, err
+	}
+	rows, err = tbl.assignRowColumnTypes(rows)
+	if err != nil {
+		fmt.Printf("\nError assigning column types to row values")
+		return rows, err
+	}
+
 	fmt.Printf("swarmdb Scan finished ok: %+v\n", rows)
 	return rows, nil
 
@@ -493,9 +474,11 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName str
 	tblKey := self.GetTableKey(tableOwnerID, tableName)
 
 	if tbl, ok := self.tables[tblKey]; ok {
-		fmt.Printf("\nprimary column name GetTable: %s -> columns: %v\n", tbl.columns, tbl.primaryColumnName)
+		fmt.Printf("\ntable[%v] exists, it is: %+v\n", tblKey, tbl)
+		fmt.Printf("\nprimary column name GetTable: %+v -> columns: %+v\n", tbl.columns, tbl.primaryColumnName)
 		return tbl, nil
 	} else {
+		fmt.Printf("\ntable key isn't in self.tables! what is this path for?")
 		//TODO: this should throw an error if the table is not created
 		tbl = self.NewTable(tableOwnerID, tableName, 1) //TODO: encrypted needed
 		err = tbl.OpenTable(u)
@@ -531,25 +514,19 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 		return "ok", err
 	case "Put":
-		fmt.Printf("\nDATA: [%+v]", d)
+		fmt.Printf("\nPut DATA: [%+v]", d)
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
-			fmt.Printf("err1: %s\n", err)
 			return resp, err
 		}
-		err2 := tbl.Put(u, d.Rows[0].Cells)
-		//TODO: Will we handle Multi-row puts?
-		if err2 != nil {
-			fmt.Printf("Err putting: %s", err2)
-			return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
-		} else {
-			return "ok", nil
+		d.Rows, err = tbl.assignRowColumnTypes(d.Rows)
+		if err != nil {
+			return resp, err
 		}
-
+		//TODO: Will we handle Multi-row puts?
 		err = tbl.Put(u, d.Rows[0].Cells)
 		if err != nil {
-			fmt.Printf("Err putting: %s", err)
-			return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s")
+			return resp, fmt.Errorf("\nError trying to 'Put' [%s] -- Err: %s", err)
 		}
 		return "ok", nil
 	case "Get":
@@ -629,6 +606,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
 
+		fmt.Printf("right before GetTable, u: %v, d.TableOwner: %v, d.Table: %v \n", u, d.TableOwner, d.Table)
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
 			return resp, err
@@ -698,12 +676,12 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 				return string(retJson), nil
 			}
 		}
-		fmt.Printf("\nAbout to process query [%s]", query)
+		fmt.Printf("\nAbout to process query [%+v]", query)
 		//process the query
 		qRows, err := self.Query(u, &query)
 		fmt.Printf("\nQRows: [%+v]", qRows)
 		if err != nil {
-			fmt.Printf("\nError processing query [%s] | Error: %s", query, err)
+			fmt.Printf("\nError processing query [%+v] | Error: %s", query, err)
 			return resp, err
 		}
 		resp, err = rowDataToJson(qRows)
@@ -808,12 +786,33 @@ func (self *SwarmDB) NewTable(ownerID string, tableName string, encrypted int) *
 	return t
 }
 
+//TODO: need to make sure the types of the columns are correct
 func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Column, encrypted int) (tbl *Table, err error) {
 	columnsMax := 30
 	primaryColumnName := ""
 	if len(columns) > columnsMax {
 		fmt.Printf("\nMax Allowed Columns for a table is %s and you submit %s", columnsMax, len(columns))
 	}
+
+	//error checking
+	for _, columninfo := range columns {
+		if columninfo.Primary > 0 {
+			if len(primaryColumnName) > 0 {
+				return tbl, fmt.Errorf("more than one primary column")
+			}
+			primaryColumnName = columninfo.ColumnName
+		}
+		if !CheckColumnType(columninfo.ColumnType) {
+			return tbl, fmt.Errorf("bad columntype")
+		}
+		if !CheckIndexType(columninfo.IndexType) {
+			return tbl, fmt.Errorf("bad column indextype")
+		}
+	}
+	if len(primaryColumnName) == 0 {
+		return tbl, fmt.Errorf("no primary column indicated")
+	}
+
 	buf := make([]byte, 4096)
 	fmt.Printf("\nCreating Table [%s] with the Owner [%s]", tableName, u.Address)
 	tbl = swdb.NewTable(u.Address, tableName, encrypted)
@@ -829,13 +828,8 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 		b[0] = byte(columninfo.IndexType)
 		copy(buf[2048+i*64+30:], b) // columninfo.IndexType
 		// fmt.Printf(" column: %v\n", columninfo)
-		if columninfo.Primary > 0 {
-			primaryColumnName = columninfo.ColumnName
-			// fmt.Printf("  [%s] ---> primary\n", primaryColumnName)
-		} else {
-			// fmt.Printf("  ---> NOT primary\n")
-		}
 	}
+
 	//Could (Should?) be less bytes, but leaving space in case more is to be there
 	copy(buf[4000:4024], IntToByte(tbl.encrypted))
 	swarmhash, err := swdb.StoreDBChunk(u, buf, tbl.encrypted) // TODO
@@ -867,17 +861,17 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 	roothash, err := t.swarmdb.GetRootHash([]byte(t.tableName))
 	fmt.Printf("opening table @ %s roothash %s\n", t.tableName, roothash)
 	if err != nil {
-		fmt.Printf("Error retrieving Index Root Hash for table [%s]: %s", t.tableName, err)
+		err = fmt.Errorf("Error retrieving Index Root Hash for table [%s]: %v", t.tableName, err)
 		return err
 	}
 	if len(roothash) == 0 {
-		fmt.Printf("Empty hash retrieved")
+		err = fmt.Errorf("Empty hash retrieved, %v", err)
 		return err
 	}
 	setprimary := false
 	columndata, err := t.swarmdb.RetrieveDBChunk(u, roothash)
 	if err != nil {
-		fmt.Printf("Error retrieving Index Root Hash: %s", err)
+		err = fmt.Errorf("Error retrieving Index Root Hash: %v", err)
 		return err
 	}
 
@@ -887,7 +881,7 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 		buf := make([]byte, 64)
 		copy(buf, columnbuf[i:i+64])
 		if buf[0] == 0 {
-			fmt.Printf("skip!\n")
+			fmt.Printf("\nin swarmdb.OpenTable, skip!\n")
 			break
 		}
 		columninfo := new(ColumnInfo)

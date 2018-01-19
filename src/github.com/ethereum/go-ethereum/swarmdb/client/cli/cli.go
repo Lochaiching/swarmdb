@@ -71,8 +71,11 @@ type IncomingGet struct {
 var session *Session
 var DBC *swarmdb.SWARMDBConnection
 
+//TODO: for production, take out TEST_NOCONNECT
 var TEST_NOCONNECT bool
 
+//TODO: standardize "user-friendly" errs
+//TODO: take out fmt.Printf stmts
 func main() {
 
 	vm := otto.New()
@@ -120,10 +123,21 @@ func main() {
 			//TODO: Error Checking
 			return result
 		}
+		if len(session.TableOwner) == 0 {
+			//no input tableowner means session owner is table owner
+			if !(TEST_NOCONNECT) {
+				session.TableOwner = DBC.GetOwnerID()
+				fmt.Printf("session's tableowner gotten from dbc: %v\n", session.TableOwner)
+			} else {
+				session.TableOwner = "faketableowner"
+			}
+		} else {
+			fmt.Printf("session's tableowner is: %v\n", session.TableOwner)
+		}
 
 		//open up session with table specified
 		if !(TEST_NOCONNECT) {
-			session.DBTable, err = DBC.Open(session.TableName, *session.Encrypted)
+			session.DBTable, err = DBC.Open(session.TableName, session.TableOwner, *session.Encrypted)
 		} else {
 			fmt.Printf("DBC.Open(%v, %v)\n", session.TableName, *session.Encrypted)
 		}
@@ -132,15 +146,6 @@ func main() {
 		if err != nil {
 			result, _ := vm.ToValue(err.Error())
 			return result
-		}
-
-		if len(session.TableOwner) == 0 {
-			//no input tableowner means session owner is table owner
-			if !(TEST_NOCONNECT) {
-				session.TableOwner = DBC.GetOwnerID()
-			} else {
-				session.TableOwner = "0xfaketableowner"
-			}
 		}
 
 		fmt.Printf("Session opened.\n")
@@ -199,7 +204,7 @@ func main() {
 
 		//if in.Bid == float64(0) {
 		//	result, _ := vm.ToValue("Cannot have 0 bid")
-			//TODO: Error Checking
+		//TODO: Error Checking
 		//	return result
 		//}
 
@@ -310,19 +315,20 @@ func main() {
 		}
 		//if in.Bid == float64(0) {
 		//	result, _ := vm.ToValue("Cannot have 0 bid")
-			//TODO: Error Checking
+		//TODO: Error Checking
 		//	return result
 		//}
 
 		var sRows []swarmdb.Row
 		for _, row := range in.Info {
-			var sRow swarmdb.Row
-			sRow.Cells = make(map[string]interface{})
-			if err := json.Unmarshal((row.([]byte)), &sRow.Cells); err != nil {
-				result, _ := vm.ToValue(err.Error())
-				//TODO: Error Checking
-				return result
-			}
+			sRow := swarmdb.NewRow()
+			sRow.Cells = row.(map[string]interface{})
+			/*
+				if err := json.Unmarshal([]byte(row.(string)), &sRow.Cells); err != nil {
+					result, _ := vm.ToValue(err.Error())
+					return result
+				}*/
+
 			//should check for primary key in each row?
 			//should check for duplicate rows?
 			//should check for rows that already exist here? -- or kick the can down the line?
@@ -408,7 +414,7 @@ func main() {
 		}
 		raw := call.Argument(0).String()
 		fmt.Printf("raw:\n%s\n", raw)
-
+		fmt.Printf("session used: %+v\n", session)
 		if !TEST_NOCONNECT {
 			dbResponse, err := session.DBTable.Query(raw)
 			if err != nil {
