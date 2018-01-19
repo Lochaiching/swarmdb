@@ -73,9 +73,9 @@ Deploying the image above will run SWARMDB in the Docker container. To verify if
     
       {
           "listenAddrTCP": "0.0.0.0",
-          "portTCP": 2000
+          "portTCP": 2001
           "listenAddrHTTP": "0.0.0.0",
-          "portHTTP": 8500,
+          "portHTTP": 8501,
           "address": "9982ad7bfbe62567287dafec879d20687e4b76f5",
           "privateKey": "4b0d79af51456172dfcc064c1b4b8f45f363a80a434664366045165ba5217d53",
           "chunkDBPath": "/swarmdb/data/keystore",
