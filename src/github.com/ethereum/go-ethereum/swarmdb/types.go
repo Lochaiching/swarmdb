@@ -27,11 +27,11 @@ type Column struct {
 
 //for passing request data from client to server
 type RequestOption struct {
-	RequestType string  `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	TableOwner  string  `json:"tableowner,omitempty"`
-	Table       string  `json:"table,omitempty"` //"contacts"
-	Encrypted   int     `json:"encrypted,omitempty"`
-	Key         string  `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
+	RequestType string `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
+	TableOwner  string `json:"tableowner,omitempty"`
+	Table       string `json:"table,omitempty"` //"contacts"
+	Encrypted   int    `json:"encrypted,omitempty"`
+	Key         string `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
 	//TODO: Key should be a byte array or interface
 	// Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Rows     []Row    `json:"rows,omitempty"` //value of val, usually the whole json record
@@ -48,9 +48,9 @@ type SWARMDBConnection struct {
 }
 
 type SWARMDBTable struct {
-	dbc         *SWARMDBConnection
-	tableName   string
-	encrypted   int //means all transactions on the table are encrypted
+	dbc       *SWARMDBConnection
+	tableName string
+	encrypted int //means all transactions on the table are encrypted
 	//replication int
 }
 
