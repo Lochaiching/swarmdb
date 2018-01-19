@@ -282,6 +282,7 @@ func (q *x) siblings(i int) (l, r *d) {
 		}
 	}
 	return
+	//TODO: no return of l,r,*d required?
 }
 
 // -------------------------------------------------------------------------- d
@@ -394,6 +395,7 @@ func (t *Tree) Close(u *SWARMDBUser) (ok bool, err error) {
 	*t = zt
 	btTPool.Put(t)
 	return true, nil
+	//TODO: no case returns an error, so seems we either (a) aren't checking for a potential error that we should or (b) remove err from the return params of the func signature
 }
 
 // --
@@ -416,8 +418,10 @@ func set_chunk_childtype(buf []byte, nodetype string) {
 
 func (t *Tree) GetRootHash() (hashid []byte, err error) {
 	return t.hashid, nil
+	//TODO: no case returns an error, so seems we either (a) aren't checking for a potential error that we should or (b) remove err from the return params of the func signature
 }
 
+//TODO: add err to function signature
 func (t *Tree) SWARMGet(u *SWARMDBUser) (success bool) {
 	if t.r != nil {
 		switch z := t.r.(type) {
@@ -495,6 +499,7 @@ func (t *Tree) SWARMGet(u *SWARMDBUser) (success bool) {
 }
 
 // a hashid is valid if its not 0
+// TODO: no err needs to be returned if invalid hash? (maybe false is enough?)
 func valid_hashid(hashid []byte) (valid bool) {
 	valid = false
 	for i := 0; i < len(hashid); i++ {
@@ -1039,6 +1044,7 @@ func (t *Tree) Seek(u *SWARMDBUser, key []byte /*K*/) (e OrderedDatabaseCursor, 
 	q := t.r
 	if q == nil {
 		e = btEPool.get(nil, false, 0, k, nil, t, t.ver)
+		//TODO: does this not need to return e, ok, err?
 		return
 	}
 
@@ -1072,6 +1078,7 @@ func (t *Tree) SeekFirst(u *SWARMDBUser) (e OrderedDatabaseCursor, err error) {
 	if q == nil {
 		e = btEPool.get(nil, false, 0, k, nil, t, t.ver)
 		return
+		//TODO: does this not need to return e, err?
 	}
 
 	for {
@@ -1096,6 +1103,7 @@ func (t *Tree) SeekLast(u *SWARMDBUser) (e OrderedDatabaseCursor, err error) {
 	if q == nil {
 		e = btEPool.get(nil, false, 0, k, nil, t, t.ver)
 		return
+		//TODO: no need to return e, err?
 	}
 
 	for {
@@ -1127,6 +1135,7 @@ func (t *Tree) Put(u *SWARMDBUser, key []byte /*K*/, v []byte /*V*/) (okresult b
 		z := t.insert(btDPool.Get().(*d), 0, k, v)
 		t.r, t.first, t.last = z, z, z
 		return
+		//TODO: no need to return okresult, err?
 	}
 
 	// go down each level, from the "x" intermediate nodes to the "d" data nodes
@@ -1187,6 +1196,7 @@ func (t *Tree) Insert(u *SWARMDBUser, k []byte /*K*/, v []byte /*V*/) (okres boo
 		z := t.insert(btDPool.Get().(*d), 0, k, v)
 		t.r, t.first, t.last = z, z, z
 		return
+		//TODO: no need to return okres, err?
 	}
 
 	// go down each level, from the "x" intermediate nodes to the "d" data nodes
@@ -1376,12 +1386,14 @@ func (e *Enumerator) Close() {
 func (e *Enumerator) Next(u *SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err error) {
 	if err = e.err; err != nil {
 		return
+		//TODO: no need to return k, v, err?
 	}
 
 	/*
 		 // TODO: remove this or reenable
 			if e.ver != e.t.ver {
 				f, _, _ := e.t.Seek(e.k)
+				//TODO: if re-enabled -- handle error
 				*e = *f
 				f.Close()
 			}
@@ -1389,12 +1401,14 @@ func (e *Enumerator) Next(u *SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err e
 	if e.q == nil {
 		e.err, err = io.EOF, io.EOF
 		return
+		//TODO: no need to return k, v, err?
 	}
 
 	if e.i >= e.q.c {
 		if err = e.next(u); err != nil {
 			// TODO: err handling
 			return
+			//TODO: no need to return k, v, err?
 		}
 	}
 
@@ -1403,6 +1417,7 @@ func (e *Enumerator) Next(u *SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err e
 	e.k, e.hit = k, true
 	e.next(u)
 	return
+	//TODO: no need to return k, v, err?
 }
 
 func (e *Enumerator) next(u *SWARMDBUser) error {
@@ -1439,11 +1454,13 @@ func (e *Enumerator) next(u *SWARMDBUser) error {
 func (e *Enumerator) Prev(u *SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err error) {
 	if err = e.err; err != nil {
 		return
+		//TODO: no need to return k, v, err?
 	}
 	/*
 		 // TODO: remove this or reenable
 			if e.ver != e.t.ver {
 				f, _, _ := e.t.Seek(e.k)
+				//TODO: if reenabled - handle errors
 				*e = *f
 				f.Close()
 			}
@@ -1451,18 +1468,21 @@ func (e *Enumerator) Prev(u *SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err e
 	if e.q == nil {
 		e.err, err = io.EOF, io.EOF
 		return
+		//TODO: no need to return k, v, err?
 	}
 
 	if !e.hit {
 		// move to previous because Seek overshoots if there's no hit
 		if err = e.prev(u); err != nil {
 			return
+			//TODO: no need to return k, v, err?
 		}
 	}
 
 	if e.i >= e.q.c {
 		if err = e.prev(u); err != nil {
 			return
+			//TODO: no need to return k, v, err?
 		}
 	}
 
@@ -1471,6 +1491,7 @@ func (e *Enumerator) Prev(u *SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err e
 	e.k, e.hit = k, true
 	e.prev(u)
 	return
+	//TODO: no need to return k, v, err?
 }
 
 func (e *Enumerator) prev(u *SWARMDBUser) error {

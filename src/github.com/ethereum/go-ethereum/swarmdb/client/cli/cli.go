@@ -108,6 +108,7 @@ func main() {
 		arg0 := call.Argument(0).String()
 		if err := json.Unmarshal([]byte(arg0), &session); err != nil {
 			result, _ := vm.ToValue(err.Error())
+			//TODO: Error Checking
 			return result
 		}
 
@@ -119,6 +120,7 @@ func main() {
 		//}
 		if len(session.TableName) == 0 {
 			result, _ := vm.ToValue("No table name")
+			//TODO: Error Checking
 			return result
 		}
 		if len(session.TableOwner) == 0 {
@@ -150,6 +152,7 @@ func main() {
 		session.IsOpen = true
 		fmt.Printf("session is: %+v\n", session)
 		result, _ := vm.ToValue(true)
+		//TODO: Error Checking
 		return result
 
 	})
@@ -157,6 +160,7 @@ func main() {
 	vm.Set("closeSession", func(call otto.FunctionCall) otto.Value {
 		if !session.IsOpen {
 			result, _ := vm.ToValue("No open session to close")
+			//TODO: Error Checking
 			return result
 		}
 
@@ -169,6 +173,7 @@ func main() {
 			}
 		*/
 		result, _ := vm.ToValue(true)
+		//TODO: Error Checking
 		return result
 
 	})
@@ -177,6 +182,7 @@ func main() {
 
 		if !session.IsOpen {
 			result, _ := vm.ToValue("Please open session first.")
+			//TODO: Error Checking
 			return result
 		}
 		raw := call.Argument(0).String()
@@ -185,17 +191,20 @@ func main() {
 		var in IncomingInfo
 		if err := json.Unmarshal([]byte(raw), &in); err != nil {
 			result, _ := vm.ToValue(err.Error())
+			//TODO: Error Checking
 			return result
 		}
 		fmt.Printf("incoming table:\n%+v\n", in)
 
 		if len(in.Info) == 0 {
 			result, _ := vm.ToValue("No table columns specified")
+			//TODO: Error Checking
 			return result
 		}
 
 		//if in.Bid == float64(0) {
 		//	result, _ := vm.ToValue("Cannot have 0 bid")
+		//TODO: Error Checking
 		//	return result
 		//}
 
@@ -204,21 +213,26 @@ func main() {
 		for _, col := range in.Info {
 			var sCol swarmdb.Column
 			colbyte, _ := json.Marshal(col.(map[string]interface{}))
+			//TODO: Error Checking
 			colbyte = replaceSwarmDBTypes(colbyte)
 			if err := json.Unmarshal(colbyte, &sCol); err != nil {
 				result, _ := vm.ToValue(err.Error())
+				//TODO: Error Checking
 				return result
 			}
 			if len(sCol.ColumnName) == 0 {
 				result, _ := vm.ToValue("needs column name")
+				//TODO: Error Checking
 				return result
 			}
 			if sCol.ColumnType == 0 {
 				result, _ := vm.ToValue("needs column type")
+				//TODO: Error Checking
 				return result
 			}
 			if sCol.IndexType == 0 {
 				result, _ := vm.ToValue("needs index type")
+				//TODO: Error Checking
 				return result
 			}
 			if sCol.Primary == 1 {
@@ -228,6 +242,7 @@ func main() {
 		}
 		if !hasPrimary {
 			result, _ := vm.ToValue("needs primary key")
+			//TODO: Error Checking
 			return result
 		}
 
@@ -237,6 +252,7 @@ func main() {
 			session.DBTable, err = DBC.CreateTable(session.TableOwner, *session.Encrypted, session.TableName, sCols)
 			if err != nil {
 				result, _ := vm.ToValue(err.Error())
+				//TODO: Error Checking
 				return result
 			}
 		} else {
@@ -245,6 +261,7 @@ func main() {
 
 		fmt.Printf("Success.\n")
 		result, _ := vm.ToValue(true)
+		//TODO: Error Checking
 		return result
 
 		/*
@@ -252,12 +269,19 @@ func main() {
 			tbl_name := call.Argument(0).String()       // e.g. "contacts"
 			tbl_descriptor := call.Argument(1).Object() // Export(  ) // {"column": "email", "type": "string", "primary": true, "index": "hash" }
 			column, _ := tbl_descriptor.Get("column")
+			//TODO: Error Checking
 			column_string, _ := column.ToString()
+			//TODO: Error Checking
 			primary, _ := tbl_descriptor.Get("primary")
+			//TODO: Error Checking
 			primary_string, _ := primary.ToString
+			//TODO: Error Checking
 			primary_bool, _ := primary.ToBoolean()
+			//TODO: Error Checking
 			index, _ := tbl_descriptor.Get("index")
+			//TODO: Error Checking
 			index_string, _ := index.ToString()
+			//TODO: Error Checking
 
 			//make columns into Columns
 			succ := swarmdb.CreateTable(index_string, tbl_name, column_string, primary_bool, index_string)
@@ -271,6 +295,7 @@ func main() {
 
 		if !session.IsOpen {
 			result, _ := vm.ToValue("Please open session first.")
+			//TODO: Error Checking
 			return result
 		}
 		raw := call.Argument(0).String()
@@ -279,15 +304,18 @@ func main() {
 		var in IncomingInfo
 		if err := json.Unmarshal([]byte(raw), &in); err != nil {
 			result, _ := vm.ToValue(err.Error())
+			//TODO: Error Checking
 			return result
 		}
 		fmt.Printf("incoming rows:\n%+v\n", in)
 		if len(in.Info) == 0 {
 			result, _ := vm.ToValue("No rows specified")
+			//TODO: Error Checking
 			return result
 		}
 		//if in.Bid == float64(0) {
 		//	result, _ := vm.ToValue("Cannot have 0 bid")
+		//TODO: Error Checking
 		//	return result
 		//}
 
@@ -300,6 +328,7 @@ func main() {
 					result, _ := vm.ToValue(err.Error())
 					return result
 				}*/
+
 			//should check for primary key in each row?
 			//should check for duplicate rows?
 			//should check for rows that already exist here? -- or kick the can down the line?
@@ -311,6 +340,7 @@ func main() {
 			response, err = session.DBTable.Put(sRows)
 			if err != nil {
 				result, _ := vm.ToValue(err.Error())
+				//TODO: Error Checking
 				return result
 			}
 		} else {
@@ -318,6 +348,7 @@ func main() {
 		}
 
 		result, _ := vm.ToValue(response)
+		//TODO: Error Checking
 		return result
 
 		/*
@@ -345,6 +376,7 @@ func main() {
 	vm.Set("get", func(call otto.FunctionCall) otto.Value {
 		if !session.IsOpen {
 			result, _ := vm.ToValue("Please open session first.")
+			//TODO: Error Checking
 			return result
 		}
 		raw := call.Argument(0).String()
@@ -354,14 +386,17 @@ func main() {
 			dbResponse, err := session.DBTable.Get(raw)
 			if err != nil {
 				result, _ := vm.ToValue(err.Error())
+				//TODO: Error Checking
 				return result
 			}
 			result, _ := vm.ToValue(dbResponse)
+			//TODO: Error Checking
 			return result
 
 		} else {
 			fmt.Printf("session.DBTable.Get(%s)\n", raw)
 			result, _ := vm.ToValue("test response")
+			//TODO: Error Checking
 			return result
 		}
 
@@ -374,6 +409,7 @@ func main() {
 
 		if !session.IsOpen {
 			result, _ := vm.ToValue("Please open session first.")
+			//TODO: Error Checking
 			return result
 		}
 		raw := call.Argument(0).String()
@@ -383,14 +419,17 @@ func main() {
 			dbResponse, err := session.DBTable.Query(raw)
 			if err != nil {
 				result, _ := vm.ToValue(err.Error())
+				//TODO: Error Checking
 				return result
 			}
 			result, _ := vm.ToValue(dbResponse)
+			//TODO: Error Checking
 			return result
 
 		} else {
 			fmt.Printf("session.DBTable.Query(%s)\n", raw)
 			result, _ := vm.ToValue("test response")
+			//TODO: Error Checking
 			return result
 		}
 

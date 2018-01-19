@@ -71,7 +71,6 @@ type HttpErrorResp struct {
 func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 	// generate a random 50 char challenge (64 hex chars)
 	challenge := RandStringRunes(50)
-	// challenge := "Hello, world!"
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
@@ -90,27 +89,32 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 
 	resp, err := reader.ReadString('\n')
 	if err != nil {
-		fmt.Println("Error reading:", err.Error())
+		swErr := &SWARMDBError{ message: fmt.Sprintf("Problem reading TCPIP input.  ERROR:[%s]", err.Error()) }
+		log.Error(swErr.Error()) 
+		//TODO: return a TCPIP error response
 	} else {
 		resp = strings.Trim(resp, "\r")
 		resp = strings.Trim(resp, "\n")
 	}
 
 	// this should be the signed challenge, verify using valid_response
-	response_bytes, err3 := hex.DecodeString(resp)
-	if err3 != nil {
-		fmt.Printf("ERR decoding response:[%s]\n", resp)
+	response_bytes, errDecoding := hex.DecodeString(resp)
+	if errDecoding != nil {
+		swErr := &SWARMDBError{ message: fmt.Sprintf("Problem reading TCPIP input.  ERROR:[%s]", err.Error()) }
+		log.Error(swErr.Error())
+		//TODO: return a TCPIP error response
 	}
 	u, err := svr.keymanager.VerifyMessage(challenge_bytes, response_bytes)
 	if err != nil {
+		//TODO: return a TCPIP error response
 		conn.Close()
 	} else {
-		fmt.Printf("%s Server Challenge [%s]-ethsign->[%x] Client %d byte Response:[%s] \n", resp, challenge, challenge_bytes, len(response_bytes), resp)
-		// fmt.Fprintf(writer, "OK\n")
+		log.Debug("%s Server Challenge [%s]-ethsign->[%x] Client %d byte Response:[%s] \n", resp, challenge, challenge_bytes, len(response_bytes), resp)
 		writer.Flush()
 		for {
 			str, err := client.reader.ReadString('\n')
 			if err == io.EOF {
+				//TODO: return a TCPIP error response
 				// Close the connection when done
 				conn.Close()
 				break
@@ -118,15 +122,16 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 			if true {
 				resp, err := svr.swarmdb.SelectHandler(u, string(str))
 				if err != nil {
+					//TODO: return a TCPIP error response
 					s := fmt.Sprintf("ERR: %s\n", err)
 					fmt.Printf(s)
 					writer.WriteString(s)
 					writer.Flush()
 				} else {
 					fmt.Printf("\nRead: [%s] Wrote: [%s]\n", str, resp)
+					//TODO: return a TCPIP error response
 					writer.WriteString(resp + "\n")
 					writer.Flush()
-					// 					fmt.Fprintf(client.writer, resp + "\n")
 				}
 			} else {
 				writer.WriteString("OK\n")
@@ -141,7 +146,8 @@ func StartTcpipServer(sdb *swarmdb.SwarmDB, conf *swarmdb.SWARMDBConfig) (err er
 	sv.swarmdb = sdb
 	km, errkm := swarmdb.NewKeyManager(conf)
 	if errkm != nil {
-		return err
+		log.Error(errkm.Error())
+		return errkm
 	} else {
 		sv.keymanager = km
 	}
@@ -162,10 +168,12 @@ func StartTcpipServer(sdb *swarmdb.SwarmDB, conf *swarmdb.SWARMDBConfig) (err er
 	l, err := net.Listen("tcp", host_port)
 
 	if err != nil {
-		fmt.Println("Error listening:", err.Error())
-		os.Exit(1)
+		swErr := &SWARMDBError{ message: fmt.Sprintf("Error trying to listen (tcp) on host/port [%s].  ERROR:[%s]", host_port, err) }
+		log.Error(swErr.Error()) 
+		return swErr
+		os.Exit(1) //TODO: should we exit?
 	} else {
-		fmt.Println("TCPIP Server Listening on " + host_port)
+		log.Debug("TCPIP Server Listening on " + host_port)
 	}
 	// Close the listener when the application closes.
 	defer l.Close()

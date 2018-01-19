@@ -127,6 +127,7 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) (err error) {
 		file.Claim[ticket], ok = new(big.Int).SetString(reward, 10)
 		if !ok {
 			return fmt.Errorf("Ticket %v amount set: unable to convert string to big integer: %v", ticket, reward)
+			//TODO: SWARMDBError
 		}
 	}
 
@@ -137,6 +138,7 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) (err error) {
 			file.CStat[cc], ok = new(big.Int).SetString(cv, 10)
 			if !ok {
 				return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", cc, cv)
+				//TODO: SWARMDBError
 			}
 		}
 	}
@@ -148,6 +150,7 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) (err error) {
 			file.BStat[bc], ok = new(big.Int).SetString(bv, 10)
 			if !ok {
 				return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", bc, bv)
+				//TODO: SWARMDBError
 			}
 		}
 	}
@@ -311,6 +314,7 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 	self.filepath = path
 	self.statpath = defaultDBPath
 	return
+	//TODO: Do we not need to return dbchunkstore,err?
 }
 
 func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, encrypted int) (err error) {
@@ -450,6 +454,7 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 		err2 := rows.Scan(&val, &enc)
 		if err2 != nil {
 			return nil, err2
+			//TODO: SWARMDBError
 		}
 		var retVal []byte
 		retVal = val
@@ -519,6 +524,7 @@ func (self *DBChunkstore) ScanAll() (err error) {
 	rows, err := self.db.Query(sql_readall)
 	if err != nil {
 		return err
+		//TODO: SWARMDBError
 	}
 	defer rows.Close()
 
@@ -529,6 +535,7 @@ func (self *DBChunkstore) ScanAll() (err error) {
 		err2 := rows.Scan(&c.Key, &c.Val, &c.ChunkStoreDT)
 		if err2 != nil {
 			return err2
+			//TODO: SWARMDBError
 		}
 		rcnt++
 		/*
@@ -546,6 +553,7 @@ func (self *DBChunkstore) ScanAll() (err error) {
 	stmt, err := self.db.Prepare(sql_chunkRead)
 	if err != nil {
 		return err
+		//TODO: SWARMDBError
 	}
 	defer stmt.Close()
 
@@ -554,6 +562,7 @@ func (self *DBChunkstore) ScanAll() (err error) {
 	if err2 != nil {
 		fmt.Printf("\nError updating stat Table: [%s]", err2)
 		return err2
+		//TODO: SWARMDBError
 	}
 	stmt.Close()
 	self.netstat.LReadDT = &ts
@@ -574,6 +583,7 @@ func (self *DBChunkstore) GenerateFarmerLog() (err error) {
 	rows, err := self.db.Query(sql_readall)
 	if err != nil {
 		return err
+		//TODO: SWARMDBError
 	}
 	defer rows.Close()
 
@@ -608,6 +618,7 @@ func (self *DBChunkstore) ClaimAll() (err error) {
 	reward := 121
 	self.netstat.Claim[ticket] = new(big.Int).SetInt64(int64(reward))
 	return nil
+	//TODO: Seems there's no error case. Are we not yet checking appropriately?  Or is it not needed?
 }
 
 func (self *DBChunkstore) GetChunkStored() (err error) {
@@ -615,6 +626,7 @@ func (self *DBChunkstore) GetChunkStored() (err error) {
 	rows, err := self.db.Query(sql_chunkTally)
 	if err != nil {
 		return err
+		//TODO: SWARMDBError
 	}
 	defer rows.Close()
 
@@ -641,6 +653,7 @@ func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 	rows, err := self.db.Query(sql_chunkTally)
 	if err != nil {
 		return res, err
+		//TODO: SWARMDBError
 	}
 	defer rows.Close()
 
