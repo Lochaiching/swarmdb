@@ -116,6 +116,7 @@ func (dbc *SWARMDBConnection) Open(tableName string, encrypted int) (tbl *SWARMD
 	challenge, err := dbc.reader.ReadString('\n')
 	if err != nil {
 		return tbl, err
+		//TODO: SWARMDBError
 	}
 	challenge = strings.Trim(challenge, "\n")
 	// challenge_bytes, _ := hex.DecodeString(challenge)
@@ -191,6 +192,7 @@ func (t *SWARMDBTable) Put(row interface{}) (response string, err error) {
 		r.Rows = row.([]Row)
 	default:
 		return "", fmt.Errorf("row must be Row or []Row")
+		//TODO: SWARMDBError
 	}
 
 	return t.dbc.ProcessRequestResponseCommand(r)
@@ -213,6 +215,7 @@ func (t *SWARMDBTable) Insert(rows []Row) (response string, err error) {
 		r.Rows = row
 	default:
 		return "", err.Error("row must be Row or []Row")
+		//TODO: SWARMDBError
 	}
 
 	return t.dbc.ProcessRequestResponseCommand(r)
@@ -238,6 +241,7 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 	message, err := json.Marshal(request)
 	if err != nil {
 		return response, err
+		//TODO: SWARMDBError
 	}
 	str := string(message) + "\n"
 	fmt.Printf("Req: %v", str)
@@ -247,6 +251,7 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 	if err != nil {
 		fmt.Printf("err: \n")
 		return response, err
+		//TODO: SWARMDBError
 	}
 
 	return response, nil
