@@ -87,9 +87,10 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(challenge), challenge)
 	challenge_bytes := crypto.Keccak256([]byte(msg))
 
+	var swErr swarmdb.SWARMDBError
 	resp, err := reader.ReadString('\n')
 	if err != nil {
-		swErr := &SWARMDBError{ message: fmt.Sprintf("Problem reading TCPIP input.  ERROR:[%s]", err.Error()) }
+		swErr.SetError( fmt.Sprintf("Problem reading TCPIP input.  ERROR:[%s]", err.Error()) )
 		log.Error(swErr.Error()) 
 		//TODO: return a TCPIP error response
 	} else {
@@ -100,7 +101,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 	// this should be the signed challenge, verify using valid_response
 	response_bytes, errDecoding := hex.DecodeString(resp)
 	if errDecoding != nil {
-		swErr := &SWARMDBError{ message: fmt.Sprintf("Problem reading TCPIP input.  ERROR:[%s]", err.Error()) }
+		swErr.SetError( fmt.Sprintf("Problem reading TCPIP input.  ERROR:[%s]", err.Error()) ) 
 		log.Error(swErr.Error())
 		//TODO: return a TCPIP error response
 	}
@@ -167,10 +168,11 @@ func StartTcpipServer(sdb *swarmdb.SwarmDB, conf *swarmdb.SWARMDBConfig) (err er
 	host_port := fmt.Sprintf("%s:%d", host, port)
 	l, err := net.Listen("tcp", host_port)
 
+	var swErr swarmdb.SWARMDBError
 	if err != nil {
-		swErr := &SWARMDBError{ message: fmt.Sprintf("Error trying to listen (tcp) on host/port [%s].  ERROR:[%s]", host_port, err) }
+		swErr.SetError( fmt.Sprintf("Error trying to listen (tcp) on host/port [%s].  ERROR:[%s]", host_port, err) ) 
 		log.Error(swErr.Error()) 
-		return swErr
+		return err //TODO: investigate why returning swErr fails
 		os.Exit(1) //TODO: should we exit?
 	} else {
 		log.Debug("TCPIP Server Listening on " + host_port)
