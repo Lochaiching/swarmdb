@@ -466,6 +466,7 @@ func (self *SwarmDB) Scan(u *SWARMDBUser, tableOwnerID string, tableName string,
 func (self *SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName string) (tbl *Table, err error) {
 	if len(tableName) == 0 {
 		return tbl, fmt.Errorf("Invalid table [%s]", tableName)
+		//TODO: SWARMDBError
 	}
 	if len(tableOwnerID) == 0 {
 		tableOwnerID = u.Address
@@ -517,7 +518,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		fmt.Printf("\nPut DATA: [%+v]", d)
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
+			fmt.Printf("\nNO TABLE: [%s]", err.Error())
 			return resp, err
+			//TODO: SWARMDBErr
 		}
 		d.Rows, err = tbl.assignRowColumnTypes(d.Rows)
 		if err != nil {
@@ -811,6 +814,7 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 	}
 	if len(primaryColumnName) == 0 {
 		return tbl, fmt.Errorf("no primary column indicated")
+		//TODO: SWARMDBError
 	}
 
 	buf := make([]byte, 4096)
@@ -844,6 +848,7 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 	err = swdb.StoreRootHash([]byte(tbl.tableName), []byte(swarmhash))
 	if err != nil {
 		return tbl, err
+		//TODO: SWARMDBError
 	}
 	err = tbl.OpenTable(u)
 	if err != nil {
