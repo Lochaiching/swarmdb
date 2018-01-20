@@ -79,7 +79,7 @@ func (self *KademliaDB) Put(u *SWARMDBUser, k []byte, v []byte) ([]byte, error) 
 	err := self.dbChunkstore.StoreKChunk(u, hashVal, sdata, self.encrypted)
 	//TODO: PutError
 	if err != nil {
-		swErr := &SWARMDBError{ message: `Error putting data` + err.Error() }
+		swErr := &SWARMDBError{message: `Error putting data` + err.Error()}
 		log.Error(swErr.Error())
 		return hashVal, swErr
 	}

@@ -17,6 +17,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 	if err != nil {
 		fmt.Printf("sqlparser.Parse err\n")
 		return query, err
+		//TODO: SWARMDBError
 	}
 
 	switch stmt := stmt.(type) {
@@ -46,6 +47,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			//this is where recursion for nested parentheses should take place
 			if err != nil {
 				return query, err
+				//TODO: SWARMDBError
 			}
 		} else if stmt.Where.Type == sqlparser.HavingStr { //Having
 			fmt.Printf("type: %s\n", stmt.Where.Type)
@@ -91,15 +93,18 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		query.Table = sqlparser.String(stmt.Table.Name)
 		if len(stmt.Rows.(sqlparser.Values)) == 0 {
 			return query, fmt.Errorf("in Insert, no values found")
+			//TODO: SWARMDBError
 		}
 		if len(stmt.Rows.(sqlparser.Values)[0]) != len(stmt.Columns) {
 			return query, fmt.Errorf("in Insert, mismatch # of cols & vals")
+			//TODO: SWARMDBError
 		}
 		insertCells := make(map[string]interface{})
 		for i, c := range stmt.Columns {
 			col := sqlparser.String(c)
 			if _, ok := insertCells[col]; ok {
 				return query, fmt.Errorf("in Insert, can't have duplicate col %s", col)
+				//TODO: SWARMDBError
 			}
 			//only detects string and float. how to do int? does it matter
 			value := sqlparser.String(stmt.Rows.(sqlparser.Values)[0][i])
@@ -109,9 +114,11 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 				insertCells[col], err = strconv.ParseFloat(value, 64)
 				if err != nil {
 					return query, err
+					//TODO: SWARMDBError
 				}
 			} else {
 				return query, fmt.Errorf("in Insert, value %s has unknown type", value)
+				//TODO: SWARMDBError
 			}
 			//insertCells[col] = trimQuotes(sqlparser.String(stmt.Rows.(sqlparser.Values)[0][i]))
 		}
@@ -134,6 +141,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			//fmt.Printf("col: %+v\n", col)
 			if _, ok := query.Update[col]; ok {
 				return query, fmt.Errorf("in Update, can't hcave duplicate col %s", col)
+				//TODO: SWARMDBError
 			}
 			value := readable(expr.Expr)
 			if isQuoted(value) {
@@ -142,9 +150,11 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 				query.Update[col], err = strconv.ParseFloat(value, 64)
 				if err != nil {
 					return query, err
+					//TODO: SWARMDBError
 				}
 			} else {
 				return query, fmt.Errorf("in Update, value %s has unknown type", value)
+				//TODO: SWARMDBError
 			}
 			//fmt.Printf("val: %v \n", query.Update[col])
 		}
@@ -156,6 +166,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			//TODO: this is where recursion for nested parentheses should probably take place
 			if err != nil {
 				return query, err
+				//TODO: SWARMDBError
 			}
 			//fmt.Printf("Where: %+v\n", query.Where)
 
@@ -168,6 +179,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		//Limit
 		//fmt.Printf("Limit: %v \n", stmt.Limit)
 		return query, nil
+		//TODO: SWARMDBError
 
 	case *sqlparser.Delete:
 		query.Type = "Delete"
@@ -185,6 +197,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			//this is where recursion for nested parentheses should take place
 			if err != nil {
 				return query, err
+				//TODO: SWARMDBError
 			}
 			//fmt.Printf("Where: %+v\n", query.Where)
 		}
@@ -241,6 +254,7 @@ func parseWhere(expr sqlparser.Expr) (where Where, err error) {
 		where.Operator = expr.Operator
 	default:
 		err = fmt.Errorf("WHERE expression not found")
+		//TODO: SWARMDBError
 	}
 
 	where.Right = trimQuotes(where.Right)
@@ -269,6 +283,7 @@ func isNumeric(s string) bool { //float or int
 	if _, err := strconv.ParseFloat(s, 64); err == nil {
 		return true
 	}
+	//TODO: check err variable if needed
 	return false
 }
 

@@ -75,10 +75,12 @@ func (self *KeyManager) SignMessage(msg_hash []byte) (sig []byte, err error) {
 	secretKey, err := crypto.HexToECDSA(self.config.PrivateKey)
 	if err != nil {
 		return sig, err
+		//TODO: SWARMDBError
 	} else {
 		sig, err2 := crypto.Sign(msg_hash, secretKey)
 		if err2 != nil {
 			return sig, err2
+			//TODO: SWARMDBError
 		}
 		return sig, nil
 	}
