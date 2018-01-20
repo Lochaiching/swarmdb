@@ -9,7 +9,7 @@ import (
 )
 
 func TestENSSimple(t *testing.T) {
-	store, err := swarmdb.NewENSSimulation("/tmp/ens.db")
+	store, err := swarmdb.NewENSSimple("/tmp/ens.db")
 	if err != nil {
 		t.Fatal("failure to open ENSSimulation")
 	}
