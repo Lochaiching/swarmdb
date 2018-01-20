@@ -9,6 +9,7 @@ import (
 	"fmt"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"math"
 	"math/big"
 	"net"
@@ -85,6 +86,11 @@ type DBChunkstore struct {
 type ENSSimulation struct {
 	filepath string
 	db       *sql.DB
+}
+
+type ENSSimple struct {
+	auth *bind.TransactOpts  
+    sens *Simplestens
 }
 
 type IncomingInfo struct {
