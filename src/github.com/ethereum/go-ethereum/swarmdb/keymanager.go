@@ -34,6 +34,11 @@ type KeyManager struct {
 	keystore *keystore.KeyStore
 }
 
+func SignHash(unencrypted []byte) []byte {
+	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(unencrypted), unencrypted)
+	return crypto.Keccak256([]byte(msg))
+}
+
 // KeyManager requires a swarmdb.conf loaded into SWARMDBConfig.  This config specifies a directory specified in the ChunkDBPath
 //  i.e.  "chunkDBPath": "/swarmdb/data/keystore"
 // Inside the config file there are wallet passphrases (in **plaintext** so the config file MUST be SECURED)

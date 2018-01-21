@@ -76,7 +76,6 @@
 //  - written via swarmdb.StoreDBChunk in swarmPut
 //  - read via swarmdb.RetrieveDBChunk in swarmGet
 // using the user object passed in the constructor, which has public/private keys needed for encryption/decryption
-
 package swarmdb
 
 import (
@@ -284,7 +283,6 @@ func (q *x) siblings(i int) (l, r *d) {
 		}
 	}
 	return
-	//TODO: no return of l,r,*d required?
 }
 
 // -------------------------------------------------------------------------- d
@@ -360,15 +358,12 @@ func (t *Tree) FlushBuffer(u *SWARMDBUser) (ok bool, err error) {
 		t.buffered = false
 		new_hashid, changed, errPut := t.swarmPut(u)
 		if errPut != nil {
-			return false, errPut
+			return false, &SWARMDBError{message: fmt.Sprintf("[bplus:FlushBuffer] swarmPut - %s", errPut.Error())}
 		}
 		if changed {
 			t.hashid = new_hashid
 			return true, nil
 		}
-	} else {
-		//var nberr *NoBufferError
-		//return false, nberr
 	}
 	return true, nil
 }
@@ -381,7 +376,7 @@ func (t *Tree) check_flush(u *SWARMDBUser) (ok bool, err error) {
 
 	new_hashid, changed, errPut := t.swarmPut(u)
 	if errPut != nil {
-		return false, errPut
+		return false, &SWARMDBError{message: fmt.Sprintf("[bplus:check_flush] swarmPut - %s", errPut.Error())}
 	}
 
 	if changed {
@@ -397,7 +392,7 @@ func (t *Tree) Close(u *SWARMDBUser) (ok bool, err error) {
 	if t.buffered {
 		ok, err = t.FlushBuffer(u)
 		if err != nil {
-			return false, err
+			return false, &SWARMDBError{message: `[bplus:Close] FlushBuffer ` + err.Error()}
 		}
 	}
 	t.Clear()
@@ -618,14 +613,14 @@ func (q *x) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 			if z.dirty {
 				_, _, err = z.swarmPut(u, swarmdb, columnType)
 				if err != nil {
-					// TODO: add error handling -- note that you do not return just because of one error
+					return new_hashid, false, &SWARMDBError{message: fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error())}
 				}
 			}
 		case *d:
 			if z.dirty {
 				_, _, err = z.swarmPut(u, swarmdb, columnType)
 				if err != nil {
-					// TODO: add error handling -- note that you do not return just because of one error
+					return new_hashid, false, &SWARMDBError{message: fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error())}
 				}
 
 			}
@@ -665,7 +660,7 @@ func (q *d) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 		if q.n.dirty {
 			_, _, err = q.n.swarmPut(u, swarmdb, columnType)
 			if err != nil {
-				// TODO: add error handling
+				return new_hashid, false, &SWARMDBError{message: fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error())}
 			}
 		}
 		q.nexthashid = q.n.hashid
@@ -675,8 +670,10 @@ func (q *d) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 
 	if q.p != nil {
 		if q.p.dirty {
-			// TODO: add error handling
-			q.p.swarmPut(u, swarmdb, columnType)
+			_, _, err = q.p.swarmPut(u, swarmdb, columnType)
+			if err != nil {
+				return new_hashid, false, &SWARMDBError{message: fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error())}
+			}
 		}
 		q.prevhashid = q.p.hashid
 		// fmt.Printf(" -- PREV: %x [%v]\n", q.prevhashid, q.p.dirty)
@@ -785,7 +782,7 @@ func (t *Tree) catX(p, q, r *x, pi int) {
 }
 
 // Delete removes the k's KV pair, if it exists, in which case Delete returns true.
-// TODO: the underflow situation needs full testing
+// TODO: the Delete => underflow situation  needs full testing
 func (t *Tree) Delete(u *SWARMDBUser, k []byte /*K*/) (ok bool, err error) {
 	pi := -1
 	var p *x
@@ -793,7 +790,8 @@ func (t *Tree) Delete(u *SWARMDBUser, k []byte /*K*/) (ok bool, err error) {
 	for {
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return false, err
+			return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Delete] checkload - %s", err.Error())}
+
 		}
 		var i int
 		i, ok = t.find(q, k)
@@ -822,7 +820,10 @@ func (t *Tree) Delete(u *SWARMDBUser, k []byte /*K*/) (ok bool, err error) {
 					t.Clear()
 				}
 				x.dirty = true // we found the key and  actually deleted it!
-				t.check_flush(u)
+				_, err = t.check_flush(u)
+				if err != nil {
+					return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Delete] check_flush - %s", err.Error())}
+				}
 				return true, nil
 			}
 		}
@@ -893,21 +894,20 @@ func (t *Tree) find(q interface{}, k []byte /*K*/) (i int, ok bool) {
 }
 
 // This is a helper function called by Get/.. to support lazy loading -- if the node you are processing is notloaded, then load it!
-// TODO: needs error handling bubbled up
 func checkload(u *SWARMDBUser, swarmdb DBChunkstorage, q interface{}) (err error) {
 	switch x := q.(type) {
 	case *x: // intermediate node -- descend on the next pass
 		if x.notloaded {
 			_, err = x.swarmGet(u, swarmdb)
 			if err != nil {
-				return err
+				return &SWARMDBError{message: fmt.Sprintf("[bplus:checkload] swarmGet - %s", err.Error())}
 			}
 		}
 	case *d: // data node -- EXACT match
 		if x.notloaded {
 			x.swarmGet(u, swarmdb)
 			if err != nil {
-				return err
+				return &SWARMDBError{message: fmt.Sprintf("[bplus:checkload] swarmGet - %s", err.Error())}
 			}
 		}
 	}
@@ -927,10 +927,9 @@ func (t *Tree) Get(u *SWARMDBUser, key []byte /*K*/) (v []byte /*V*/, ok bool, e
 	copy(k, key)
 
 	for {
-		// TODO: add error handling
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return v, false, err
+			return v, false, &SWARMDBError{message: fmt.Sprintf("[bplus:Get] checkload - %s", err.Error())}
 		}
 
 		var i int
@@ -1067,15 +1066,13 @@ func (t *Tree) Seek(u *SWARMDBUser, key []byte /*K*/) (e OrderedDatabaseCursor, 
 	q := t.r
 	if q == nil {
 		e = btEPool.get(nil, false, 0, k, nil, t, t.ver)
-		//TODO: does this not need to return e, ok, err?
 		return
 	}
 
 	for {
-		// TODO: add error handling
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return e, false, err
+			return e, false, &SWARMDBError{message: fmt.Sprintf("[bplus:Seek] checkload - %s", err.Error())}
 		}
 
 		var i int
@@ -1105,14 +1102,12 @@ func (t *Tree) SeekFirst(u *SWARMDBUser) (e OrderedDatabaseCursor, err error) {
 	if q == nil {
 		e = btEPool.get(nil, false, 0, k, nil, t, t.ver)
 		return
-		//TODO: does this not need to return e, err?
 	}
 
 	for {
-		// TODO: add error handling
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return e, err
+			return e, &SWARMDBError{message: fmt.Sprintf("[bplus:SeekFirst] checkload - %s", err.Error())}
 		}
 
 		var i int
@@ -1134,14 +1129,12 @@ func (t *Tree) SeekLast(u *SWARMDBUser) (e OrderedDatabaseCursor, err error) {
 	if q == nil {
 		e = btEPool.get(nil, false, 0, k, nil, t, t.ver)
 		return
-		//TODO: no need to return e, err?
 	}
 
 	for {
-		// TODO: add error handling
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return e, err
+			return e, &SWARMDBError{message: fmt.Sprintf("[bplus:SeekLast] checkload - %s", err.Error())}
 		}
 
 		switch x := q.(type) {
@@ -1170,14 +1163,13 @@ func (t *Tree) Put(u *SWARMDBUser, key []byte /*K*/, v []byte /*V*/) (okresult b
 		z := t.insert(btDPool.Get().(*d), 0, k, v)
 		t.r, t.first, t.last = z, z, z
 		return
-		//TODO: no need to return okresult, err?
 	}
 
 	// go down each level, from the "x" intermediate nodes to the "d" data nodes
 	for {
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return false, err
+			return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Put] checkload - %s", err.Error())}
 		}
 
 		i, ok := t.find(q, k)
@@ -1197,7 +1189,10 @@ func (t *Tree) Put(u *SWARMDBUser, key []byte /*K*/, v []byte /*V*/) (okresult b
 			case *d:
 				x.d[i].v = v
 				x.dirty = true // we updated the value but did not insert anything
-				t.check_flush(u)
+				_, err = t.check_flush(u)
+				if err != nil {
+					return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Put] check_flush - %s", err.Error())}
+				}
 				return true, nil
 			}
 		}
@@ -1219,7 +1214,10 @@ func (t *Tree) Put(u *SWARMDBUser, key []byte /*K*/, v []byte /*V*/) (okresult b
 				t.overflow(p, x, pi, i, k, v)
 			}
 			x.dirty = true // we inserted the value at the intermediate node or leaf node
-			t.check_flush(u)
+			_, err = t.check_flush(u)
+			if err != nil {
+				return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Put] check_flush - %s", err.Error())}
+			}
 			return true, nil
 		}
 	}
@@ -1240,7 +1238,7 @@ func (t *Tree) Insert(u *SWARMDBUser, k []byte /*K*/, v []byte /*V*/) (okres boo
 	for {
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return false, err
+			return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Insert] checkload - %s", err.Error())}
 		}
 
 		i, ok := t.find(q, k)
@@ -1266,7 +1264,11 @@ func (t *Tree) Insert(u *SWARMDBUser, k []byte /*K*/, v []byte /*V*/) (okres boo
 				t.overflow(p, x, pi, i, k, v)
 			}
 			x.dirty = true // we inserted the value at the intermediate node or leaf node
-			t.check_flush(u)
+			_, err = t.check_flush(u)
+			if err != nil {
+				return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Insert] check_flush - %s", err.Error())}
+			}
+
 			return true, nil
 		}
 	}
@@ -1426,29 +1428,17 @@ func (e *Enumerator) Close() {
 func (e *Enumerator) Next(u *SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err error) {
 	if err = e.err; err != nil {
 		return
-		//TODO: no need to return k, v, err?
 	}
 
-	/*
-		 // TODO: remove this or reenable
-			if e.ver != e.t.ver {
-				f, _, _ := e.t.Seek(e.k)
-				//TODO: if re-enabled -- handle error
-				*e = *f
-				f.Close()
-			}
-	*/
 	if e.q == nil {
 		e.err, err = io.EOF, io.EOF
 		return
-		//TODO: no need to return k, v, err?
 	}
 
 	if e.i >= e.q.c {
 		if err = e.next(u); err != nil {
 			// TODO: err handling
 			return
-			//TODO: no need to return k, v, err?
 		}
 	}
 
@@ -1457,7 +1447,6 @@ func (e *Enumerator) Next(u *SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err e
 	e.k, e.hit = k, true
 	e.next(u)
 	return
-	//TODO: no need to return k, v, err?
 }
 
 func (e *Enumerator) next(u *SWARMDBUser) (err error) {
@@ -1477,7 +1466,7 @@ func (e *Enumerator) next(u *SWARMDBUser) (err error) {
 			r.notloaded = true
 			_, err = r.swarmGet(u, e.t.swarmdb)
 			if err != nil {
-				return err
+				return &SWARMDBError{message: fmt.Sprintf("[bplus:next] swarmGet - %s", err.Error())}
 			}
 			e.q = r
 			e.i = 0
@@ -1497,35 +1486,22 @@ func (e *Enumerator) next(u *SWARMDBUser) (err error) {
 func (e *Enumerator) Prev(u *SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err error) {
 	if err = e.err; err != nil {
 		return
-		//TODO: no need to return k, v, err?
 	}
-	/*
-		 // TODO: remove this or reenable
-			if e.ver != e.t.ver {
-				f, _, _ := e.t.Seek(e.k)
-				//TODO: if reenabled - handle errors
-				*e = *f
-				f.Close()
-			}
-	*/
 	if e.q == nil {
 		e.err, err = io.EOF, io.EOF
 		return
-		//TODO: no need to return k, v, err?
 	}
 
 	if !e.hit {
 		// move to previous because Seek overshoots if there's no hit
 		if err = e.prev(u); err != nil {
 			return
-			//TODO: no need to return k, v, err?
 		}
 	}
 
 	if e.i >= e.q.c {
 		if err = e.prev(u); err != nil {
 			return
-			//TODO: no need to return k, v, err?
 		}
 	}
 
@@ -1534,7 +1510,6 @@ func (e *Enumerator) Prev(u *SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err e
 	e.k, e.hit = k, true
 	e.prev(u)
 	return
-	//TODO: no need to return k, v, err?
 }
 
 func (e *Enumerator) prev(u *SWARMDBUser) (err error) {
@@ -1553,7 +1528,7 @@ func (e *Enumerator) prev(u *SWARMDBUser) (err error) {
 			r.notloaded = true
 			_, err = r.swarmGet(u, e.t.swarmdb)
 			if err != nil {
-				return err
+				return &SWARMDBError{message: fmt.Sprintf("[bplus:prev] swarmGet - %s", err.Error())}
 			}
 			e.q = r
 			if r.c >= 0 {

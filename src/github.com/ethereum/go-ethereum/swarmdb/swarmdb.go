@@ -1,3 +1,18 @@
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
+
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARMDB library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 package swarmdb
 
 import (
@@ -268,7 +283,6 @@ func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
 }
 
 //TODO: could overload the operators so this isn't so clunky
-//TODO: Blob types
 func (t *Table) applyWhere(rawRows []Row, where Where) (outRows []Row, err error) {
 	for _, row := range rawRows {
 		if _, ok := row.Cells[where.Left]; !ok {
@@ -760,7 +774,7 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 
 	//Could (Should?) be less bytes, but leaving space in case more is to be there
 	copy(buf[4000:4024], IntToByte(tbl.encrypted))
-	swarmhash, err := swdb.StoreDBChunk(u, buf, tbl.encrypted) // TODO
+	swarmhash, err := swdb.StoreDBChunk(u, buf, tbl.encrypted)
 	if err != nil {
 		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] StoreDBChunk %s", err.Error())}
 	}
@@ -950,7 +964,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 	}
 
 	if t.buffered {
-		//TODO: is something supposed to be here?
+		// do nothing until FlushBuffer called
 	} else {
 		err = t.FlushBuffer(u)
 		if err != nil {

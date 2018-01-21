@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"fmt"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -58,9 +57,8 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) (mergedBodycontent 
 	copy(metadataBody[51:59], IntToByte(self.maxReplication))
 
 	unencryptedMetadata := metadataBody[0:59]
-	// TODO: use the correct abstraction for this
-	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(unencryptedMetadata), unencryptedMetadata)
-	msg_hash := crypto.Keccak256([]byte(msg))
+	msg_hash := SignHash(unencryptedMetadata)
+
 	copy(metadataBody[59:91], msg_hash)
 
 	km := self.dbChunkstore.GetKeyManager()
@@ -169,20 +167,4 @@ func (self *KademliaDB) Delete(k []byte) (succ bool, err error) {
 		return true, err
 	*/
 	return succ, err
-}
-
-// TODO: Define difference between Insert and Put
-func (self *KademliaDB) Insert(k, v []byte) (succ bool, err error) {
-	/*
-		res, _, _ := self.Get(k)
-		if res != nil {
-			err := fmt.Errorf("%s is already in Database", string(k))
-			return false, err
-		}
-		_, err := self.Put(k, v)
-		if err != nil {
-			return false, nil
-		}
-	*/
-	return true, err
 }

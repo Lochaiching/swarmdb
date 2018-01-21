@@ -1,3 +1,18 @@
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
+
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARMDB library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 // SWARMDB Go client
 package swarmdb
 
@@ -5,7 +20,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/crypto"
 	"net"
 	"os"
 	"strings"
@@ -119,9 +133,7 @@ func (dbc *SWARMDBConnection) Open(tableName string, tableOwner string, encrypte
 	// challenge_bytes, _ := hex.DecodeString(challenge)
 
 	// sign the message Web3 style
-	// TODO: Use correct abstraction here!
-	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(challenge), challenge)
-	challenge_bytes := crypto.Keccak256([]byte(msg))
+	challenge_bytes := SignHash(challenge)
 
 	sig, err := dbc.keymanager.SignMessage(challenge_bytes)
 	if err != nil {
