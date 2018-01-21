@@ -1,3 +1,18 @@
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
+
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARMDB library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 package swarmdb
 
 import (
@@ -58,12 +73,12 @@ func (self *DBChunkstore) MarshalJSON() (data []byte, err error) {
 
 	err = self.GetChunkStored()
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("%s", err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:MarshalJSON] GetChunkStored %s", err.Error())}
 	}
 
 	fileInfo, err := os.Stat(self.filepath)
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("%s", err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:MarshalJSON] Stat %s", err.Error())}
 	} else {
 		deltaBS := new(big.Int).SetInt64(fileInfo.Size())
 		self.netstat.BStat["ByteS"].Sub(deltaBS, self.netstat.BStat["ByteSL"])
@@ -102,7 +117,7 @@ func (self *DBChunkstore) MarshalJSON() (data []byte, err error) {
 
 	data, err = json.Marshal(file)
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[Marshal]%s", err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:MarshalJSON] Marshal %s", err.Error())}
 	} else {
 		return data, nil
 	}
@@ -116,7 +131,7 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) (err error) {
 	}
 	err = json.Unmarshal(data, &file)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[Unmarshal]%s", err.Error())}
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:UnmarshalJSON]%s", err.Error())}
 	}
 
 	self.farmer = common.HexToAddress(file.WalletAddress)
@@ -126,8 +141,7 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) (err error) {
 	for ticket, reward := range file.Ticket {
 		file.Claim[ticket], ok = new(big.Int).SetString(reward, 10)
 		if !ok {
-			return fmt.Errorf("Ticket %v amount set: unable to convert string to big integer: %v", ticket, reward)
-			//TODO: SWARMDBError
+			return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:UnmarshalJSON] Ticket %v amount set: unable to convert string to big integer: %v", ticket, reward)}
 		}
 	}
 
@@ -137,8 +151,7 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) (err error) {
 		} else {
 			file.CStat[cc], ok = new(big.Int).SetString(cv, 10)
 			if !ok {
-				return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", cc, cv)
-				//TODO: SWARMDBError
+				return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:UnmarshalJSON] %v loading failure: unable to convert string to big integer: %v", cc, cv)}
 			}
 		}
 	}
@@ -149,8 +162,7 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) (err error) {
 		} else {
 			file.BStat[bc], ok = new(big.Int).SetString(bv, 10)
 			if !ok {
-				return fmt.Errorf("%v loading failure: unable to convert string to big integer: %v", bc, bv)
-				//TODO: SWARMDBError
+				return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:UnmarshalJSON] %v loading failure: unable to convert string to big integer: %v", bc, bv)}
 			}
 		}
 	}
@@ -162,12 +174,12 @@ func (self *DBChunkstore) UnmarshalJSON(data []byte) (err error) {
 func (self *DBChunkstore) Save() (err error) {
 	data, err := json.MarshalIndent(self, "", " ")
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[Marshal]%s", err.Error())}
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:Save] MarshalIndent %s", err.Error())}
 	}
 	fmt.Printf("\n%v\n", string(data))
 	err = ioutil.WriteFile(self.statpath, data, os.ModePerm)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[Netstat file]%s", err.Error())}
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:Save] WriteFile %s", err.Error())}
 	} else {
 		return nil
 	}
@@ -176,11 +188,11 @@ func (self *DBChunkstore) Save() (err error) {
 func (self *DBChunkstore) Flush() (err error) {
 	data, err := json.Marshal(self)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[Marshal]%s", err.Error())}
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:Flush] Marshal %s", err.Error())}
 	}
 	netstatlog, err := os.OpenFile("netstat.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("Flush%s", err.Error())}
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:Flush] OpenFile %s", err.Error())}
 	}
 	defer netstatlog.Close()
 	fmt.Fprintf(netstatlog, "%s\n", data)
@@ -195,7 +207,7 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 
 	db, err := sql.Open("sqlite3", path)
 	if err != nil || db == nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Creation]%s", err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:NewDBChunkStore] Open %s", err.Error())}
 	}
 
 	//Local Chunk table
@@ -224,20 +236,20 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 	_, err = db.Exec(sql_table)
 	//TODO: confirm _ doesn't need handling/checking
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Chunk Table Creation]%s", err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:NewDBChunkStore] Exec - SQLite Chunk Table Creation %s", err.Error())}
 	}
 	_, err = db.Exec(netstat_table)
 	//TODO: confirm _ doesn't need handling/checking
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Stat Table Creation]%s", err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:NewDBChunkStore] Exec - SQLite Stat Table Creation %s", err.Error())}
 	}
 	config, errConfig := LoadSWARMDBConfig(SWARMDBCONF_FILE)
 	if errConfig != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[KeyManager Config Loading]%s", errConfig.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:NewDBChunkStore] LoadSWARMDBConfig - KeyManager Config Loading %s", errConfig.Error())}
 	}
 	km, errKM := NewKeyManager(&config)
 	if errKM != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[KeyManager Creation]%s", errKM.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:NewDBChunkStore] NewKeyManager %s", errKM.Error())}
 	}
 
 	userWallet := config.Address
@@ -264,6 +276,10 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 	return self, nil
 }
 
+func (self *DBChunkstore) GetKeyManager() (km *KeyManager) {
+	return self.km
+}
+
 func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 	var data []byte
 	defaultDBPath := "netstat.json"
@@ -272,62 +288,59 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 	if errLoad != nil {
 		self, err = NewDBChunkStore(path)
 		if err != nil {
-			return nil, &SWARMDBError{message: fmt.Sprintf("%s", err.Error())}
+			return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:LoadDBChunkStore] %s", err.Error())}
 		} else {
 			//TODO: load_err fallback should potentially be marked as warning
-			return self, &SWARMDBError{message: fmt.Sprintf("[Load Error]%s | Generating new netstatlog in %s\n", errLoad.Error(), defaultDBPath)}
+			return self, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:LoadDBChunkStore] Load Error %s | Generating new netstatlog in %s\n", errLoad.Error(), defaultDBPath)}
 		}
 	}
 
 	self = new(DBChunkstore)
 	self.netstat = new(NetstatFile)
 	errParse := json.Unmarshal(data, &self)
-	//err = json.Unmarshal(data, self.netstat)
-
 	if errParse != nil {
 		self, err = NewDBChunkStore(path)
 		if err != nil {
-			return nil, &SWARMDBError{message: fmt.Sprintf("[%s", err.Error())}
+			return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:LoadDBChunkStore] NewDBChunkStore %s", err.Error())}
 		} else {
 			//TODO: parse_err fallback should potentially be marked as warning
-			return self, &SWARMDBError{message: fmt.Sprintf("[Parsing Error]%s | Generating new netstatlog in %s\n", errParse.Error(), defaultDBPath)}
+			return self, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:LoadDBChunkStore] NewDBChunkStore Parsing Error %s | Generating new netstatlog in %s\n", errParse.Error(), defaultDBPath)}
 		}
 	}
 
 	db, err := sql.Open("sqlite3", path)
 	if err != nil || db == nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Load]%s", err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:LoadDBChunkStore] sql.Open Error %s", err.Error())}
 	}
 
 	config, errConfig := LoadSWARMDBConfig(SWARMDBCONF_FILE)
 	if errConfig != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[KeyManager Config Loading]%s", errConfig.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:LoadDBChunkStore] LoadSWARMDBConfig - KeyManager Config Error %s", errConfig.Error())}
 	}
 
 	km, errKm := NewKeyManager(&config)
 	if errKm != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[KeyManager Creation]%s", errKm.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:LoadDBChunkStore] NewKeyManager Creation Error %s", errKm.Error())}
 	}
 
 	self.db = db
 	self.km = &km
 	self.filepath = path
 	self.statpath = defaultDBPath
-	return
-	//TODO: Do we not need to return dbchunkstore,err?
+	return self, nil
 }
 
 func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, encrypted int) (err error) {
 	//TODO get OWNER from CHUNK or get it from swarmdb into dbchunkstore
 	ts := time.Now()
 	if len(val) < minChunkSize {
-		return &SWARMDBError{message: fmt.Sprintf("[Store kchunk]Chunk too small (< %s)| %x", minChunkSize, val)}
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreKChunk] Chunk too small (< %s)| %x", minChunkSize, val)}
 	}
 
 	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, encrypted, chunkBirthDT, chunkStoreDT, renewal, minReplication, maxReplication, payer, version) values(?, ?, ?, COALESCE((SELECT chunkBirthDT FROM chunk WHERE chunkKey=?),CURRENT_TIMESTAMP), COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=? ), CURRENT_TIMESTAMP), ?, ?, ?, ?, COALESCE((SELECT version+1 FROM chunk where chunkKey=?),0))`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[SQLite Statement Prep]%s", err.Error())}
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreKChunk] Prepare %s", err.Error())}
 	}
 	defer stmt.Close()
 
@@ -341,12 +354,11 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 	copy(finalSdata[577:], recordData)
 	_, err2 := stmt.Exec(key[:32], finalSdata[0:], encrypted, key[:32], key[:32], u.AutoRenew, u.MinReplication, u.MaxReplication, u.Address, key[:32])
 	if err2 != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[SQLite Insert]%s | data:%x| Encrypted: %s", err2.Error(), finalSdata, encrypted)}
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreKChunk] Exec - Insert%s | data:%x | Encrypted: %s ", err2.Error(), finalSdata, encrypted)}
 	}
 	stmt.Close()
 	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
-	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
 	return nil
 }
 
@@ -356,15 +368,14 @@ func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte
 	sql := `SELECT chunkKey, chunkVal, chunkBirthDT, chunkStoreDT, encrypted FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
-		//fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
-		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Retrieval Prep]%s | %s", sql, err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveKChunk] Prepare %s | %s", sql, err.Error())}
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query(key)
 	if err != nil {
 		//fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
-		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Retrieval Query]%s | %s", sql, err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveKChunk] Query %s | %s", sql, err.Error())}
 	}
 	defer rows.Close()
 
@@ -376,16 +387,19 @@ func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte
 
 		err2 := rows.Scan(&kV, &val, &bdt, &sdt, &enc)
 		if err2 != nil {
-			return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Kchunk Struct]%s", err2.Error())}
+			return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveKChunk] Scan %s", err2.Error())}
 		}
-		//fmt.Printf("\nQuery Key: [%x], [%s], [%s], [%s] with VAL: [%+v]", kV, bdt, sdt, enc, val)
 		//TODO: (Rodney) parse encrypted chunk
 		jsonRecord := val[577:]
 		trimmedJson := bytes.TrimRight(jsonRecord, "\x00")
 		var retVal []byte
 		retVal = trimmedJson
 		if enc == 1 {
-			retVal = self.km.DecryptData(u, trimmedJson)
+			retVal, err = self.km.DecryptData(u, trimmedJson)
+			if err != nil {
+				return val, err
+			}
+
 			retVal = bytes.TrimRight(retVal, "\x00")
 		}
 		self.netstat.LReadDT = &ts
@@ -398,7 +412,7 @@ func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte
 func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
 	ts := time.Now()
 	if len(val) < minChunkSize {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[Store chunk]Chunk too small (< %s)| %x", minChunkSize, val)}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Chunk too small (< %s)| %x", minChunkSize, val)}
 	}
 	inp := make([]byte, minChunkSize)
 	copy(inp, val[0:minChunkSize])
@@ -409,7 +423,7 @@ func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) 
 	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, encrypted, chunkBirthDT, chunkStoreDT, renewal, minReplication, maxReplication, payer, version) values(?, ?, ?, COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=?),CURRENT_TIMESTAMP), COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=? ), CURRENT_TIMESTAMP), ?, ?, ?, ?, COALESCE((SELECT version+1 FROM chunk where chunkKey=?),0))`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Statement Prep]%s", err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Prepare %s", err.Error())}
 	}
 	defer stmt.Close()
 
@@ -421,8 +435,8 @@ func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) 
 	_, err2 := stmt.Exec(key, chunkVal, encrypted, key, key, u.AutoRenew, u.MinReplication, u.MaxReplication, u.Address, key)
 	//TODO: confirm _ doesn't need handling/checking
 	if err2 != nil {
-		fmt.Printf("\nError Inserting into Table: [%s]", err)
-		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Insert]%s | data:%s | encrypted:%s", err2.Error(), chunkVal, encrypted)}
+		fmt.Printf("\nError Inserting into Table: [%s]", err.Error())
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Exec %s | data:%s | encrypted:%s", err2.Error(), chunkVal, encrypted)}
 	}
 	stmt.Close()
 	self.netstat.LWriteDT = &ts
@@ -437,15 +451,14 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 	sql := `SELECT chunkVal, encrypted FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
-		//fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
-		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Retrieval Prep]%s | %s", sql, err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveChunk] Prepare %s | %s", sql, err.Error())}
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query(key)
 	if err != nil {
 		//fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
-		return nil, &SWARMDBError{message: fmt.Sprintf("[SQLite Retrieval Prep]%s | %s", sql, err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveChunk] Query %s | %s", sql, err.Error())}
 	}
 	defer rows.Close()
 
@@ -453,13 +466,15 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 		var enc int
 		err2 := rows.Scan(&val, &enc)
 		if err2 != nil {
-			return nil, err2
-			//TODO: SWARMDBError
+			return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveChunk] Scan %s", err2.Error())}
 		}
 		var retVal []byte
 		retVal = val
 		if enc == 1 {
-			retVal = self.km.DecryptData(u, val)
+			retVal, err = self.km.DecryptData(u, val)
+			if err != nil {
+				return retVal, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveChunk] DecryptData %s", err2.Error())}
+			}
 		}
 		self.netstat.LReadDT = &ts
 		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
@@ -523,8 +538,7 @@ func (self *DBChunkstore) ScanAll() (err error) {
 	sql_readall := `SELECT chunkKey, chunkVal,strftime('%s',chunkStoreDT) FROM chunk ORDER BY chunkStoreDT DESC`
 	rows, err := self.db.Query(sql_readall)
 	if err != nil {
-		return err
-		//TODO: SWARMDBError
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:ScanAll] Query %s", err.Error())}
 	}
 	defer rows.Close()
 
@@ -534,17 +548,9 @@ func (self *DBChunkstore) ScanAll() (err error) {
 		c := DBChunk{}
 		err2 := rows.Scan(&c.Key, &c.Val, &c.ChunkStoreDT)
 		if err2 != nil {
-			return err2
-			//TODO: SWARMDBError
+			return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:ScanAll] Scan %s", err2.Error())}
 		}
 		rcnt++
-		/*
-			jsonRecord := c.Val[577:]
-			trimmedJson := bytes.TrimRight(jsonRecord, "\x00")
-			decVal := self.km.DecryptData(trimmedJson)
-			c.Val = bytes.TrimRight(decVal, "\x00")
-			fmt.Printf("[record] %x => %s [%v]\n", c.Key, c.Val, c.ChunkStoreDT)
-		*/
 		result = append(result, c)
 	}
 	rows.Close()
@@ -552,17 +558,14 @@ func (self *DBChunkstore) ScanAll() (err error) {
 	sql_chunkRead := `INSERT OR REPLACE INTO netstat (statDT, rcnt) values(CURRENT_TIMESTAMP, ?)`
 	stmt, err := self.db.Prepare(sql_chunkRead)
 	if err != nil {
-		return err
-		//TODO: SWARMDBError
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:ScanAll] Prepare %s", err.Error())}
 	}
 	defer stmt.Close()
 
 	_, err2 := stmt.Exec(rcnt)
-	//TODO: confirm _ doesn't need handling/checking
+	// TODO: confirm _ doesn't need handling/checking
 	if err2 != nil {
-		fmt.Printf("\nError updating stat Table: [%s]", err2)
-		return err2
-		//TODO: SWARMDBError
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:ScanAll] Exec Error updating stat Table: %s", err2.Error())}
 	}
 	stmt.Close()
 	self.netstat.LReadDT = &ts
@@ -582,8 +585,7 @@ func (self *DBChunkstore) GenerateFarmerLog() (err error) {
 	sql_readall := `SELECT chunkKey,strftime('%s',chunkBirthDT) as chunkBirthTS, strftime('%s',chunkStoreDT) as chunkStoreTS, maxReplication, renewal FROM chunk where maxReplication > 0 ORDER BY chunkStoreTS DESC`
 	rows, err := self.db.Query(sql_readall)
 	if err != nil {
-		return err
-		//TODO: SWARMDBError
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GenerateFarmerLog] Query %s", err.Error())}
 	}
 	defer rows.Close()
 
@@ -594,22 +596,21 @@ func (self *DBChunkstore) GenerateFarmerLog() (err error) {
 
 		err2 := rows.Scan(&c.ChunkHash, &c.ChunkBD, &c.ChunkSD, &c.ReplicationLevel, &c.Renewable)
 		if err2 != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[Farmerlog]%s", err2.Error())}
+			return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GenerateFarmerLog] Scan %s", err2.Error())}
 		}
 		c.ChunkID = fmt.Sprintf("%x", c.ChunkHash)
 		chunklog, err := json.Marshal(c)
 		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[Farmerlog Marshal]%s", err2.Error())}
+			return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GenerateFarmerLog] Marshal %s", err2.Error())}
 		}
 		fmt.Printf("%s\n", chunklog)
-
-		//fmt.Printf("%v|%x|%v|%v|%v|%v\n", c.Farmer, c.ChunkHash, c.ChunkBD, c.ChunkSD, c.ReplicationLevel, c.Renewable)
 		result = append(result, c)
 	}
 	rows.Close()
 	return nil
 }
 
+//TODO: Finish implementation/document -- Seems there's no error case. Are we not yet checking appropriately?  Or is it not needed?
 func (self *DBChunkstore) ClaimAll() (err error) {
 	fmt.Printf("netCounter: %v\n", netCounter)
 	fmt.Printf("self: %v\n", self)
@@ -618,15 +619,13 @@ func (self *DBChunkstore) ClaimAll() (err error) {
 	reward := 121
 	self.netstat.Claim[ticket] = new(big.Int).SetInt64(int64(reward))
 	return nil
-	//TODO: Seems there's no error case. Are we not yet checking appropriately?  Or is it not needed?
 }
 
 func (self *DBChunkstore) GetChunkStored() (err error) {
 	sql_chunkTally := `SELECT count(*) FROM chunk`
 	rows, err := self.db.Query(sql_chunkTally)
 	if err != nil {
-		return err
-		//TODO: SWARMDBError
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GetChunkStored] Query %s", err.Error())}
 	}
 	defer rows.Close()
 
@@ -636,10 +635,9 @@ func (self *DBChunkstore) GetChunkStored() (err error) {
 		c := ChunkStats{}
 		err2 := rows.Scan(&c.ChunkStored)
 		if err2 != nil {
-			return &SWARMDBError{message: fmt.Sprintf("%s", err2.Error())}
+			return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GetChunkStored] Scan %s", err2.Error())}
 		}
 		chunkStored += c.ChunkStored
-		//fmt.Printf("[stat] Time %v => Read:%v | Write:%v | Stored:%v\n", c.CurrentTS, c.ChunkRead, c.ChunkWrite, c.ChunkStored)
 		result = append(result, c)
 	}
 	rows.Close()
@@ -652,8 +650,7 @@ func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 	sql_chunkTally := `SELECT strftime('%s',statDT) as STS, sum(rcnt), sum(wcnt), sum(scnt) FROM netstat group by strftime('%s',statDT) order by STS DESC`
 	rows, err := self.db.Query(sql_chunkTally)
 	if err != nil {
-		return res, err
-		//TODO: SWARMDBError
+		return res, &SWARMDBError{message: fmt.Sprintf("[Query]%s", err.Error())}
 	}
 	defer rows.Close()
 
@@ -662,7 +659,7 @@ func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 		c := ChunkStats{}
 		err2 := rows.Scan(&c.CurrentTS, &c.ChunkRead, &c.ChunkWrite, &c.ChunkStored)
 		if err2 != nil {
-			return res, &SWARMDBError{message: fmt.Sprintf("%s", err.Error())}
+			return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GetChunkStat] Scan %s", err.Error())}
 		}
 		fmt.Printf("[stat] Time %v => Read:%v | Write:%v | Stored:%v\n", c.CurrentTS, c.ChunkRead, c.ChunkWrite, c.ChunkStored)
 		result = append(result, c)
@@ -671,7 +668,7 @@ func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 
 	output, err := json.Marshal(result)
 	if err != nil {
-		return res, &SWARMDBError{message: fmt.Sprintf("%s", err.Error())}
+		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GetChunkStat] Marshal %s", err.Error())}
 	} else {
 		return string(output), nil
 	}

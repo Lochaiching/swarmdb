@@ -50,14 +50,9 @@ type HashdbCursor struct {
 	node   *Node
 }
 
-func (self *HashDB) GetRootHash() ([]byte, error) {
-	var err error
-	if self.rootnode.NodeHash == nil {
-		// TODO : error handling
-		err = fmt.Errorf("No Root Hash Error")
-	}
-
-	return self.rootnode.NodeHash, err
+// TODO: guarantee that this function will always work
+func (self *HashDB) GetRootHash() []byte {
+	return self.rootnode.NodeHash
 }
 
 func NewHashDB(u *SWARMDBUser, rootnode []byte, swarmdb SwarmDB, columntype ColumnType) (*HashDB, error) {
@@ -221,19 +216,9 @@ func (self *Node) add(u *SWARMDBUser, addnode *Node, version int, nodekey []byte
 			addnode.Stored = false
 			addnode.Next = false
 			addnode.NodeKey = []byte(string(self.NodeKey) + "|" + strconv.Itoa(bin))
-			//sdata := make([]byte, 64*4)
 			sdata := make([]byte, 4096)
 			copy(sdata[64:], convertToByte(addnode.Value))
 			copy(sdata[96:], addnode.Key)
-			//rd := bytes.NewReader(sdata)
-			//wg := &sync.WaitGroup{}
-			/*
-				//dhash, _ := swarmdb.Store(rd, int64(len(sdata)), wg, nil)
-				dhash, _ := swarmdb.StoreDBChunk(sdata, 1)
-				//wg.Wait()
-				addnode.NodeHash = dhash
-				log.Debug(fmt.Sprintf("hashdb add bin leaf %d %v", bin, dhash))
-			*/
 			self.Bin[bin] = addnode
 		}
 	} else {
@@ -241,24 +226,19 @@ func (self *Node) add(u *SWARMDBUser, addnode *Node, version int, nodekey []byte
 			sdata := make([]byte, 4096)
 			copy(sdata[64:], convertToByte(addnode.Value))
 			copy(sdata[96:], addnode.Key)
-			// TODO: move to store
-			dhash, _ := swarmdb.StoreDBChunk(u, sdata, 1)
+			dhash, err := swarmdb.StoreDBChunk(u, sdata, 1)
+			if err != nil {
+				return self, &SWARMDBError{message: `[hashdb:add] StoreDBChunk ` + err.Error()}
+			}
 			addnode.NodeHash = dhash
 			self.Value = addnode.Value
 			return self, nil
 		}
 		if len(self.Key) == 0 {
 			// TODO: may be able to remove sdata
-			//sdata := make([]byte, 64*4)
 			sdata := make([]byte, 4096)
 			copy(sdata[64:], convertToByte(addnode.Value))
 			copy(sdata[96:], addnode.Key)
-			//rd := bytes.NewReader(sdata)
-			//wg := &sync.WaitGroup{}
-			//dhash, _ := swarmdb.Store(rd, int64(len(sdata)), wg)
-			//dhash, _ := swarmdb.StoreDBChunk(sdata, 1)
-			//wg.Done()
-			//addnode.NodeHash = dhash
 			addnode.Next = false
 			addnode.Loaded = true
 			self = addnode
@@ -275,9 +255,6 @@ func (self *Node) add(u *SWARMDBUser, addnode *Node, version int, nodekey []byte
 		cself.Loaded = true
 		n.add(u, addnode, version, self.NodeKey, swarmdb, columntype)
 		n.add(u, cself, version, self.NodeKey, swarmdb, columntype)
-		///////////
-		//n.NodeHash = self.storeBinToNetwork(swarmdb)
-		//swarmdb.Put([]byte(n.NodeKey), n.NodeHash)
 		n.Loaded = true
 		return n, nil
 	}
@@ -287,8 +264,6 @@ func (self *Node) add(u *SWARMDBUser, addnode *Node, version int, nodekey []byte
 			svalue = svalue + "|" + strconv.Itoa(i)
 		}
 	}
-	///////////
-	//self.NodeHash = self.storeBinToNetwork(swarmdb)
 	self.Loaded = true
 	return self, nil
 }
@@ -346,15 +321,16 @@ func (self *Node) storeBinToNetwork(u *SWARMDBUser, swarmdb *SwarmDB) ([]byte, e
 	binary.LittleEndian.PutUint64(storedata[9:32], uint64(self.Level))
 
 	for i, bin := range self.Bin {
-		//copy(storedata[64+i*32:], bin.NodeHash[0:32])
 		if bin != nil {
 			copy(storedata[64+i*32:], bin.NodeHash)
 		}
 	}
-	//rd := bytes.NewReader(storedata)
+
 	//wg := &sync.WaitGroup{}
 	adhash, err := swarmdb.StoreDBChunk(u, storedata, 1)
-	//fmt.Printf("add hash node %x\n", adhash)
+	if err != nil {
+		return adhash, &SWARMDBError{message: `[hashdb:storeBinToNetwork] StoreDBChunk ` + err.Error()}
+	}
 	//wg.Wait()
 	return adhash, err
 }
@@ -368,10 +344,8 @@ func (self *HashDB) Get(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
 	value := bytes.Trim(convertToByte(ret), "\x00")
 	b := true
 	if ret == nil {
-		b = false
-		//TODO: error check
-		var err *KeyNotFoundError
-		return nil, b, err
+		var err KeyNotFoundError
+		return nil, false, &err
 	}
 	return value, b, nil
 }
@@ -384,9 +358,8 @@ func (self *HashDB) getStack(u *SWARMDBUser, k []byte) ([]byte, *stack_t, error)
 	}
 	value := bytes.Trim(convertToByte(ret), "\x00")
 	if ret == nil {
-		//TODO: error check
-		var err *KeyNotFoundError
-		return nil, nil, err
+		var err KeyNotFoundError
+		return nil, nil, &err
 	}
 	return value, stack, nil
 }
@@ -404,9 +377,8 @@ func (self *Node) Get(u *SWARMDBUser, k []byte, swarmdb *SwarmDB, columntype Col
 	}
 
 	if self.Bin[bin] == nil {
-		//TODO: error check
-		var err *KeyNotFoundError
-		return nil, err
+		var err KeyNotFoundError
+		return nil, &err
 	}
 	if self.Bin[bin].Loaded == false {
 		err := self.Bin[bin].load(u, swarmdb, columntype)
@@ -423,16 +395,20 @@ func (self *Node) Get(u *SWARMDBUser, k []byte, swarmdb *SwarmDB, columntype Col
 			stack.Push(bin)
 			return self.Bin[bin].Value, nil
 		} else {
-			//TODO: error check , no key error
+			//TODO: error check, no key error
 			return nil, nil
 		}
 	}
-	//TODO: error check , no key error
+	//TODO: error check, no key error
 	return nil, nil
 }
 
 func (self *Node) load(u *SWARMDBUser, swarmdb *SwarmDB, columnType ColumnType) error {
 	buf, err := swarmdb.RetrieveDBChunk(u, self.NodeHash)
+	if err != nil {
+		return &SWARMDBError{message: `[hashdb:load] RetrieveDBChunk ` + err.Error()}
+	}
+
 	lf := int64(binary.LittleEndian.Uint64(buf[0:8]))
 	if err != nil && err != io.EOF {
 		//	fmt.Printf("\nError loading node: [%s]", err)
@@ -487,9 +463,7 @@ func (self *Node) load(u *SWARMDBUser, swarmdb *SwarmDB, columnType ColumnType) 
 func (self *HashDB) Insert(u *SWARMDBUser, k []byte, v []byte) (bool, error) {
 	res, b, _ := self.Get(u, k)
 	if res != nil || b {
-		//TODO: key exist error
-		err := fmt.Errorf("%s is already in Database", string(k))
-		return false, err
+		return false, &SWARMDBError{message: fmt.Sprintf(`[hashdb:Insert] Get - Key exists: %s`, string(k))}
 	}
 	_, err := self.Put(u, k, v)
 	return true, err
@@ -581,8 +555,7 @@ func (self *Node) Update(updatekey []byte, updatevalue []byte) (newnode *Node, e
 	bin := hashbin(kh, self.Level)
 
 	if self.Bin[bin] == nil {
-		//TODO: error handling
-		return self, &SWARMDBError{message: fmt.Sprintf("No Key Error %x", updatekey)}
+		return self, &SWARMDBError{message: fmt.Sprintf("[hashdb:Update] No Key Error %x", updatekey)}
 	}
 
 	if self.Bin[bin].Next {
@@ -590,10 +563,8 @@ func (self *Node) Update(updatekey []byte, updatevalue []byte) (newnode *Node, e
 	} else {
 		self.Bin[bin].Value = updatevalue
 		return self, nil
-		//return self.Bin[bin].Value
 	}
-	//TODO: error handling
-	return self, &SWARMDBError{message: fmt.Sprintf("No Key Error %x", updatekey)}
+	return self, &SWARMDBError{message: fmt.Sprintf("[hashdb:Update] No Key Error %x", updatekey)}
 }
 
 func (self *HashDB) Close(u *SWARMDBUser) (bool, error) {
@@ -607,9 +578,7 @@ func (self *HashDB) StartBuffer(u *SWARMDBUser) (bool, error) {
 
 func (self *HashDB) FlushBuffer(u *SWARMDBUser) (bool, error) {
 	if self.buffered == false {
-		//TODO : flush buffer design
-		//var err *NoBufferError
-		//return false, err
+		// do nothing: FlushBuffer does not require a StartBuffer
 	}
 	_, err := self.rootnode.flushBuffer(u, self.swarmdb)
 	if err != nil {
@@ -634,7 +603,7 @@ func (self *Node) flushBuffer(u *SWARMDBUser, swarmdb *SwarmDB) ([]byte, error) 
 				copy(sdata[96:], bin.Key)
 				dhash, err := swarmdb.StoreDBChunk(u, sdata, 1)
 				if err != nil {
-					return nil, err
+					return nil, &SWARMDBError{message: `[hashdb:flushBuffer] StoreDBChunk ` + err.Error()}
 				}
 				bin.NodeHash = dhash
 				bin.Stored = true
@@ -674,8 +643,7 @@ func (self *HashDB) Seek(u *SWARMDBUser, k []byte) (*HashdbCursor, bool, error) 
 		return nil, false, err
 	}
 	if ret == nil {
-		//TODO: error handling
-		return nil, false, fmt.Errorf("No Data")
+		return nil, false, &SWARMDBError{message: fmt.Sprintf("[hashdb:Seek] getStack - No Data")}
 	}
 	cursor, err := newHashdbCursor(self)
 	if err != nil {
@@ -827,8 +795,7 @@ func (self *HashdbCursor) seeknext(u *SWARMDBUser) error {
 	self.node = self.hashdb.rootnode
 	for i := 0; i < self.bin.Size()-1; i++ {
 		if self.bin.GetPos(i) == -1 {
-			//TODO: error handling
-			return fmt.Errorf("No Data")
+			return &SWARMDBError{message: fmt.Sprintf("[hashdb:seeknext] No Data")}
 		}
 		if self.node.Bin[self.bin.GetPos(i)] == nil {
 		} else {
@@ -904,8 +871,7 @@ func (self *HashdbCursor) seekprev(u *SWARMDBUser) error {
 	self.node = self.hashdb.rootnode
 	for i := 0; i < self.bin.Size()-1; i++ {
 		if self.bin.GetPos(i) == -1 {
-			//TODO: error handling
-			return fmt.Errorf("No Data")
+			return &SWARMDBError{message: fmt.Sprintf("[hashdb:seekprev] No data")}
 		}
 		if self.node.Bin[self.bin.GetPos(i)] == nil {
 		} else {
@@ -913,11 +879,9 @@ func (self *HashdbCursor) seekprev(u *SWARMDBUser) error {
 				self.node.Bin[self.bin.GetPos(i)].load(u, self.hashdb.swarmdb, self.hashdb.columnType)
 			}
 			self.node = self.node.Bin[self.bin.GetPos(i)]
-			//return nil
 		}
 	}
-	err = self.seekprev(u)
-	return err
+	return self.seekprev(u)
 }
 
 //TODO:: check it's needed
@@ -943,7 +907,7 @@ func newStack() *stack_t {
 
 func (self *stack_t) Push(add int) error {
 	if self.size+1 > STACK_SIZE {
-		return fmt.Errorf("over max stack")
+		return &SWARMDBError{message: fmt.Sprintf("[hashdb:Push] over max stack")}
 	}
 	self.data[self.size] = add
 	self.size = self.size + 1
@@ -952,8 +916,7 @@ func (self *stack_t) Push(add int) error {
 
 func (self *stack_t) Pop() (int, error) {
 	if self.size == 0 {
-		//TODO: error handling
-		return -1, fmt.Errorf("nothing in stack")
+		return -1, &SWARMDBError{message: fmt.Sprintf("[hashdb:Pop] nothing in stack")}
 	}
 	pos := self.data[self.size-1]
 	self.data[self.size-1] = -1

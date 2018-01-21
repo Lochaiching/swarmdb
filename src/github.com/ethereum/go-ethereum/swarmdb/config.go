@@ -2,7 +2,7 @@ package swarmdb
 
 import (
 	"encoding/json"
-	// "fmt"
+	"fmt"
 	"io/ioutil"
 )
 
@@ -52,26 +52,25 @@ func SaveSWARMDBConfig(c SWARMDBConfig, filename string) (err error) {
 	// save file
 	cout, err1 := json.Marshal(c)
 	if err1 != nil {
-		return err1
-		//TODO: SWARMDBError
+		return &SWARMDBError{message: fmt.Sprintf("[config:SaveSWARMDBConfig] Marshal %s", err.Error())}
 	} else {
 		err := ioutil.WriteFile(filename, cout, 0644)
-		//TODO: SWARMDBError
-		return err
+		if err != nil {
+			return &SWARMDBError{message: fmt.Sprintf("[config:SaveSWARMDBConfig] WriteFile %s", err.Error())}
+		}
 	}
+	return nil
 }
 
 func LoadSWARMDBConfig(filename string) (c SWARMDBConfig, err error) {
 	// read file
 	dat, err := ioutil.ReadFile(filename)
 	if err != nil {
-		//TODO: SWARMDBError
-		return c, err
+		return c, &SWARMDBError{message: fmt.Sprintf("[config:LoadSWARMDBConfig] ReadFile %s", err.Error())}
 	}
-	err1 := json.Unmarshal(dat, &c)
-	if err1 != nil {
-		//TODO: SWARMDBError
-		return c, err1
+	err = json.Unmarshal(dat, &c)
+	if err != nil {
+		return c, &SWARMDBError{message: fmt.Sprintf("[config:LoadSWARMDBConfig] Unmarshal %s", err.Error())}
 	}
 	return c, nil
 }

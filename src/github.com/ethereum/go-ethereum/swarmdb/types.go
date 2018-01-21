@@ -1,3 +1,18 @@
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
+
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARMDB library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 package swarmdb
 
 import (
@@ -7,9 +22,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"math"
 	"math/big"
 	"net"
@@ -90,8 +105,8 @@ type ENSSimulation struct {
 }
 
 type ENSSimple struct {
-	auth *bind.TransactOpts  
-    sens *Simplestens
+	auth *bind.TransactOpts
+	sens *Simplestens
 }
 
 type IncomingInfo struct {
@@ -181,7 +196,7 @@ type DBChunkstorage interface {
 }
 
 type Database interface {
-	GetRootHash() ([]byte, error)
+	GetRootHash() []byte
 
 	// Insert: adds key-value pair (value is an entire recrod)
 	// ok - returns true if new key added

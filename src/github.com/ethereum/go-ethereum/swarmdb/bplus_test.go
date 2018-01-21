@@ -1,12 +1,11 @@
-// Copyright 2018 Wolk Inc. - SWARMDB Working Group
-// This file is part of a SWARMDB fork of the go-ethereum library
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
 
 // The SWARMDB library is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// The SWARM ethereum library is distributed in the hope that it will be useful,
+// The SWARMDB library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU Lesser General Public License for more details.
@@ -63,7 +62,7 @@ func TestPutInteger(t *testing.T) {
 	// flush B+tree in memory to SWARM
 	r.FlushBuffer(u)
 
-	hashid, _ = r.GetRootHash()
+	hashid = r.GetRootHash()
 	s := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING)
 
 	g, ok, err := s.Get(u, swarmdb.IntToByte(8))
@@ -128,7 +127,7 @@ func TestPutString(t *testing.T) {
 	r.FlushBuffer(u)
 	// r.Print()
 
-	hashid, _ = r.GetRootHash()
+	hashid = r.GetRootHash()
 	s := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING)
 	g, _, _ := s.Get(u, []byte("000008"))
 	fmt.Printf("Get(000008): %v\n", string(g))
@@ -169,7 +168,7 @@ func TestPutFloat(t *testing.T) {
 	r.FlushBuffer(u)
 	// r.Print()
 
-	hashid, _ = r.GetRootHash()
+	hashid = r.GetRootHash()
 	s := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_FLOAT, false, swarmdb.CT_STRING)
 	// ENUMERATOR
 	res, _, _ := s.Seek(u, swarmdb.FloatToByte(3.14159))
@@ -202,7 +201,7 @@ func TestSetGetString(t *testing.T) {
 		t.Fatal(g, val)
 	}
 	//r.Print()
-	hashid, _ = r.GetRootHash()
+	hashid = r.GetRootHash()
 
 	// r2 put
 	r2 := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING)
@@ -218,7 +217,7 @@ func TestSetGetString(t *testing.T) {
 	if bytes.Compare(g2, val2) != 0 {
 		t.Fatal(g2, val2)
 	}
-	hashid, _ = r2.GetRootHash()
+	hashid = r2.GetRootHash()
 
 	// r3 put
 	r3 := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING)
