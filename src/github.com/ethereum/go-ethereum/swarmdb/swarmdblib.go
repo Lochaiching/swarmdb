@@ -97,15 +97,15 @@ func NewSWARMDBConnection() (dbc SWARMDBConnection, err error) {
 
 	config, err := LoadSWARMDBConfig(SWARMDBCONF_FILE)
 	if err != nil {
-		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] LoadSWARMDBConfig %s\n", err.Error())}
+		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] LoadSWARMDBConfig %s", err.Error())}
 	}
 	dbc.keymanager, err = NewKeyManager(&config)
 	if err != nil {
-		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] NewKeyManager %s\n", err.Error())}
+		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] NewKeyManager %s", err.Error())}
 	}
 	conn, err := net.Dial(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
 	if err != nil {
-		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] Dial %s\n", err.Error())}
+		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] Dial %s", err.Error())}
 	}
 	dbc.connection = conn
 
@@ -127,13 +127,13 @@ func (dbc *SWARMDBConnection) Open(tableName string, tableOwner string, encrypte
 	// read a random length string from the server
 	challenge, err := dbc.reader.ReadString('\n')
 	if err != nil {
-		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:Open] ReadString %s\n", err.Error())}
+		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:Open] ReadString %s", err.Error())}
 	}
 	challenge = strings.Trim(challenge, "\n")
 	// challenge_bytes, _ := hex.DecodeString(challenge)
 
 	// sign the message Web3 style
-	challenge_bytes := SignHash(challenge)
+	challenge_bytes := SignHash([]byte(challenge))
 
 	sig, err := dbc.keymanager.SignMessage(challenge_bytes)
 	if err != nil {
@@ -173,7 +173,7 @@ func (dbc *SWARMDBConnection) CreateTable(tableOwner string, encrypted int, tabl
 	req.Columns = columns
 	_, err = dbc.ProcessRequestResponseCommand(req)
 	if err != nil {
-		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:CreateTable] ProcessRequestResponseCommand %s\n", err.Error())}
+		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:CreateTable] ProcessRequestResponseCommand %s", err.Error())}
 	}
 
 	// send to server
@@ -210,7 +210,7 @@ func (t *SWARMDBTable) Put(row interface{}) (response string, err error) {
 func (dbc *SWARMDBConnection) ProcessRequestResponseRow(request RequestOption) (row *Row, err error) {
 	response, err := dbc.ProcessRequestResponseCommand(request)
 	if err != nil {
-		return row, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseRow] ProcessRequestResponseCommand %s\n", err.Error())}
+		return row, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseRow] ProcessRequestResponseCommand %s", err.Error())}
 	}
 	if len(response) > 0 {
 		// TODO: turn row_string into row HERE
@@ -225,7 +225,7 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 	//fmt.Printf("\nprocess request response cmd: %+v\n", request)
 	message, err := json.Marshal(request)
 	if err != nil {
-		return response, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseCommand] Marshal %s\n", err.Error())}
+		return response, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseCommand] Marshal %s", err.Error())}
 	}
 	str := string(message) + "\n"
 	//fmt.Printf("Req: %v", str)
@@ -233,7 +233,7 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 	dbc.writer.Flush()
 	response, err = dbc.reader.ReadString('\n')
 	if err != nil {
-		return response, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseCommand] ReadString %s\n", err.Error())}
+		return response, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseCommand] ReadString %s", err.Error())}
 	}
 	return response, nil
 }

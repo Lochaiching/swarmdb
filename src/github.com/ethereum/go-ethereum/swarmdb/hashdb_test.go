@@ -36,7 +36,10 @@ func rng() *mathutil.FC32 {
 func getSwarmDB(t *testing.T) swarmdb.SwarmDB {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	ensdbPath := "/tmp"
-	swarmdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+	swarmdb, err := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+	if err != nil {
+		t.Fatal("Could not create SWARMDB", err)
+	}
 	return *swarmdb
 }
 
@@ -62,7 +65,7 @@ func TestPutInteger(t *testing.T) {
 	r.FlushBuffer(u)
 	r.Print(u)
 
-	hashid, _ = r.GetRootHash()
+	hashid = r.GetRootHash()
 	s, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_INTEGER)
 	//s.Print()
 	g, ok, err := s.Get(u, swarmdb.IntToByte(10))
@@ -127,7 +130,7 @@ func TestPutString(t *testing.T) {
 	r.FlushBuffer(u)
 	// r.Print()
 
-	hashid, _ = r.GetRootHash()
+	hashid = r.GetRootHash()
 	s, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_STRING)
 	g, _, _ := s.Get(u, []byte("000008"))
 	fmt.Printf("Get(000008): %v\n", string(g))
@@ -170,7 +173,7 @@ func TestPutFloat(t *testing.T) {
 	fmt.Printf("Get(0.314159): %v\n", string(h))
 	// r.Print()
 	// ENUMERATOR
-	hashid, _ := r.GetRootHash()
+	hashid := r.GetRootHash()
 	s, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_FLOAT)
 	res, _, err := s.Seek(u, swarmdb.FloatToByte(0.314159))
 	if res == nil || err != nil {
@@ -207,7 +210,7 @@ func TestSetGetString(t *testing.T) {
 		t.Fatal(g, val)
 	}
 	//r.Print()
-	hashid, _ = r.GetRootHash()
+	hashid = r.GetRootHash()
 
 	// r2 put
 	r2, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_STRING)
@@ -223,7 +226,7 @@ func TestSetGetString(t *testing.T) {
 	if bytes.Compare(g2, val2) != 0 {
 		t.Fatal(g2, val2)
 	}
-	hashid, _ = r2.GetRootHash()
+	hashid = r2.GetRootHash()
 
 	// r3 put
 	r3, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_STRING)

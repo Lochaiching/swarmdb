@@ -1,10 +1,22 @@
-/*
-Wolk - SWARMDB Command line
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
 
-This combines the Otto Javascript parser (used in Ethereum Geth client) with a SQL parser
-that aims to specify a clear Javascript + Go bridge to { Kademlia, HashDB, B+tree } indexes.
-*/
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARMDB library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
+// Wolk - SWARMDB Command line
+
+// This combines the Otto Javascript parser (used in Ethereum Geth client) with a SQL parser
+// that aims to specify a clear Javascript + Go bridge to { Kademlia, HashDB, B+tree } indexes.
 package main
 
 import (

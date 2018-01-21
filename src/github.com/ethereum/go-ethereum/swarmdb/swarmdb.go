@@ -584,14 +584,14 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		//checking validity of columns
 		for _, reqCol := range query.RequestColumns {
 			if _, ok := tblInfo[reqCol.ColumnName]; !ok {
-				return resp, &SWARMDBError{message: fmt.Sprintf("Requested col [%s] does not exist in table [%+v]\n", reqCol.ColumnName, tblInfo)}
+				return resp, &SWARMDBError{message: fmt.Sprintf("Requested col [%s] does not exist in table [%+v]", reqCol.ColumnName, tblInfo)}
 			}
 		}
 
 		//checking the Where clause
 		if len(query.Where.Left) > 0 {
 			if _, ok := tblInfo[query.Where.Left]; !ok {
-				return resp, &SWARMDBError{message: fmt.Sprintf("Query col [%s] does not exist in table\n", query.Where.Left)}
+				return resp, &SWARMDBError{message: fmt.Sprintf("Query col [%s] does not exist in table", query.Where.Left)}
 			}
 
 			//checking if the query is just a primary key Get
@@ -653,8 +653,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 func parseData(data string) (*RequestOption, error) {
 	udata := new(RequestOption)
 	if err := json.Unmarshal([]byte(data), udata); err != nil {
-		fmt.Printf("BIG PROBLEM parsing [%s] | Error: %v\n", data, err)
-		return nil, err
+		return nil, &SWARMDBError{message: fmt.Sprintf("[swarmdb:parseData] Unmarshal %s", err.Error())}
 	}
 	return udata, nil
 }
@@ -881,7 +880,7 @@ func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte,
 	case (string):
 		k = StringToKey(columnType, svalue)
 	default:
-		return k, &SWARMDBError{message: fmt.Sprintf("[swarmdb:convertJSONValueToKey] Unknown Type: %v\n", reflect.TypeOf(svalue))}
+		return k, &SWARMDBError{message: fmt.Sprintf("[swarmdb:convertJSONValueToKey] Unknown Type: %v", reflect.TypeOf(svalue))}
 	}
 	return k, nil
 }
@@ -1029,7 +1028,7 @@ func (t *Table) Delete(u *SWARMDBUser, key string) (ok bool, err error) {
 	for _, ip := range t.columns {
 		ok2, err := ip.dbaccess.Delete(u, k)
 		if err != nil {
-			return ok2, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Delete] dbaccess.Delete %s\n", err.Error())}
+			return ok2, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Delete] dbaccess.Delete %s", err.Error())}
 		}
 		if ok2 {
 			ok = true
@@ -1049,7 +1048,7 @@ func (t *Table) StartBuffer(u *SWARMDBUser) (err error) {
 	for _, ip := range t.columns {
 		_, err := ip.dbaccess.StartBuffer(u)
 		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:StartBuffer] dbaccess.StartBuffer %s\n", err.Error())}
+			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:StartBuffer] dbaccess.StartBuffer %s", err.Error())}
 		}
 	}
 	return nil
@@ -1060,7 +1059,7 @@ func (t *Table) FlushBuffer(u *SWARMDBUser) (err error) {
 	for _, ip := range t.columns {
 		_, err := ip.dbaccess.FlushBuffer(u)
 		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:FlushBuffer] dbaccess.FlushBuffer %s\n", err.Error())}
+			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:FlushBuffer] dbaccess.FlushBuffer %s", err.Error())}
 		}
 		roothash := ip.dbaccess.GetRootHash()
 		ip.roothash = roothash
