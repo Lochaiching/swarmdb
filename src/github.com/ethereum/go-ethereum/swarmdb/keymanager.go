@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/crypto/nacl/box"
+	"encoding/hex"
 	// "os"
 )
 
@@ -44,34 +45,83 @@ func SignHash(unencrypted []byte) []byte {
 // Inside the config file there are wallet passphrases (in **plaintext** so the config file MUST be SECURED)
 // which are used to unlock any users wallet and get at their publicKey and secretKey
 func NewKeyManager(c *SWARMDBConfig) (keymgr KeyManager, err error) {
-	keymgr.config = c
-	keymgr.keystore = keystore.NewKeyStore(c.ChunkDBPath, keystore.StandardScryptN, keystore.StandardScryptP)
 
-	// for all users specified in the config file, set up their { sk, pk }  in the config
-	wallets := keymgr.keystore.Wallets()
-	for _, u := range c.Users {
-		address := common.HexToAddress(u.Address)
-		for _, w := range wallets {
-			accounts := w.Accounts()
-			for _, a := range accounts {
-				if bytes.Compare(a.Address.Bytes(), address.Bytes()) == 0 {
-					err := keymgr.keystore.Unlock(a, u.Passphrase)
-					// TODO: what if people supply a secretkey instead of a passphrase?
-					_, k, err := keymgr.keystore.WgetDecryptedKey(a, u.Passphrase)
-					if err != nil {
-						return keymgr, err
-					} else {
-						u.sk = crypto.FromECDSA(k.PrivateKey)
-						u.pk = crypto.FromECDSAPub(&k.PrivateKey.PublicKey)
-
-						copy(u.publicK[0:], u.pk[0:])
-						copy(u.secretK[0:], u.sk[0:])
+	if c != nil {
+		// for all users specified in the config file, set up their { sk, pk }  in the config
+		keymgr.config = c
+		keymgr.keystore = keystore.NewKeyStore(c.ChunkDBPath, keystore.StandardScryptN, keystore.StandardScryptP)
+		wallets := keymgr.keystore.Wallets()
+		for _, u := range c.Users {
+			address := common.HexToAddress(u.Address)
+			for _, w := range wallets {
+				accounts := w.Accounts()
+				for _, a := range accounts {
+					if bytes.Compare(a.Address.Bytes(), address.Bytes()) == 0 {
+						err := keymgr.keystore.Unlock(a, u.Passphrase)
+						// TODO: what if people supply a secretkey instead of a passphrase?
+						_, k, err := keymgr.keystore.WgetDecryptedKey(a, u.Passphrase)
+						if err != nil {
+							return keymgr, err
+						} else {
+							u.sk = crypto.FromECDSA(k.PrivateKey)
+							u.pk = crypto.FromECDSAPub(&k.PrivateKey.PublicKey)
+							
+							copy(u.publicK[0:], u.pk[0:])
+							copy(u.secretK[0:], u.sk[0:])
+						}
 					}
 				}
 			}
 		}
 	}
+
 	return keymgr, nil // fmt.Errorf("No keystore file found", ownerAddress)
+}
+
+// server will call this when the configuration file does not exist
+func NewKeyManagerWithoutConfig(filename string, passphrase string) (keymgr KeyManager, err error) {
+	// keystore created here
+	keymgr.keystore = keystore.NewKeyStore(SWARMDBCONF_KEYSTORE_PATH, keystore.StandardScryptN, keystore.StandardScryptP)
+
+	// create new account with passphrase using keystore
+	account, err := keymgr.keystore.NewAccount(passphrase)
+	if err != nil {
+		return keymgr, &SWARMDBError{message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] NewAccount %s", err.Error())}
+	}
+	fmt.Printf("Account: %v\n", account)
+
+	// get address of the new account
+	// address := common.HexToAddress(u.Address)
+	address := fmt.Sprintf("%x", account.Address.Bytes())
+	fmt.Printf("Address: %v\n", address)
+
+	// unlocking the account using the passphrase
+	err = keymgr.keystore.Unlock(account, passphrase)
+	if err != nil {
+		return keymgr, &SWARMDBError{message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] Unlock %s", err.Error())}
+	} 
+	fmt.Printf("Unlocked account with passphras %s\n", passphrase)
+
+	// get the Key of the new account account from the keystore
+	_, k, err := keymgr.keystore.WgetDecryptedKey(account, passphrase)
+	if err != nil {
+		return keymgr, &SWARMDBError{message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] WgetDecryptedKey %s", err.Error())}
+	} 
+	fmt.Printf("Key: %v\n", k)
+
+	// make a config using the { privatekey, address, passphrase } 
+	privateKey := hex.EncodeToString(crypto.FromECDSA(k.PrivateKey))
+
+	config := GenerateSampleSWARMDBConfig(privateKey, address, passphrase)
+	fmt.Printf("SWARMDBConfig: %v\n", config)
+
+	// save it!
+	err = SaveSWARMDBConfig(config, filename)
+	if err != nil {
+		return keymgr, &SWARMDBError{message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] SaveSWARMDBConfig %s", err.Error())}
+	} 
+	fmt.Printf("Saved config in %s:\n", filename)
+	return keymgr, nil
 }
 
 // client libraries call this to sign messages (hashed to 32 bytes) with the config's secret

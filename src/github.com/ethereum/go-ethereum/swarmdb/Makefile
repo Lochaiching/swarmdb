@@ -3,20 +3,18 @@
 
 all:
 	@echo "test all."
+	@echo "test swarmdb."
+	-go test ./swarmdb_test.go
 	@echo "test enssimulation."
 	-go test ./enssimulation_test.go
 	@echo "test dbchunkstore."
 	-go test ./dbchunkstore_test.go
-	@echo "test server."
-	-go test ./server/server_test.go
 	@echo "test keymanager."
 	-go test ./keymanager_test.go
 	@echo "test bplus."
 	-go test ./bplus_test.go
 	@echo "test query."
 	-go test ./query_test.go
-	@echo "test swarmdb."
-	-go test ./swarmdb_test.go
 	@echo "test client."
 	-go test ./client_test.go
 	@echo "test kademliadb."
@@ -33,10 +31,6 @@ enssimulation:
 dbchunkstore:
 	@echo "test dbchunkstore."
 	go test ./dbchunkstore_test.go
-
-server:
-	@echo "test server."
-	go test ../swarm/api/tcpip/server_test.go
 
 keymanager:
 	@echo "test keymanager."
