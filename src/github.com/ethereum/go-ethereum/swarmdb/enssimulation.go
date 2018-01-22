@@ -18,7 +18,8 @@ package swarmdb
 import (
 	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
-	// "time"
+	"github.com/ethereum/go-ethereum/log"
+	"fmt"
 )
 
 func NewENSSimulation(path string) (ens ENSSimulation, err error) {
@@ -47,7 +48,8 @@ func NewENSSimulation(path string) (ens ENSSimulation, err error) {
 	return ens, nil
 }
 
-func (self *ENSSimulation) StoreRootHash(indexName []byte, roothash []byte) (err error) {
+func (self *ENSSimulation) StoreRootHash(u *SWARMDBUser, indexName []byte, roothash []byte) (err error) {
+	log.Debug(fmt.Sprintf("[enssimulation:StoreRootHash] indexName: [%x] => roothash[%x]", indexName, roothash))
 	sql_add := `INSERT OR REPLACE INTO ens ( indexName, roothash, storeDT ) values(?, ?, CURRENT_TIMESTAMP)`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
@@ -62,7 +64,7 @@ func (self *ENSSimulation) StoreRootHash(indexName []byte, roothash []byte) (err
 	return nil
 }
 
-func (self *ENSSimulation) GetRootHash(indexName []byte) (val []byte, err error) {
+func (self *ENSSimulation) GetRootHash(u *SWARMDBUser, indexName []byte) (val []byte, err error) {
 	sql := `SELECT roothash FROM ens WHERE indexName = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
@@ -81,6 +83,7 @@ func (self *ENSSimulation) GetRootHash(indexName []byte) (val []byte, err error)
 		if err2 != nil {
 			return nil, err2
 		}
+		log.Debug(fmt.Sprintf("[enssimulation:GetRootHash] indexName: [%x] => roothash: [%x]", indexName, val))
 		return val, nil
 	}
 	return val, nil

@@ -161,12 +161,11 @@ func (dbc *SWARMDBConnection) GetOwnerID() string {
 }
 
 func (dbc *SWARMDBConnection) CreateTable(tableOwner string, encrypted int, tableName string, columns []Column) (tbl *SWARMDBTable, err error) {
-	//TODO: ens = ENSSimulation to verify if table exists already?
-	//TODO: GetTable lookup to verify if table exists already
+	// TODO: ens = ENSSimulation / GetTable lookup to verify if table exists already
 
 	// create request
 	var req RequestOption
-	req.RequestType = "CreateTable"
+	req.RequestType = RT_CREATE_TABLE
 	req.TableOwner = tableOwner //dbc.ownerID is the owner of the session, not always the table
 	req.Table = tableName
 	req.Encrypted = encrypted
@@ -191,7 +190,7 @@ func (dbc *SWARMDBConnection) CreateTable(tableOwner string, encrypted int, tabl
 func (t *SWARMDBTable) Put(row interface{}) (response string, err error) {
 
 	var r RequestOption
-	r.RequestType = "Put"
+	r.RequestType = RT_PUT
 	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
@@ -242,7 +241,7 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 func (t *SWARMDBTable) Get(key string) (response string, err error) {
 
 	var r RequestOption
-	r.RequestType = "Get"
+	r.RequestType = RT_GET
 	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
@@ -253,7 +252,7 @@ func (t *SWARMDBTable) Get(key string) (response string, err error) {
 func (t *SWARMDBTable) Delete(key string) (response string, err error) {
 
 	var r RequestOption
-	r.RequestType = "Delete"
+	r.RequestType = RT_DELETE
 	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
@@ -271,7 +270,7 @@ func (t *SWARMDBTable) Scan(rowfunc func(r Row) bool) (err error) {
 //func (t *SWARMDBTable) Query(sql string, f func(r Row) bool) (err error) {
 func (t *SWARMDBTable) Query(query string) (string, error) {
 	var r RequestOption
-	r.RequestType = "Query"
+	r.RequestType = RT_QUERY
 	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted

@@ -23,15 +23,16 @@ import (
 )
 
 func TestENSSimulation(t *testing.T) {
+	var u SWARMDBUser
 	store, err := swarmdb.NewENSSimulation("/tmp/ens.db")
 	if err != nil {
 		t.Fatal("failure to open ENSSimulation")
 	}
 	indexName := []byte("contact")
 	roothash := []byte("contactroothash")
-	store.StoreRootHash(indexName, roothash)
+	store.StoreRootHash(&u, indexName, roothash)
 
-	val, err := store.GetRootHash(indexName)
+	val, err := store.GetRootHash(&u, indexName)
 	if err != nil {
 	}
 	if bytes.Compare(val, roothash) != 0 {

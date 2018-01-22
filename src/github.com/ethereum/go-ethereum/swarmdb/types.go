@@ -47,7 +47,7 @@ type RequestOption struct {
 	TableOwner  string `json:"tableowner,omitempty"`
 	Table       string `json:"table,omitempty"` //"contacts"
 	Encrypted   int    `json:"encrypted,omitempty"`
-	Key         string `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
+	Key         interface{} `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
 	//TODO: Key should be a byte array or interface
 	// Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Rows     []Row    `json:"rows,omitempty"` //value of val, usually the whole json record
@@ -265,7 +265,21 @@ const (
 	IT_HASHTREE    = 1
 	IT_BPLUSTREE   = 2
 	IT_FULLTEXT    = 3
-	IT_FRACTALTREE = 4
+)
+
+const (
+	RT_CREATE_DATABASE = "CreateDatabase"
+	RT_DESCRIBE_DATABASE = "DescribeDatabase"
+	RT_DROP_DATABASE = "SelectDatabase"
+
+	RT_CREATE_TABLE = "CreateTable"
+	RT_DESCRIBE_TABLE = "DescribeTable"
+	RT_DROP_TABLES = "DropTable"
+
+	RT_PUT = "Put"
+	RT_GET = "Get"
+	RT_DELETE = "Delete"
+	RT_QUERY = "Query"
 )
 
 // SwarmDB Configuration for a node kept here
@@ -477,6 +491,7 @@ func ConvertStringToColumnType(in string) (out ColumnType, err error) {
 */
 
 func StringToKey(columnType ColumnType, key string) (k []byte) {
+	
 	k = make([]byte, 32)
 	switch columnType {
 	case CT_INTEGER:

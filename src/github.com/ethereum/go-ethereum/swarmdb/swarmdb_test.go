@@ -21,7 +21,7 @@ import (
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
 	"os"
 	"testing"
-	// "bytes"
+	"time"
 	"github.com/cznic/mathutil"
 	"math"
 	"math/rand"
@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	TEST_OWNER           = "owner1"
+	TEST_OWNER           = "9982ad7bfbe62567287dafec879d20687e4b76f5"
 	TEST_TABLE           = "secondary"
 	TEST_PKEY_INT        = "accountID"
 	TEST_PKEY_STRING     = "email"
@@ -39,7 +39,12 @@ const (
 	TEST_SKEY_FLOAT      = "weight"
 	TEST_TABLE_INDEXTYPE = swarmdb.IT_BPLUSTREE
 	TEST_ENCRYPTED       = 1
+	TEST_ENS_DIR = "/tmp"
 )
+
+func make_table_name(s string) (tablePrefix string) {
+	return fmt.Sprintf("%s%d", s, int32(time.Now().Unix()))
+}
 
 func getUser() (u *swarmdb.SWARMDBUser) {
 	config, err := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
@@ -55,11 +60,11 @@ func getUser() (u *swarmdb.SWARMDBUser) {
 
 func getSWARMDBTable(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType, create bool) (tbl *swarmdb.Table) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := "/tmp"
-	swarmdbObj := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-
-	// Commenting: (Rodney) -- CreateTable called from swarmdbObj and inside of that it calls NewTable
-	// tbl = swarmdbObj.NewTable(ownerID, tableName)
+	ensdbPath := TEST_ENS_DIR
+	swarmdbObj, err := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+	if err != nil {
+		panic("Could not create NewSWARMDB")
+	}
 
 	// CreateTable
 	if create {
@@ -67,14 +72,21 @@ func getSWARMDBTable(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName st
 		o := swarmdb.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
 		option = append(option, o)
 		tbl, _ = swarmdbObj.CreateTable(u, tableName, option, TEST_ENCRYPTED)
-	}
 
-	// OpenTable
-	err := tbl.OpenTable(u)
-	if err != nil {
-		fmt.Print("OPENTABLE ERR %v\n", err)
+		// OpenTable
+		err = tbl.OpenTable(u)
+		if err != nil {
+			fmt.Print("OPENTABLE ERR %v\n", err)
+		}
+		return tbl
+	} else {
+		tbl = swarmdbObj.NewTable(u.Address, tableName, 1) // TODO: check why encrypted is a parameter?
+		err = tbl.OpenTable(u)
+		if err != nil {
+			panic("Could not open table")
+		} 
+		return tbl
 	}
-	return tbl
 }
 
 func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType,
@@ -82,11 +94,8 @@ func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryK
 	create bool) (swarmdbObj *swarmdb.SwarmDB) {
 
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := "/tmp"
-	swarmdbObj = swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-
-	// Commenting: (Rodney) -- CreateTable called from swarmdbObj and inside of that it calls NewTable
-	//u := getUser()
+	ensdbPath := TEST_ENS_DIR
+	swarmdbObj, _ = swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 
 	// CreateTable
 	if create {
@@ -140,7 +149,238 @@ func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryK
 	return swarmdbObj
 }
 
-func TestSetGetInt(t *testing.T) {
+func rng() *mathutil.FC32 {
+	x, err := mathutil.NewFC32(math.MinInt32/4, math.MaxInt32/4, false)
+	if err != nil {
+		panic(err)
+	}
+	return x
+}
+
+func TestCreateTablePutGet(t *testing.T) {
+	u := getUser()
+	tableName := make_table_name("test")
+	
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := TEST_ENS_DIR
+	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+
+	var testColumn []swarmdb.Column
+	testColumn = make([]swarmdb.Column, 3)
+	testColumn[0].ColumnName = "email"
+	testColumn[0].Primary = 1                      // What if this is inconsistent?
+	testColumn[0].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
+	testColumn[0].ColumnType = swarmdb.CT_STRING
+
+	testColumn[1].ColumnName = "name"
+	testColumn[1].Primary = 0                      // What if this is inconsistent?
+	testColumn[1].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
+	testColumn[1].ColumnType = swarmdb.CT_STRING
+
+	testColumn[2].ColumnName = "age"
+	testColumn[2].Primary = 0                      // What if this is inconsistent?
+	testColumn[2].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
+	testColumn[2].ColumnType = swarmdb.CT_INTEGER
+
+	var testReqOption swarmdb.RequestOption
+
+	testReqOption.RequestType = swarmdb.RT_CREATE_TABLE
+	testReqOption.TableOwner = TEST_OWNER
+	testReqOption.Table = tableName
+
+	testReqOption.Encrypted = 1
+	testReqOption.Columns = testColumn
+
+	marshalTestReqOption, err := json.Marshal(testReqOption)
+	fmt.Printf("JSON --> %s", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+
+	}
+	swdb.SelectHandler(u, string(marshalTestReqOption))
+
+	testKey := "rodneytest1@wolk.com"
+	
+	testReqOption.RequestType = swarmdb.RT_PUT
+	testReqOption.TableOwner = TEST_OWNER
+	testReqOption.Table = tableName
+	testReqOption.Key = testKey
+	rowObj := make(map[string]interface{})
+	rowObj["name"] = "Rodney"
+	rowObj["age"] = int(37)
+	rowObj["email"] = testKey
+
+	testReqOption.Rows = append(testReqOption.Rows, swarmdb.Row{Cells: rowObj})
+	marshalTestReqOption, err = json.Marshal(testReqOption)
+	fmt.Printf(" Input: %s\n", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+	}
+
+	resp, errS := swdb.SelectHandler(u, string(marshalTestReqOption))
+	if errS != nil {
+		t.Fatalf("[swarmdb_test:TestPut] SelectHandler %s", errS.Error())
+	} 
+	fmt.Printf(" Output: %s\n", resp)
+	if resp != swarmdb.OK_RESPONSE {
+		t.Fatal("NOT OK")
+	} else {
+		fmt.Printf("PASS\n");
+	}
+
+
+	testReqOption.RequestType = swarmdb.RT_GET
+	testReqOption.TableOwner = TEST_OWNER
+	testReqOption.Table = tableName
+	testReqOption.Key = testKey
+
+	marshalTestReqOption, err = json.Marshal(testReqOption)
+	fmt.Printf(" Input: [%s]\n", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+	}
+
+	resp, err = swdb.SelectHandler(u, string(marshalTestReqOption))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf(" Output: [%s]\n", resp)
+	rowObj = make(map[string]interface{})
+	err = json.Unmarshal([]byte(resp), &rowObj)
+	if err != nil {
+		t.Fatal("error parsing response")
+	} else {
+		if strings.Compare(fmt.Sprintf("%v", rowObj["age"]), "37") != 0  {
+			fmt.Printf("MISMATCH: [%v]\n", rowObj["age"])
+		} else 	if strings.Compare(rowObj["name"].(string), "Rodney") != 0 {
+			fmt.Printf("MISMATCH: [%v]\n", rowObj["name"])
+		} else 	if strings.Compare(rowObj["email"].(string), testKey) != 0 {
+			fmt.Printf("MISMATCH email: [%v]\n", rowObj["email"])
+		} else {
+			fmt.Printf("PASS\n");
+		}
+	}
+}
+
+func TestGetTableFail(t *testing.T) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := TEST_ENS_DIR
+	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+	ownerID := "BadOwner"
+	tableName := "BadTable"
+	u := getUser()
+	_, err := swdb.GetTable(u, ownerID, tableName)
+	if err == nil {
+		t.Fatalf("TestGetTableFail: FAILED")
+	}
+	// TODO: CHECK THE RESPONSE  differently here
+	if err.Error() != `Table [`+tableName+`] with Owner [`+ownerID+`] does not exist` {
+		t.Fatalf("TestGetTableFail: FAILED")
+	}
+}
+
+// primary key is integer 
+func TestPutInteger(t *testing.T) {
+	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
+	u := getUser()
+
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := TEST_ENS_DIR
+	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+
+	// set up table
+	tableName := make_table_name("testputinteger")
+	var testColumn []swarmdb.Column
+	testColumn = make([]swarmdb.Column, 2)
+	testColumn[0].ColumnName = TEST_PKEY_INT
+	testColumn[0].Primary = 1                      // What if this is inconsistent?
+	testColumn[0].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
+	testColumn[0].ColumnType = swarmdb.CT_INTEGER
+
+	testColumn[1].ColumnName = "email"
+	testColumn[1].Primary = 0                      // What if this is inconsistent?
+	testColumn[1].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
+	testColumn[1].ColumnType = swarmdb.CT_STRING
+
+	var testReqOption swarmdb.RequestOption
+	testReqOption.RequestType = swarmdb.RT_CREATE_TABLE
+	testReqOption.TableOwner = TEST_OWNER
+	testReqOption.Table = tableName
+
+	testReqOption.Encrypted = 1
+	testReqOption.Columns = testColumn
+
+	// create table
+	marshalTestReqOption, err := json.Marshal(testReqOption)
+	fmt.Printf(" Input: [%s]", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+
+	} else {
+		resp, err := swdb.SelectHandler(u, string(marshalTestReqOption))
+		if err != nil {
+			t.Fatalf("[swarm_test:TestPutInteger] SelectHandler %s", err.Error())
+		}
+		fmt.Printf(" Output: [%s]\n", resp)
+	}
+
+	// write 20 values into B-tree (only kept in memory)
+	vals := rand.Perm(20)
+	for _, i := range vals {
+		rowObj := make(map[string]interface{})
+		rowObj[TEST_PKEY_INT] = i
+		rowObj["email"] = fmt.Sprintf("test%03d@wolk.com", i)
+
+		var testReqOption swarmdb.RequestOption
+		testReqOption.RequestType = swarmdb.RT_PUT
+		testReqOption.TableOwner = TEST_OWNER
+		testReqOption.Table = tableName
+		testReqOption.Rows = append(testReqOption.Rows, swarmdb.Row{Cells: rowObj})
+		marshalTestReqOption, err := json.Marshal(testReqOption)
+		fmt.Printf(" Input: [%s]\n", marshalTestReqOption)
+		resp, err := swdb.SelectHandler(u, string(marshalTestReqOption))
+		if err != nil {
+			t.Fatalf("[swarm_test:TestPutInteger] SelectHandler %s", err.Error());
+		} else {
+			fmt.Printf(" Output: [%s]\n", resp)
+		}
+	}
+
+	// Get(8)
+	var testReqOptionGet swarmdb.RequestOption
+	testReqOptionGet.RequestType = swarmdb.RT_GET
+	testReqOptionGet.TableOwner = TEST_OWNER
+	testReqOptionGet.Table = tableName
+	testReqOptionGet.Key = 8
+
+	marshalTestReqOption, err1 := json.Marshal(testReqOptionGet)
+	if err1 != nil {
+		t.Fatalf("[swarmdb_test:TestPutInteger] Marshal %s", err1.Error())
+	} else {
+		fmt.Printf(" Input: [%s]\n", marshalTestReqOption)
+	}
+
+	resp, err2 := swdb.SelectHandler(u, string(marshalTestReqOption))
+	if err2 != nil {
+		t.Fatalf("[swarmdb_test:TestPutInteger] SelectHandler %s", err2.Error())
+	} else {
+		fmt.Printf(" Output: [%s]\n", resp)
+	}
+
+	rowObj := make(map[string]interface{})
+	err = json.Unmarshal([]byte(resp), &rowObj)
+	if err != nil {
+		t.Fatalf("[swarmdb_test:TestPutInteger] Unmarshal %s", err.Error())
+	} else {
+		if strings.Compare(rowObj["email"].(string), "test008@wolk.com") != 0 {
+			fmt.Printf("MISMATCH email: [%v]\n", rowObj["email"])
+		} else {
+			fmt.Printf("PASS\n");
+		}
+	}
+}
+
+func aTestSetGetInt(t *testing.T) {
 	t.SkipNow()
 	/*
 		const N = 4
@@ -204,7 +444,7 @@ func TestSetGetInt(t *testing.T) {
 	*/
 }
 
-func TestTable(t *testing.T) {
+func aTestTable(t *testing.T) {
 	t.SkipNow()
 	/*
 		u := getUser()
@@ -250,7 +490,7 @@ func TestTable(t *testing.T) {
 
 }
 
-func TestTableSecondaryInt(t *testing.T) {
+func bTestTableSecondaryInt(t *testing.T) {
 	u := getUser()
 	swarmdb := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
@@ -263,7 +503,6 @@ func TestTableSecondaryInt(t *testing.T) {
 		fmt.Printf("%v:%v\n", i, r)
 	}
 
-	//	os.Exit(0)
 	// select * from table where age < 30
 	/*	sql := fmt.Sprintf("select * from %s where %s < 30", TEST_TABLE, TEST_SKEY_INT)
 		 rows, err := swarmdb.QuerySelect(u, sql)
@@ -275,7 +514,7 @@ func TestTableSecondaryInt(t *testing.T) {
 			} */
 }
 
-func TestTableSecondaryFloat(t *testing.T) {
+func bTestTableSecondaryFloat(t *testing.T) {
 	t.SkipNow()
 	u := getUser()
 	swdb := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
@@ -299,7 +538,7 @@ func TestTableSecondaryFloat(t *testing.T) {
 	}
 }
 
-func TestTableSecondaryString(t *testing.T) {
+func bTestTableSecondaryString(t *testing.T) {
 	t.SkipNow()
 	u := getUser()
 	swdb := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
@@ -320,161 +559,6 @@ func TestTableSecondaryString(t *testing.T) {
 			fmt.Printf("%d:%v\n", i, row)
 		}
 	}
-}
-
-func rng() *mathutil.FC32 {
-	x, err := mathutil.NewFC32(math.MinInt32/4, math.MaxInt32/4, false)
-	if err != nil {
-		panic(err)
-	}
-	return x
-}
-
-// primary key is integer "accountID"
-func aTestPutInteger(t *testing.T) {
-	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
-	u := getUser()
-
-	r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
-
-	// write 20 values into B-tree (only kept in memory)
-	r.StartBuffer(u)
-	vals := rand.Perm(20)
-	var putjson map[string]interface{}
-	for _, i := range vals {
-		v := fmt.Sprintf(`{"%s":"%d", "email":"test%03d@wolk.com"}`, TEST_PKEY_INT, i, i)
-		_ = json.Unmarshal([]byte(v), putjson)
-		r.Put(u, putjson)
-	}
-	r.FlushBuffer(u)
-
-	s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
-
-	g, err := s.Get(u, []byte("8"))
-	if err != nil {
-		t.Fatal(g, err)
-	} else {
-		fmt.Printf("Get(8): [%s]\n", string(g))
-	}
-	h, err2 := s.Get(u, []byte("1"))
-	if err2 != nil {
-		t.Fatal(h, err2)
-	}
-	fmt.Printf("Get(1): [%s]\n", string(h))
-	// s.Print()
-}
-
-func aTestPutString(t *testing.T) {
-	fmt.Printf("---- TestPutString: generate 20 strings and enumerate them\n")
-	u := getUser()
-
-	r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
-
-	r.StartBuffer(u)
-	vals := rand.Perm(20)
-	var putjson map[string]interface{}
-	// write 20 values into B-tree (only kept in memory)
-	for _, i := range vals {
-		v := fmt.Sprintf(`{"%s":"t%06x@wolk.com", "val":"valueof%06x"}`, TEST_PKEY_STRING, i, i)
-		_ = json.Unmarshal([]byte(v), putjson)
-		r.Put(u, putjson)
-
-	}
-	// this writes B+tree to SWARM
-	r.FlushBuffer(u)
-
-	s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
-	k := "t000008@wolk.com"
-	g, _ := s.Get(u, []byte(k))
-	fmt.Printf("Get(%s): %v\n", k, string(g))
-
-	k1 := "t000001@wolk.com"
-	h, _ := s.Get(u, []byte(k1))
-	fmt.Printf("Get(%s): %v\n", k1, string(h))
-
-}
-
-func aTestPutFloat(t *testing.T) {
-	fmt.Printf("---- TestPutFloat: generate 20 floats and enumerate them\n")
-	u := getUser()
-
-	r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_FLOAT, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
-
-	r.StartBuffer(u)
-	vals := rand.Perm(20)
-	var putjson map[string]interface{}
-	// write 20 values into B-tree (only kept in memory)
-	for _, i := range vals {
-		f := float64(i) + .3141519
-		v := fmt.Sprintf(`{"%s":"%f", "val":"valueof%06x"}`, TEST_PKEY_FLOAT, f, i)
-		_ = json.Unmarshal([]byte(v), putjson)
-		r.Put(u, putjson)
-
-	}
-	// this writes B+tree to SWARM
-	r.FlushBuffer(u)
-
-	s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
-	i := 4
-	f := float64(i) + .3141519
-	k := fmt.Sprintf("%f", f)
-	g, _ := s.Get(u, []byte(k))
-	fmt.Printf("Get(%s): %v\n", k, string(g))
-
-	i = 6
-	f = float64(i) + .3141519
-	k = fmt.Sprintf("%f", f)
-	h, _ := s.Get(u, []byte(k))
-	fmt.Printf("Get(%s): %v\n", k, string(h))
-}
-
-func aTestSetGetString(t *testing.T) {
-	u := getUser()
-	r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
-
-	// put
-	key := "88"
-	val := fmt.Sprintf(`{"%s":"%s", "val":"valueof%06x"}`, TEST_PKEY_STRING, key, key)
-	var putjson map[string]interface{}
-	_ = json.Unmarshal([]byte(val), putjson)
-	r.Put(u, putjson)
-
-	// check put with get
-	g, err := r.Get(u, []byte(key))
-	if err != nil || strings.Compare(string(g), val) != 0 {
-		t.Fatal(g, val)
-	} else {
-		fmt.Printf("Get(%s) => %s\n", key, val)
-	}
-
-	// r2 put
-	r2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, false)
-	val2 := fmt.Sprintf(`{"%s":"%s", "val":"newvalueof%06x"}`, TEST_PKEY_STRING, key, key)
-	_ = json.Unmarshal([]byte(val2), putjson)
-	r.Put(u, putjson)
-
-	// check put with get
-	g2, err := r2.Get(u, []byte(key))
-	if err != nil || strings.Compare(string(g2), val2) != 0 {
-		t.Fatal(g2, val2)
-	} else {
-		fmt.Printf("Get(%s) => %s\n", key, val2)
-	}
-
-	// r3 put
-	r3 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, false)
-	val3 := fmt.Sprintf(`{"%s":"%s", "val":"valueof%06x"}`, TEST_PKEY_STRING, key, key)
-	_ = json.Unmarshal([]byte(val3), putjson)
-	r.Put(u, putjson)
-
-	// check put with get
-	g3, err := r3.Get(u, []byte(key))
-	if err != nil || strings.Compare(string(g3), val3) != 0 {
-		t.Fatal(g3, val3)
-	} else {
-		fmt.Printf("Get(%s) => %s\n", key, val3)
-	}
-	fmt.Printf("PASS\n")
 }
 
 func aTestDelete0(t *testing.T) {
@@ -606,227 +690,3 @@ func aTestDelete2(t *testing.T) {
 	}
 }
 
-func TestCreateTable(t *testing.T) {
-	//t.SkipNow()
-	u := getUser()
-
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := "/tmp"
-	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-
-	var testColumn []swarmdb.Column
-	testColumn = make([]swarmdb.Column, 3)
-	testColumn[0].ColumnName = "email"
-	testColumn[0].Primary = 1                      // What if this is inconsistent?
-	testColumn[0].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
-	testColumn[0].ColumnType = swarmdb.CT_STRING
-
-	testColumn[1].ColumnName = "yob"
-	testColumn[1].Primary = 0                      // What if this is inconsistent?
-	testColumn[1].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
-	testColumn[1].ColumnType = swarmdb.CT_INTEGER
-
-	testColumn[2].ColumnName = "location"
-	testColumn[2].Primary = 0                      // What if this is inconsistent?
-	testColumn[2].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
-	testColumn[2].ColumnType = swarmdb.CT_STRING
-
-	var testReqOption swarmdb.RequestOption
-
-	testReqOption.RequestType = "CreateTable"
-	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
-	testReqOption.Table = "contacts"
-	//testReqOption.Bid = 7.07
-	//testReqOption.Replication = 3
-	testReqOption.Encrypted = 1
-	testReqOption.Columns = testColumn
-
-	marshalTestReqOption, err := json.Marshal(testReqOption)
-	fmt.Printf("JSON --> %s", marshalTestReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-
-	}
-	swdb.SelectHandler(u, string(marshalTestReqOption))
-}
-
-func TestOpenTable(t *testing.T) {
-	u := getUser()
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := "/tmp"
-	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-	var testReqOption swarmdb.RequestOption
-
-	testReqOption.RequestType = "OpenTable"
-	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
-	testReqOption.Table = "contacts"
-
-	marshalTestReqOption, err := json.Marshal(testReqOption)
-	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-	}
-	swdb.SelectHandler(u, string(marshalTestReqOption))
-}
-
-func TestGetTableFail(t *testing.T) {
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := "/tmp"
-	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-	ownerID := "BadOwner"
-	tableName := "BadTable"
-	u := getUser()
-	_, err := swdb.GetTable(u, ownerID, tableName)
-	if err == nil {
-		t.Fatalf("TestGetTableFail: FAILED")
-	}
-	if err.Error() != `Table [`+tableName+`] with Owner [`+ownerID+`] does not exist` {
-		t.Fatalf("TestGetTableFail: FAILED")
-	}
-}
-
-func OpenTable(swdb *swarmdb.SwarmDB, owner string, table string) {
-	u := getUser()
-	var testReqOption swarmdb.RequestOption
-
-	testReqOption.RequestType = "OpenTable"
-	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
-	testReqOption.Table = "contacts"
-
-	marshalTestReqOption, err := json.Marshal(testReqOption)
-	if err != nil {
-		fmt.Printf("error marshaling testReqOption: %s", err)
-	}
-	swdb.SelectHandler(u, string(marshalTestReqOption))
-}
-
-func TestPut(t *testing.T) {
-	u := getUser()
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := "/tmp"
-	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-
-	var testReqOption swarmdb.RequestOption
-	testReqOption.RequestType = "Put"
-	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
-	testReqOption.Table = "contacts"
-	testReqOption.Key = "rodneytest1@wolk.com"
-	//testReqOption.Row = make(map[string]interface{})
-	row := `{"name": "Rodney", "age": 37, "email": "rodneytest1@wolk.com"}`
-	rowObj := make(map[string]interface{})
-	err := json.Unmarshal([]byte(row), &rowObj)
-	if err != nil {
-		t.Fatalf("json unmarshal err... %s", err)
-	}
-	/*
-		for k, v := range rowObj {
-			switch v.(type) {
-			case float64:
-				testReqOption.Row[k] = fmt.Sprintf("%f", v)
-
-			default:
-				testReqOption.Row[k] = v.(string)
-			}
-		 }*/
-	newRow := swarmdb.Row{Cells: rowObj}
-	testReqOption.Rows = append(testReqOption.Rows, newRow)
-	marshalTestReqOption, err := json.Marshal(testReqOption)
-	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-	}
-	OpenTable(swdb, testReqOption.TableOwner, testReqOption.Table)
-	swdb.SelectHandler(u, string(marshalTestReqOption))
-}
-
-func TestGet(t *testing.T) {
-
-	u := getUser()
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := "/tmp"
-	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-
-	var testReqOption swarmdb.RequestOption
-	testReqOption.RequestType = "Get"
-	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
-	testReqOption.Table = "contacts"
-	testReqOption.Key = "rodneytest1@wolk.com"
-
-	marshalTestReqOption, err := json.Marshal(testReqOption)
-	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-	}
-	OpenTable(swdb, testReqOption.TableOwner, testReqOption.Table)
-
-	resp, err := swdb.SelectHandler(u, string(marshalTestReqOption))
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Printf("\nResponse of TestGet is [%s]", resp)
-
-}
-
-func TestPutGet(t *testing.T) {
-	u := getUser()
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := "/tmp"
-	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-
-	var testReqOption swarmdb.RequestOption
-	testReqOption.RequestType = "Put"
-	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
-	testReqOption.Table = "contacts"
-	testReqOption.Key = "alinatest@wolk.com"
-	//testReqOption.Row = make(map[string]interface{})
-	row := `{"name": "ZAlina", "age": 35, "email": "alinatest@wolk.com"}`
-
-	rowObj := make(map[string]interface{})
-	_ = json.Unmarshal([]byte(row), &rowObj)
-	/*
-		for k, v := range rowObj {
-			switch v.(type) {
-			case float64:
-				testReqOption.Row[k] = fmt.Sprintf("%f", v)
-
-			default:
-				testReqOption.Row[k] = v.(string)
-			}
-		 }*/
-	newRow := swarmdb.Row{Cells: rowObj}
-	testReqOption.Rows = append(testReqOption.Rows, newRow)
-	marshalTestReqOption, err := json.Marshal(testReqOption)
-	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-	}
-	OpenTable(swdb, testReqOption.TableOwner, testReqOption.Table)
-
-	resp, err := swdb.SelectHandler(u, string(marshalTestReqOption))
-	if err != nil {
-		t.Fatal(err)
-	} else {
-		fmt.Printf("\nResponse of TestPutGet is [%s]", resp)
-	}
-
-	var testReqOptionGet swarmdb.RequestOption
-	testReqOptionGet.RequestType = "Get"
-	testReqOptionGet.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
-	testReqOptionGet.Table = "contacts"
-	testReqOptionGet.Key = "rodneytest1@wolk.com"
-	testReqOptionGet.Key = "alinatest@wolk.com"
-
-	marshalTestReqOption, err = json.Marshal(testReqOptionGet)
-	fmt.Printf("\nJSON --> %s", marshalTestReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-	}
-	OpenTable(swdb, testReqOptionGet.TableOwner, testReqOptionGet.Table)
-
-	resp, err2 := swdb.SelectHandler(u, string(marshalTestReqOption))
-	if err2 != nil {
-		t.Fatal(err)
-	}
-
-	fmt.Printf("\nResponse of TestGet is [%s]", resp)
-}
