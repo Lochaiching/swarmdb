@@ -64,7 +64,7 @@ func getSWARMDBTable(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName st
 
 func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType,
 	secondaryKeyName string, secondaryIndexType swarmdb.IndexType, secondaryColumnType swarmdb.ColumnType,
-	create bool) (swarmdbObj *swarmdb.SwarmDB) {
+	create bool) (swarmdbObj *swarmdb.SwarmDB, err error) {
 
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	ensdbPath := "/tmp"
@@ -74,6 +74,7 @@ func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryK
 	//u := getUser()
 
 	// CreateTable
+	var swErr swarmdb.SWARMDBError
 	if create {
 		var option []swarmdb.Column
 		o := swarmdb.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
@@ -81,12 +82,16 @@ func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryK
 
 		s := swarmdb.Column{ColumnName: secondaryKeyName, Primary: 0, IndexType: secondaryIndexType, ColumnType: secondaryColumnType}
 		option = append(option, s)
-		tbl, _ := swarmdbObj.CreateTable(u, tableName, option, TEST_ENCRYPTED)
+		tbl, errTblCreate := swarmdbObj.CreateTable(u, tableName, option, TEST_ENCRYPTED)
+		if errTblCreate != nil {
+			swErr.SetError("Error: [%s] " + errTblCreate.Error())
+		}
 
 		// OpenTable
 		err := tbl.OpenTable(u)
 		if err != nil {
 			fmt.Printf("OPENTABLE ERR %v\n", err)
+			swErr.SetError("OPENTTABLE Error: [%s] " + err.Error())
 		}
 
 		putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
@@ -122,7 +127,7 @@ func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryK
 			fmt.Printf("OPENTABLE ERR %v\n", err)
 		}
 	}
-	return swarmdbObj
+	return swarmdbObj, nil
 }
 
 func TestSetGetInt(t *testing.T) {
@@ -237,7 +242,7 @@ func TestTable(t *testing.T) {
 
 func TestTableSecondaryInt(t *testing.T) {
 	u := getUser()
-	swarmdb := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+	swarmdb, _ := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
 	rows, err := swarmdb.Scan(u, TEST_OWNER, TEST_TABLE, "age", 1)
@@ -263,7 +268,7 @@ func TestTableSecondaryInt(t *testing.T) {
 func TestTableSecondaryFloat(t *testing.T) {
 	t.SkipNow()
 	u := getUser()
-	swdb := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+	swdb, _ := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_FLOAT, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
 	// select * from table where age < 30
 	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_FLOAT)
@@ -287,7 +292,7 @@ func TestTableSecondaryFloat(t *testing.T) {
 func TestTableSecondaryString(t *testing.T) {
 	t.SkipNow()
 	u := getUser()
-	swdb := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+	swdb,_ := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_STRING)
 
@@ -619,10 +624,7 @@ func TestCreateTable(t *testing.T) {
 	var testReqOption swarmdb.RequestOption
 
 	testReqOption.RequestType = "CreateTable"
-	testReqOption.TableOwner = "0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"
 	testReqOption.Table = "contacts"
-	//testReqOption.Bid = 7.07
-	//testReqOption.Replication = 3
 	testReqOption.Encrypted = 1
 	testReqOption.Columns = testColumn
 
