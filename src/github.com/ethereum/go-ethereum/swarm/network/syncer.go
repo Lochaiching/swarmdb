@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+	"github.com/ethereum/go-ethereum/swarmdb"
 )
 
 // syncer parameters (global, not peer specific) default values
@@ -40,7 +41,8 @@ const (
 	Low        = iota // 0
 	Medium            // 1
 	High              // 2
-	priorities        // 3 number of priority levels
+	Sdb              // 3
+	priorities        // 4 number of priority levels
 )
 
 // request types
@@ -50,6 +52,7 @@ const (
 	PropagateReq        // 2
 	HistoryReq          // 3
 	BacklogReq          // 4
+	StoreDBReq          // 5
 )
 
 // json serialisable struct to record the syncronisation state between 2 peers
@@ -70,15 +73,20 @@ type syncState struct {
 type DbAccess struct {
 	db  *storage.DbStore
 	loc *storage.LocalStore
+	sdb *swarmdb.SwarmDB
 }
 
-func NewDbAccess(loc *storage.LocalStore) *DbAccess {
-	return &DbAccess{loc.DbStore.(*storage.DbStore), loc}
+func NewDbAccess(loc *storage.LocalStore, sdb *swarmdb.SwarmDB) *DbAccess {
+	return &DbAccess{loc.DbStore.(*storage.DbStore), loc, sdb}
 }
 
 // to obtain the chunks from key or request db entry only
 func (self *DbAccess) get(key storage.Key) (*storage.Chunk, error) {
 	return self.loc.Get(key)
+}
+
+func (self *DbAccess) getsdb(key storage.Key) ([]byte, error) {
+        return self.sdb.RetrieveKDBChunk(key)
 }
 
 // current storage counter of chunk db
@@ -139,7 +147,7 @@ func NewSyncParams(bzzdir string) *SyncParams {
 		SyncBufferSize:     syncBufferSize,
 		SyncBatchSize:      syncBatchSize,
 		SyncCacheSize:      syncCacheSize,
-		SyncPriorities:     []uint{High, Medium, Medium, Low, Low},
+		SyncPriorities:     []uint{High, Medium, Medium, Low, Low, Sdb, priorities},
 		SyncModes:          []bool{true, true, true, true, false},
 	}
 }
@@ -430,18 +438,18 @@ LOOP:
 		// keys channels are buffered so the highest priority ones
 		// are checked first - integrity can only be guaranteed if writing
 		// is locked while selecting
-		if priority != High || len(keys) == 0 {
+		if priority != Sdb || len(keys) == 0 {
 			// selection is not needed if the High priority queue has items
 			keys = nil
 		PRIORITIES:
-			for priority = High; priority >= 0; priority-- {
+			for priority = Sdb; priority >= 0; priority-- {
 				// the first priority channel that is non-empty will be assigned to keys
 				if len(self.keys[priority]) > 0 {
 					log.Trace(fmt.Sprintf("syncer[%v]: reading request with	priority %v", self.key.Log(), priority))
 					keys = self.keys[priority]
 					break PRIORITIES
 				}
-				log.Trace(fmt.Sprintf("syncer[%v/%v]: queue: [%v, %v, %v]", self.key.Log(), priority, len(self.keys[High]), len(self.keys[Medium]), len(self.keys[Low])))
+				log.Trace(fmt.Sprintf("syncer[%v/%v]: queue: [%v, %v, %v %v]", self.key.Log(), priority, len(self.keys[High]), len(self.keys[Medium]), len(self.keys[Low]), len(self.keys[Sdb])))
 				// if the input queue is empty on this level, resort to history if there is any
 				if uint(priority) == histPrior && history != nil {
 					log.Trace(fmt.Sprintf("syncer[%v]: reading history for %v", self.key.Log(), self.key))
@@ -574,6 +582,7 @@ func (self *syncer) syncDeliveries() {
 
 	for {
 		deliveries = self.deliveries[p]
+		var mode int
 		select {
 		case req = <-deliveries:
 			n[p]++
@@ -584,10 +593,16 @@ func (self *syncer) syncDeliveries() {
 				select {
 				case req = <-self.deliveries[High]:
 					n[High]++
+					mode = High
 				case req = <-self.deliveries[Medium]:
 					n[Medium]++
+					mode = Medium
 				case req = <-self.deliveries[Low]:
 					n[Low]++
+					mode = Low
+				case req = <-self.deliveries[Sdb]:
+					n[Sdb]++
+					mode = Sdb
 				case <-self.quit:
 					return
 				}
@@ -598,16 +613,32 @@ func (self *syncer) syncDeliveries() {
 			}
 		}
 		total++
-		msg, err = self.newStoreRequestMsgData(req)
-		if err != nil {
-			log.Warn(fmt.Sprintf("syncer[%v]: failed to create store request for %v: %v", self.key.Log(), req, err))
-		} else {
-			err = self.store(msg)
+		if mode == Sdb{
+			msg, err = self.newStoreRequestMsgData(req)
+			msg.stype = 2
 			if err != nil {
-				log.Warn(fmt.Sprintf("syncer[%v]: failed to deliver %v: %v", self.key.Log(), req, err))
+				log.Warn(fmt.Sprintf("syncer[%v]: failed to create store request for %v: %v", self.key.Log(), req, err))
 			} else {
-				success++
-				log.Trace(fmt.Sprintf("syncer[%v]: %v %v successfully delivered", self.key.Log(), req, self.key))
+				err = self.store(msg)
+				if err != nil {
+					log.Warn(fmt.Sprintf("syncer[%v]: failed to deliver %v: %v", self.key.Log(), req, err))
+				} else {
+					success++
+					log.Trace(fmt.Sprintf("syncer[%v]: %v %v successfully delivered", self.key.Log(), req, self.key))
+				}
+			}
+		}else{
+			msg, err = self.newStoreRequestMsgData(req)
+			if err != nil {
+				log.Warn(fmt.Sprintf("syncer[%v]: failed to create store request for %v: %v", self.key.Log(), req, err))
+			} else {
+				err = self.store(msg)
+				if err != nil {
+					log.Warn(fmt.Sprintf("syncer[%v]: failed to deliver %v: %v", self.key.Log(), req, err))
+				} else {
+					success++
+					log.Trace(fmt.Sprintf("syncer[%v]: %v %v successfully delivered", self.key.Log(), req, self.key))
+				}
 			}
 		}
 		if total%self.SyncBatchSize == 0 {
@@ -633,8 +664,10 @@ func (self *syncer) syncDeliveries() {
 */
 func (self *syncer) addRequest(req interface{}, ty int) {
 	// retrieve priority for request type name int8
-
+log.Debug(fmt.Sprintf("syncer[%v]: addRequest ty = %d ", ty)) 
+log.Debug(fmt.Sprintf("syncer[%v]: addRequest SyncPriority = %v", self.SyncPriorities)) 
 	priority := self.SyncPriorities[ty]
+log.Debug(fmt.Sprintf("syncer[%v]: addRequest priority = %d ty = %d syncmode = %v", self.key.Log(), priority, ty, self.SyncModes)) 
 	// sync mode for this type ON
 	if self.syncF() || ty == DeliverReq {
 		if self.SyncModes[ty] {
@@ -648,6 +681,7 @@ func (self *syncer) addRequest(req interface{}, ty int) {
 // addKey queues sync request for sync confirmation with given priority
 // ie the key will go out in an unsyncedKeys message
 func (self *syncer) addKey(req interface{}, priority uint, quit chan bool) bool {
+log.Debug(fmt.Sprintf("syncer[%v]: addKey priority = %d req = %v", priority, req)) 
 	select {
 	case self.keys[priority] <- req:
 		// this wakes up the unsynced keys loop if idle
@@ -665,6 +699,7 @@ func (self *syncer) addKey(req interface{}, priority uint, quit chan bool) bool 
 // ie the chunk will be delivered ASAP mod priority queueing handled by syncdb
 // requests are persisted across sessions for correct sync
 func (self *syncer) addDelivery(req interface{}, priority uint, quit chan bool) bool {
+log.Debug(fmt.Sprintf("syncer[%v]: addDelivery priority = %d req = %v", priority, req)) 
 	select {
 	case self.queues[priority].buffer <- req:
 		return true
@@ -673,13 +708,30 @@ func (self *syncer) addDelivery(req interface{}, priority uint, quit chan bool) 
 	}
 }
 
+
 // doDelivery delivers the chunk for the request with given priority
 // without queuing
 func (self *syncer) doDelivery(req interface{}, priority uint, quit chan bool) bool {
-	msgdata, err := self.newStoreRequestMsgData(req)
-	if err != nil {
-		log.Warn(fmt.Sprintf("unable to deliver request %v: %v", msgdata, err))
-		return false
+	log.Trace(fmt.Sprintf("syncer[%v]: calling newStoreRequestMsgData (3) %v ", self.key.Log(), req))
+	var msgdata *storeRequestMsgData
+	var err error
+////// Mayumi : need to review it 
+	if priority == 3{
+		d, err := self.newSdbStoreRequestMsgData(req)
+		if err != nil {
+			log.Warn(fmt.Sprintf("unable to deliver request %v: %v", msgdata, err))
+			return false
+		}
+		msgdata = new(storeRequestMsgData)
+		msgdata.Key = d.Key
+		msgdata.SData = d.SData
+		msgdata.stype = 2
+	}else{
+		msgdata, err = self.newStoreRequestMsgData(req)
+		if err != nil {
+			log.Warn(fmt.Sprintf("unable to deliver request %v: %v", msgdata, err))
+			return false
+		}
 	}
 	select {
 	case self.deliveries[priority] <- msgdata:
@@ -740,12 +792,38 @@ func (self *syncer) newStoreRequestMsgData(req interface{}) (*storeRequestMsgDat
 			Id:    id,
 			Key:   chunk.Key,
 			SData: chunk.SData,
+			stype:	0,
 		}
 	}
-	log.Trace(fmt.Sprintf("syncer newStoreRequestMsgData2 key = %v id = %v sreq = %v", key, id, sreq))
 
 	return sreq, nil
 }
+
+func (self *syncer) newSdbStoreRequestMsgData(req interface{}) (*sDBStoreRequestMsgData, error) {
+
+        key, id, sreq, err := parseSdbRequest(req)
+        log.Trace(fmt.Sprintf("syncer newSdbStoreRequestMsgData key = %v id = %v sreq = %v", key, id, sreq))
+        if err != nil {
+                return nil, err
+        }
+
+        if sreq == nil {
+               chunk, err := self.dbAccess.getsdb(key)
+               if err != nil {
+                   return nil, err
+               }
+
+               sreq = &sDBStoreRequestMsgData{
+                        Id:    id,
+                        Key:   key,
+                        SData: chunk,
+                }
+        }
+        log.Trace(fmt.Sprintf("syncer newSdbStoreRequestMsgData2 key = %v id = %v sreq = %v", key, id, sreq))
+
+        return sreq, nil
+}
+
 
 // parse request types and extracts, key, id, chunk, request if available
 // does not do chunk lookup !
@@ -777,3 +855,27 @@ func parseRequest(req interface{}) (storage.Key, uint64, *storage.Chunk, *storeR
 
 	return key, id, chunk, sreq, err
 }
+
+func parseSdbRequest(req interface{}) (storage.Key, uint64, *sDBStoreRequestMsgData, error) {
+        var key storage.Key
+        var entry *syncDbEntry
+        var id uint64
+        var ok bool
+        var sreq *sDBStoreRequestMsgData
+        var err error
+
+        if key, ok = req.(storage.Key); ok {
+                id = generateId()
+
+        } else if entry, ok = req.(*syncDbEntry); ok {
+                id = binary.BigEndian.Uint64(entry.val[32:])
+                key = storage.Key(entry.val[:32])
+        } else if sreq, ok = req.(*sDBStoreRequestMsgData); ok {
+                key = sreq.Key
+        } else {
+                err = fmt.Errorf("type not allowed: %v (%T)", req, req)
+        }
+
+        return key, id, sreq, err
+}
+

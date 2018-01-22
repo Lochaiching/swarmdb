@@ -41,7 +41,7 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/network"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
-	//tcpapi "github.com/ethereum/go-ethereum/swarmdb/server"
+	"github.com/ethereum/go-ethereum/swarmdb/server/tcpip"
 
 	//"github.com/syndtr/goleveldb/leveldb"
 	"reflect"
@@ -110,8 +110,6 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	// setup local store
 	log.Debug(fmt.Sprintf("Set up local storage"))
 
-	self.dbAccess = network.NewDbAccess(self.lstore)
-	log.Debug(fmt.Sprintf("Set up local db access (iterator/counter)"))
 
 	// set up the kademlia hive
 	self.hive = network.NewHive(
@@ -124,6 +122,7 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 
 	// setup cloud storage backend
 	cloud := network.NewForwarder(self.hive)
+	self.cloud = cloud
 	log.Debug(fmt.Sprintf("-> set swarm forwarder as cloud storage backend"))
 	// setup cloud storage internal access layer
 
@@ -131,7 +130,10 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	log.Debug(fmt.Sprintf("-> swarm net store shared access layer to Swarm Chunk Store"))
 
 	// set up Depo (storage handler = cloud storage access layer for incoming remote requests)
-	self.depo = network.NewDepo(hash, self.lstore, self.storage)
+	self.swarmdb = swarmdb.NewSwarmDB(self.cloud)
+	self.dbAccess = network.NewDbAccess(self.lstore, self.swarmdb)
+	log.Debug(fmt.Sprintf("Set up local db access (iterator/counter)"))
+	self.depo = network.NewDepo(hash, self.lstore, self.storage, self.swarmdb)
 	self.ldb, _ = storage.NewLDBDatabase(filepath.Join(self.config.Path, "ldb"))
 	//self.depo = network.NewDepoTest(hash, self.lstore, self.storage, self.ldb)
 	log.Debug(fmt.Sprintf("-> REmote Access to CHunks"))
@@ -164,10 +166,8 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	self.api = api.NewApiTest(self.dpa, self.dns, self.ldb)
 	//Rodney commented at 17:08 PDT on 2017/12/08 to use just api -- self.swarmdb = swarmdb.NewSwarmDB(self.api, self.ldb)
 	//self.swarmdb = swarmdb.NewSwarmDB(self.api)
-	self.swarmdb = swarmdb.NewSwarmDB()
 	// Manifests for Smart Hosting
 	log.Debug(fmt.Sprintf("-> Web3 virtual server API"))
-
 	self.sfs = fuse.NewSwarmFS(self.api)
 	log.Debug("-> Initializing Fuse file system")
 
@@ -230,6 +230,11 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 			log.Debug(fmt.Sprintf("Swarm http proxy started with corsdomain: %v", self.corsString))
 		}
 	}
+	tcpaddr := net.JoinHostPort("127.0.0.1", "2000")
+	go tcpip.StartTCPIPServer(self.swarmdb, &tcpip.ServerConfig{
+		Addr: tcpaddr,
+		Port: "2000",
+	})
 	if true {
 	/*
 		tcpaddr := net.JoinHostPort("127.0.0.1", "8503")

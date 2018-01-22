@@ -48,7 +48,7 @@ import (
 
 const (
 	Version            = 0
-	ProtocolLength     = uint64(8)
+	ProtocolLength     = uint64(16)
 	ProtocolMaxMsgSize = 10 * 1024 * 1024
 	NetworkId          = 3
 )
@@ -86,6 +86,7 @@ type StorageHandler interface {
 	HandleDeliveryRequestMsg(req *deliveryRequestMsgData, p *peer) error
 	HandleStoreRequestMsg(req *storeRequestMsgData, p *peer)
 	HandleRetrieveRequestMsg(req *retrieveRequestMsgData, p *peer)
+	HandleSdbStoreRequestMsg(req *sDBStoreRequestMsgData, p *peer)
 }
 
 /*
@@ -190,6 +191,7 @@ func (self *bzz) Drop() {
 func (self *bzz) handle() error {
 	msg, err := self.rw.ReadMsg()
 	log.Debug(fmt.Sprintf("<- %v", msg))
+	log.Debug(fmt.Sprintf("AAA protocol bzz handle %v %v", msg, msg.Code))
 	if err != nil {
 		return err
 	}
@@ -299,6 +301,19 @@ func (self *bzz) handle() error {
 			self.swap.Receive(int(req.Units), req.Promise)
 		}
 
+	case sDBStoreRequestMsg:
+                // store requests are dispatched to netStore
+                var req sDBStoreRequestMsgData
+                //var req storeRequestMsgData
+                if err := msg.Decode(&req); err != nil {
+                        return fmt.Errorf("<- %v: %v", msg, err)
+                }
+                log.Trace(fmt.Sprintf("sDBStoreRequestMsg: %v", req))
+                // last Active time is set only when receiving chunks
+                self.lastActive = time.Now()
+                log.Trace(fmt.Sprintf("incoming store request: %s", req.Key))
+                // swap accounting is done within forwarding
+                self.storage.HandleSdbStoreRequestMsg(&req, &peer{bzz: self})
 	default:
 		// no other message is allowed
 		return fmt.Errorf("invalid message code: %v", msg.Code)
@@ -452,6 +467,10 @@ func (self *bzz) retrieve(req *retrieveRequestMsgData) error {
 
 // send storeRequestMsg
 func (self *bzz) store(req *storeRequestMsgData) error {
+log.Debug(fmt.Sprintf("protocol store %v req  %v %d", self, req, req.stype))
+	if req.stype == 2{
+		return self.sDBstore(req)
+	}
 	return self.send(storeRequestMsg, req)
 }
 
@@ -500,14 +519,29 @@ func (self *bzz) peers(req *peersMsgData) error {
 	return self.send(peersMsg, req)
 }
 
+func (self *bzz) sDBstore(req *storeRequestMsgData) error {
+	sreq := &sDBStoreRequestMsgData{
+		Id:     req.Id,
+		Key:    req.Key,
+		SData:  req.SData,
+		birthDT: req.birthTime,	
+		from:   req.from,
+	}
+log.Debug(fmt.Sprintf("protocol sDBstore %v req  %v %v", self, req, sreq))
+	return self.send(sDBStoreRequestMsg, sreq)
+}
+
 func (self *bzz) send(msg uint64, data interface{}) error {
 	if self.hive.blockWrite {
 		return fmt.Errorf("network write blocked")
 	}
+	log.Debug(fmt.Sprintf("protocol bzz send %v", msg))
 	log.Trace(fmt.Sprintf("-> %v: %v (%T) to %v", msg, data, data, self))
 	err := p2p.Send(self.rw, msg, data)
 	if err != nil {
+	log.Debug(fmt.Sprintf("protocol.send error (%T) to %v",  data, err))
 		self.Drop()
 	}
+	log.Debug(fmt.Sprintf("protocol bzz send %v %v done", msg, data))
 	return err
 }

@@ -18,6 +18,7 @@ package storage
 
 import (
 	"encoding/binary"
+	"time"
 )
 
 // LocalStore is a combination of inmemory db over a disk persisted db
@@ -70,6 +71,10 @@ func (self *LocalStore) Get(key Key) (chunk *Chunk, err error) {
 	}
 	chunk.Size = int64(binary.LittleEndian.Uint64(chunk.SData[0:8]))
 	self.memStore.Put(chunk)
+	return
+}
+
+func (self *LocalStore) PutDB(k, v []byte, ts *time.Time)(){
 	return
 }
 

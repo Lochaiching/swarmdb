@@ -93,6 +93,7 @@ func (self *forwarder) Store(chunk *storage.Chunk) {
 	msg := &storeRequestMsgData{
 		Key:   chunk.Key,
 		SData: chunk.SData,
+		stype:	0,
 	}
 	
 	log.Trace(fmt.Sprintf("forwarder.Store: chunk = %v msg = %v",  chunk, msg))
@@ -110,6 +111,29 @@ func (self *forwarder) Store(chunk *storage.Chunk) {
 	}
 	log.Trace(fmt.Sprintf("forwarder.Store: sent to %v peers (chunk = %v)", n, chunk))
 }
+
+// need to think to move the other place since forwarder is supporting ChunkStore
+func (self *forwarder) StoreDB(key, value []byte, bd *time.Time) {
+        var n int
+        msg := &storeRequestMsgData{
+                Key:   storage.Key(key),
+                SData: value,
+		stype : 2,
+		birthTime : bd,
+        }
+
+        var source *peer
+        for _, p := range self.hive.getPeers(storage.Key(key), 0) {
+                log.Debug(fmt.Sprintf("forwarder.StoreDB: %v %v", p, key))
+
+                if p.syncer != nil && (source == nil || p.Addr() != source.Addr()) {
+                        n++
+                        Deliver(p, msg, StoreDBReq)
+                }
+        }
+        log.Debug(fmt.Sprintf("forwarder.StoreDB: sent to %v peers (key = %v)", n, key))
+}
+
 
 func (self *forwarder) StoreTest(chunk *storage.Chunk) {
     var n int
@@ -141,6 +165,7 @@ func (self *forwarder) Deliver(chunk *storage.Chunk) {
 		msg := &storeRequestMsgData{
 			Key:   chunk.Key,
 			SData: chunk.SData,
+			stype: 0, 
 		}
 		log.Trace(fmt.Sprintf("forwarder.Deliver: msg %v %v  %v", chunk.Key, chunk.SData, counter))
 		var n int
@@ -167,6 +192,8 @@ func (self *forwarder) Deliver(chunk *storage.Chunk) {
 // depending on syncer mode and priority settings and sync request type
 // this either goes via confirmation roundtrip or queued or pushed directly
 func Deliver(p *peer, req interface{}, ty int) {
+		log.Debug(fmt.Sprintf("forwarder.Deliver: peer %v (ty %v)", p, ty))
+
 	p.syncer.addRequest(req, ty)
 }
 
