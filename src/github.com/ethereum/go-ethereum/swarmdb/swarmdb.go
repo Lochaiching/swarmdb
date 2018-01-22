@@ -860,7 +860,6 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 		return tbl, err
 	}
 	return tbl, nil
-
 }
 
 func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
