@@ -1,24 +1,45 @@
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
+
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARMDB library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 package swarmdb
 
 import (
 	// "database/sql"
+	"fmt"
 	_ "github.com/mattn/go-sqlite3"
-	 "fmt"
 	"log"
 	"strings"
 	// "encoding/hex"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 )
+
 func NewENSSimple(path string) (ens ENSSimple, err error) {
 	// Create an IPC based RPC connection to a remote node
 	//y	conn, err := ethclient.Dial("/home/karalabe/.ethereum/testnet/geth.ipc")
+<<<<<<< HEAD
 	
 	//conn, err := ethclient.Dial("/var/www/vhosts/data/geth.ipc")      // this is working OK
 	//conn, err := ethclient.Dial("http://127.0.0.1:8545")              // this is working OK	   //  JSON-RPC Endpoint   https://github.com/ethereum/wiki/wiki/JSON-RPC
 	conn, err := ethclient.Dial("http://35.224.194.195:8545")    
 
+=======
+	conn, err := ethclient.Dial("/var/www/vhosts/data/geth.ipc") // this is working OK
+	//    conn, err := ethclient.Dial("http://127.0.0.1:8545")        // this is working OK	   //  JSON-RPC Endpoint   https://github.com/ethereum/wiki/wiki/JSON-RPC
+>>>>>>> upstream/master
 	if err != nil {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
 	}
@@ -39,32 +60,31 @@ func NewENSSimple(path string) (ens ENSSimple, err error) {
 		ens.sens = sens
 	}
 
-
 	// -------------------
-/*
-	db, err := sql.Open("sqlite3", path)
-	if err != nil {
-		return ens, err
-	}
-	if db == nil {
-		return ens, err
-	}
-	ens.db = db
-	ens.filepath = path
+	/*
+		db, err := sql.Open("sqlite3", path)
+		if err != nil {
+			return ens, err
+		}
+		if db == nil {
+			return ens, err
+		}
+		ens.db = db
+		ens.filepath = path
 
-	sql_table := `
-	CREATE TABLE IF NOT EXISTS ens (
-	indexName TEXT NOT NULL PRIMARY KEY,
-	roothash BLOB,
-	storeDT DATETIME
-	);
-	`
+		sql_table := `
+		CREATE TABLE IF NOT EXISTS ens (
+		indexName TEXT NOT NULL PRIMARY KEY,
+		roothash BLOB,
+		storeDT DATETIME
+		);
+		`
 
-	_, err = db.Exec(sql_table)
-	if err != nil {
-		return ens, err
-	}
-*/
+		_, err = db.Exec(sql_table)
+		if err != nil {
+			return ens, err
+		}
+	*/
 	return ens, nil
 }
 
@@ -73,58 +93,57 @@ func (self *ENSSimple) StoreRootHash(indexName []byte, roothash []byte) (err err
 	var r32 [32]byte
 	copy(i32[0:], indexName)
 	copy(r32[0:], roothash)
-	
-	
+
 	tx, err2 := self.sens.SetContent(self.auth, i32, r32)
 	if err2 != nil {
-		return err; // log.Fatalf("Failed to set Content: %v", err2)
+		return err // log.Fatalf("Failed to set Content: %v", err2)
 	}
 	fmt.Printf("i32: %x r32: %x tx: %v\n", i32, r32, tx.Hash())
-	
-	/*
-	sql_add := `INSERT OR REPLACE INTO ens ( indexName, roothash, storeDT ) values(?, ?, CURRENT_TIMESTAMP)`
-	stmt, err := self.db.Prepare(sql_add)
-	if err != nil {
-		return (err)
-	}
-	defer stmt.Close()
 
-	_, err2 := stmt.Exec(indexName, roothash)
-	if err2 != nil {
-		return (err2)
-	}
+	/*
+		sql_add := `INSERT OR REPLACE INTO ens ( indexName, roothash, storeDT ) values(?, ?, CURRENT_TIMESTAMP)`
+		stmt, err := self.db.Prepare(sql_add)
+		if err != nil {
+			return (err)
+		}
+		defer stmt.Close()
+
+		_, err2 := stmt.Exec(indexName, roothash)
+		if err2 != nil {
+			return (err2)
+		}
 	*/
 	return nil
 }
 
 func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
-/*
-	sql := `SELECT roothash FROM ens WHERE indexName = $1`
-	stmt, err := self.db.Prepare(sql)
-	if err != nil {
-		return val, err
-	}
-	defer stmt.Close()
-
-	rows, err := stmt.Query(indexName)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		err2 := rows.Scan(&val)
-		if err2 != nil {
-			return nil, err2
+	/*
+		sql := `SELECT roothash FROM ens WHERE indexName = $1`
+		stmt, err := self.db.Prepare(sql)
+		if err != nil {
+			return val, err
 		}
-		return val, nil
-	}
-*/
+		defer stmt.Close()
+
+		rows, err := stmt.Query(indexName)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			err2 := rows.Scan(&val)
+			if err2 != nil {
+				return nil, err2
+			}
+			return val, nil
+		}
+	*/
 	/*b, err := hex.DecodeString("9f5cd92e2589fadd191e7e7917b9328d03dc84b7a67773db26efb7d0a4635677")
 	if err != nil {
 		log.Fatalf("Failed to hexify %v", err)
 	} */
-	var b2 [32]byte;
+	var b2 [32]byte
 	copy(b2[0:], indexName)
 	//s, err := sens.Content(b)
 	s, err := self.sens.Content(nil, b2)
@@ -140,16 +159,6 @@ func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
 		}
 	}
 	//copy(val[0:], s[0:32])
-	fmt.Printf("indexName: [%x] => s: [%x] val: [%x]\n", indexName,  s, val);
+	fmt.Printf("indexName: [%x] => s: [%x] val: [%x]\n", indexName, s, val)
 	return val, nil
-}	
-	
-	/*node:= ensNode("yaron.eth")
-	h: = common.NewHashFromHex("b067fdca3d36f81af079485d443e8db9b2ac561dc6be5faf4a650f193f6a3004")
-	h2 := common.SetBytes(h)
-	s1, err2 := sens.SetContent(auth, node, h2 )
-	*/
-
-//	fmt.Printf("Transfer pending: 0x%x\n", s1.Hash())	
-	//fmt.Printf("txn hash: %x", s1)
-
+}

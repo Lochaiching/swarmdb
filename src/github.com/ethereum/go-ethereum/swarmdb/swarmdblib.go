@@ -1,3 +1,18 @@
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
+
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARMDB library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 // SWARMDB Go client
 package swarmdb
 
@@ -5,7 +20,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/crypto"
 	"net"
 	"os"
 	"strings"
@@ -16,7 +30,6 @@ import (
 //TODO: flags for host/port info
 const (
 	CONN_HOST = "127.0.0.1"
-	//CONN_HOST = "10.128.0.29"  //rodney's box
 	CONN_PORT = "2000"
 	CONN_TYPE = "tcp"
 )
@@ -84,18 +97,18 @@ func NewSWARMDBConnection() (dbc SWARMDBConnection, err error) {
 
 	config, err := LoadSWARMDBConfig(SWARMDBCONF_FILE)
 	if err != nil {
-		return dbc, err
+		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] LoadSWARMDBConfig %s", err.Error())}
 	}
 	dbc.keymanager, err = NewKeyManager(&config)
 	if err != nil {
-		return dbc, err
+		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] NewKeyManager %s", err.Error())}
 	}
 	conn, err := net.Dial(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
 	if err != nil {
-		return dbc, err
+		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] Dial %s", err.Error())}
 	}
 	dbc.connection = conn
-	//fmt.Printf("Opened connection: reading string...")
+
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
@@ -104,9 +117,8 @@ func NewSWARMDBConnection() (dbc SWARMDBConnection, err error) {
 	return dbc, nil
 }
 
-//TODO: need something like this? to close the 'Open' connection?
 func (dbc *SWARMDBConnection) Close(tbl *SWARMDBTable) (err error) {
-	//something with tbl.Close()
+	//TODO: need something like this? to close the 'Open' connection? - something with tbl.Close()
 	return nil
 }
 
@@ -115,25 +127,23 @@ func (dbc *SWARMDBConnection) Open(tableName string, tableOwner string, encrypte
 	// read a random length string from the server
 	challenge, err := dbc.reader.ReadString('\n')
 	if err != nil {
-		return tbl, err
-		//TODO: SWARMDBError
+		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:Open] ReadString %s", err.Error())}
 	}
 	challenge = strings.Trim(challenge, "\n")
 	// challenge_bytes, _ := hex.DecodeString(challenge)
 
 	// sign the message Web3 style
-	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(challenge), challenge)
-	challenge_bytes := crypto.Keccak256([]byte(msg))
+	challenge_bytes := SignHash([]byte(challenge))
 
 	sig, err := dbc.keymanager.SignMessage(challenge_bytes)
 	if err != nil {
 		return tbl, err
 	}
-	//fmt.Printf("Challenge: [%x] Sig:[%x]\n", challenge_bytes, sig)
 
-	// response = "6b1c7b37285181ef74fb1946968c675c09f7967a3e69888ee37c42df14a043ac2413d19f96760143ee8e8d58e6b0bda4911f642912d2b81e1f2834814fcfdad700"
+	// response should be hex string like this: "6b1c7b37285181ef74fb1946968c675c09f7967a3e69888ee37c42df14a043ac2413d19f96760143ee8e8d58e6b0bda4911f642912d2b81e1f2834814fcfdad700"
 	response := fmt.Sprintf("%x", sig)
 	//fmt.Printf("challenge:[%v] response:[%v]\n", challenge, response)
+	//fmt.Printf("Challenge: [%x] Sig:[%x]\n", challenge_bytes, sig)
 	dbc.writer.WriteString(response + "\n")
 	dbc.writer.Flush()
 
@@ -142,29 +152,27 @@ func (dbc *SWARMDBConnection) Open(tableName string, tableOwner string, encrypte
 	tbl.dbc = dbc
 	tbl.encrypted = encrypted
 	tbl.tableOwner = tableOwner
-	//tbl.replication = replication
 	return tbl, nil
 }
 
-//expose the ownerID of the swarmdb connection
+// expose the ownerID of the swarmdb connection
 func (dbc *SWARMDBConnection) GetOwnerID() string {
 	return dbc.ownerID
 }
 
 func (dbc *SWARMDBConnection) CreateTable(tableOwner string, encrypted int, tableName string, columns []Column) (tbl *SWARMDBTable, err error) {
-	//TODO: ens = ENSSimulation to verify if table exists already?
-	//TODO: GetTable lookup to verify if table exists already
+	// TODO: ens = ENSSimulation / GetTable lookup to verify if table exists already
 
 	// create request
 	var req RequestOption
-	req.RequestType = "CreateTable"
+	req.RequestType = RT_CREATE_TABLE
 	req.TableOwner = tableOwner //dbc.ownerID is the owner of the session, not always the table
 	req.Table = tableName
 	req.Encrypted = encrypted
 	req.Columns = columns
 	_, err = dbc.ProcessRequestResponseCommand(req)
 	if err != nil {
-		return tbl, err
+		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:CreateTable] ProcessRequestResponseCommand %s", err.Error())}
 	}
 
 	// send to server
@@ -182,7 +190,7 @@ func (dbc *SWARMDBConnection) CreateTable(tableOwner string, encrypted int, tabl
 func (t *SWARMDBTable) Put(row interface{}) (response string, err error) {
 
 	var r RequestOption
-	r.RequestType = "Put"
+	r.RequestType = RT_PUT
 	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
@@ -193,41 +201,15 @@ func (t *SWARMDBTable) Put(row interface{}) (response string, err error) {
 	case []Row:
 		r.Rows = row.([]Row)
 	default:
-		return "", fmt.Errorf("row must be Row or []Row")
-		//TODO: SWARMDBError
+		return "", &SWARMDBError{message: fmt.Sprintf("[swarmdblib:Put] row must be Row or []Row")}
 	}
-
 	return t.dbc.ProcessRequestResponseCommand(r)
 }
-
-/*
-//TODO: Insert. Also not sure how Insert differs from Put. This is b/c Insert is not fleshed out in swarmdb.go yet.
-func (t *SWARMDBTable) Insert(rows []Row) (response string, err error) {
-
-	var r RequestOption
-	var reqOptRow Row
-	r.RequestType = "Insert"
-	r.TableOwner = t.tableOwner
-	r.Table = t.tableName
-	r.Encrypted = t.encrypted
-	switch row.(type) {
-	case Row:
-		r.Rows = append(r.Rows, row)
-	case []Row:
-		r.Rows = row
-	default:
-		return "", err.Error("row must be Row or []Row")
-		//TODO: SWARMDBError
-	}
-
-	return t.dbc.ProcessRequestResponseCommand(r)
-}
-*/
 
 func (dbc *SWARMDBConnection) ProcessRequestResponseRow(request RequestOption) (row *Row, err error) {
 	response, err := dbc.ProcessRequestResponseCommand(request)
 	if err != nil {
-		return row, err
+		return row, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseRow] ProcessRequestResponseCommand %s", err.Error())}
 	}
 	if len(response) > 0 {
 		// TODO: turn row_string into row HERE
@@ -236,14 +218,13 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseRow(request RequestOption) (
 
 }
 
-//TODO: make sure this returns the right string, in correct formatting
+// TODO: make sure this returns the right string, in correct formatting
 func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOption) (response string, err error) {
 
 	//fmt.Printf("\nprocess request response cmd: %+v\n", request)
 	message, err := json.Marshal(request)
 	if err != nil {
-		return response, err
-		//TODO: SWARMDBError
+		return response, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseCommand] Marshal %s", err.Error())}
 	}
 	str := string(message) + "\n"
 	//fmt.Printf("Req: %v", str)
@@ -251,11 +232,8 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 	dbc.writer.Flush()
 	response, err = dbc.reader.ReadString('\n')
 	if err != nil {
-		//fmt.Printf("err: \n")
-		return response, err
-		//TODO: SWARMDBError
+		return response, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseCommand] ReadString %s", err.Error())}
 	}
-
 	return response, nil
 }
 
@@ -263,22 +241,18 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 func (t *SWARMDBTable) Get(key string) (response string, err error) {
 
 	var r RequestOption
-	r.RequestType = "Get"
+	r.RequestType = RT_GET
 	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
 	r.Key = key
-
-	//return ProcessRequestResponseRow(r)
-	//fmt.Printf("GET: the request being sent from client to server: [%+v]\n", r)
 	return t.dbc.ProcessRequestResponseCommand(r)
-
 }
 
 func (t *SWARMDBTable) Delete(key string) (response string, err error) {
 
 	var r RequestOption
-	r.RequestType = "Delete"
+	r.RequestType = RT_DELETE
 	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
@@ -286,8 +260,8 @@ func (t *SWARMDBTable) Delete(key string) (response string, err error) {
 	return t.dbc.ProcessRequestResponseCommand(r)
 }
 
-//TODO:
 func (t *SWARMDBTable) Scan(rowfunc func(r Row) bool) (err error) {
+	// TODO: Implement this!
 	// create request
 	// send to server
 	return nil
@@ -295,21 +269,17 @@ func (t *SWARMDBTable) Scan(rowfunc func(r Row) bool) (err error) {
 
 //func (t *SWARMDBTable) Query(sql string, f func(r Row) bool) (err error) {
 func (t *SWARMDBTable) Query(query string) (string, error) {
-
 	var r RequestOption
-	r.RequestType = "Query"
+	r.RequestType = RT_QUERY
 	r.TableOwner = t.tableOwner
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
 	r.RawQuery = query
-
-	//fmt.Printf("QUERY: the request being sent from client to server: [%+v]\n", r)
 	return t.dbc.ProcessRequestResponseCommand(r)
-
 }
 
-//TODO: what goes here?
 func (t *SWARMDBTable) Close() {
+	//TODO: implement this -- need to FlushBuffer
 	// create request
 	// send to server
 }

@@ -1,3 +1,18 @@
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
+
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARMDB library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 package swarmdb
 
 import (
@@ -7,9 +22,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"math"
 	"math/big"
 	"net"
@@ -32,7 +47,7 @@ type RequestOption struct {
 	TableOwner  string `json:"tableowner,omitempty"`
 	Table       string `json:"table,omitempty"` //"contacts"
 	Encrypted   int    `json:"encrypted,omitempty"`
-	Key         string `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
+	Key         interface{} `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
 	//TODO: Key should be a byte array or interface
 	// Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Rows     []Row    `json:"rows,omitempty"` //value of val, usually the whole json record
@@ -90,8 +105,8 @@ type ENSSimulation struct {
 }
 
 type ENSSimple struct {
-	auth *bind.TransactOpts  
-    sens *Simplestens
+	auth *bind.TransactOpts
+	sens *Simplestens
 }
 
 type IncomingInfo struct {
@@ -181,7 +196,7 @@ type DBChunkstorage interface {
 }
 
 type Database interface {
-	GetRootHash() ([]byte, error)
+	GetRootHash() []byte
 
 	// Insert: adds key-value pair (value is an entire recrod)
 	// ok - returns true if new key added
@@ -250,12 +265,37 @@ const (
 	IT_HASHTREE    = 1
 	IT_BPLUSTREE   = 2
 	IT_FULLTEXT    = 3
-	IT_FRACTALTREE = 4
 )
 
-// SwarmDB Configuration for a node kept here
 const (
-	SWARMDBCONF_FILE = "/swarmdb/swarmdb.conf"
+	RT_CREATE_DATABASE = "CreateDatabase"
+	RT_DESCRIBE_DATABASE = "DescribeDatabase"
+	RT_DROP_DATABASE = "SelectDatabase"
+
+	RT_CREATE_TABLE = "CreateTable"
+	RT_DESCRIBE_TABLE = "DescribeTable"
+	RT_DROP_TABLES = "DropTable"
+
+	RT_PUT = "Put"
+	RT_GET = "Get"
+	RT_DELETE = "Delete"
+	RT_QUERY = "Query"
+)
+
+// SwarmDB Configuration Defaults
+const (
+	SWARMDBCONF_FILE = "/usr/local/swarmdb/etc/swarmdb.conf"
+	SWARMDBCONF_DEFAULT_PASSPHRASE = "wolk"
+	SWARMDBCONF_CHUNKDB_PATH = "/usr/local/swarmdb/data"
+	SWARMDBCONF_KEYSTORE_PATH = "/usr/local/swarmdb/data/keystore"
+	SWARMDBCONF_ENSDOMAIN = "ens.wolk.com"
+	SWARMDBCONF_LISTENADDR = "0.0.0.0"
+	SWARMDBCONF_PORTTCP = 2001
+	SWARMDBCONF_PORTHTTP = 8501
+	SWARMDBCONF_PORTENS = 8545
+	SWARMDBCONF_CURRENCY = "WLK"
+	SWARMDBCONF_TARGET_COST_STORAGE = 2.71828
+	SWARMDBCONF_TARGET_COST_BANDWIDTH = 3.14159
 )
 
 type SWARMDBConfig struct {
@@ -268,9 +308,9 @@ type SWARMDBConfig struct {
 	Address    string `json:"address,omitempty"`    // the address that earns, must be in keystore directory
 	PrivateKey string `json:"privateKey,omitempty"` // to access child chain
 
-	ChunkDBPath    string        `json:"chunkDBPath,omitempty"`    // the directory of the SQLite3 chunk databases
+	ChunkDBPath    string        `json:"chunkDBPath,omitempty"`    // the directory of the SQLite3 chunk databases (SWARMDBCONF_CHUNKDB_PATH)
+	KeystorePath   string        `json:"usersKeysPath,omitempty"`  // directory containing the keystore of Ethereum wallets (SWARMDBCONF_KEYSTORE_PATH)
 	Authentication int           `json:"authentication,omitempty"` // 0 - authentication is not required, 1 - required 2 - only users data stored
-	UsersKeyPath   string        `json:"usersKeysPath,omitempty"`  // directory containing the keystore of Ethereum wallets
 	Users          []SWARMDBUser `json:"users,omitempty"`          // array of users with permissions
 
 	Currency            string  `json:"currency,omitempty"`            //
@@ -462,6 +502,7 @@ func ConvertStringToColumnType(in string) (out ColumnType, err error) {
 */
 
 func StringToKey(columnType ColumnType, key string) (k []byte) {
+	
 	k = make([]byte, 32)
 	switch columnType {
 	case CT_INTEGER:
