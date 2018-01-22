@@ -23,7 +23,7 @@ import (
 )
 
 func TestENSSimulation(t *testing.T) {
-	var u SWARMDBUser
+	var u swarmdb.SWARMDBUser
 	store, err := swarmdb.NewENSSimulation("/tmp/ens.db")
 	if err != nil {
 		t.Fatal("failure to open ENSSimulation")

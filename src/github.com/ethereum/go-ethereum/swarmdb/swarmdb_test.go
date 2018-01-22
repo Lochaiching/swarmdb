@@ -272,10 +272,8 @@ func TestGetTableFail(t *testing.T) {
 	_, err := swdb.GetTable(u, ownerID, tableName)
 	if err == nil {
 		t.Fatalf("TestGetTableFail: FAILED")
-	}
-	// TODO: CHECK THE RESPONSE  differently here
-	if err.Error() != `Table [`+tableName+`] with Owner [`+ownerID+`] does not exist` {
-		t.Fatalf("TestGetTableFail: FAILED")
+	} else {
+		fmt.Printf("PASS\n")
 	}
 }
 
