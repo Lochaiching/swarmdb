@@ -1,3 +1,18 @@
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
+
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARMDB library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 package swarmdb
 
 import (
@@ -7,9 +22,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"math"
 	"math/big"
 	"net"
@@ -32,7 +47,7 @@ type RequestOption struct {
 	TableOwner  string `json:"tableowner,omitempty"`
 	Table       string `json:"table,omitempty"` //"contacts"
 	Encrypted   int    `json:"encrypted,omitempty"`
-	Key         string `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
+	Key         interface{} `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
 	//TODO: Key should be a byte array or interface
 	// Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Rows     []Row    `json:"rows,omitempty"` //value of val, usually the whole json record
@@ -90,8 +105,8 @@ type ENSSimulation struct {
 }
 
 type ENSSimple struct {
-	auth *bind.TransactOpts  
-    sens *Simplestens
+	auth *bind.TransactOpts
+	sens *Simplestens
 }
 
 type IncomingInfo struct {
@@ -181,7 +196,7 @@ type DBChunkstorage interface {
 }
 
 type Database interface {
-	GetRootHash() ([]byte, error)
+	GetRootHash() []byte
 
 	// Insert: adds key-value pair (value is an entire recrod)
 	// ok - returns true if new key added
@@ -250,7 +265,21 @@ const (
 	IT_HASHTREE    = 1
 	IT_BPLUSTREE   = 2
 	IT_FULLTEXT    = 3
-	IT_FRACTALTREE = 4
+)
+
+const (
+	RT_CREATE_DATABASE = "CreateDatabase"
+	RT_DESCRIBE_DATABASE = "DescribeDatabase"
+	RT_DROP_DATABASE = "SelectDatabase"
+
+	RT_CREATE_TABLE = "CreateTable"
+	RT_DESCRIBE_TABLE = "DescribeTable"
+	RT_DROP_TABLES = "DropTable"
+
+	RT_PUT = "Put"
+	RT_GET = "Get"
+	RT_DELETE = "Delete"
+	RT_QUERY = "Query"
 )
 
 // SwarmDB Configuration for a node kept here
@@ -462,6 +491,7 @@ func ConvertStringToColumnType(in string) (out ColumnType, err error) {
 */
 
 func StringToKey(columnType ColumnType, key string) (k []byte) {
+	
 	k = make([]byte, 32)
 	switch columnType {
 	case CT_INTEGER:

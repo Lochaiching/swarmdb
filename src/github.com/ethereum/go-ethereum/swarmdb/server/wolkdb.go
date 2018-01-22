@@ -407,7 +407,10 @@ func main() {
 	log.Warn("[RODNEY] Starting SWARMDB log debugging")
 
 	ensdbPath := "/tmp"
-	swdb := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+	swdb, err := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+	if err != nil {
+		panic(fmt.Sprintf("Cannot start: %s",  err.Error()))
+	}
 	go StartHttpServer(swdb, &config)
 	fmt.Println("\nHttpServer Started\n")
 

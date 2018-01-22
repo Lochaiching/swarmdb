@@ -1,12 +1,11 @@
-// Copyright 2018 Wolk Inc. - SWARMDB Working Group
-// This file is part of a SWARMDB fork of the go-ethereum library.
-//
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
+
 // The SWARMDB library is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Lesser General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// The SWARM ethereum library is distributed in the hope that it will be useful,
+// The SWARMDB library is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU Lesser General Public License for more details.
@@ -33,6 +32,11 @@ import (
 type KeyManager struct {
 	config   *SWARMDBConfig
 	keystore *keystore.KeyStore
+}
+
+func SignHash(unencrypted []byte) []byte {
+	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(unencrypted), unencrypted)
+	return crypto.Keccak256([]byte(msg))
 }
 
 // KeyManager requires a swarmdb.conf loaded into SWARMDBConfig.  This config specifies a directory specified in the ChunkDBPath
@@ -74,13 +78,11 @@ func NewKeyManager(c *SWARMDBConfig) (keymgr KeyManager, err error) {
 func (self *KeyManager) SignMessage(msg_hash []byte) (sig []byte, err error) {
 	secretKey, err := crypto.HexToECDSA(self.config.PrivateKey)
 	if err != nil {
-		return sig, err
-		//TODO: SWARMDBError
+		return sig, &SWARMDBError{message: fmt.Sprintf("[keymanager:SignMessage] HexToECDSA  %s", err.Error())}
 	} else {
 		sig, err2 := crypto.Sign(msg_hash, secretKey)
 		if err2 != nil {
-			return sig, err2
-			//TODO: SWARMDBError
+			return sig, &SWARMDBError{message: fmt.Sprintf("[keymanager:SignMessage] Sign %s", err.Error())}
 		}
 		return sig, nil
 	}
@@ -97,37 +99,34 @@ func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUs
 			sig[64] -= 27
 		}
 	} else {
-		// TODO: return invalid signature err
-		return u, fmt.Errorf("VerifyMessage: Invalid signature")
+		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature length %d [%x]", len(sig), sig)}
 	}
 	pubKey, err := crypto.SigToPub(msg_hash, sig)
 	if err != nil {
-		// TODO: return invalid signature err
-		return u, fmt.Errorf("VerifyMessage: Invalid signature - cannot get public key")
+		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature - Cannot get public key")}
 	} else {
-		address2 := crypto.PubkeyToAddress(*pubKey)
+		address := crypto.PubkeyToAddress(*pubKey)
 		for _, u0 := range self.config.Users {
 			a := common.HexToAddress(u0.Address)
-			if bytes.Compare(a.Bytes(), address2.Bytes()) == 0 {
+			if bytes.Compare(a.Bytes(), address.Bytes()) == 0 {
 				return &u0, nil
 			}
 		}
-		return u, &SWARMDBError{message: fmt.Sprintf("VerifyMessage: Address not found: %x", address2.Bytes())}
+		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Address not found: %x", address.Bytes())}
 	}
 
 }
 
 // using a users public/secret key, decrypt the data
-func (self *KeyManager) DecryptData(u *SWARMDBUser, data []byte) []byte {
+func (self *KeyManager) DecryptData(u *SWARMDBUser, data []byte) (b []byte, err error) {
 	var decryptNonce [24]byte
 	copy(decryptNonce[:], data[:24])
 
 	decrypted, ok := box.Open(nil, data[24:], &decryptNonce, &u.publicK, &u.secretK)
 	if !ok {
-		// TODO: replace this with a err
-		panic("decryption error")
+		return b, &SWARMDBError{message: fmt.Sprintf("[keymanager:DecryptData] box.Open")}
 	}
-	return decrypted
+	return decrypted, nil
 }
 
 // using a users public/secret key, decrypt the data

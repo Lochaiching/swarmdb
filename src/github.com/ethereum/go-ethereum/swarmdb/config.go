@@ -1,8 +1,23 @@
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
+
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARMDB library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 package swarmdb
 
 import (
 	"encoding/json"
-	// "fmt"
+	"fmt"
 	"io/ioutil"
 )
 
@@ -52,26 +67,25 @@ func SaveSWARMDBConfig(c SWARMDBConfig, filename string) (err error) {
 	// save file
 	cout, err1 := json.Marshal(c)
 	if err1 != nil {
-		return err1
-		//TODO: SWARMDBError
+		return &SWARMDBError{message: fmt.Sprintf("[config:SaveSWARMDBConfig] Marshal %s", err.Error())}
 	} else {
 		err := ioutil.WriteFile(filename, cout, 0644)
-		//TODO: SWARMDBError
-		return err
+		if err != nil {
+			return &SWARMDBError{message: fmt.Sprintf("[config:SaveSWARMDBConfig] WriteFile %s", err.Error())}
+		}
 	}
+	return nil
 }
 
 func LoadSWARMDBConfig(filename string) (c SWARMDBConfig, err error) {
 	// read file
 	dat, err := ioutil.ReadFile(filename)
 	if err != nil {
-		//TODO: SWARMDBError
-		return c, err
+		return c, &SWARMDBError{message: fmt.Sprintf("[config:LoadSWARMDBConfig] ReadFile %s", err.Error())}
 	}
-	err1 := json.Unmarshal(dat, &c)
-	if err1 != nil {
-		//TODO: SWARMDBError
-		return c, err1
+	err = json.Unmarshal(dat, &c)
+	if err != nil {
+		return c, &SWARMDBError{message: fmt.Sprintf("[config:LoadSWARMDBConfig] Unmarshal %s", err.Error())}
 	}
 	return c, nil
 }
