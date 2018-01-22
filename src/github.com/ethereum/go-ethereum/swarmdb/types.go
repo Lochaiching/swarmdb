@@ -43,16 +43,24 @@ type Column struct {
 
 //for passing request data from client to server
 type RequestOption struct {
-	RequestType string `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	TableOwner  string `json:"tableowner,omitempty"`
-	Table       string `json:"table,omitempty"` //"contacts"
-	Encrypted   int    `json:"encrypted,omitempty"`
+	RequestType string      `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
+	TableOwner  string      `json:"tableowner,omitempty"`
+	Table       string      `json:"table,omitempty"` //"contacts"
+	Encrypted   int         `json:"encrypted,omitempty"`
 	Key         interface{} `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
 	//TODO: Key should be a byte array or interface
 	// Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Rows     []Row    `json:"rows,omitempty"` //value of val, usually the whole json record
 	Columns  []Column `json:"columns,omitempty"`
 	RawQuery string   `json:"rawquery,omitempty"` //"Select name, age from contacts where email = 'blah'"
+}
+
+type SWARMDBResponse struct {
+	ErrorCode        int `json:"errorcode,omitempty"`
+	ErrorMessage     string `json:"errormessage,omitempty"`
+	Data             []Row  `json:"data,omitempty"`
+	AffectedRowCount int    `json:"affectedrowcount",omitempty`
+	MatchedRowCount  int    `json:"matchedrowcount",omitempty`
 }
 
 type SWARMDBConnection struct {
@@ -261,25 +269,25 @@ const (
 type IndexType uint8
 
 const (
-	IT_NONE        = 0
-	IT_HASHTREE    = 1
-	IT_BPLUSTREE   = 2
-	IT_FULLTEXT    = 3
+	IT_NONE      = 0
+	IT_HASHTREE  = 1
+	IT_BPLUSTREE = 2
+	IT_FULLTEXT  = 3
 )
 
 const (
-	RT_CREATE_DATABASE = "CreateDatabase"
+	RT_CREATE_DATABASE   = "CreateDatabase"
 	RT_DESCRIBE_DATABASE = "DescribeDatabase"
-	RT_DROP_DATABASE = "SelectDatabase"
+	RT_DROP_DATABASE     = "SelectDatabase"
 
-	RT_CREATE_TABLE = "CreateTable"
+	RT_CREATE_TABLE   = "CreateTable"
 	RT_DESCRIBE_TABLE = "DescribeTable"
-	RT_DROP_TABLES = "DropTable"
+	RT_DROP_TABLES    = "DropTable"
 
-	RT_PUT = "Put"
-	RT_GET = "Get"
+	RT_PUT    = "Put"
+	RT_GET    = "Get"
 	RT_DELETE = "Delete"
-	RT_QUERY = "Query"
+	RT_QUERY  = "Query"
 )
 
 // SwarmDB Configuration for a node kept here
@@ -491,7 +499,7 @@ func ConvertStringToColumnType(in string) (out ColumnType, err error) {
 */
 
 func StringToKey(columnType ColumnType, key string) (k []byte) {
-	
+
 	k = make([]byte, 32)
 	switch columnType {
 	case CT_INTEGER:
@@ -595,6 +603,8 @@ func SHA256(inp string) (k []byte) {
 
 type SWARMDBError struct {
 	message string
+	ErrorCode int
+	ErrorMessage string 
 }
 
 func (t *SWARMDBError) Error() string {
