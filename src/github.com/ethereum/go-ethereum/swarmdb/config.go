@@ -34,7 +34,6 @@ func (self *SWARMDBConfig) GetSWARMDBUser() (u *SWARMDBUser) {
 }
 
 func GenerateSampleSWARMDBConfig(privateKey string, address string, passphrase string) (c SWARMDBConfig) {
-
 	var u SWARMDBUser
 	u.Address = address
 	u.Passphrase = passphrase
@@ -42,24 +41,23 @@ func GenerateSampleSWARMDBConfig(privateKey string, address string, passphrase s
 	u.MaxReplication = 5
 	u.AutoRenew = 1
 
-	c.ListenAddrTCP = "127.0.0.1"
-	c.PortTCP = 2000
+	c.ListenAddrTCP = SWARMDBCONF_LISTENADDR
+	c.PortTCP = SWARMDBCONF_PORTTCP 
 
-	c.ListenAddrHTTP = "127.0.0.1"
-	c.PortHTTP = 8500
-
-	c.ChunkDBPath = "/swarmdb/data/keystore"
+	c.ListenAddrHTTP = SWARMDBCONF_LISTENADDR
+	c.PortHTTP = SWARMDBCONF_PORTHTTP 
 
 	c.Address = u.Address
 	c.PrivateKey = privateKey
 
 	c.Authentication = 1
-	c.UsersKeyPath = "/swarmdb/data/keystore"
+	c.ChunkDBPath = SWARMDBCONF_CHUNKDB_PATH    
+	c.KeystorePath = SWARMDBCONF_KEYSTORE_PATH  
 	c.Users = append(c.Users, u)
 
-	c.Currency = "WLK" // USD, EUR etc.
-	c.TargetCostStorage = 2.71828
-	c.TargetCostBandwidth = 3.14159
+	c.Currency = SWARMDBCONF_CURRENCY 
+	c.TargetCostStorage = SWARMDBCONF_TARGET_COST_STORAGE
+	c.TargetCostBandwidth = SWARMDBCONF_TARGET_COST_BANDWIDTH
 	return c
 }
 
