@@ -1,4 +1,5 @@
 
+
 # SWARMDB Data Flow 
 
 All SwarmDB node types (farmers/buyers, validators) are required to register on child chain ENS in order to participate in SwarmDB services.   A SWARMDB public **swarmdb** table holds this registry:
@@ -53,18 +54,22 @@ where each buyer node's `<ip:port>` can be looked up from Wolk Chain ENS Registr
 
 # Validator
 
-Given the above SWARMDB HTTP interfaces, a validator (potentially, working on a specific  **Shard**) for a given epoch identified by **EpochUnixTimestamp** and a list of active SWARMDB nodes from the **swarmdb** table will poll ALL SWARMDB nodes for their logs:
+Given the above SWARMDB HTTP interfaces, a validator (potentially, working on a specific  **Shard**) for a given epoch identified by **EpochUnixTimestamp** and a list of active SWARMDB nodes from the **swarmdb** table will poll ALL SWARMDB nodes for their logs using:
 
      https://<ip:port>/farmerlog/<EpochUnixTimestamp>/<Shard(optional)>
      https://<ip:port>/buyerlog/<EpochUnixTimestamp>/<Shard(optional)>
 
-and then use these logs 
+And process these logs in two stages:
+![WLK Chain Data Flow](https://raw.githubusercontent.com/wolktoken/swarm.wolk.com/master/src/github.com/ethereum/go-ethereum/swarmdb/validator/Data%20Flow.jpg)
+
+
+
      
 ## Stage 1J:  Chunk Join
 
 Validators receive this as input and run MR1, mapreduce Hadoop job to summarize what has happened to chunks in their shard across both farmerlogs and buyerlogs:
 
-           $ cat buyerlog-input.txt farmerlog-input.txt |  validator-1j-map | sort |  validator-1j-reduce
+           $ cat buyerlog-input*.txt farmerlog-input*.txt |  smash-map | sort |  smash-reduce
            {"chunkID":"1d4b6e4aa86d48c464c9adf83940d4e00df8affc","buyers":["0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","0xd80a4004350027f618107fe3240937d54e46c21b"],"rep":5,"farmers":["0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","0xfd990c3c42446f6705dd66376bf5820cf2c09527"],"sig":"a1"}
            {"chunkID":"4b09668b93c718092a408c4222867968fcd3ad98","buyers":["0xd80a4004350027f618107fe3240937d54e46c21b"],"rep":5,"farmers":["0xf6b55acbbc49f4524aa48d19281a9a77c54de10f"],"sig":"a1"}
            {"chunkID":"aeec6f5aca72f3a005af1b3420ab8c8c7009bac8","buyers":["0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","0xd80a4004350027f618107fe3240937d54e46c21b"],"rep":5,"renew":0,"farmers":["0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","0xfd990c3c42446f6705dd66376bf5820cf2c09527"],"sig":"a1"}
@@ -90,14 +95,14 @@ If the farmer is faced with a validator maliciously rejecting a sound SMASH proo
 
 litigation table has following columns:
 	
-	chunkID			  string - hash
-	id                string - nodeID of the SWARMDB node
-    validatorID       string - public key of the validator node
-    validatorSig      string - Validator's signiture for signing a rejection
-	farmerSig		  string - farmer's signiture for signing such litigation
-    Crash			  string - Smash-proof in dispute 
-    epochtimestamp      int  - epoch of litigation
-    shard             string - the shard to which the validator belongs to
+    chunkID		string - hash
+	id		string - nodeID of the SWARMDB node
+    validatorID	string - public key of the validator node
+    validatorSig	string - Validator's signiture for signing a rejection
+    farmerSig	string - farmer's signiture for signing such litigation
+    Crash		string - Smash-proof in dispute 
+    epochtimestamp	  int  - epoch of litigation
+    shard		string - the shard to which the validator belongs to
        
 During Casper block proposal, validators will also vote on settling active litigations from recent epochs. If a farmer's litigations are found valid, such farmer shall be compensated and proper adjustments shall be made in proposed epoch. Honest validators will be rewarded with finder fees while malicious validator's deposit will be slashed. 
 
@@ -109,7 +114,7 @@ During Casper block proposal, validators will also vote on settling active litig
 
 The output of Stage 1J joins based on chunkID, but does not select the precise farmers to be awarded. 
 
-     $ cat *.txt | validator-1s-map | sort | validator-1s-reduce
+     $ cat storage-input*.txt | storage-map | sort | storage-reduce
      {"id":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","s":123}
      {"id":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","s":-123456}
  
@@ -122,7 +127,7 @@ If there are too few farmers for any chunk (based on `minrep`), the validator sh
 
 If the validator receives claims from farmers that do not have a buyer associated with it, the farmer claim is not included in the validator's output, however, the validator will let the farmer know:
 
-     https://ip:port/failedchunkclaim/<CHUNKID>/<Hash:Validator_sig>
+     https://<ip:port>/failedchunkclaim/<CHUNKID>/<Hash:Validator_sig>
 
 The farmer may then mark the chunk for deletion, or delete all the buyers that dominate the failed chunk claims.
 
@@ -161,7 +166,7 @@ In the above case, `f6..` has sent 123456 chunks to `df..`, and both `f6` and `d
 
 When a claim is matchable (the validator can find matching claims from both parties), the aggregate amount must be transferred.
 
-     $ cat bandwidthlog-input?.txt | validator-1b-map | sort | validator-1b-reduce
+     $ cat bandwidthlog-input*.txt | bandwidth-map | sort | bandwidth-reduce
      {"id":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","b":123456}
      {"id":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","b":-123456}
 
@@ -200,7 +205,7 @@ The SWARMDB node may mark this peer as being untrustworthy and drop them for tra
 
 After completing Stage 1J followed by 1S (resulting in "s") and Stage 1B (resulting in "b"), the outputs of both storage (s) and bandwidth (b) can be tallied in SWARMDB using the previous epochs `storagecost` and `bandwidthcost`, running a MapReduce operation to derive intermediate outputs of `s`, `b`, and `t`:
 
-    $ cat validator-input.txt | validator-2-map | sort | validator-2-reduce 
+    $ cat *-input*.txt | collation-map | sort | collation-reduce 
     {"validatorID":"validator_publickey1","epochtimestamp":12431234,"id":"0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","s":3,"b":1,"t":400,"sig":"s1"}
     {"validatorID":"validator_publickey1","epochtimestamp":12431234,"id":"0xd80a4004350027f618107fe3240937d54e46c21b","s":1,"b":-1,"t":0,"sig":"s2"}
     {"validatorID":"validator_publickey1","epochtimestamp":12431234,"id":"0xf6b55acbbc49f4524aa48d19281a9a77c54de10f","s":-2,"b":99,"t":9700,"sig":"s3"}

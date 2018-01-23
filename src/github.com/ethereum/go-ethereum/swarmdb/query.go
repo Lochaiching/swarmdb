@@ -30,7 +30,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 	//fmt.Printf("\nin ParseQuery\n")
 	stmt, err := sqlparser.Parse(rawQuery)
 	if err != nil {
-		return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] Parse [%s]", rawQuery)}
+		return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] Parse [%v]", err)}
 	}
 
 	switch stmt := stmt.(type) {

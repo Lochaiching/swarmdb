@@ -5,16 +5,14 @@ set_time_limit(0);
 $d = isset($argv[1])? $argv[1] : "test";
 $t = date("Ymd", time());
 
-$prev = "bandwidth";
-$prev2 = "storage";
-$job = "collation";
+$prev = "swap";
+$job = "bandwidth";
 
 // these should be swarmdb urls but we'll put swarmdb logs here
 
 $project = "crosschannel-1307";
 $bucket = "wolk_validator";
 $input = "gs://$bucket/$prev/$d";
-$input2 = "gs://$bucket/$prev2/$d";
 $output = "gs://$bucket/$job/$d/$t";
 $pri = "HIGH";
 $queuename = "heavy";
@@ -34,7 +32,7 @@ $cmd[] = "gsutil cp $reducer gs://$bucket/$job/$job-reduce.php";
 // $cmd[] = "gcloud dataproc clusters create $cluster --zone us-central1-b --master-machine-type n1-standard-1 --master-boot-disk-size 10 --num-workers 2   --worker-machine-type n1-standard-1 --worker-boot-disk-size 10 --project $project --initialization-actions 'gs://startup_scripts_us/scripts/dataproc/startup-dataproc-go-2018.sh'";
 
 // submit job
-$cmd[] = "gcloud dataproc jobs submit hadoop --cluster $cluster  --jar file:///usr/lib/hadoop-mapreduce/hadoop-streaming.jar -- --files $gsmapper,$gsreducer  -D mapreduce.job.name=$job-$t -mapper $job-map.php -reducer $job-reduce.php  -input $input -input $input2 -output $output -numReduceTasks 1";
+$cmd[] = "gcloud dataproc jobs submit hadoop --cluster $cluster  --jar file:///usr/lib/hadoop-mapreduce/hadoop-streaming.jar -- --files $gsmapper,$gsreducer  -D mapreduce.job.name=$job-$t  -mapper $job-map.php   -reducer $job-reduce.php  -input $input  -output $output -numReduceTasks 1";
 
 // delete
 // $cmd[] = "gcloud -q dataproc clusters delete $cluster";
