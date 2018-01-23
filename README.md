@@ -48,34 +48,36 @@ https://www.docker.com/community-edition#/download
 
 Deploying the image above will run SWARMDB in the Docker container. To verify if SWARMDB is running:
 
-    $ ps aux | grep main | grep -v grep
+    $ ps aux | grep wolkdb | grep -v grep
 
 ## SwarmDB Configurations 
 
 ### To start swarmDB with the default config, run this on the command line:
 
-      $ /swarmdb/bin/main
+      $ /usr/local/swarmdb/bin/wolkdb
 
 ### To start swarmDB `IN THE BACKGROUND` with the default config, run this on the command line:
 
-      $ /swarmdb/bin/main &
+      $ /usr/local/swarmdb/bin/wolkdb &
       
 ### To start swarmDB with a modified config file located in a different location:
         
-      $ /swarmdb/bin/main -config /path/to/swarmDB/config/file
+      $ /usr/local/swarmdb/bin/wolkdb -config /path/to/swarmDB/config/file
 
 
 ### To start swarmDB `IN THE BACKGROUND` with a modified config file located in a different location:
         
-      $ /swarmdb/bin/main -config /path/to/swarmDB/config/file &
+      $ /usr/local/swarmdb/bin/wolkdb -config /path/to/swarmDB/config/file &
       
-### To see the `main` options:
+### To see the `wolkdb` options:
       
-      $ /swarmdb/bin/main -h
+      $ /usr/local/swarmdb/bin/wolkdb -h
 
-      Usage of /swarmdb/bin/main:
+      Usage of /usr/local/swarmdb/bin/wolkdb:
       -config string
-    	Full path location to SWARMDB configuration file. (default "/swarmdb/swarmdb.conf")
+    	      Full path location to SWARMDB configuration file. (default "/swarmdb/swarmdb.conf")
+      -init
+    	      Used to initialize a new SWARMDB
 
 ### The default swarmDB configuration file
     
@@ -108,11 +110,11 @@ Deploying the image above will run SWARMDB in the Docker container. To verify if
 You can add new items in the `users` array and make sure to restart swarmDB after modifying the configuration file.
 
 ##### To restart:
-###### 1. Kill the process named `main` 
-       $ sudo kill -9 $(ps aux | grep main | grep -v grep | awk '{print$2}')
+###### 1. Kill the process named `wolkdb` 
+       $ sudo kill -9 $(ps aux | grep wolkdb | grep -v grep | awk '{print$2}')
       
-###### 2. Start `main`:
-        $ /swarmdb/bin/main -config /path/to/swarmDB/config/file &
+###### 2. Start `wolkdb`:
+        $ /usr/local/swarmdb/bin/wolkdb &
       
 
 #  Interfaces
