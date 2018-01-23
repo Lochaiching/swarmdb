@@ -221,7 +221,7 @@ func StartTcpipServer(sdb *swarmdb.SwarmDB, conf *swarmdb.SWARMDBConfig) (err er
 func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 	pathParts := strings.Split(path, "/")
 	if len(pathParts) < 2 {
-		swErr := swarmdb.SWARMDBError{ ErrorCode: -1, ErrorMessage: "Request URL invalid"}
+		swErr := swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Request URL invalid"}
 		swErr.SetError("Invalid Path in Request URL")
 		return swdbReq, &swErr
 	} else {
@@ -419,7 +419,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						swErr.ErrorCode = 425
 						swErr.ErrorMessage = fmt.Sprintf("Invalid Query Request. Missing Rawquery")
 						retJson := buildErrorResp(&swErr)
-							fmt.Fprint(w, retJson)
+						fmt.Fprint(w, retJson)
 					}
 				} else if dataReq.RequestType == "Put" {
 					dataReq.Table = swReq.table
