@@ -90,7 +90,7 @@ func TestPutInteger(t *testing.T) {
 	g, ok, err = s.Get(u, swarmdb.IntToByte(1))
 	if !ok || err != nil {
 		t.Fatal("Get(1) not ok", err)
-	} else if bytes.Contains(g, []byte("valueof000001"))  {
+	} else if bytes.Contains(g, []byte("valueof000001")) {
 		fmt.Printf("SUCC Get(1): [%s]\n", string(g))
 	} else {
 		t.Fatal("Get(1) failure")
@@ -99,7 +99,7 @@ func TestPutInteger(t *testing.T) {
 	g, ok, err = s.Get(u, swarmdb.IntToByte(12))
 	if !ok || err != nil {
 		t.Fatal("Get(12) not ok", err)
-	} else if bytes.Contains(g, []byte("valueof00000c"))  {
+	} else if bytes.Contains(g, []byte("valueof00000c")) {
 		fmt.Printf("SUCC Get(12): [%s]\n", string(g))
 	} else {
 		t.Fatal("Get(12) failure")
@@ -108,7 +108,7 @@ func TestPutInteger(t *testing.T) {
 	g, ok, err = s.Get(u, swarmdb.IntToByte(16))
 	if !ok || err != nil {
 		t.Fatal("Get(16) not ok", err)
-	} else if bytes.Contains(g, []byte("valueof000010"))  {
+	} else if bytes.Contains(g, []byte("valueof000010")) {
 		fmt.Printf("SUCC Get(16): [%s]\n", string(g))
 	} else {
 		t.Fatal("Get(16) failure")

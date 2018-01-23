@@ -56,7 +56,7 @@ type RequestOption struct {
 }
 
 type SWARMDBResponse struct {
-	ErrorCode        int `json:"errorcode,omitempty"`
+	ErrorCode        int    `json:"errorcode,omitempty"`
 	ErrorMessage     string `json:"errormessage,omitempty"`
 	Data             []Row  `json:"data,omitempty"`
 	AffectedRowCount int    `json:"affectedrowcount",omitempty`
@@ -292,17 +292,17 @@ const (
 
 // SwarmDB Configuration Defaults
 const (
-	SWARMDBCONF_FILE = "/usr/local/swarmdb/etc/swarmdb.conf"
-	SWARMDBCONF_DEFAULT_PASSPHRASE = "wolk"
-	SWARMDBCONF_CHUNKDB_PATH = "/usr/local/swarmdb/data"
-	SWARMDBCONF_KEYSTORE_PATH = "/usr/local/swarmdb/data/keystore"
-	SWARMDBCONF_ENSDOMAIN = "ens.wolk.com"
-	SWARMDBCONF_LISTENADDR = "0.0.0.0"
-	SWARMDBCONF_PORTTCP = 2001
-	SWARMDBCONF_PORTHTTP = 8501
-	SWARMDBCONF_PORTENS = 8545
-	SWARMDBCONF_CURRENCY = "WLK"
-	SWARMDBCONF_TARGET_COST_STORAGE = 2.71828
+	SWARMDBCONF_FILE                  = "/usr/local/swarmdb/etc/swarmdb.conf"
+	SWARMDBCONF_DEFAULT_PASSPHRASE    = "wolk"
+	SWARMDBCONF_CHUNKDB_PATH          = "/usr/local/swarmdb/data"
+	SWARMDBCONF_KEYSTORE_PATH         = "/usr/local/swarmdb/data/keystore"
+	SWARMDBCONF_ENSDOMAIN             = "ens.wolk.com"
+	SWARMDBCONF_LISTENADDR            = "0.0.0.0"
+	SWARMDBCONF_PORTTCP               = 2001
+	SWARMDBCONF_PORTHTTP              = 8501
+	SWARMDBCONF_PORTENS               = 8545
+	SWARMDBCONF_CURRENCY              = "WLK"
+	SWARMDBCONF_TARGET_COST_STORAGE   = 2.71828
 	SWARMDBCONF_TARGET_COST_BANDWIDTH = 3.14159
 )
 
@@ -613,9 +613,9 @@ func SHA256(inp string) (k []byte) {
 }
 
 type SWARMDBError struct {
-	message string
-	ErrorCode int
-	ErrorMessage string 
+	message      string
+	ErrorCode    int
+	ErrorMessage string
 }
 
 func (t *SWARMDBError) Error() string {

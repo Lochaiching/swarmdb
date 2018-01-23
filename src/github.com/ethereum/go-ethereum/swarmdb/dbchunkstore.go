@@ -205,7 +205,7 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 	chunkstat := map[string]*big.Int{"ChunkR": big.NewInt(0), "ChunkW": big.NewInt(0), "ChunkS": big.NewInt(0), "ChunkRL": big.NewInt(0), "ChunkWL": big.NewInt(0), "ChunkSL": big.NewInt(0)}
 	bytestat := map[string]*big.Int{"ByteR": big.NewInt(0), "ByteW": big.NewInt(0), "ByteS": big.NewInt(0), "ByteRL": big.NewInt(0), "ByteWL": big.NewInt(0), "ByteSL": big.NewInt(0)}
 
-	fmt.Printf("Opening %s\n", path);
+	fmt.Printf("Opening %s\n", path)
 	db, err := sql.Open("sqlite3", path)
 	if err != nil || db == nil {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:NewDBChunkStore] Open %s", err.Error())}

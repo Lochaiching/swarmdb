@@ -18,14 +18,14 @@ package swarmdb_test
 import (
 	"encoding/json"
 	"fmt"
-	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
-	"os"
-	"testing"
-	"time"
 	"github.com/cznic/mathutil"
+	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
 	"math"
 	"math/rand"
+	"os"
 	"strings"
+	"testing"
+	"time"
 )
 
 const (
@@ -39,7 +39,7 @@ const (
 	TEST_SKEY_FLOAT      = "weight"
 	TEST_TABLE_INDEXTYPE = swarmdb.IT_BPLUSTREE
 	TEST_ENCRYPTED       = 1
-	TEST_ENS_DIR = "/tmp"
+	TEST_ENS_DIR         = "/tmp"
 )
 
 func make_table_name(s string) (tablePrefix string) {
@@ -84,7 +84,7 @@ func getSWARMDBTable(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName st
 		err = tbl.OpenTable(u)
 		if err != nil {
 			panic("Could not open table")
-		} 
+		}
 		return tbl
 	}
 }
@@ -165,7 +165,7 @@ func rng() *mathutil.FC32 {
 func TestCreateTablePutGet(t *testing.T) {
 	u := getUser()
 	tableName := make_table_name("test")
-	
+
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	ensdbPath := TEST_ENS_DIR
 	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
@@ -205,7 +205,7 @@ func TestCreateTablePutGet(t *testing.T) {
 	swdb.SelectHandler(u, string(marshalTestReqOption))
 
 	testKey := "rodneytest1@wolk.com"
-	
+
 	testReqOption.RequestType = swarmdb.RT_PUT
 	testReqOption.TableOwner = TEST_OWNER
 	testReqOption.Table = tableName
@@ -225,14 +225,13 @@ func TestCreateTablePutGet(t *testing.T) {
 	resp, errS := swdb.SelectHandler(u, string(marshalTestReqOption))
 	if errS != nil {
 		t.Fatalf("[swarmdb_test:TestPut] SelectHandler %s", errS.Error())
-	} 
+	}
 	fmt.Printf(" Output: %s\n", resp)
 	if resp != swarmdb.OK_RESPONSE {
 		t.Fatal("NOT OK")
 	} else {
-		fmt.Printf("PASS\n");
+		fmt.Printf("PASS\n")
 	}
-
 
 	testReqOption.RequestType = swarmdb.RT_GET
 	testReqOption.TableOwner = TEST_OWNER
@@ -255,14 +254,14 @@ func TestCreateTablePutGet(t *testing.T) {
 	if err != nil {
 		t.Fatal("error parsing response")
 	} else {
-		if strings.Compare(fmt.Sprintf("%v", rowObj["age"]), "37") != 0  {
+		if strings.Compare(fmt.Sprintf("%v", rowObj["age"]), "37") != 0 {
 			fmt.Printf("MISMATCH: [%v]\n", rowObj["age"])
-		} else 	if strings.Compare(rowObj["name"].(string), "Rodney") != 0 {
+		} else if strings.Compare(rowObj["name"].(string), "Rodney") != 0 {
 			fmt.Printf("MISMATCH: [%v]\n", rowObj["name"])
-		} else 	if strings.Compare(rowObj["email"].(string), testKey) != 0 {
+		} else if strings.Compare(rowObj["email"].(string), testKey) != 0 {
 			fmt.Printf("MISMATCH email: [%v]\n", rowObj["email"])
 		} else {
-			fmt.Printf("PASS\n");
+			fmt.Printf("PASS\n")
 		}
 	}
 }
@@ -282,7 +281,7 @@ func TestGetTableFail(t *testing.T) {
 	}
 }
 
-// primary key is integer 
+// primary key is integer
 func TestPutInteger(t *testing.T) {
 	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
 	u := getUser()
@@ -343,7 +342,7 @@ func TestPutInteger(t *testing.T) {
 		fmt.Printf(" Input: [%s]\n", marshalTestReqOption)
 		resp, err := swdb.SelectHandler(u, string(marshalTestReqOption))
 		if err != nil {
-			t.Fatalf("[swarm_test:TestPutInteger] SelectHandler %s", err.Error());
+			t.Fatalf("[swarm_test:TestPutInteger] SelectHandler %s", err.Error())
 		} else {
 			fmt.Printf(" Output: [%s]\n", resp)
 		}
@@ -378,7 +377,7 @@ func TestPutInteger(t *testing.T) {
 		if strings.Compare(rowObj["email"].(string), "test008@wolk.com") != 0 {
 			fmt.Printf("MISMATCH email: [%v]\n", rowObj["email"])
 		} else {
-			fmt.Printf("PASS\n");
+			fmt.Printf("PASS\n")
 		}
 	}
 }
@@ -544,7 +543,7 @@ func bTestTableSecondaryFloat(t *testing.T) {
 func bTestTableSecondaryString(t *testing.T) {
 	t.SkipNow()
 	u := getUser()
-	swdb,_ := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
+	swdb, _ := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
 	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_STRING)
 
@@ -692,4 +691,3 @@ func aTestDelete2(t *testing.T) {
 		}
 	}
 }
-

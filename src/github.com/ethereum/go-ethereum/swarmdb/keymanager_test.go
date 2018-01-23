@@ -33,7 +33,7 @@ func TestConfigGeneration(t *testing.T) {
 	_, err := swarmdb.NewKeyManagerWithoutConfig(filename, swarmdb.SWARMDBCONF_DEFAULT_PASSPHRASE)
 	if err != nil {
 		t.Fatalf("[keymanager_test:TestConfigGeneration] NewKeyManagerWithoutConfig %s", err.Error())
-	} 
+	}
 	// }
 }
 
