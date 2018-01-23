@@ -149,11 +149,11 @@ func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUs
 			sig[64] -= 27
 		}
 	} else {
-		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature length %d [%x]", len(sig), sig)}
+		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature length %d [%x]", len(sig), sig), ErrorCode:419 , ErrorMessage: "Invalid Signature Length: Must be 65 characters" }
 	}
 	pubKey, err := crypto.SigToPub(msg_hash, sig)
 	if err != nil {
-		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature - Cannot get public key")}
+		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature - Cannot get public key"), ErrorCode: 420, ErrorMessage: "Invalid Signature: Unable to Retrieve Public Key" }
 	} else {
 		address := crypto.PubkeyToAddress(*pubKey)
 		for _, u0 := range self.config.Users {
@@ -162,7 +162,7 @@ func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUs
 				return &u0, nil
 			}
 		}
-		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Address not found: %x", address.Bytes())}
+		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Address not found: %x", address.Bytes()), ErrorCode: 421, ErrorMessage: "User Address not configured on connected node."}
 	}
 
 }
