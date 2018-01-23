@@ -483,7 +483,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 	// var rerr *RequestFormatError
 	d, err := parseData(data)
 	if err != nil {
-		return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] parseData %s", err.Error())}
+		return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] parseData %s", err.Error()), ErrorCode:417, ErrorMessage:"Request Not Parseable"}
 	}
 
 	tblKey := self.GetTableKey(d.TableOwner, d.Table)
@@ -491,7 +491,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 	switch d.RequestType {
 	case "CreateTable":
 		if len(d.Table) == 0 || len(d.Columns) == 0 {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] empty table and column")}
+			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] empty table and column"), ErrorCode:417 , ErrorMessage:"Invalid [CreateTable] Request: Missing Table and/or Columns"}
 		}
 		//TODO: Upon further review, could make a NewTable and then call this from tbl. ---
 		_, err := self.CreateTable(u, d.Table, d.Columns, d.Encrypted)
