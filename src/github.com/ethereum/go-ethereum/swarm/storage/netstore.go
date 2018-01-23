@@ -26,6 +26,7 @@ import (
 
 	//"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	//"github.com/ethereum/go-ethereum/swarmdb"
 )
 
 /*
@@ -51,7 +52,7 @@ type NetStore struct {
 // bzz/network/forwarder. forwarder or IPFS or IPΞS
 type CloudStore interface {
 	Store(*Chunk)
-	StoreDB([]byte, []byte, *time.Time)
+	StoreDB([]byte, []byte, *CloudOption)
 	Deliver(*Chunk)
 	Retrieve(*Chunk)
 }
@@ -117,7 +118,8 @@ func (self *NetStore) Put(entry *Chunk) {
 }
 
 func (self *NetStore) PutDB(k, v []byte, ts *time.Time) {
-	self.cloud.StoreDB(k, v, ts)
+	opt := &CloudOption{BirthDT:ts}
+	self.cloud.StoreDB(k, v, opt)
 }
 
 

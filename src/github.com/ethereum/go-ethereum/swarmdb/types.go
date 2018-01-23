@@ -235,9 +235,11 @@ const (
 	IT_FRACTALTREE = 4
 )
 
-type dData struct{
-	birthDT	time.Time
+/*
+type CloudOption struct{
+	BirthDT	*time.Time
 }
+*/
 
 //for comparing rows in two different sets of data
 func checkDuplicateRow(row1 Row, row2 Row) bool {

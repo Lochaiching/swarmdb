@@ -87,6 +87,7 @@ type StorageHandler interface {
 	HandleStoreRequestMsg(req *storeRequestMsgData, p *peer)
 	HandleRetrieveRequestMsg(req *retrieveRequestMsgData, p *peer)
 	HandleSdbStoreRequestMsg(req *sDBStoreRequestMsgData, p *peer)
+	HandleSdbRetrieveRequestMsg(req *retrieveRequestMsgData, p *peer)
 }
 
 /*
@@ -191,7 +192,6 @@ func (self *bzz) Drop() {
 func (self *bzz) handle() error {
 	msg, err := self.rw.ReadMsg()
 	log.Debug(fmt.Sprintf("<- %v", msg))
-	log.Debug(fmt.Sprintf("AAA protocol bzz handle %v %v", msg, msg.Code))
 	if err != nil {
 		return err
 	}
@@ -259,12 +259,14 @@ func (self *bzz) handle() error {
 		if err := msg.Decode(&req); err != nil {
 			return fmt.Errorf("<- %v: %v", msg, err)
 		}
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got syncRequestMsg %v", req))
 		log.Debug(fmt.Sprintf("<- sync request: %v", req))
 		self.lastActive = time.Now()
 		self.sync(req.SyncState)
 
 	case unsyncedKeysMsg:
 		// coming from parent node offering
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got unsyncedKeysMsg %v", msg))
 		var req unsyncedKeysMsgData
 		if err := msg.Decode(&req); err != nil {
 			return fmt.Errorf("<- %v: %v", msg, err)
@@ -277,6 +279,7 @@ func (self *bzz) handle() error {
 		}
 
 	case deliveryRequestMsg:
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got deliveryRequestMsg %v", msg))
 		// response to syncKeysMsg hashes filtered not existing in db
 		// also relays the last synced state to the source
 		var req deliveryRequestMsgData
@@ -302,18 +305,37 @@ func (self *bzz) handle() error {
 		}
 
 	case sDBStoreRequestMsg:
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got sDBStoreRequestMsg %v", msg))
                 // store requests are dispatched to netStore
                 var req sDBStoreRequestMsgData
                 //var req storeRequestMsgData
                 if err := msg.Decode(&req); err != nil {
                         return fmt.Errorf("<- %v: %v", msg, err)
                 }
-                log.Trace(fmt.Sprintf("sDBStoreRequestMsg: %v", req))
                 // last Active time is set only when receiving chunks
                 self.lastActive = time.Now()
                 log.Trace(fmt.Sprintf("incoming store request: %s", req.Key))
                 // swap accounting is done within forwarding
                 self.storage.HandleSdbStoreRequestMsg(&req, &peer{bzz: self})
+        case sDBRetrieveRequestMsg:
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got sDBRetrieveRequestMsg %v", msg))
+                // retrieve Requests are dispatched to netStore
+                var req retrieveRequestMsgData
+                if err := msg.Decode(&req); err != nil {
+                        return fmt.Errorf("<- %v: %v", msg, err)
+                }
+                req.from = &peer{bzz: self}
+                // if request is lookup and not to be delivered
+                if req.isLookup() {
+                        log.Trace(fmt.Sprintf("self lookup for %v: responding with peers only...", req.from))
+                } else if req.Key == nil {
+                        return fmt.Errorf("protocol handler: req.Key == nil || req.Timeout == nil")
+                } else {
+                        // swap accounting is done within netStore
+                        self.storage.HandleSdbRetrieveRequestMsg(&req, &peer{bzz: self})
+                }
+                // direct response with peers, TODO: sort this out
+                self.hive.peers(&req)
 	default:
 		// no other message is allowed
 		return fmt.Errorf("invalid message code: %v", msg.Code)
@@ -420,7 +442,7 @@ func (self *bzz) sync(state *syncState) error {
 		self.requestDb,
 		storage.Key(remoteaddr[:]),
 		self.dbAccess,
-		self.unsyncedKeys, self.store,
+		self.unsyncedKeys, self.store, self.sDBstore,
 		self.syncParams, state, func() bool { return self.syncEnabled },
 	)
 	if err != nil {
@@ -467,9 +489,9 @@ func (self *bzz) retrieve(req *retrieveRequestMsgData) error {
 
 // send storeRequestMsg
 func (self *bzz) store(req *storeRequestMsgData) error {
-log.Debug(fmt.Sprintf("protocol store %v req  %v %d", self, req, req.stype))
 	if req.stype == 2{
-		return self.sDBstore(req)
+	log.Debug(fmt.Sprintf("protocol store %got stype = 2 v req  %v %d", self, req, req.stype))
+		//return self.sDBstore(req)
 	}
 	return self.send(storeRequestMsg, req)
 }
@@ -519,29 +541,22 @@ func (self *bzz) peers(req *peersMsgData) error {
 	return self.send(peersMsg, req)
 }
 
-func (self *bzz) sDBstore(req *storeRequestMsgData) error {
-	sreq := &sDBStoreRequestMsgData{
-		Id:     req.Id,
-		Key:    req.Key,
-		SData:  req.SData,
-		birthDT: req.birthTime,	
-		from:   req.from,
-	}
-log.Debug(fmt.Sprintf("protocol sDBstore %v req  %v %v", self, req, sreq))
-	return self.send(sDBStoreRequestMsg, sreq)
+func (self *bzz) sDBstore(req *sDBStoreRequestMsgData) error {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.sDBstore :sending %v", req.Key))
+	return self.send(sDBStoreRequestMsg, req)
 }
 
 func (self *bzz) send(msg uint64, data interface{}) error {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.send :sending %v: %v", msg, data))
+
 	if self.hive.blockWrite {
 		return fmt.Errorf("network write blocked")
 	}
-	log.Debug(fmt.Sprintf("protocol bzz send %v", msg))
 	log.Trace(fmt.Sprintf("-> %v: %v (%T) to %v", msg, data, data, self))
 	err := p2p.Send(self.rw, msg, data)
 	if err != nil {
 	log.Debug(fmt.Sprintf("protocol.send error (%T) to %v",  data, err))
 		self.Drop()
 	}
-	log.Debug(fmt.Sprintf("protocol bzz send %v %v done", msg, data))
 	return err
 }

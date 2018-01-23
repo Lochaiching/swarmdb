@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/network/kademlia"
 	"github.com/ethereum/go-ethereum/swarm/services/swap"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+//	"github.com/ethereum/go-ethereum/swarmdb"
 )
 
 /*
@@ -34,17 +35,17 @@ BZZ protocol Message Types and Message Data Types
 
 // bzz protocol message codes
 const (
-	statusMsg          = iota // 0x01
-	storeRequestMsg           // 0x02
-	retrieveRequestMsg        // 0x03
-	peersMsg                  // 0x04
-	syncRequestMsg            // 0x05
-	deliveryRequestMsg        // 0x06
-	unsyncedKeysMsg           // 0x07
-	paymentMsg                // 0x08
-	sDBStoreRequestMsg        // 0x09
-	sDBRetrieveRequestMsg     // 0x10
-	sDBDeliveryRequestMsg     // 0x11
+	statusMsg          = iota // 0x00
+	storeRequestMsg           // 0x01
+	retrieveRequestMsg        // 0x02
+	peersMsg                  // 0x03
+	syncRequestMsg            // 0x04
+	deliveryRequestMsg        // 0x05
+	unsyncedKeysMsg           // 0x06
+	paymentMsg                // 0x07
+	sDBStoreRequestMsg        // 0x08
+	sDBRetrieveRequestMsg     // 0x09
+	sDBDeliveryRequestMsg     // 0x0A
 )
 
 /*
@@ -355,8 +356,7 @@ type sDBStoreRequestMsgData struct{
         storageTimeout *time.Time // expiry of content - [not serialised][not currently used]
         from           *peer      // [not serialised] protocol registers the requester
         rtype          int
-        birthDT        *time.Time
-
+        option         *storage.CloudOption
 }
 
 type sDBRetrieveRequestMsgData struct{
@@ -370,8 +370,6 @@ type sDBRetrieveRequestMsgData struct{
 }
 
 /*
-type sDBRetrieveRequestMsgData struct{
-}
 
 type sDBDeliveryRequestMsg struct{
 }

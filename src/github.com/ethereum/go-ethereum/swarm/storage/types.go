@@ -23,6 +23,7 @@ import (
 	"hash"
 	"io"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/sha3"
@@ -234,3 +235,8 @@ type LazyTestSectionReader struct {
 func (self *LazyTestSectionReader) Size(chan bool) (int64, error) {
 	return self.SectionReader.Size(), nil
 }
+
+type CloudOption struct{
+        BirthDT *time.Time
+}
+

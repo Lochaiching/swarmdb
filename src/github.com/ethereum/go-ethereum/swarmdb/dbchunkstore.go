@@ -303,12 +303,12 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err er
 	}
 	defer stmt.Close()
 
-	recordData := v[577:4096]
-	encRecordData := self.km.EncryptData(recordData)
+	recorCloudOption := v[577:4096]
+	encRecorCloudOption := self.km.EncryptData(recorCloudOption)
 
 	var finalSdata [8192]byte
 	copy(finalSdata[0:577], v[0:577])
-	copy(finalSdata[577:], encRecordData)
+	copy(finalSdata[577:], encRecorCloudOption)
 	_, err2 := stmt.Exec(k[:32], finalSdata[0:], encrypted, k[:32], k[:32])
 	if err2 != nil {
 		fmt.Printf("\nError Inserting into Table: [%s]", err2)
@@ -332,11 +332,12 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err er
 */
 	bts := ts
 log.Debug(fmt.Sprintf("dbchunkstore StoreKChunk calling storeDB %v %v %v", k,  v, bts))
-        self.cloud.StoreDB(k, v, &bts)
+        self.cloud.StoreDB(k, v, &storage.CloudOption{BirthDT: &bts})
 	return nil
 }
 
 func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
+log.Debug(fmt.Sprintf("RetrieveKChunk %v", key))
 	ts := time.Now()
 	val = make([]byte, 8192)
 	sql := `SELECT chunkKey, chunkVal, chunkBirthDT, chunkStoreDT, encrypted FROM chunk WHERE chunkKey = $1`
@@ -348,6 +349,7 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 	defer stmt.Close()
 
 	rows, err := stmt.Query(key)
+log.Debug(fmt.Sprintf("RetrieveKChunk %v %v", err, rows))
 	if err != nil {
 		fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
 		return nil, err
@@ -421,7 +423,7 @@ func (self *DBChunkstore) StoreChunk(v []byte, encrypted int) (k []byte, err err
 	}
 */
 log.Debug(fmt.Sprintf("dbchunkstore calling storeDB %v %v %v", k,  v, bts))
-	self.cloud.StoreDB(k, v, &bts)
+	self.cloud.StoreDB(k, v, &storage.CloudOption{BirthDT:&bts})
 	return k, nil
 }
 
@@ -650,7 +652,8 @@ func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 	}
 }
 
-func (self *DBChunkstore) RetrieveDB(key []byte) (val []byte, option *dData, err error){
+func (self *DBChunkstore) RetrieveDB(key []byte) (val []byte, option *storage.CloudOption, err error){
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] RetrieveDB :retreaving from swarmdb %v", key))
         sql := `SELECT chunkKey, chunkVal, chunkBirthDT FROM chunk WHERE chunkKey = $1`
         stmt, err := self.db.Prepare(sql)
         if err != nil {
@@ -661,7 +664,6 @@ func (self *DBChunkstore) RetrieveDB(key []byte) (val []byte, option *dData, err
 
         rows, err := stmt.Query(key)
         if err != nil {
-                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
                 return nil, nil, err
         }
         defer rows.Close()
@@ -672,10 +674,25 @@ func (self *DBChunkstore) RetrieveDB(key []byte) (val []byte, option *dData, err
 
                 err = rows.Scan(&kV, &val, &bdt)
 		if kV != nil {
-			opt := new(dData)
-			opt.birthDT = bdt
+			opt := new(storage.CloudOption)
+			opt.BirthDT = &bdt
 			return val, opt, err
 		}
 	}
 	return nil, nil, err
+}
+
+func (self *DBChunkstore) StoreDB(key []byte, val []byte, option *storage.CloudOption) (err error){
+	log.Debug(fmt.Sprintf("[wolk-cloudstore] StoreDB : storing to swarmdb %v", key)) 
+        sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, chunkBirthDT, chunkStoreDT ) values(?, ?, ?, CURRENT_TIMESTAMP))`
+        stmt, err := self.db.Prepare(sql_add)
+        if err != nil {
+                return err
+        }
+        defer stmt.Close()
+        _, err = stmt.Exec(key, val, option.BirthDT)
+        if err != nil {
+                return err
+        }
+	return err
 }

@@ -55,15 +55,13 @@ func (self *SwarmDB) StoreKDBChunk(key []byte, val []byte) (err error) {
 	return self.dbchunkstore.StoreKChunk(key, val, 0)
 }
 
-func (self *SwarmDB) RetrieveDB(key []byte) (val []byte, options *dData, err error){
+func (self *SwarmDB) RetrieveDB(key []byte) (val []byte, options *storage.CloudOption, err error){
 	return self.dbchunkstore.RetrieveDB(key)
 }
 
-/*
-func (self *SwarmDB) StoreDB(key []byte, val []byte, options *dData) (err error){
+func (self *SwarmDB) StoreDB(key []byte, val []byte, options *storage.CloudOption) (err error){
 	return self.dbchunkstore.StoreDB(key, val, options)
 }
-*/
 
 func (self SwarmDB) PrintDBChunk(columnType ColumnType, hashid []byte, c []byte) {
 	self.dbchunkstore.PrintDBChunk(columnType, hashid, c)
@@ -465,6 +463,11 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 
 
 	switch d.RequestType {
+/*
+	case "Test":
+		ret, err := self.Get(d.Key)
+		return string(ret), err
+*/
 	case "CreateTable":
 		if len(d.Table) == 0 || len(d.Columns) == 0 {
 			return resp, fmt.Errorf(`ERR: empty table and column`)
@@ -494,13 +497,17 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			}
 		}
 	case "Get":
+        elog.Debug(fmt.Sprintf("swarmdb SelectHandler Get %v", ownerID))
 		if len(d.Key) == 0 {
+        elog.Debug(fmt.Sprintf("swarmdb SelectHandler Get err no key %v", d.Key))
 			return resp, fmt.Errorf("Missing key in GET")
 		}
 		tbl, err := self.GetTable(ownerID, d.Table)
 		if err != nil {
+        elog.Debug(fmt.Sprintf("swarmdb SelectHandler Get err GetTable %v", err))
 			return resp, err
 		}
+        elog.Debug(fmt.Sprintf("swarmdb SelectHandler Get call tbl Get %v %v", d.Key, tbl))
 		ret, err := tbl.Get(d.Key)
 		if err != nil {
 			return resp, err
@@ -917,6 +924,7 @@ func (t *Table) Put(row map[string]interface{}) (err error) {
 		}
 	}
 
+	t.buffered = false
 	if t.buffered {
 
 	} else {
@@ -990,6 +998,7 @@ func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 }
 
 func (t *Table) Get(key string) (out []byte, err error) {
+        elog.Debug(fmt.Sprintf("swarmdb Table Get %v", t))
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:Get|%s", key))
 	primaryColumnName := t.primaryColumnName
 	if t.columns[primaryColumnName] == nil {
@@ -1003,8 +1012,10 @@ func (t *Table) Get(key string) (out []byte, err error) {
 	fmt.Printf("\n GET key: (%s)%v\n", key, key)
 	k := convertStringToKey(t.columns[primaryColumnName].columnType, key)
 	fmt.Printf("\n GET k: (%s)%v\n", k, k)
+        elog.Debug(fmt.Sprintf("swarmdb Table Get 1 %v", k))
 
 	v, _, err2 := t.columns[primaryColumnName].dbaccess.Get(k)
+        elog.Debug(fmt.Sprintf("swarmdb Table Get 2 %v %v", k, v))
 	fmt.Printf("\n v retrieved from db traversal get = %s", v)
 	if err2 != nil {
 		fmt.Printf("\nError traversing tree: %s", err.Error())

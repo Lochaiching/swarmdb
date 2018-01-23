@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+	//"github.com/ethereum/go-ethereum/swarmdb"
 )
 
 const requesterCount = 3
@@ -96,7 +97,6 @@ func (self *forwarder) Store(chunk *storage.Chunk) {
 		stype:	0,
 	}
 	
-	log.Trace(fmt.Sprintf("forwarder.Store: chunk = %v msg = %v",  chunk, msg))
 	var source *peer
 	if chunk.Source != nil {
 		source = chunk.Source.(*peer)
@@ -113,13 +113,14 @@ func (self *forwarder) Store(chunk *storage.Chunk) {
 }
 
 // need to think to move the other place since forwarder is supporting ChunkStore
-func (self *forwarder) StoreDB(key, value []byte, bd *time.Time) {
+func (self *forwarder) StoreDB(key, value []byte, option *storage.CloudOption) {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.StoreDB :request peers to store swarmdb :%v", key))
         var n int
-        msg := &storeRequestMsgData{
+        msg := &sDBStoreRequestMsgData{
                 Key:   storage.Key(key),
                 SData: value,
-		stype : 2,
-		birthTime : bd,
+		rtype : 2,
+		option : option,
         }
 
         var source *peer
@@ -192,12 +193,12 @@ func (self *forwarder) Deliver(chunk *storage.Chunk) {
 // depending on syncer mode and priority settings and sync request type
 // this either goes via confirmation roundtrip or queued or pushed directly
 func Deliver(p *peer, req interface{}, ty int) {
-		log.Debug(fmt.Sprintf("forwarder.Deliver: peer %v (ty %v)", p, ty))
-
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.Deliver :request peer %v to store (%T) :%d", p, req, ty))
 	p.syncer.addRequest(req, ty)
 }
 
 // push chunk over to peer
 func Push(p *peer, key storage.Key, priority uint) {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.Push :request peer %v to deliver (%T) :%d", p, key, priority))
 	p.syncer.doDelivery(key, priority, p.syncer.quit)
 }
