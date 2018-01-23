@@ -33,7 +33,8 @@ func NewENSSimple(path string) (ens ENSSimple, err error) {
 
 	//conn, err := ethclient.Dial("/var/www/vhosts/data/geth.ipc")      // this is working OK
 	//conn, err := ethclient.Dial("http://127.0.0.1:8545")              // this is working OK	   //  JSON-RPC Endpoint   https://github.com/ethereum/wiki/wiki/JSON-RPC
-	conn, err := ethclient.Dial("http://35.224.194.195:8545")
+	//conn, err := ethclient.Dial("http://35.224.194.195:8545")
+	conn, err := ethclient.Dial("http://ens.wolk.com:8545")	
 
 	if err != nil {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
