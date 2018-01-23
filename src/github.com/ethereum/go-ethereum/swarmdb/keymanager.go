@@ -21,12 +21,12 @@ package swarmdb
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"golang.org/x/crypto/nacl/box"
-	"encoding/hex"
 	// "os"
 )
 
@@ -65,7 +65,7 @@ func NewKeyManager(c *SWARMDBConfig) (keymgr KeyManager, err error) {
 						} else {
 							u.sk = crypto.FromECDSA(k.PrivateKey)
 							u.pk = crypto.FromECDSAPub(&k.PrivateKey.PublicKey)
-							
+
 							copy(u.publicK[0:], u.pk[0:])
 							copy(u.secretK[0:], u.sk[0:])
 						}
@@ -99,17 +99,17 @@ func NewKeyManagerWithoutConfig(filename string, passphrase string) (keymgr KeyM
 	err = keymgr.keystore.Unlock(account, passphrase)
 	if err != nil {
 		return keymgr, &SWARMDBError{message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] Unlock %s", err.Error())}
-	} 
+	}
 	fmt.Printf("Unlocked account with passphras %s\n", passphrase)
 
 	// get the Key of the new account account from the keystore
 	_, k, err := keymgr.keystore.WgetDecryptedKey(account, passphrase)
 	if err != nil {
 		return keymgr, &SWARMDBError{message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] WgetDecryptedKey %s", err.Error())}
-	} 
+	}
 	fmt.Printf("Key: %v\n", k)
 
-	// make a config using the { privatekey, address, passphrase } 
+	// make a config using the { privatekey, address, passphrase }
 	privateKey := hex.EncodeToString(crypto.FromECDSA(k.PrivateKey))
 
 	config := GenerateSampleSWARMDBConfig(privateKey, address, passphrase)
@@ -119,7 +119,7 @@ func NewKeyManagerWithoutConfig(filename string, passphrase string) (keymgr KeyM
 	err = SaveSWARMDBConfig(config, filename)
 	if err != nil {
 		return keymgr, &SWARMDBError{message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] SaveSWARMDBConfig %s", err.Error())}
-	} 
+	}
 	fmt.Printf("Saved config in %s:\n", filename)
 	return keymgr, nil
 }
@@ -149,11 +149,11 @@ func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUs
 			sig[64] -= 27
 		}
 	} else {
-		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature length %d [%x]", len(sig), sig)}
+		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature length %d [%x]", len(sig), sig), ErrorCode: 419, ErrorMessage: "Invalid Signature Length: Must be 65 characters"}
 	}
 	pubKey, err := crypto.SigToPub(msg_hash, sig)
 	if err != nil {
-		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature - Cannot get public key")}
+		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature - Cannot get public key"), ErrorCode: 420, ErrorMessage: "Invalid Signature: Unable to Retrieve Public Key"}
 	} else {
 		address := crypto.PubkeyToAddress(*pubKey)
 		for _, u0 := range self.config.Users {
@@ -162,7 +162,7 @@ func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUs
 				return &u0, nil
 			}
 		}
-		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Address not found: %x", address.Bytes())}
+		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Address not found: %x", address.Bytes()), ErrorCode: 421, ErrorMessage: "User Address not configured on connected node."}
 	}
 
 }

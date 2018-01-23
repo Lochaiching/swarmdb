@@ -17,9 +17,9 @@ package swarmdb
 
 import (
 	"database/sql"
-	_ "github.com/mattn/go-sqlite3"
-	"github.com/ethereum/go-ethereum/log"
 	"fmt"
+	"github.com/ethereum/go-ethereum/log"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func NewENSSimulation(path string) (ens ENSSimulation, err error) {
