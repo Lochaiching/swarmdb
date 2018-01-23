@@ -319,6 +319,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err er
 	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
 	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
+//// TODO: getting chunkBirthDT and the other options from database
 /*
         rows, err := self.db.Query("SELECT chunkBirthDT FROM chunk where chunkkey = k")
         defer rows.Close()
@@ -331,7 +332,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err er
         }
 */
 	bts := ts
-log.Debug(fmt.Sprintf("dbchunkstore StoreKChunk calling storeDB %v %v %v", k,  v, bts))
+        log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.StoreKChunk  : put %v to swarmdb", k))
         self.cloud.StoreDB(k, v, &storage.CloudOption{BirthDT: &bts})
 	return nil
 }
@@ -411,6 +412,7 @@ func (self *DBChunkstore) StoreChunk(v []byte, encrypted int) (k []byte, err err
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
 	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
 	bts := ts
+//// TODO: getting chunkBirthDT and the other options from database
 /*
 	rows, err := self.db.Query("SELECT chunkBirthDT FROM chunk where chunkkey = k")
 	defer rows.Close()
@@ -422,7 +424,7 @@ func (self *DBChunkstore) StoreChunk(v []byte, encrypted int) (k []byte, err err
 		}
 	}
 */
-log.Debug(fmt.Sprintf("dbchunkstore calling storeDB %v %v %v", k,  v, bts))
+        log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.StoreKChunk  : put %v to swarmdb", k))
 	self.cloud.StoreDB(k, v, &storage.CloudOption{BirthDT:&bts})
 	return k, nil
 }
