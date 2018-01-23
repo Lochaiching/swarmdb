@@ -48,7 +48,7 @@ https://www.docker.com/community-edition#/download
 
 Deploying the image above will run SWARMDB in the Docker container. To verify if SWARMDB is running:
 
-    $ ps aux | grep wolkdb | grep -v grep
+    $ ps aux | grep wolkdb | grep -vE 'wolkdb-start|grep'
 
 ## SwarmDB Configurations 
 
