@@ -61,8 +61,8 @@ func (self *Depo) HandleUnsyncedKeysMsg(req *unsyncedKeysMsgData, p *peer) error
 	for _, req := range unsynced {
 		log.Trace(fmt.Sprintf("Depo.HandleUnsyncedKeysMsg: received req %v %v", req, req.Key))
 		if req.Priority == 3{
-///// Mayumi : need to implement to store data to swarmdb
 			ret, _, err := self.sdbStore.RetrieveDB([]byte(req.Key))
+///// Mayumi : need to implement to store data to swarmdb : check version???
 			if err != nil || ret == nil{
 				missing = append(missing, req)
 			}
@@ -74,6 +74,7 @@ func (self *Depo) HandleUnsyncedKeysMsg(req *unsyncedKeysMsgData, p *peer) error
 			}
 		}
 	}
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] depo.HandleUnsyncedKeysMsg :received %v unsynced keys: %v missing. new state: %v", len(unsynced), len(missing), req.State))
 	log.Debug(fmt.Sprintf("Depo.HandleUnsyncedKeysMsg: received %v unsynced keys: %v missing. new state: %v", len(unsynced), len(missing), req.State))
 	// send delivery request with missing keys
 	err = p.deliveryRequest(missing)
@@ -92,7 +93,8 @@ func (self *Depo) HandleUnsyncedKeysMsg(req *unsyncedKeysMsgData, p *peer) error
 // * the message implies remote peer wants more, so trigger for
 // * new outgoing unsynced keys message is fired
 func (self *Depo) HandleDeliveryRequestMsg(req *deliveryRequestMsgData, p *peer) error {
-	log.Trace(fmt.Sprintf("Depo.HandleDeliveryRequestMsg: req %v ", req))
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] depo.HandleDeliveryRequestMsg :received %v from %v", req, p))
+	log.Trace(fmt.Sprintf("Depo.HandleDeliveryRequestMsg: req %v %v", req, p))
 
 	deliver := req.Deliver
 	// queue the actual delivery of a chunk ()
@@ -159,118 +161,30 @@ func (self *Depo) HandleStoreRequestMsg(req *storeRequestMsgData, p *peer) {
 }
 
 func (self *Depo) HandleSdbStoreRequestMsg(req *sDBStoreRequestMsgData, p *peer) {
-        //var islocal bool
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] depo.HandleSdbStoreRequestMsg :received %v from %v", req.Key, p))
+        log.Trace(fmt.Sprintf("Depo.HandleSdbStoreRequest: %v %v", req.Key, p))
         req.from = p
-        _, err := self.sdbStore.RetrieveDBChunk(req.Key)
+        ret, opt, err := self.sdbStore.RetrieveDB(req.Key)
 	if err != nil{
-        	self.sdbStore.StoreKDBChunk([]byte(req.Key), req.SData)
+        	self.sdbStore.StoreDB([]byte(req.Key), req.SData, req.option)
 	}
-	ts := time.Now()
-        go self.sdbStore.SwarmStore.StoreDB([]byte(req.Key), req.SData, &ts)
+///// Mayumi :need to change args. 
+        self.sdbStore.SwarmStore.StoreDB([]byte(req.Key), req.SData, opt)
 		
-/*
         switch {
         case err != nil:
-                log.Trace(fmt.Sprintf("Depo.handleStoreRequest: %v not found locally. create new chunk/request", req.Key))
-                // not found in memory cache, ie., a genuine store request
-                // create chunk
-                chunk = storage.NewChunk(req.Key, nil)
+                log.Trace(fmt.Sprintf("Depo.HandleSdbStoreRequest: %v not found locally. create new chunk/request", req.Key))
 
-        case chunk.SData == nil:
-                // found chunk in memory store, needs the data, validate now
-                log.Trace(fmt.Sprintf("Depo.HandleStoreRequest: %v. request entry found", req))
+        case ret== nil:
+                log.Trace(fmt.Sprintf("Depo.HandleSdbStoreRequest: %v. request entry found", req))
 
         default:
                 // data is found, store request ignored
                 // this should update access count?
-                log.Trace(fmt.Sprintf("Depo.HandleStoreRequest: %v found locally. ignore.", req))
-                islocal = true
-                //return
+                log.Trace(fmt.Sprintf("Depo.HandleSdbStoreRequest: %v found locally. ignore.", req))
         }
-
-        hasher := self.hashfunc()
-        hasher.Write(req.SData)
-        log.Trace(fmt.Sprintf("Depo.HandleStoreRequest: SData: %v %v", req.SData, req))
-
-        if !bytes.Equal(hasher.Sum(nil), req.Key) {
-                // data does not validate, ignore
-                // TODO: peer should be penalised/dropped?
-                log.Warn(fmt.Sprintf("Depo.HandleStoreRequest: chunk invalid. store request ignored: %v", req))
-                return
-        }
-
-        if islocal {
-                return
-        }
-        // update chunk with size and data
-        chunk.SData = req.SData // protocol validates that SData is minimum 9 bytes long (int64 size  + at least one byte of data)
-        chunk.Size = int64(binary.LittleEndian.Uint64(req.SData[0:8]))
-        log.Trace(fmt.Sprintf("delivery of %v from %v", chunk, p))
-        chunk.Source = p
-*/
+	return
 }
-
-
-
-/// it accept only <4k byte data
-func (self *Depo) HandleStoreRequestDBMsg(req *storeRequestDBMsgData, p *peer) {
-    var islocal bool
-    req.from = p
-    chunk, err := self.localStore.Get(req.Key)
-    switch {
-    case err != nil:
-        log.Trace(fmt.Sprintf("Depo.handleStoreRequest: %v not found locally. create new chunk/request", req.Key))
-        // not found in memory cache, ie., a genuine store request
-        // create chunk
-        chunk = storage.NewChunk(req.Key, nil)
-
-    case chunk.SData == nil:
-        // found chunk in memory store, needs the data, validate now
-        log.Trace(fmt.Sprintf("Depo.HandleStoreRequest: %v. request entry found", req))
-
-    default:
-        // data is found, store request ignored
-        // this should update access count?
-        log.Trace(fmt.Sprintf("Depo.HandleStoreRequest: %v found locally. ignore.", req))
-        islocal = true
-        //return
-    }
-
-    hasher := self.hashfunc()
-    hasher.Write(req.SData)
-/*
-	hashermain := self.hashfunc()
-	keylength := len(req.Key)
-	dummydata := req.SData[len(req.SData)-keylength:]
-	hashermain.Write(dummydata)
-	for i := 0; i < keylength; i++{
-		dummyhash[len(req.SData)-keylength+i] = "Z"
-	}
-*/
-    if !bytes.Equal(hasher.Sum(nil), req.Key) {
-        // data does not validate, ignore
-        // TODO: peer should be penalised/dropped?
-        log.Warn(fmt.Sprintf("Depo.HandleStoreRequest: chunk invalid. store request ignored: %v", req))
-        return
-    }
-
-    if islocal {
-        return
-    }
-    // update chunk with size and data
-    chunk.SData = req.SData // protocol validates that SData is minimum 9 bytes long (int64 size  + at least one byte of data)
-    chunk.Size = int64(binary.LittleEndian.Uint64(req.SData[0:8]))
-    log.Trace(fmt.Sprintf("delivery of %v from %v", chunk, p))
-    chunk.Source = p
-    self.netStore.Put(chunk)
-}
-
-
-
-
-
-
-
 
 // entrypoint for retrieve requests coming from the bzz wire protocol
 // checks swap balance - return if peer has no credit
@@ -312,6 +226,45 @@ func (self *Depo) HandleRetrieveRequestMsg(req *retrieveRequestMsgData, p *peer)
 	}
 }
 
+func (self *Depo) HandleSdbRetrieveRequestMsg(req *retrieveRequestMsgData, p *peer) {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] depo.HandleSdbRetrieveRequestMsg :received %v from %v", req.Key, p))
+        req.from = p
+/*
+        // swap - record credit for 1 request
+        // note that only charge actual reqsearches
+        var err error
+        if p.swap != nil {
+                err = p.swap.Add(1)
+        }
+        if err != nil {
+                log.Warn(fmt.Sprintf("Depo.HandleRetrieveRequest: %v - cannot process request: %v", req.Key.Log(), err))
+                return
+        }
+*/
+
+	// okay to ignore err since it means this node doesn't have the key's result
+	ret, opt, _ := self.sdbStore.RetrieveDB([]byte(req.Key))
+////TODO
+        //req = self.strategyUpdateRequest(chunk.Req, req)
+
+        // check if we can immediately deliver
+	if ret != nil {
+                log.Trace(fmt.Sprintf("Depo.HandleSdbRetrieveRequest: %v - content found, delivering...", req.Key.Log()))
+		sreq := &sDBStoreRequestMsgData{
+			Id:             req.Id,
+			Key:            req.Key,
+			SData:          ret,
+			option:         opt,
+			rtype:          2,
+			requestTimeout: req.timeout, //
+		}
+                log.Debug(fmt.Sprintf("Depo.HandleSdbRetrieveRequest: %v - sreq", req.Key.Log(), sreq))
+                p.syncer.addRequest(sreq, DeliverReq)
+	} else {
+                log.Trace(fmt.Sprintf("Depo.HandleSdbRetrieveRequest: %v - content not found locally. asked swarm for help. will get back", req.Key.Log()))
+	}
+}
+
 // add peer request the chunk and decides the timeout for the response if still searching
 func (self *Depo) strategyUpdateRequest(rs *storage.RequestStatus, origReq *retrieveRequestMsgData) (req *retrieveRequestMsgData) {
 	log.Trace(fmt.Sprintf("Depo.strategyUpdateRequest: key %v", origReq.Key.Log()))
@@ -346,21 +299,4 @@ func (self *Depo) addRequester(rs *storage.RequestStatus, req *retrieveRequestMs
 	list := rs.Requesters[req.Id]
 	rs.Requesters[req.Id] = append(list, req)
 }
-
-
-
-
-
-/*
-func (self *Depo) HandleUpdateManifestRequestMsg(req *manifestRequestMsgData, p *peer) {
-    var islocal bool
-    req.from = p
-	deviceid := req.Key
-	hash		 := req.Key
-    self.manifestStore.Put([]byte(deviceid), []byte(hash))
-}
-*/
-
-
-
 
