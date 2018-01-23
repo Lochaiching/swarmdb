@@ -286,7 +286,7 @@ func main() {
 		}
 
 		response, err := session.DBTable.Put(sRows)
-		fmt.Printf("response: [%v] err: [%v]\n", resp, err)
+		fmt.Printf("response: [%v] err: [%v]\n", response, err)
 		if err != nil {
 			fmt.Printf("should have gotten to the error!\n")
 			result, _ := vm.ToValue(err.Error())
