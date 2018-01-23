@@ -282,9 +282,20 @@ const (
 	RT_QUERY = "Query"
 )
 
-// SwarmDB Configuration for a node kept here
+// SwarmDB Configuration Defaults
 const (
-	SWARMDBCONF_FILE = "/swarmdb/swarmdb.conf"
+	SWARMDBCONF_FILE = "/usr/local/swarmdb/etc/swarmdb.conf"
+	SWARMDBCONF_DEFAULT_PASSPHRASE = "wolk"
+	SWARMDBCONF_CHUNKDB_PATH = "/usr/local/swarmdb/data"
+	SWARMDBCONF_KEYSTORE_PATH = "/usr/local/swarmdb/data/keystore"
+	SWARMDBCONF_ENSDOMAIN = "ens.wolk.com"
+	SWARMDBCONF_LISTENADDR = "0.0.0.0"
+	SWARMDBCONF_PORTTCP = 2001
+	SWARMDBCONF_PORTHTTP = 8501
+	SWARMDBCONF_PORTENS = 8545
+	SWARMDBCONF_CURRENCY = "WLK"
+	SWARMDBCONF_TARGET_COST_STORAGE = 2.71828
+	SWARMDBCONF_TARGET_COST_BANDWIDTH = 3.14159
 )
 
 type SWARMDBConfig struct {
@@ -297,9 +308,9 @@ type SWARMDBConfig struct {
 	Address    string `json:"address,omitempty"`    // the address that earns, must be in keystore directory
 	PrivateKey string `json:"privateKey,omitempty"` // to access child chain
 
-	ChunkDBPath    string        `json:"chunkDBPath,omitempty"`    // the directory of the SQLite3 chunk databases
+	ChunkDBPath    string        `json:"chunkDBPath,omitempty"`    // the directory of the SQLite3 chunk databases (SWARMDBCONF_CHUNKDB_PATH)
+	KeystorePath   string        `json:"usersKeysPath,omitempty"`  // directory containing the keystore of Ethereum wallets (SWARMDBCONF_KEYSTORE_PATH)
 	Authentication int           `json:"authentication,omitempty"` // 0 - authentication is not required, 1 - required 2 - only users data stored
-	UsersKeyPath   string        `json:"usersKeysPath,omitempty"`  // directory containing the keystore of Ethereum wallets
 	Users          []SWARMDBUser `json:"users,omitempty"`          // array of users with permissions
 
 	Currency            string  `json:"currency,omitempty"`            //
