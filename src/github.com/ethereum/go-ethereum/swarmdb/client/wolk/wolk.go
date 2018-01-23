@@ -53,9 +53,6 @@ type IncomingGet struct {
 var session *Session
 var DBC *swarmdb.SWARMDBConnection
 
-//TODO: for production, take out TEST_NOCONNECT
-var TEST_NOCONNECT bool
-
 //TODO: standardize "user-friendly" errs
 //TODO: take out fmt.Printf stmts
 func main() {
@@ -64,17 +61,11 @@ func main() {
 	session = NewSession()
 	var err error
 
-	TEST_NOCONNECT = false
-
-	if !TEST_NOCONNECT {
-		dbc, err := swarmdb.NewSWARMDBConnection()
-		DBC = &dbc
-		if err != nil {
-			fmt.Printf("Err: %v\n", err)
-			os.Exit(0)
-		}
-	} else {
-		fmt.Printf("DBC, err := swarmdb.NewSWARMDBConnection()\n")
+	dbc, err := swarmdb.NewSWARMDBConnection()
+	DBC = &dbc
+	if err != nil {
+		fmt.Printf("Err: %v\n", err)
+		os.Exit(0)
 	}
 
 	vm.Set("openSession", func(call otto.FunctionCall) otto.Value {
@@ -89,6 +80,7 @@ func main() {
 
 		arg0 := call.Argument(0).String()
 		if err := json.Unmarshal([]byte(arg0), &session); err != nil {
+			err = fmt.Errorf("ERR: %v\n", err)
 			result, _ := vm.ToValue(err.Error())
 			//TODO: Error Checking
 			return result
@@ -101,39 +93,26 @@ func main() {
 		//??
 		//}
 		if len(session.TableName) == 0 {
-			result, _ := vm.ToValue("No table name")
+			result, _ := vm.ToValue("ERR: no table name\n")
 			//TODO: Error Checking
 			return result
 		}
 		if len(session.TableOwner) == 0 {
 			//no input tableowner means session owner is table owner
-			if !(TEST_NOCONNECT) {
-				session.TableOwner = DBC.GetOwnerID()
-				//fmt.Printf("session's tableowner gotten from dbc: %v\n", session.TableOwner)
-			} else {
-				session.TableOwner = "faketableowner"
-			}
-		} else {
-			//fmt.Printf("session's tableowner is: %v\n", session.TableOwner)
+			session.TableOwner = DBC.GetOwnerID()
+			//fmt.Printf("session's tableowner gotten from dbc: %v\n", session.TableOwner)
 		}
 
 		//open up session with table specified
-		if !(TEST_NOCONNECT) {
-			session.DBTable, err = DBC.Open(session.TableName, session.TableOwner, *session.Encrypted)
-		} else {
-			fmt.Printf("DBC.Open(%v, %v)\n", session.TableName, *session.Encrypted)
-		}
-		//fmt.Printf("opening session...\n")
-
+		session.DBTable, err = DBC.Open(session.TableName, session.TableOwner, *session.Encrypted)
 		if err != nil {
 			result, _ := vm.ToValue(err.Error())
 			return result
 		}
 
-		//fmt.Printf("Session opened.\n")
 		session.IsOpen = true
 		//fmt.Printf("session is: %+v\n", session)
-		result, _ := vm.ToValue(true)
+		result, _ := vm.ToValue("session opened\n")
 		//TODO: Error Checking
 		return result
 
@@ -141,7 +120,7 @@ func main() {
 
 	vm.Set("closeSession", func(call otto.FunctionCall) otto.Value {
 		if !session.IsOpen {
-			result, _ := vm.ToValue("No open session to close")
+			result, _ := vm.ToValue("ERR: No open session to close\n")
 			//TODO: Error Checking
 			return result
 		}
@@ -154,7 +133,7 @@ func main() {
 				return result
 			}
 		*/
-		result, _ := vm.ToValue(true)
+		result, _ := vm.ToValue("session closed\n")
 		//TODO: Error Checking
 		return result
 
@@ -163,7 +142,7 @@ func main() {
 	vm.Set("createTable", func(call otto.FunctionCall) otto.Value {
 
 		if !session.IsOpen {
-			result, _ := vm.ToValue("Please open session first.")
+			result, _ := vm.ToValue("ERR: Please open session first\n")
 			//TODO: Error Checking
 			return result
 		}
@@ -172,6 +151,7 @@ func main() {
 
 		var in IncomingInfo
 		if err := json.Unmarshal([]byte(raw), &in); err != nil {
+			err := fmt.Errorf("ERR: %v\n", err)
 			result, _ := vm.ToValue(err.Error())
 			//TODO: Error Checking
 			return result
@@ -179,7 +159,7 @@ func main() {
 		//fmt.Printf("incoming table:\n%+v\n", in)
 
 		if len(in.Info) == 0 {
-			result, _ := vm.ToValue("No table columns specified")
+			result, _ := vm.ToValue("ERR: No table columns specified\n")
 			//TODO: Error Checking
 			return result
 		}
@@ -196,27 +176,32 @@ func main() {
 			var sCol swarmdb.Column
 			colbyte, err := json.Marshal(col.(map[string]interface{}))
 			if err != nil {
+				err = fmt.Errorf("ERR: %+v, %v\n", col, err)
 				result, _ := vm.ToValue(err.Error())
 				return result
 			}
 			colbyte = replaceSwarmDBTypes(colbyte)
 			if err := json.Unmarshal(colbyte, &sCol); err != nil {
+				err = fmt.Errorf("ERR: %+v, %v\n", col, err)
 				result, _ := vm.ToValue(err.Error())
 				//TODO: Error Checking
 				return result
 			}
 			if len(sCol.ColumnName) == 0 {
-				result, _ := vm.ToValue("needs column name")
+				err = fmt.Errorf("ERR: %+v, needs column name\n", sCol)
+				result, _ := vm.ToValue(err.Error())
 				//TODO: Error Checking
 				return result
 			}
 			if sCol.ColumnType == 0 {
-				result, _ := vm.ToValue("needs column type")
+				err = fmt.Errorf("ERR %+v, needs column type\n", sCol)
+				result, _ := vm.ToValue(err.Error())
 				//TODO: Error Checking
 				return result
 			}
 			if sCol.IndexType == 0 {
-				result, _ := vm.ToValue("needs index type")
+				err = fmt.Errorf("ERR %+v, needs index type\n", sCol)
+				result, _ := vm.ToValue(err.Error())
 				//TODO: Error Checking
 				return result
 			}
@@ -226,26 +211,21 @@ func main() {
 			sCols = append(sCols, sCol)
 		}
 		if !hasPrimary {
-			result, _ := vm.ToValue("needs primary key")
+			result, _ := vm.ToValue("ERR: needs primary key\n")
 			//TODO: Error Checking
 			return result
 		}
 
 		//TODO: need to check for duplicate table here (need to hook up 'get table info' or use ens)
 
-		if !TEST_NOCONNECT {
-			session.DBTable, err = DBC.CreateTable(session.TableOwner, *session.Encrypted, session.TableName, sCols)
-			if err != nil {
-				result, _ := vm.ToValue(err.Error())
-				//TODO: Error Checking
-				return result
-			}
-		} else {
-			fmt.Printf("DBC.CreateTable(%v, %v, %v, %+v)\n", session.TableOwner, *session.Encrypted, session.TableName, sCols)
+		session.DBTable, err = DBC.CreateTable(session.TableOwner, *session.Encrypted, session.TableName, sCols)
+		if err != nil {
+			result, _ := vm.ToValue(err.Error())
+			//TODO: Error Checking
+			return result
 		}
 
-		//fmt.Printf("Success.\n")
-		result, _ := vm.ToValue(true)
+		result, _ := vm.ToValue("table created\n")
 		//TODO: Error Checking
 		return result
 
@@ -254,32 +234,22 @@ func main() {
 			tbl_name := call.Argument(0).String()       // e.g. "contacts"
 			tbl_descriptor := call.Argument(1).Object() // Export(  ) // {"column": "email", "type": "string", "primary": true, "index": "hash" }
 			column, _ := tbl_descriptor.Get("column")
-			//TODO: Error Checking
 			column_string, _ := column.ToString()
-			//TODO: Error Checking
 			primary, _ := tbl_descriptor.Get("primary")
-			//TODO: Error Checking
 			primary_string, _ := primary.ToString
-			//TODO: Error Checking
 			primary_bool, _ := primary.ToBoolean()
-			//TODO: Error Checking
 			index, _ := tbl_descriptor.Get("index")
-			//TODO: Error Checking
 			index_string, _ := index.ToString()
-			//TODO: Error Checking
 
 			//make columns into Columns
 			succ := swarmdb.CreateTable(index_string, tbl_name, column_string, primary_bool, index_string)
 		*/
 	})
 
-	// swarmdb> add("contacts", { "email": "rodney@wolk.com", "name": "Rodney", "age": 38 })
-	// true
-
 	vm.Set("addRow", func(call otto.FunctionCall) otto.Value {
 
 		if !session.IsOpen {
-			result, _ := vm.ToValue("Please open session first.")
+			result, _ := vm.ToValue("ERR: Please open session first\n")
 			//TODO: Error Checking
 			return result
 		}
@@ -288,13 +258,14 @@ func main() {
 
 		var in IncomingInfo
 		if err := json.Unmarshal([]byte(raw), &in); err != nil {
+			err = fmt.Errorf("ERR: %v\n", err)
 			result, _ := vm.ToValue(err.Error())
 			//TODO: Error Checking
 			return result
 		}
 		//fmt.Printf("incoming rows:\n%+v\n", in)
 		if len(in.Info) == 0 {
-			result, _ := vm.ToValue("No rows specified")
+			result, _ := vm.ToValue("ERR: No rows specified\n")
 			//TODO: Error Checking
 			return result
 		}
@@ -308,31 +279,22 @@ func main() {
 		for _, row := range in.Info {
 			sRow := swarmdb.NewRow()
 			sRow.Cells = row.(map[string]interface{})
-			/*
-				if err := json.Unmarshal([]byte(row.(string)), &sRow.Cells); err != nil {
-					result, _ := vm.ToValue(err.Error())
-					return result
-				}*/
-
 			//should check for primary key in each row?
 			//should check for duplicate rows?
 			//should check for rows that already exist here? -- or kick the can down the line?
 			sRows = append(sRows, sRow)
 		}
 
-		var response string
-		if !TEST_NOCONNECT {
-			response, err = session.DBTable.Put(sRows)
-			if err != nil {
-				result, _ := vm.ToValue(err.Error())
-				//TODO: Error Checking
-				return result
-			}
-		} else {
-			fmt.Printf("session.DBTable.Put(%+v)\n", sRows)
+		response, err := session.DBTable.Put(sRows)
+		fmt.Printf("response: [%v] err: [%v]\n", resp, err)
+		if err != nil {
+			fmt.Printf("should have gotten to the error!\n")
+			result, _ := vm.ToValue(err.Error())
+			//TODO: Error Checking
+			return result
 		}
 
-		result, _ := vm.ToValue(response)
+		result, _ := vm.ToValue("row(s) added\n")
 		//TODO: Error Checking
 		return result
 
@@ -356,68 +318,46 @@ func main() {
 		*/
 	})
 
-	// swarmdb> get("contacts", "rodney@wolk.com")
-	// { "email": "rodney@wolk.com", "name": "Rodney", "age": 38 }
 	vm.Set("get", func(call otto.FunctionCall) otto.Value {
 		if !session.IsOpen {
-			result, _ := vm.ToValue("Please open session first.")
+			result, _ := vm.ToValue("ERR: Please open session first\n")
 			//TODO: Error Checking
 			return result
 		}
 		raw := call.Argument(0).String()
 		//fmt.Printf("key:\n%s\n", raw)
 
-		if !TEST_NOCONNECT {
-			dbResponse, err := session.DBTable.Get(raw)
-			if err != nil {
-				result, _ := vm.ToValue(err.Error())
-				//TODO: Error Checking
-				return result
-			}
-			result, _ := vm.ToValue(dbResponse)
-			//TODO: Error Checking
-			return result
-
-		} else {
-			fmt.Printf("session.DBTable.Get(%s)\n", raw)
-			result, _ := vm.ToValue("test response")
+		dbResponse, err := session.DBTable.Get(raw)
+		if err != nil {
+			result, _ := vm.ToValue(err.Error())
 			//TODO: Error Checking
 			return result
 		}
+		result, _ := vm.ToValue(dbResponse)
+		//TODO: Error Checking
+		return result
 
 	})
 
-	// swarmdb> query("select name, age from contacts where email = 'rodney@wolk.com'")
-	// records should come back with in an array
-	// [ {"name":"Sourabh Niyogi", "age":45 }, {"name":"Francesca Niyogi", "age":49} ...]
 	vm.Set("query", func(call otto.FunctionCall) otto.Value {
 
 		if !session.IsOpen {
-			result, _ := vm.ToValue("Please open session first.")
+			result, _ := vm.ToValue("ERR: Please open session first\n")
 			//TODO: Error Checking
 			return result
 		}
 		raw := call.Argument(0).String()
 		//fmt.Printf("raw:\n%s\n", raw)
 		//fmt.Printf("session used: %+v\n", session)
-		if !TEST_NOCONNECT {
-			dbResponse, err := session.DBTable.Query(raw)
-			if err != nil {
-				result, _ := vm.ToValue(err.Error())
-				//TODO: Error Checking
-				return result
-			}
-			result, _ := vm.ToValue(dbResponse)
-			//TODO: Error Checking
-			return result
-
-		} else {
-			fmt.Printf("session.DBTable.Query(%s)\n", raw)
-			result, _ := vm.ToValue("test response")
+		dbResponse, err := session.DBTable.Query(raw)
+		if err != nil {
+			result, _ := vm.ToValue(err.Error())
 			//TODO: Error Checking
 			return result
 		}
-
+		result, _ := vm.ToValue(dbResponse)
+		//TODO: Error Checking
+		return result
 	})
 
 	//TODO:
