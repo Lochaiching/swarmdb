@@ -22,6 +22,7 @@ import (
 	//"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
+	//"github.com/ethereum/go-ethereum/log"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -454,7 +455,7 @@ func (self *SwarmDB) Scan(u *SWARMDBUser, tableOwnerID string, tableName string,
 
 func (self *SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName string) (tbl *Table, err error) {
 	if len(tableName) == 0 {
-		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetTable] invalid table [%s]", tableName)}
+		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetTable] tablename missing "), ErrorCode:426, ErrorMessage:"Table Name Missing"}
 	}
 	if len(tableOwnerID) == 0 {
 		tableOwnerID = u.Address
@@ -469,8 +470,11 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName str
 		tbl = self.NewTable(u.Address, tableName, 1) // TODO: check why encrypted is a parameter?
 		err = tbl.OpenTable(u)
 		if err != nil {
-			fmt.Printf("[swarmdb:GetTable] OpenTable %s", err.Error())
-			return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error())}
+			if wolkErr, ok := err.(*SWARMDBError); ok {
+				return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error()), ErrorCode:wolkErr.ErrorCode, ErrorMessage:wolkErr.ErrorMessage}
+			} else {
+				return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error())}
+			}
 		}
 		return tbl, nil
 	}
@@ -496,14 +500,19 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		//TODO: Upon further review, could make a NewTable and then call this from tbl. ---
 		_, err := self.CreateTable(u, d.Table, d.Columns, d.Encrypted)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] CreateTable %s", err.Error())}
+			return resp, err 
+			//return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] CreateTable %s", err.Error()) }
 		}
 		return OK_RESPONSE, err
 	case "Put":
 		// fmt.Printf("\nPut DATA: [%+v]", d)
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error())}
+			if wolkErr, ok := err.(*SWARMDBError); ok {
+				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", wolkErr.Error()), ErrorCode: wolkErr.ErrorCode, ErrorMessage: wolkErr.ErrorMessage}
+			} else {
+				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error())}
+			}
 		}
 		tblInfo, err := tbl.GetTableInfo()
 		if err != nil {
@@ -784,26 +793,26 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 	columnsMax := 30
 	primaryColumnName := ""
 	if len(columns) > columnsMax {
-		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] Max Allowed Columns for a table is %s and you submit %s", columnsMax, len(columns))}
+		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] Max Allowed Columns for a table is %s and you submit %s", columnsMax, len(columns)), ErrorCode:409, ErrorMessage:fmt.Sprintf("Max Allowed Columns exceeded - [%d] supplied, max is [MaxNumColumns]", len(columns), columnsMax)}
 	}
 
 	//error checking
 	for _, columninfo := range columns {
 		if columninfo.Primary > 0 {
 			if len(primaryColumnName) > 0 {
-				return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] More than one primary column")}
+				return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] More than one primary column"), ErrorCode:406, ErrorMessage:"Multiple Primary keys specified in Create Table"}
 			}
 			primaryColumnName = columninfo.ColumnName
 		}
 		if !CheckColumnType(columninfo.ColumnType) {
-			return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] bad columntype")}
+			return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] bad columntype"), ErrorCode:407, ErrorMessage:"Invalid ColumnType: [columnType]"}
 		}
 		if !CheckIndexType(columninfo.IndexType) {
-			return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] bad indextype")}
+			return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] bad indextype"), ErrorCode:408, ErrorMessage:"Invalid IndexType: [indexType]"}
 		}
 	}
 	if len(primaryColumnName) == 0 {
-		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] no primary column indicated")}
+		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] no primary column indicated"), ErrorCode:405, ErrorMessage:"No Primary Key specified in Create Table"}
 	}
 
 	buf := make([]byte, 4096)
@@ -862,7 +871,7 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:OpenTable] GetRootHash for table [%s]: %v", t.tableName, err)}
 	}
 	if len(roothash) == 0 {
-		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:OpenTable] Empty root hash")}
+		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:OpenTable] Empty root hash"), ErrorCode:403, ErrorMessage:fmt.Sprintf("Table Does Not Exist: [%s]",t.tableName)}
 	}
 	setprimary := false
 	columndata, err := t.swarmdb.RetrieveDBChunk(u, roothash)
