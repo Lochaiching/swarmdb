@@ -1,18 +1,3 @@
-// Copyright (c) 2018 Wolk Inc.  All rights reserved.
-
-// The SWARMDB library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The SWARMDB library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
 package swarmdb
 
 import (
@@ -24,13 +9,13 @@ import (
 
 //at the moment, only parses a query with a single un-nested where clause, i.e.
 //'Select name, age from contacts where email = "rodney@wolk.com"'
-//TODO: nested where clauses
 func ParseQuery(rawQuery string) (query QueryOption, err error) {
 
 	//fmt.Printf("\nin ParseQuery\n")
 	stmt, err := sqlparser.Parse(rawQuery)
 	if err != nil {
-		return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] Parse [%s]", rawQuery)}
+		fmt.Printf("sqlparser.Parse err\n")
+		return query, err
 	}
 
 	switch stmt := stmt.(type) {
@@ -44,7 +29,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			//fmt.Printf("select %d: %+v\n", i, sqlparser.String(column)) // stmt.(*sqlparser.Select).SelectExprs)
 			var newcolumn Column
 			newcolumn.ColumnName = sqlparser.String(column)
-			//TODO: do we need to get IndexType, ColumnType, Primary from table itself...(not here?)
+			//should somehow get IndexType, ColumnType, Primary from table itself...(not here?)
 			query.RequestColumns = append(query.RequestColumns, newcolumn)
 		}
 
@@ -55,27 +40,29 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		//Where & Having
 		//fmt.Printf("where or having: %s \n", readable(stmt.Where.Expr))
 		if stmt.Where.Type == sqlparser.WhereStr { //Where
+
 			//fmt.Printf("type: %s\n", stmt.Where.Type)
 			query.Where, err = parseWhere(stmt.Where.Expr)
 			//this is where recursion for nested parentheses should take place
 			if err != nil {
-				return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] parseWhere [%s]", rawQuery)}
+				return query, err
 			}
+			return query, err
+
 		} else if stmt.Where.Type == sqlparser.HavingStr { //Having
 			fmt.Printf("type: %s\n", stmt.Where.Type)
-			//TODO: fill in having
+			//fill in having
 		}
 
-		//TODO: GroupBy ([]Expr)
-		//for _, g := range stmt.GroupBy {
-		//	fmt.Printf("groupby: %s \n", readable(g))
-		//}
+		//GroupBy ([]Expr)
+		for _, g := range stmt.GroupBy {
+			fmt.Printf("groupby: %s \n", readable(g))
+		}
 
-		//TODO: OrderBy
+		//OrderBy
 		query.Ascending = 1 //default if nothing?
 
-		//Limit
-		return query, nil
+	//Limit
 
 	/* Other options inside Select:
 	   type Select struct {
@@ -104,29 +91,25 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		//fmt.Printf("Ignore: %s \n", stmt.Ignore)
 		query.Table = sqlparser.String(stmt.Table.Name)
 		if len(stmt.Rows.(sqlparser.Values)) == 0 {
-			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert has no values found")}
+			return query, fmt.Errorf("in Insert, no values found")
 		}
 		if len(stmt.Rows.(sqlparser.Values)[0]) != len(stmt.Columns) {
-			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert has mismatch # of cols & vals")}
-
+			return query, fmt.Errorf("in Insert, mismatch # of cols & vals")
 		}
 		insertCells := make(map[string]interface{})
 		for i, c := range stmt.Columns {
 			col := sqlparser.String(c)
 			if _, ok := insertCells[col]; ok {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert can't have duplicate col %s", col)}
+				return query, fmt.Errorf("in Insert, can't have duplicate col %s", col)
 			}
 			//only detects string and float. how to do int? does it matter
 			value := sqlparser.String(stmt.Rows.(sqlparser.Values)[0][i])
 			if isQuoted(value) {
 				insertCells[col] = trimQuotes(value)
 			} else if isNumeric(value) {
-				insertCells[col], err = strconv.ParseFloat(value, 64)
-				if err != nil {
-					return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert can't have duplicate col %s", col)}
-				}
+				insertCells[col], _ = strconv.ParseFloat(value, 64)
 			} else {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert value %s has unknown type", value)}
+				return query, fmt.Errorf("in Insert, value %s has unknown type", value)
 			}
 			//insertCells[col] = trimQuotes(sqlparser.String(stmt.Rows.(sqlparser.Values)[0][i]))
 		}
@@ -139,76 +122,12 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		//}
 
 	case *sqlparser.Update:
-
 		query.Type = "Update"
-		//fmt.Printf("Comments: %+v \n", stmt.Comments)
-		query.Table = sqlparser.String(stmt.TableExprs[0])
-		query.Update = make(map[string]interface{})
-		for _, expr := range stmt.Exprs {
-			col := sqlparser.String(expr.Name)
-			//fmt.Printf("col: %+v\n", col)
-			if _, ok := query.Update[col]; ok {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Update can't have duplicate col %s", col)}
-			}
-			value := readable(expr.Expr)
-			if isQuoted(value) {
-				query.Update[col] = trimQuotes(value)
-			} else if isNumeric(value) {
-				query.Update[col], err = strconv.ParseFloat(value, 64)
-				if err != nil {
-					return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] ParseFloat %s", err.Error())}
-				}
-			} else {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Update value %s has unknown type", value)}
-			}
-			//fmt.Printf("val: %v \n", query.Update[col])
-		}
+		//fill in
 
-		// Where
-		if stmt.Where.Type == sqlparser.WhereStr {
-			query.Where, err = parseWhere(stmt.Where.Expr)
-			//TODO: this is where recursion for nested parentheses should probably take place
-			if err != nil {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] parseWhere %s", err.Error())}
-			}
-			//fmt.Printf("Where: %+v\n", query.Where)
-		}
-		//TODO: what if no Where? throw an error or go ahead and modify all?
-
-		//TODO: OrderBy
-		query.Ascending = 1 //default if nothing?
-
-		//Limit
-		//fmt.Printf("Limit: %v \n", stmt.Limit)
-		return query, nil
 	case *sqlparser.Delete:
 		query.Type = "Delete"
-		query.Table = sqlparser.String(stmt.TableExprs[0])
-		//fmt.Printf("Comments: %+v \n", stmt.Comments)
-
-		//Targets
-		for _, t := range stmt.Targets {
-			fmt.Printf("Targets: %s\n", t.Name)
-		}
-
-		//Where
-		if stmt.Where.Type == sqlparser.WhereStr { //Where
-			query.Where, err = parseWhere(stmt.Where.Expr)
-			//this is where recursion for nested parentheses should take place
-			if err != nil {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] parseWhere %s", err.Error())}
-			}
-			//fmt.Printf("Where: %+v\n", query.Where)
-		}
-		//TODO: what if there is no Where? throw an error or go ahead and modify all?
-
-		//TODO: OrderBy
-		query.Ascending = 1 //default if nothing?
-
-		//Limit
-		//fmt.Printf("Limit: %v \n", stmt.Limit)
-
-		return query, nil
+		//fill in
 
 		/* Other Options for type of Query:
 		   func (*Union) iStatement()      {}
@@ -252,8 +171,9 @@ func parseWhere(expr sqlparser.Expr) (where Where, err error) {
 		where.Right = readable(expr.Right)
 		where.Operator = expr.Operator
 	default:
-		return where, &SWARMDBError{message: fmt.Sprintf("[swarmdb:parseWhere] exp Type [%s] not supported", expr)}
+		err = fmt.Errorf("WHERE expression not found")
 	}
+
 	where.Right = trimQuotes(where.Right)
 
 	return where, err

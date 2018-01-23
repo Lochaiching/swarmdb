@@ -1,18 +1,3 @@
-// Copyright (c) 2018 Wolk Inc.  All rights reserved.
-
-// The SWARMDB library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The SWARMDB library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
 package swarmdb
 
 import (
@@ -22,8 +7,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"math"
@@ -44,12 +29,13 @@ type Column struct {
 
 //for passing request data from client to server
 type RequestOption struct {
-	RequestType string `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	TableOwner  string `json:"tableowner,omitempty"`
-	Table       string `json:"table,omitempty"` //"contacts"
-	Encrypted   int    `json:"encrypted,omitempty"`
-	Key         interface{} `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
-	//TODO: Key should be a byte array or interface
+	RequestType string  `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
+	Owner       string  `json:"owner,omitempty"`
+	Table       string  `json:"table,omitempty"` //"contacts"
+	Encrypted   int     `json:"encrypted,omitempty"`
+	Bid         float64 `json:"bid,omitempty"`
+	Replication int     `json:"replication,omitempty"`
+	Key         string  `json:"key,omitempty"` //value of the key, like "rodney@wolk.com"
 	// Value       string   `json:"value,omitempty"` //value of val, usually the whole json record
 	Rows     []Row    `json:"rows,omitempty"` //value of val, usually the whole json record
 	Columns  []Column `json:"columns,omitempty"`
@@ -58,8 +44,8 @@ type RequestOption struct {
 
 type SWARMDBConnection struct {
 	connection net.Conn
-	keymanager KeyManager
-	ownerID    string //owner of the connection opened
+	keymanager keymanager.KeyManager
+	ownerID    string
 	reader     *bufio.Reader
 	writer     *bufio.Writer
 }
@@ -67,14 +53,11 @@ type SWARMDBConnection struct {
 type SWARMDBTable struct {
 	dbc       *SWARMDBConnection
 	tableName string
-	encrypted int //means all transactions on the table are encrypted
-	//replication int
-	tableOwner string //owner of the table being accessed
 }
 
-//type SWARMDBRow struct {
-//	cells map[string]string `json:"cells,omitempty"`
-//}
+type SWARMDBRow struct {
+	cells map[string]string `json:"cells,omitempty"`
+}
 
 type NetstatFile struct {
 	NodeID        string
@@ -93,7 +76,7 @@ type NetstatFile struct {
 
 type DBChunkstore struct {
 	db       *sql.DB
-	km       *KeyManager
+	km       *keymanager.KeyManager
 	farmer   ethcommon.Address
 	netstat  *NetstatFile
 	filepath string
@@ -106,28 +89,18 @@ type ENSSimulation struct {
 	db       *sql.DB
 }
 
-type ENSSimple struct {
-	auth *bind.TransactOpts
-	sens *Simplestens
-}
-
 type IncomingInfo struct {
 	Data    string
 	Address string
 }
 
 type KademliaDB struct {
-	dbChunkstore   *DBChunkstore
-	mutex          sync.Mutex
-	owner          []byte
-	tableName      []byte
-	column         []byte
-	nodeType       []byte
-	updateCount    int
-	encrypted      int
-	autoRenew      int
-	minReplication int
-	maxReplication int
+	dbChunkstore *DBChunkstore
+	mutex        sync.Mutex
+	owner        []byte
+	tableName    []byte
+	column       []byte
+	encrypted    int
 }
 
 type SwarmDB struct {
@@ -183,57 +156,48 @@ type Row struct {
 	Cells map[string]interface{}
 }
 
-func NewRow() (r Row) {
-	r.Cells = make(map[string]interface{})
-	return r
-}
-
-func (r Row) Set(columnName string, val interface{}) {
-	r.Cells[columnName] = val
-}
-
 type DBChunkstorage interface {
-	RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error)
-	StoreDBChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error)
+	RetrieveDBChunk(key []byte) (val []byte, err error)
+	StoreDBChunk(val []byte, encrypted int) (key []byte, err error)
 	PrintDBChunk(columnType ColumnType, hashid []byte, c []byte)
 }
 
 type Database interface {
-	GetRootHash() []byte
+	GetRootHash() ([]byte, error)
 
 	// Insert: adds key-value pair (value is an entire recrod)
 	// ok - returns true if new key added
 	// Possible Errors: KeySizeError, ValueSizeError, DuplicateKeyError, NetworkError, BufferOverflowError
-	Insert(u *SWARMDBUser, key []byte, value []byte) (bool, error)
+	Insert(key []byte, value []byte) (bool, error)
 
 	// Put -- inserts/updates key-value pair (value is an entire record)
 	// ok - returns true if new key added
 	// Possible Errors: KeySizeError, ValueSizeError, NetworkError, BufferOverflowError
-	Put(u *SWARMDBUser, key []byte, value []byte) (bool, error)
+	Put(key []byte, value []byte) (bool, error)
 
 	// Get - gets value of key (value is an entire record)
 	// ok - returns true if key found, false if not found
 	// Possible errors: KeySizeError, NetworkError
-	Get(u *SWARMDBUser, key []byte) ([]byte, bool, error)
+	Get(key []byte) ([]byte, bool, error)
 
 	// Delete - deletes key
 	// ok - returns true if key found, false if not found
 	// Possible errors: KeySizeError, NetworkError, BufferOverflowError
-	Delete(u *SWARMDBUser, key []byte) (bool, error)
+	Delete(key []byte) (bool, error)
 
 	// Start/Flush - any buffered updates will be flushed to SWARM on FlushBuffer
 	// ok - returns true if buffer started / flushed
 	// Possible errors: NoBufferError, NetworkError
-	StartBuffer(u *SWARMDBUser) (bool, error)
-	FlushBuffer(u *SWARMDBUser) (bool, error)
+	StartBuffer() (bool, error)
+	FlushBuffer() (bool, error)
 
 	// Close - if buffering, then will flush buffer
 	// ok - returns true if operation successful
 	// Possible errors: NetworkError
-	Close(u *SWARMDBUser) (bool, error)
+	Close() (bool, error)
 
 	// prints what is in memory
-	Print(u *SWARMDBUser)
+	Print()
 }
 
 type OrderedDatabase interface {
@@ -242,14 +206,14 @@ type OrderedDatabase interface {
 	// Seek -- moves cursor to key k
 	// ok - returns true if key found, false if not found
 	// Possible errors: KeySizeError, NetworkError
-	Seek(u *SWARMDBUser, k []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err error)
-	SeekFirst(u *SWARMDBUser) (e OrderedDatabaseCursor, err error)
-	SeekLast(u *SWARMDBUser) (e OrderedDatabaseCursor, err error)
+	Seek(k []byte /*K*/) (e OrderedDatabaseCursor, ok bool, err error)
+	SeekFirst() (e OrderedDatabaseCursor, err error)
+	SeekLast() (e OrderedDatabaseCursor, err error)
 }
 
 type OrderedDatabaseCursor interface {
-	Next(*SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err error)
-	Prev(*SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err error)
+	Next() (k []byte /*K*/, v []byte /*V*/, err error)
+	Prev() (k []byte /*K*/, v []byte /*V*/, err error)
 }
 
 type ColumnType uint8
@@ -268,6 +232,7 @@ const (
 	IT_HASHTREE    = 1
 	IT_BPLUSTREE   = 2
 	IT_FULLTEXT    = 3
+	IT_FRACTALTREE = 4
 )
 
 type dData struct{
@@ -275,8 +240,7 @@ type dData struct{
 }
 
 //for comparing rows in two different sets of data
-//only 1 cell in the row has to be different in order for the rows to be different
-func isDuplicateRow(row1 Row, row2 Row) bool {
+func checkDuplicateRow(row1 Row, row2 Row) bool {
 
 	//if row1.primaryKeyValue == row2.primaryKeyValue {
 	//	return true
@@ -284,67 +248,39 @@ func isDuplicateRow(row1 Row, row2 Row) bool {
 
 	for k1, r1 := range row1.Cells {
 		if _, ok := row2.Cells[k1]; !ok {
-			return false
+			return true
 		}
 		if r1 != row2.Cells[k1] {
-			return false
+			return true
 		}
 	}
-
 	for k2, r2 := range row2.Cells {
 		if _, ok := row1.Cells[k2]; !ok {
-			return false
+			return true
 		}
 		if r2 != row1.Cells[k2] {
-			return false
+			return true
 		}
 	}
 
-	return true
+	return false
 }
 
 //gets data (Row.Cells) out of a slice of Rows, and rtns as one json.
 func rowDataToJson(rows []Row) (string, error) {
-	var resRows []map[string]interface{}
+	var resMap map[string]interface{}
 	for _, row := range rows {
-		resRows = append(resRows, row.Cells)
+		for key, val := range row.Cells {
+			if _, ok := resMap[key]; !ok {
+				resMap[key] = val
+			}
+		}
 	}
-	resBytes, err := json.Marshal(resRows)
+	resBytes, err := json.Marshal(resMap)
 	if err != nil {
 		return "", err
 	}
 	return string(resBytes), nil
-}
-
-//json input string should be []map[string]interface{} format
-func JsonDataToRow(in string) (rows []Row, err error) {
-
-	var jsonRows []map[string]interface{}
-	if err = json.Unmarshal([]byte(in), &jsonRows); err != nil {
-		return rows, err
-	}
-	for _, jRow := range jsonRows {
-		row := NewRow()
-		row.Cells = jRow
-		rows = append(rows, row)
-	}
-	return rows, nil
-}
-
-func stringToColumnType(in string, columnType ColumnType) (out interface{}, err error) {
-	switch columnType {
-	case CT_INTEGER:
-		out, err = strconv.Atoi(in)
-	case CT_STRING:
-		out = in
-	case CT_FLOAT:
-		out, err = strconv.ParseFloat(in, 64)
-	//case: CT_BLOB:
-	//?
-	default:
-		err = fmt.Errorf("column type not found")
-	}
-	return out, err
 }
 
 //gets only the specified Columns (column name and value) out of a single Row, returns as a Row with only the relevant data
@@ -359,94 +295,37 @@ func filterRowByColumns(row *Row, columns []Column) (filteredRow Row) {
 	return filteredRow
 }
 
-func CheckColumnType(colType ColumnType) bool {
-	/*
-		var ct uint8
-		switch colType.(type) {
-		case int:
-			ct = uint8(colType.(int))
-		case uint8:
-			ct = colType.(uint8)
-		case float64:
-			ct = uint8(colType.(float64))
-		case string:
-			cttemp, _ := strconv.ParseUint(colType.(string), 10, 8)
-			ct = uint8(cttemp)
-		case ColumnType:
-			ct = colType.(ColumnType)
-		default:
-			fmt.Printf("CheckColumnType not a type I can work with\n")
-			return false
-		}
-	*/
-	ct := colType
-	if ct == CT_INTEGER || ct == CT_STRING || ct == CT_FLOAT { //|| ct == CT_BLOB {
-		return true
-	}
-	return false
-}
-
-func CheckIndexType(it IndexType) bool {
-	if it == IT_HASHTREE || it == IT_BPLUSTREE { //|| it == IT_FULLTEXT || it == IT_FRACTALTREE || it == IT_NONE {
-		return true
-	}
-	return false
-}
-
-/*
-//used in cli for user input
-func ConvertStringToIndexType(in string) (out IndexType, err error) {
+//used in client.go for user input
+func convertStringToIndexType(in string) (out IndexType, err error) {
 	switch in {
 	case "hashtree":
 		return IT_HASHTREE, nil
-	case "IT_HASHTREE":
-		return IT_HASHTREE, nil
 	case "bplustree":
-		return IT_BPLUSTREE, nil
-	case "IT_BPLUSTREE":
 		return IT_BPLUSTREE, nil
 	case "fulltext":
 		return IT_FULLTEXT, nil
-	case "IT_FULLTEXT":
-		return IT_FULLTEXT, nil
 	case "fractaltree":
 		return IT_FRACTALTREE, nil
-	case "IT_FRACTALTREE":
-		return IT_FRACTALTREE, nil
-	case "":
-		return out, fmt.Errorf("no index found")
 	}
 	return out, fmt.Errorf("index %s not found", in) //KeyNotFoundError?
 }
 
-//used in cli for user input
-func ConvertStringToColumnType(in string) (out ColumnType, err error) {
+//used in client.go for user input
+func convertStringToColumnType(in string) (out ColumnType, err error) {
 	switch in {
 	case "int":
 		return CT_INTEGER, nil
-	case "CT_INTEGER":
-		return CT_INTEGER, nil
 	case "string":
-		return CT_STRING, nil
-	case "CT_STRING":
 		return CT_STRING, nil
 	case "float":
 		return CT_FLOAT, nil
-	case "CT_FLOAT":
-		return CT_FLOAT, nil
 	case "blob":
 		return CT_BLOB, nil
-	case "CT_BLOB":
-		return CT_BLOB, nil
-	case "":
-		return out, fmt.Errorf("no column type found")
 	}
 	return out, fmt.Errorf("columntype %s not found", in) //KeyNotFoundError?
 }
-*/
 
-func StringToKey(columnType ColumnType, key string) (k []byte) {
-	
+func convertStringToKey(columnType ColumnType, key string) (k []byte) {
 	k = make([]byte, 32)
 	switch columnType {
 	case CT_INTEGER:
@@ -548,18 +427,6 @@ func SHA256(inp string) (k []byte) {
 	return k
 }
 
-type SWARMDBError struct {
-	message string
-}
-
-func (t *SWARMDBError) Error() string {
-	return t.message
-}
-
-func (t *SWARMDBError) SetError(m string) {
-	t.message = m
-}
-
 type TableNotExistError struct {
 	tableName string
 	ownerID   string
@@ -626,11 +493,8 @@ func (t *RequestFormatError) Error() string {
 }
 
 type NoColumnError struct {
-	tableOwner string
-	tableName  string
-	columnName string
 }
 
 func (t *NoColumnError) Error() string {
-	return fmt.Sprintf("No column [%s] in the table [%s] owned by [%s]", t.tableName, t.columnName, t.tableOwner)
+	return fmt.Sprintf("No column --- in the table")
 }

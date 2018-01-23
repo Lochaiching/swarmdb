@@ -1,28 +1,12 @@
-// Copyright (c) 2018 Wolk Inc.  All rights reserved.
-
-// The SWARMDB library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The SWARMDB library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
 package swarmdb
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
+	//	"strconv"
+	//	"time"
 )
-
-// TODO: document this
 
 const (
 	chunkSize = 4096
@@ -31,7 +15,6 @@ const (
 func NewKademliaDB(dbChunkstore *DBChunkstore) (*KademliaDB, error) {
 	kd := new(KademliaDB)
 	kd.dbChunkstore = dbChunkstore
-	kd.nodeType = []byte("K")
 	return kd, nil
 }
 
@@ -44,77 +27,53 @@ func (self *KademliaDB) Open(owner []byte, tableName []byte, column []byte, encr
 	return true, nil
 }
 
-func (self *KademliaDB) buildSdata(key []byte, value []byte) (mergedBodycontent []byte, err error) {
-	contentPrefix := BuildSwarmdbPrefix(self.owner, self.tableName, key)
+func (self *KademliaDB) buildSdata(key []byte, value []byte) []byte {
+	wlksig := []byte("6909ea88ced9c594e5212a1292fcf73c") //md5("wolk4all")
 
 	var metadataBody []byte
-	metadataBody = make([]byte, 156)
-	copy(metadataBody[0:40], self.owner)
-	copy(metadataBody[40:41], self.nodeType)
-	copy(metadataBody[41:42], IntToByte(self.encrypted))
-	copy(metadataBody[42:43], IntToByte(self.autoRenew))
-	copy(metadataBody[43:51], IntToByte(self.minReplication))
-	copy(metadataBody[51:59], IntToByte(self.maxReplication))
-
-	unencryptedMetadata := metadataBody[0:59]
-	msg_hash := SignHash(unencryptedMetadata)
-
-	copy(metadataBody[59:91], msg_hash)
-
-	km := self.dbChunkstore.GetKeyManager()
-	sdataSig, errSign := km.SignMessage(msg_hash)
-	if errSign != nil {
-		return mergedBodycontent, &SWARMDBError{message: `[kademliadb:buildSdata] SignMessage ` + errSign.Error()}
-	}
-
-	// TODO: document this
-	copy(metadataBody[91:156], sdataSig)
+	metadataBody = make([]byte, 140)
+	nodeType := []byte{'K'}
+	copy(metadataBody[0:42], self.owner)
+	copy(metadataBody[42:43], nodeType)
+	copy(metadataBody[108:140], wlksig)
 	log.Debug("Metadata is [%+v]", metadataBody)
 
+	contentPrefix := BuildSwarmdbPrefix(self.owner, self.tableName, key)
+
+	var mergedBodycontent []byte
 	mergedBodycontent = make([]byte, chunkSize)
 	copy(mergedBodycontent[:], metadataBody)
 	copy(mergedBodycontent[512:544], contentPrefix)
 	copy(mergedBodycontent[577:], value) // expected to be the encrypted body content
 
 	log.Debug("Merged Body Content: [%v]", mergedBodycontent)
-	return mergedBodycontent, err
+	return (mergedBodycontent)
 }
 
-func (self *KademliaDB) Put(u *SWARMDBUser, k []byte, v []byte) (b []byte, err error) {
-	self.autoRenew = u.AutoRenew
-	self.minReplication = u.MinReplication
-	self.maxReplication = u.MaxReplication
-	sdata, errS := self.buildSdata(k, v)
-	if errS != nil {
-		return b, &SWARMDBError{message: `[kademliadb:Put] buildSdata ` + errS.Error()}
-	}
-
+func (self *KademliaDB) Put(k []byte, v []byte) ([]byte, error) {
+	sdata := self.buildSdata(k, v)
 	hashVal := sdata[512:544] // 32 bytes
-	errStore := self.dbChunkstore.StoreKChunk(u, hashVal, sdata, self.encrypted)
-	if errStore != nil {
-		return hashVal, &SWARMDBError{message: `[kademliadb:Put] StoreKChunk ` + errStore.Error()}
-	}
+	_ = self.dbChunkstore.StoreKChunk(hashVal, sdata, self.encrypted)
 	return hashVal, nil
 }
 
-func (self *KademliaDB) GetByKey(u *SWARMDBUser, k []byte) ([]byte, error) {
+func (self *KademliaDB) GetByKey(k []byte) ([]byte, bool, error) {
 	chunkKey := self.GenerateChunkKey(k)
-	content, err := self.Get(u, chunkKey)
+	content, _, err := self.Get(chunkKey)
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[kademliadb:GetByKey] Get - Key not found: %s", err.Error())}
+		log.Debug("key not found %s: %s", chunkKey, err)
+		return nil, false, fmt.Errorf("key not found: %s", err)
 	}
-	return content, nil
+	return content, true, nil
 }
 
-func (self *KademliaDB) Get(u *SWARMDBUser, h []byte) ([]byte, error) {
-	contentReader, err := self.dbChunkstore.RetrieveKChunk(u, h)
-	if bytes.Trim(contentReader, "\x00") == nil {
-		return nil, nil
-	}
+func (self *KademliaDB) Get(h []byte) ([]byte, bool, error) {
+	contentReader, err := self.dbChunkstore.RetrieveKChunk(h)
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[kademliadb:Get] RetrieveKChunk - Key not found: %s", err.Error())}
+		log.Debug("key not found %s: %s", h, err)
+		return nil, false, fmt.Errorf("key not found: %s", err)
 	}
-	return contentReader, nil
+	return contentReader, true, nil
 }
 
 func (self *KademliaDB) GenerateChunkKey(k []byte) []byte {
@@ -127,7 +86,10 @@ func (self *KademliaDB) GenerateChunkKey(k []byte) []byte {
 }
 
 func BuildSwarmdbPrefix(owner []byte, table []byte, id []byte) []byte {
-	// TODO: add checks for valid type / length for building
+	//hashType := "SHA3"
+	//hashType := SHA256"
+
+	//Should add checks for valid type / length for building
 	prepLen := len(owner) + len(table) + len(id)
 	prepBytes := make([]byte, prepLen)
 	copy(prepBytes[0:], owner)
@@ -136,7 +98,7 @@ func BuildSwarmdbPrefix(owner []byte, table []byte, id []byte) []byte {
 	h256 := sha256.New()
 	h256.Write([]byte(prepBytes))
 	prefix := h256.Sum(nil)
-
+	//fmt.Printf("\nIn BuildSwarmdbPrefix prepBytes[%s] and prefix[%x] in Bytes [%v] with size [%v]", prepBytes, prefix, []byte(prefix), len([]byte(prefix)))
 	log.Debug(fmt.Sprintf("\nIn BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]", prepBytes, prefix, []byte(prefix), len([]byte(prefix))))
 	return (prefix)
 }
@@ -157,14 +119,48 @@ func (self *KademliaDB) Print() {
 	return
 }
 
-// TODO: Implement Delete
-func (self *KademliaDB) Delete(k []byte) (succ bool, err error) {
-	/*
-		_, err := self.Put(k, nil)
-		if err != nil {
-			return false, err
-		}
-		return true, err
-	*/
-	return succ, err
+/*
+func (self *KademliaDB) Delete(k []byte) (bool, error) {
+	_, err := self.Put(k, nil)
+	if err != nil {
+		return false, err
+	}
+	return true, err
 }
+
+func (self *KademliaDB) Insert(k, v []byte) (bool, error) {
+	res, _, _ := self.Get(k)
+	if res != nil {
+		err := fmt.Errorf("%s is already in Database", string(k))
+		return false, err
+	}
+	_, err := self.Put(k, v)
+	if err != nil {
+		return false, nil
+	}
+	return true, err
+}
+
+func (self *Node) Update(updatekey []byte, updatevalue []byte) (newnode *Node, err error) {
+	res, _ := self.Get(updatekey)
+	if res != nil {
+		err = fmt.Errorf("couldn't find the key for updating")
+		return
+	}
+	return self, err
+}
+func convertToByte(a Val) []byte {
+	log.Trace(fmt.Sprintf("convertToByte type: %v '%v'", a, reflect.TypeOf(a)))
+	if va, ok := a.([]byte); ok {
+		log.Trace(fmt.Sprintf("convertToByte []byte: %v '%v' %s", a, va, string(va)))
+		return []byte(va)
+	}
+	if va, ok := a.(storage.Key); ok {
+		log.Trace(fmt.Sprintf("convertToByte storage.Key: %v '%v' %s", a, va, string(va)))
+		return []byte(va)
+	} else if va, ok := a.(string); ok {
+		return []byte(va)
+	}
+	return nil
+}
+*/

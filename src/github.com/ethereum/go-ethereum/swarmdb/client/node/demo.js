@@ -16,12 +16,12 @@ connection.createTable("test", columns, function (err, result) {
 });
 
 // // put
-connection.put("test", [{"Cells": {"age":"1","email":"test001@wolk.com"}}], function (err, result) {
+connection.put("test", {"age":"1","email":"test001@wolk.com"}, function (err, result) {
     if (err) throw err;
     console.log("put response: " + result);
 });
 
-connection.put("test", [{"Cells": {"age":"2","email":"test002@wolk.com"}}], function (err, result) {
+connection.put("test", {"age":"2","email":"test002@wolk.com"}, function (err, result) {
     if (err) throw err;
     console.log("put response: " + result);
 });

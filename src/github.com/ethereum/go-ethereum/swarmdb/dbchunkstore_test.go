@@ -1,18 +1,3 @@
-// Copyright (c) 2018 Wolk Inc.  All rights reserved.
-
-// The SWARMDB library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The SWARMDB library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
 package swarmdb_test
 
 import (
@@ -23,11 +8,7 @@ import (
 )
 
 func TestDBChunkStore(t *testing.T) {
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	swarmdb.NewKeyManager(&config)
-	u := config.GetSWARMDBUser()
-
-	store, err := swarmdb.NewDBChunkStore("chunks.db")
+	store, err := swarmdb.NewDBChunkStore("/tmp/chunks.db")
 	if err != nil {
 		t.Fatal("Failure to open NewDBChunkStore")
 	}
@@ -39,21 +20,21 @@ func TestDBChunkStore(t *testing.T) {
 	// encrypted := int(1)
 
 	// StoreChunk
-	k, err := store.StoreChunk(u, r, 1)
+	k, err := store.StoreChunk(r, 1)
 	if err == nil {
 		t.Fatal("Failure to generate StoreChunk Err", k, v)
 	} else {
 		fmt.Printf("SUCCESS in StoreChunk Err (input only has %d bytes)\n", len(r))
 	}
 
-	k, err1 := store.StoreChunk(u, v, 1)
+	k, err1 := store.StoreChunk(v, 1)
 	if err1 != nil {
-		t.Fatal("Failure to StoreChunk", k, v, err1)
+		t.Fatal("Failure to StoreChunk", k, v)
 	} else {
 		fmt.Printf("SUCCESS in StoreChunk:  %x => %v\n", string(k), string(v))
 	}
 	// RetrieveChunk
-	val, err := store.RetrieveChunk(u, k)
+	val, err := store.RetrieveChunk(k)
 	if err != nil {
 		t.Fatal("Failure to RetrieveChunk: Failure to retrieve", k, v, val)
 	}

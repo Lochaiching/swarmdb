@@ -1,118 +1,73 @@
 
-
-
-# How to Install SwarmDB
+# How to Install SWARMDB
 
 # Install Docker CE (Community Edition)
 https://www.docker.com/community-edition#/download
 
-### CentOS:
+* CentOS:
   - Installation instructions: https://docs.docker.com/engine/installation/linux/docker-ce/centos/
 
-### Mac:
+* Mac:
   - Installation instructions: https://store.docker.com/editions/community/docker-ce-desktop-mac
 
-### Others:
+* Others:
   - https://www.docker.com/community-edition#/download
   
-# System Prerequisites
+# Prerequisites
+* CentOS 7.x 64-bit.
+* Red Hat Enterprise Linux (RHEL) 7.x 64-bit.
 
-|OS| Prerequisite |
-|--|:--|
-|CentOS|7.x (64-bit)|
-|RedHat|RHEL 7.x (64-bit)|
-|Debian|Stretch, Jessie 8.0, Wheezy 7.7 (64-bit)|
-|Fedora|Fedora 25, Fedora 24 (64-bit)|
-|Ubuntu|Zesty 17.04 (LTS),Yakkety 16.10, Xenial 16.04 (LTS),Trusty 14.04 (LTS)|
-|OSX|Yosemite 10.10.3 or above|
-|MS|Windows 10 Professional or Enterprise (64-bit)|
+* Debian 64-bit:
+Debian stretch (testing),
+Debian Jessie 8.0,
+Debian Wheezy 7.7.
 
-# Getting SwarmDB Docker
+* Fedora 64-bit:
+Fedora 25,
+Fedora 24.
 
-### Download the docker image:
+* Ubuntu versions:
+Zesty 17.04 (LTS),
+Yakkety 16.10,
+Xenial 16.04 (LTS),
+Trusty 14.04 (LTS).
 
-      $ sudo docker pull wolkinc/swarmdb
+* MAC OSX Yosemite 10.10.3 or above.
+* MS Windows 10 Professional or Enterprise 64-bit.
 
-### Deploy the docker image:
+# Get SWARMDB Docker
 
-      $ sudo docker run --name=swarmdb --rm -it -p 2001:2001 -p 5001:5000 -p 8501:8501 wolkinc/swarmdb
+* Download the docker image:
+  - $ sudo docker pull wolkinc/wolknode
 
-### Port Mapping:
+* Deploy the docker image:
+  - $ sudo docker run --name=wolknode --rm -it -p 8500:8500 -p 5001:5000 -p 30303:30303 -p 30399:30399 -p 30303:30303/udp -p 30399:30399/udp wolkinc/wolknode
 
-| Ports | Descriptions |
-|--|--|
-| 2001:2001 | <http_system_port>:<http_container_port> |
-| 5001:5000 |  <syslog_system_port>:<syslog_container_port> |
-| 8501:8501 | <swarmDB_system_port>:<swarmDB_container_port> |
+* Port Mapping
+  - 8500:8500 --> <swarm_http_system_port>:<swarm_http_container_port>
+  - 5001:5000 --> <syslog_system_port>:<syslog_container_port>
+  - 30303:30303 --> <geth_tcp_system_port>:<geth_tcp_container_port>
+  - 30399:30399 --> <swarm_tcp_system_port>:<swarm_tcp_container_port>
+  - 30303:30303/udp --> <geth_udp_system_port>:<geth_udp_container_port>
+  - 30399:30399/udp --> <swarm_udp_system_port>:<swarm_udp_container_port>
+  - 30301:30301/udp --> <bootnode_udp_system_port>:<bootnode_udp_container_port> (Not used here)
 
-# Running SwarmDB
+# Run SWARMDB
 
-Deploying the image above will run SWARMDB in the Docker container. To verify if SWARMDB is running:
+Deploying the image above will run GETH and SWARM in the Docker container. To verify if GETH and SWARM are running:
+  - $ ps aux | grep -E 'geth|swarm' | grep -v grep
 
-    $ ps aux | grep main | grep -v grep
+## Configuration 
 
-## SwarmDB Configurations 
+* To check your geth Account
+  - $ geth attach $DATADIR/geth.ipc --exec eth.accounts
 
-### To start swarmDB with the default config, run this on the command line:
+* To create new geth account
+  - $ geth --datadir $DATADIR account new
 
-      $ /swarmdb/bin/main
-
-### To start swarmDB `IN THE BACKGROUND` with the default config, run this on the command line:
-
-      $ /swarmdb/bin/main &
-      
-### To start swarmDB with a modified config file located in a different location:
-        
-      $ /swarmdb/bin/main -config /path/to/swarmDB/config/file
-
-
-### To start swarmDB `IN THE BACKGROUND` with a modified config file located in a different location:
-        
-      $ /swarmdb/bin/main -config /path/to/swarmDB/config/file &
-      
-### To see the `main` options:
-      
-      $ /swarmdb/bin/main -h
-
-      Usage of /swarmdb/bin/main:
-      -config string
-    	Full path location to SWARMDB configuration file. (default "/swarmdb/swarmdb.conf")
-
-### The default swarmDB configuration file
-    
-      {
-          "listenAddrTCP": "0.0.0.0",
-          "portTCP": 2001
-          "listenAddrHTTP": "0.0.0.0",
-          "portHTTP": 8501,
-          "address": "9982ad7bfbe62567287dafec879d20687e4b76f5",
-          "privateKey": "4b0d79af51456172dfcc064c1b4b8f45f363a80a434664366045165ba5217d53",
-          "chunkDBPath": "/swarmdb/data/keystore",
-          "authentication": 1,
-          "usersKeysPath": "/swarmdb/data/keystore",
-          "users": [{
-              "address": "9982ad7bfbe62567287dafec879d20687e4b76f5",
-              "passphrase": "wolkwolkwolk",
-              "minReplication": 3,
-              "maxReplication": 5,
-              "autoRenew": 1
-           }],
-          "currency": "WLK",
-          "targetCostStorage": 2.71828,
-          "targetCostBandwidth": 3.14159
-      }
-      
-
-#### Modifying the SwarmDB configuration:
-You can add new items in the `users` array and make sure to restart swarmDB after modifying the configuration file.
-
-##### To restart:
-###### 1. Kill the process named `main` 
-       $ sudo kill -9 $(ps aux | grep main | grep -v grep | awk '{print$2}')
-      
-###### 2. Start `main`:
-        $ /swarmdb/bin/main -config /path/to/swarmDB/config/file &
-      
+* Note: If you downloaded our docker image using instructions above, $DATADIR will point to "/var/www/vhosts/data". To check what your DATADIR is, run:
+  - $ echo $DATADIR  
 
 #  Interfaces
-See our [Wiki](https://github.com/wolktoken/swarm.wolk.com/wiki) for [Node.js](https://github.com/wolktoken/swarm.wolk.com/wiki/2.-Node.js-Interface), [Go](https://github.com/wolktoken/swarm.wolk.com/wiki/3.-Go-Interface), [Http](https://github.com/wolktoken/swarm.wolk.com/wiki/5.-HTTP-Interface), and [Command Line Interface](https://github.com/wolktoken/swarm.wolk.com/wiki/4.-CLI).
+
+See the https://github.com/wolktoken/swarm.wolk.com/wiki for more

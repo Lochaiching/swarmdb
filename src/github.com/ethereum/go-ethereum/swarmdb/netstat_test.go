@@ -1,25 +1,9 @@
-// Copyright (c) 2018 Wolk Inc.  All rights reserved.
-
-// The SWARMDB library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The SWARMDB library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
 package swarmdb_test
 
 import (
 	"fmt"
 	//"bytes"
 	"github.com/ethereum/go-ethereum/swarmdb"
-	"math/rand"
 	"testing"
 )
 
@@ -31,10 +15,6 @@ var (
 func TestDBChunkStore(t *testing.T) {
 
 	//General Connection
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	swarmdb.NewKeyManager(&config)
-	u := config.GetSWARMDBUser()
-
 	store, err := swarmdb.NewDBChunkStore(testDBPath)
 	if err != nil {
 		t.Fatal("[FAILURE] to open DBChunkStore\n")
@@ -48,13 +28,12 @@ func TestDBChunkStore(t *testing.T) {
 			simdata := make([]byte, 4096)
 			tmp := fmt.Sprintf("%s%d", "randombytes", j)
 			copy(simdata, tmp)
-			enc := rand.Intn(2)
-			simh, err := store.StoreChunk(u, simdata, enc)
+			simh, err := store.StoreChunk(simdata, 1)
 			if err != nil {
 				t.Fatal("[FAILURE] writting record #%v [%x] => %v\n", j, simh, string(simdata[:]))
 			} else if j%50 == 0 {
 				fmt.Printf("Generating record [%x] => %v ... ", simh, string(simdata[:]))
-				fmt.Printf("[SUCCESS] writing #%v chunk | Encryption: %v\n", j, enc)
+				fmt.Printf("[SUCCESS] writing #%v chunk to %v\n", j, testDBPath)
 			}
 		}
 		_ = store.Save()
@@ -93,15 +72,11 @@ func TestDBChunkStore(t *testing.T) {
 func TestLoadDBChunkStore(t *testing.T) {
 
 	//Opening existing DB
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	swarmdb.NewKeyManager(&config)
-	u := config.GetSWARMDBUser()
-
 	store, err := swarmdb.LoadDBChunkStore(testDBPath)
 	if err != nil {
-		t.Fatal("[FAILURE] to open DBChunkStore\n")
+		t.Fatal("[FAILURE] to open existing DBChunkStore\n")
 	} else {
-		fmt.Printf("[SUCCESS] open DBChunkStore\n")
+		fmt.Printf("[SUCCESS] open exsisting DBChunkStore\n")
 	}
 
 	t.Run("EWrite=1", func(t *testing.T) {
@@ -110,13 +85,12 @@ func TestLoadDBChunkStore(t *testing.T) {
 			simdata := make([]byte, 4096)
 			tmp := fmt.Sprintf("%s%d", "randombytes", j)
 			copy(simdata, tmp)
-			enc := rand.Intn(2)
-			simh, err := store.StoreChunk(u, simdata, enc)
+			simh, err := store.StoreChunk(simdata, 1)
 			if err != nil {
 				t.Fatal("[FAILURE] writting record #%v [%x] => %v %s\n", j, simh, string(simdata[:]), err)
 			} else if j%50 == 0 {
 				fmt.Printf("Generating record [%x] => %v ... ", simh, string(simdata[:]))
-				fmt.Printf("[SUCCESS] writing #%v chunk | Encryption: %v\n", j, enc)
+				fmt.Printf("[SUCCESS] writing #%v chunk to %v\n", j, testDBPath)
 			}
 		}
 		_ = store.Flush()
@@ -128,16 +102,6 @@ func TestLoadDBChunkStore(t *testing.T) {
 			t.Fatal("[FAILURE] ScanAll Error\n")
 		} else {
 			fmt.Printf("[SUCCESS] ScanAll Operation\n")
-		}
-		_ = store.Flush()
-	})
-
-	t.Run("EFarmLog=1", func(t *testing.T) {
-		err := store.GenerateFarmerLog()
-		if err != nil {
-			t.Fatal("[FAILURE] Farmer log Error\n")
-		} else {
-			fmt.Printf("[SUCCESS] Farmer Operation completed\n")
 		}
 		_ = store.Flush()
 	})
