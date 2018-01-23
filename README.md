@@ -82,7 +82,7 @@ Deploying the image above will run SWARMDB in the Docker container. To verify if
 ### The default swarmDB configuration file
     
       {
-          "address": "db4db066584dea75f4838c08ddfadc195225dd80",
+          "address": "wxyz....abcd", //For Example: "db4db066584dea75f4838c08ddfadc195225dd80"
           "authentication": 1,
           "chunkDBPath": "/usr/local/swarmdb/data",
           "currency": "WLK",
@@ -90,12 +90,12 @@ Deploying the image above will run SWARMDB in the Docker container. To verify if
           "listenAddrTCP": "0.0.0.0",
           "portHTTP": 8501,
           "portTCP": 2001
-          "privateKey": "98b5321e784dde6357896fd20f13ac6731e9b1ea0058c8529d55dde276e45624",
+          "privateKey": "ABCD....WXYZ", //For Example: "98b5321e784dde6357896fd20f13ac6731e9b1ea0058c8529d55dde276e45624"
           "targetCostBandwidth": 3.14159,
           "targetCostStorage": 2.71828,
           "users": [
               {
-                  "address": "db4db066584dea75f4838c08ddfadc195225dd80",
+                  "address": "wxyz....abcd", //For Example: "db4db066584dea75f4838c08ddfadc195225dd80"
                   "autoRenew": 1,
                   "maxReplication": 5,
                   "minReplication": 3,
