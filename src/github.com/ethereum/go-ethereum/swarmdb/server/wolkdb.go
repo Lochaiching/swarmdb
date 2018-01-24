@@ -148,6 +148,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 			if true {
 				if resp, err := svr.swarmdb.SelectHandler(u, string(str)); err != nil {
 					tcpJson := buildErrorResp(err)
+					fmt.Printf("\nRead: [%s] Wrote: [%s]\n", str, tcpJson)
 					writer.WriteString(tcpJson)
 					writer.Flush()
 				} else {
