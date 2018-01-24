@@ -18,17 +18,17 @@ connection.createTable("test", columns, function (err, result) {
 });
 
 // put
-connection.put("test", tableowner, [{"Cells": {"age":1,"email":"test001@wolk.com"}}], function (err, result) {
+connection.put("test", tableowner, [ {"age":1,"email":"test001@wolk.com"} ], function (err, result) {
     if (err) throw err;
     console.log("put response 1: " + result);
 });
 
-connection.put("test", tableowner, [{"Cells": {"age":2,"email":"test002@wolk.com"}}], function (err, result) {
+connection.put("test", tableowner, [ {"age":2,"email":"test002@wolk.com"} ], function (err, result) {
     if (err) throw err;
     console.log("put response 2: " + result);
 });
 
-connection.put("test", tableowner, [{"Cells": {"age":3,"email":"test003@wolk.com"}}], function (err, result) {
+connection.put("test", tableowner, [ {"age":3,"email":"test003@wolk.com"} ], function (err, result) {
     if (err) throw err;
     console.log("put response 3: " + result);
 });
