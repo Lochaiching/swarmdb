@@ -81,12 +81,12 @@ func (self *SwarmDB) StoreDBChunk(u *SWARMDBUser, val []byte, encrypted int) (ke
 }
 
 // ENSSimulation  API
-func (self *SwarmDB) GetRootHash(u *SWARMDBUser, columnName []byte) (roothash []byte, err error) {
-	return self.ens.GetRootHash(u, columnName)
+func (self *SwarmDB) GetRootHash(u *SWARMDBUser, fullTableName []byte /* GetTableKeyValue */) (roothash []byte, err error) {
+	return self.ens.GetRootHash(u, fullTableName)
 }
 
-func (self *SwarmDB) StoreRootHash(u *SWARMDBUser, columnName []byte, roothash []byte) (err error) {
-	return self.ens.StoreRootHash(u, columnName, roothash)
+func (self *SwarmDB) StoreRootHash(u *SWARMDBUser, fullTableName []byte /* GetTableKey Value */, roothash []byte) (err error) {
+	return self.ens.StoreRootHash(u, fullTableName, roothash)
 }
 
 // parse sql and return rows in bulk (order by, group by, etc.)
@@ -476,6 +476,7 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName str
 				return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error())}
 			}
 		}
+		self.RegisterTable(u.Address, tableName, tbl)
 		return tbl, nil
 	}
 }
@@ -514,6 +515,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error())}
 			}
 		}
+		fmt.Printf("\nTABLES after GetTable %+v\n",self.tables)
 		tblInfo, err := tbl.GetTableInfo()
 		if err != nil {
 			if wolkErr, ok := err.(*SWARMDBError); ok {
@@ -634,36 +636,45 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		return OK_RESPONSE, nil
 	case "Query":
 		if len(d.RawQuery) == 0 {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] RawQuery is blank")}
+			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] RawQuery is blank"), ErrorCode:425, ErrorMessage:"Invalid Query Request. Missing Rawquery"}
 		}
 		query, err := ParseQuery(d.RawQuery)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] ParseQuery [%s] %s", d.RawQuery, err.Error())}
+			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] ParseQuery [%s] %s", d.RawQuery, err.Error()), ErrorCode: 401, ErrorMessage:"SQL Parsing error: [SQLError in SQL]"}
 		}
 		if len(d.Table) == 0 {
 			// fmt.Printf("Getting Table from Query rather than data obj\n")
+			//TODO: check if empty even after query.Table check
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
 
 		// fmt.Printf("right before GetTable, u: %v, d.TableOwner: %v, d.Table: %v \n", u, d.TableOwner, d.Table)
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error())}
+                        if wolkErr, ok := err.(*SWARMDBError); ok {
+                                return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", wolkErr.Error()), ErrorCode: wolkErr.ErrorCode, ErrorMessage: wolkErr.ErrorMessage}
+                        } else {
+				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error())}
+                        }
 		}
 		// fmt.Printf("Returned table [%+v] when calling gettable with Owner[%s], Table[%s]\n", tbl, d.TableOwner, d.Table)
 		tblInfo, err := tbl.GetTableInfo()
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTableInfo %s", err.Error())}
+                        if wolkErr, ok := err.(*SWARMDBError); ok {
+                                return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTableInfo %s", err.Error()), ErrorCode: wolkErr.ErrorCode, ErrorMessage: wolkErr.ErrorMessage}
+                        } else {
+                                return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTableInfo %s", err.Error())}
+                        }
 		}
 		query.TableOwner = d.TableOwner //probably should check the owner against the tableinfo owner here
 
-		// fmt.Printf("Table info gotten: [%+v]\n", tblInfo)
+		//fmt.Printf("Table info gotten: [%+v]\n", tblInfo)
 		// fmt.Printf("QueryOption is: [%+v]\n", query)
 
 		//checking validity of columns
 		for _, reqCol := range query.RequestColumns {
 			if _, ok := tblInfo[reqCol.ColumnName]; !ok {
-				return resp, &SWARMDBError{message: fmt.Sprintf("Requested col [%s] does not exist in table [%+v]", reqCol.ColumnName, tblInfo)}
+				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Requested col [%s] does not exist in table [%+v]", reqCol.ColumnName, tblInfo), ErrorCode: 404, ErrorMessage: fmt.Sprintf("Column Does Not Exist in table definition: [%s]", reqCol.ColumnName)}
 			}
 		}
 
@@ -800,10 +811,13 @@ func (self *SwarmDB) NewTable(ownerID string, tableName string, encrypted int) *
 	t.encrypted = encrypted
 	t.columns = make(map[string]*ColumnInfo)
 
+	return t
+}
+
+func (self *SwarmDB) RegisterTable(ownerID string, tableName string, t *Table) {
 	// register the Table in SwarmDB
 	tblKey := self.GetTableKey(ownerID, tableName)
 	self.tables[tblKey] = t
-	return t
 }
 
 //TODO: need to make sure the types of the columns are correct
@@ -859,8 +873,10 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 	tbl.primaryColumnName = primaryColumnName
 
 	fmt.Printf("CreateTable (ownerID [%s] tableName: [%s]) Primary: [%s] Roothash:[%x]\n", tbl.ownerID, tbl.tableName, tbl.primaryColumnName, swarmhash)
-	err = swdb.StoreRootHash(u, []byte(tbl.tableName), []byte(swarmhash))
+	tblKey := swdb.GetTableKey(tbl.ownerID, tbl.tableName)
+	err = swdb.StoreRootHash(u, []byte(tblKey), []byte(swarmhash))
 	if err != nil {
+		delete(swdb.tables, tbl.tableName)
 		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] StoreRootHash %s", err.Error())}
 	}
 
@@ -868,6 +884,7 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 	if err != nil {
 		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] OpenTable %s", err.Error())}
 	}
+	swdb.RegisterTable(u.Address, tableName, tbl)
 	return tbl, nil
 }
 
@@ -883,10 +900,11 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 	t.columns = make(map[string]*ColumnInfo)
 
 	/// get Table RootHash to  retrieve the table descriptor
-	roothash, err := t.swarmdb.GetRootHash(u, []byte(t.tableName))
+	tblKey := t.swarmdb.GetTableKey(t.ownerID, t.tableName)
+	roothash, err := t.swarmdb.GetRootHash(u, []byte(tblKey))
 	// fmt.Printf("opening table @ %s roothash [%x]\n", t.tableName, roothash)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:OpenTable] GetRootHash for table [%s]: %v", t.tableName, err)}
+		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:OpenTable] GetRootHash for table [%s]: %v", tblKey, err)}
 	}
 	if len(roothash) == 0 {
 		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:OpenTable] Empty root hash"), ErrorCode: 403, ErrorMessage: fmt.Sprintf("Table Does Not Exist: [%s]", t.tableName)}
@@ -1184,7 +1202,8 @@ func (t *Table) updateTableInfo(u *SWARMDBUser) (err error) {
 	if err != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:updateTableInfo] StoreDBChunk %s", err.Error())}
 	}
-	err = t.swarmdb.StoreRootHash(u, []byte(t.tableName), []byte(swarmhash))
+	tblKey := t.swarmdb.GetTableKey(t.ownerID, t.tableName)
+	err = t.swarmdb.StoreRootHash(u, []byte(tblKey), []byte(swarmhash))
 	if err != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:updateTableInfo] StoreRootHash %s", err.Error())}
 	}
