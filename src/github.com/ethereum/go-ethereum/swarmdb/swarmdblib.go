@@ -30,7 +30,7 @@ import (
 //TODO: flags for host/port info
 const (
 	CONN_HOST = "127.0.0.1"
-	CONN_PORT = "2000"
+	CONN_PORT = "2001"
 	CONN_TYPE = "tcp"
 )
 
