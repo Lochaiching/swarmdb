@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	// "github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"time"
@@ -30,11 +31,10 @@ import (
 //TODO: should this go client live somewhere else, not with the server swarmdb package?
 
 //TODO: flags for host/port info
-const (
-	CONN_HOST = "127.0.0.1"
-	CONN_PORT = "2001"
-	CONN_TYPE = "tcp"
-)
+
+var CONN_HOST = "127.0.0.1" //default, but reads from config
+var CONN_PORT = int(2001)   //default, but reads from config
+var CONN_TYPE = "tcp"
 
 var TEST_NOCONNECTION = false
 
@@ -105,7 +105,14 @@ func NewSWARMDBConnection() (dbc SWARMDBConnection, err error) {
 	if err != nil {
 		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] NewKeyManager %s", err.Error())}
 	}
-	conn, err := net.Dial(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
+	if len(config.ListenAddrTCP) > 0 {
+		CONN_HOST = config.ListenAddrTCP
+	}
+	if config.PortTCP > 0 {
+		CONN_PORT = config.PortTCP
+	}
+	//fmt.Printf("connection host %v and port %v\n", CONN_HOST, CONN_PORT)
+	conn, err := net.Dial(CONN_TYPE, CONN_HOST+":"+strconv.Itoa(CONN_PORT))
 	if err != nil {
 		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] Dial %s", err.Error())}
 	}
