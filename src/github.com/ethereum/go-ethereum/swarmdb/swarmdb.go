@@ -94,21 +94,21 @@ func (self *SwarmDB) StoreRootHash(u *SWARMDBUser, fullTableName []byte /* GetTa
 func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row, err error) {
 	table, err := self.GetTable(u, query.TableOwner, query.Table)
 	if err != nil {
-		return rows, &SWARMDBError{message: `[swarmdb:QuerySelect] GetTable ` + err.Error()}
+		return rows, GenerateSWARMDBError(err, `[swarmdb:QuerySelect] GetTable `+err.Error())
 	}
 
 	//var rawRows []Row
 	log.Debug("QueryTableOwner is: [%s]\n", query.TableOwner)
 	colRows, err := self.Scan(u, query.TableOwner, query.Table, table.primaryColumnName, query.Ascending)
 	if err != nil {
-		return rows, &SWARMDBError{message: `[swarmdb:QuerySelect] Scan ` + err.Error()}
+		return rows, GenerateSWARMDBError(err, `[swarmdb:QuerySelect] Scan `+err.Error())
 	}
 	// fmt.Printf("\nColRows = [%+v]", colRows)
 
 	//apply WHERE
 	whereRows, err := table.applyWhere(colRows, query.Where)
 	if err != nil {
-		return rows, &SWARMDBError{message: `[swarmdb:QuerySelect] applyWhere ` + err.Error()}
+		return rows, GenerateSWARMDBError(err, `[swarmdb:QuerySelect] applyWhere `+err.Error())
 	}
 	// fmt.Printf("\nQuerySelect applied where rows: %+v\n", whereRows)
 
@@ -411,28 +411,28 @@ func (self *SwarmDB) Query(u *SWARMDBUser, query *QueryOption) (rows []Row, err 
 	case "Select":
 		rows, err := self.QuerySelect(u, query)
 		if err != nil {
-			return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Query] QuerySelect %s", err.Error())}
+			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QuerySelect %s", err.Error()))
 		}
 		if len(rows) == 0 {
-			return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Query] select query came back empty")}
+			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] select query came back empty"))
 		}
 		return rows, nil
 	case "Insert":
 		err = self.QueryInsert(u, query)
 		if err != nil {
-			return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Query] QueryInsert %s", err.Error())}
+			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QueryInsert %s", err.Error()))
 		}
 		return rows, nil
 	case "Update":
 		err = self.QueryUpdate(u, query)
 		if err != nil {
-			return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Query] QueryUpdate %s", err.Error())}
+			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QueryUpdate %s", err.Error()))
 		}
 		return rows, nil
 	case "Delete":
 		err = self.QueryDelete(u, query)
 		if err != nil {
-			return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Query] QueryDelete %s", err.Error())}
+			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QueryDelete %s", err.Error()))
 		}
 		return rows, nil
 	}
@@ -447,7 +447,7 @@ func (self *SwarmDB) Scan(u *SWARMDBUser, tableOwnerID string, tableName string,
 	}
 	rows, err = tbl.Scan(u, columnName, ascending)
 	if err != nil {
-		return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Scan] Error doing table scan: [%s]", columnName)}
+		return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Scan] Error doing table scan: [%s] %s", columnName, err.Error()))
 	}
 	rows, err = tbl.assignRowColumnTypes(rows)
 	if err != nil {
@@ -476,11 +476,8 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName str
 		tbl = self.NewTable(tableOwnerID, tableName, 1) // TODO: check why encrypted is a parameter? -- Also, changing from NewTable(u.Address ... to NewTable(tableOwnerID
 		err = tbl.OpenTable(u)
 		if err != nil {
-			if wolkErr, ok := err.(*SWARMDBError); ok {
-				return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error()), ErrorCode: wolkErr.ErrorCode, ErrorMessage: wolkErr.ErrorMessage}
-			} else {
-				return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error())}
-			}
+			wlkErr := GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error()))
+			return tbl, wlkErr
 		}
 		self.RegisterTable(u.Address, tableName, tbl)
 		return tbl, nil
@@ -490,7 +487,7 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, tableOwnerID string, tableName str
 // TODO: when there are errors, the error must be parsable make user friendly developer errors that can be trapped by Node.js, Go library, JS CLI
 func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, err error) {
 
-	fmt.Printf("SelectHandler Input: %s\n", data)
+	log.Debug("SelectHandler Input: %s\n", data)
 	// var rerr *RequestFormatError
 	d, err := parseData(data)
 	if err != nil {
@@ -515,33 +512,23 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		// fmt.Printf("\nPut DATA: [%+v]", d)
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
-			if wolkErr, ok := err.(*SWARMDBError); ok {
-				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", wolkErr.Error()), ErrorCode: wolkErr.ErrorCode, ErrorMessage: wolkErr.ErrorMessage}
-			} else {
-				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error())}
-			}
+			wlkErr := GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error()))
+			return resp, wlkErr
 		}
-		fmt.Printf("\nTABLES after GetTable %+v\n", self.tables)
 		tblInfo, err := tbl.GetTableInfo()
 		if err != nil {
-			if wolkErr, ok := err.(*SWARMDBError); ok {
-				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTableInfo %s", err.Error()), ErrorCode: wolkErr.ErrorCode, ErrorMessage: wolkErr.ErrorMessage}
-			} else {
-				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTableInfo %s", err.Error())}
-			}
+			wlkErr := GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTableInfo %s", err.Error()))
+			return resp, wlkErr
 		}
 		d.Rows, err = tbl.assignRowColumnTypes(d.Rows)
 		if err != nil {
-			if wolkErr, ok := err.(*SWARMDBError); ok {
-				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] assignRowColumnTypes %s", err.Error()), ErrorCode: wolkErr.ErrorCode, ErrorMessage: wolkErr.ErrorMessage}
-			} else {
-				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] assignRowColumnTypes %s", err.Error())}
-			}
+			wlkErr := GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] assignRowColumnTypes %s", err.Error()))
+			return resp, wlkErr
 		}
 
 		//error checking for primary column, and valid columns
 		for _, row := range d.Rows {
-			fmt.Printf("checking row %v\n", row)
+			log.Debug("checking row %v\n", row)
 			if _, ok := row.Cells[tbl.primaryColumnName]; !ok {
 				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Put row %+v needs primary column '%s' value", row, tbl.primaryColumnName), ErrorCode: 428, ErrorMessage: "Row missing primary key"}
 			}
@@ -555,11 +542,8 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			primaryColumnType := tbl.columns[tbl.primaryColumnName].columnType
 			convertedKey, err := convertJSONValueToKey(primaryColumnType, row.Cells[tbl.primaryColumnName])
 			if err != nil {
-				if wolkErr, ok := err.(*SWARMDBError); ok {
-					return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] convertJSONValueToKey %s", err.Error()), ErrorCode: wolkErr.ErrorCode, ErrorMessage:wolkErr.ErrorMessage}
-				} else {
-					return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] convertJSONValueToKey %s", err.Error())}
-				}
+				wlkErr := GenerateSWARMDBError( err, fmt.Sprintf("[swarmdb:SelectHandler] convertJSONValueToKey %s", err.Error()) )
+				return resp, wlkErr
 			}
 			validBytes, err := tbl.Get(u, convertedKey)
 			if err == nil {
@@ -580,64 +564,61 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		for _, row := range d.Rows {
 			err = tbl.Put(u, row.Cells)
 			if err != nil {
-				if wolkErr, ok := err.(*SWARMDBError); ok {
-					return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Put %s", err.Error()), ErrorCode: wolkErr.ErrorCode, ErrorMessage: wolkErr.ErrorMessage}
-				} else {
-					return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Put %s", err.Error())}
-				}
+				wlkErr := GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Put %s", err.Error()))
+				return resp, wlkErr
 			}
 		}
 		return OK_RESPONSE, nil
 
 	case "Get":
 		if isNil(d.Key) {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Get - Missing Key")}
+			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Get - Missing Key"), ErrorCode: 433, ErrorMessage: "GET Request Missing Key"}
 		}
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
 		}
 		primaryColumnType := tbl.columns[tbl.primaryColumnName].columnType
 		convertedKey, err := convertJSONValueToKey(primaryColumnType, d.Key)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] convertJSONValueToKey %s", err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] convertJSONValueToKey %s", err.Error()))
 		}
 		ret, err := tbl.Get(u, convertedKey)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error()))
 		}
 		return string(ret), nil
 	case "Delete":
 		if isNil(d.Key) {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Delete is Missing Key")}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Delete is Missing Key"))
 		}
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
 		}
 		_, err = tbl.Delete(u, d.Key)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Delete %s", err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Delete %s", err.Error()))
 		}
 		return OK_RESPONSE, nil
 	case "StartBuffer":
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
 		}
 		err = tbl.StartBuffer(u)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] StartBuffer %s", err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] StartBuffer %s", err.Error()))
 		}
 		return OK_RESPONSE, nil
 	case "FlushBuffer":
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
 		}
 		err = tbl.FlushBuffer(u)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] FlushBuffer %s", err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] FlushBuffer %s", err.Error()))
 		}
 		return OK_RESPONSE, nil
 	case "Query":
@@ -657,20 +638,14 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		// fmt.Printf("right before GetTable, u: %v, d.TableOwner: %v, d.Table: %v \n", u, d.TableOwner, d.Table)
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
-			if wolkErr, ok := err.(*SWARMDBError); ok {
-				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", wolkErr.Error()), ErrorCode: wolkErr.ErrorCode, ErrorMessage: wolkErr.ErrorMessage}
-			} else {
-				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error())}
-			}
+			wlkErr := GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
+			return resp, wlkErr
 		}
 		// fmt.Printf("Returned table [%+v] when calling gettable with Owner[%s], Table[%s]\n", tbl, d.TableOwner, d.Table)
 		tblInfo, err := tbl.GetTableInfo()
 		if err != nil {
-			if wolkErr, ok := err.(*SWARMDBError); ok {
-				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTableInfo %s", err.Error()), ErrorCode: wolkErr.ErrorCode, ErrorMessage: wolkErr.ErrorMessage}
-			} else {
-				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTableInfo %s", err.Error())}
-			}
+			wlkErr := GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTableInfo %s", err.Error()))
+			return resp, wlkErr
 		}
 		query.TableOwner = d.TableOwner //probably should check the owner against the tableinfo owner here
 
@@ -687,7 +662,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		//checking the Where clause
 		if len(query.Where.Left) > 0 {
 			if _, ok := tblInfo[query.Where.Left]; !ok {
-				return resp, &SWARMDBError{message: fmt.Sprintf("Query col [%s] does not exist in table", query.Where.Left)}
+				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Query col [%s] does not exist in table", query.Where.Left), ErrorCode: 432, ErrorMessage: fmt.Sprintf("WHERE Clause contains invalid column [%s]", query.Where.Left)}
 			}
 
 			//checking if the query is just a primary key Get
@@ -695,27 +670,27 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 				// fmt.Printf("Calling Get from Query\n")
 				convertedKey, err := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, query.Where.Right)
 				if err != nil {
-					return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] convertJSONValueToKey %s", err.Error())}
+					wlkErr := GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] convertJSONValueToKey %s", err.Error()))
+					return resp, wlkErr
 				}
 
 				byteRow, err := tbl.Get(u, convertedKey)
 				if err != nil {
-					return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error())}
+					return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error()))
 				}
 
 				row, err := tbl.byteArrayToRow(byteRow)
 				// fmt.Printf("Response row from Get: %s (%v)\n", row, row)
 				if err != nil {
-					return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] byteArrayToRow %s", err.Error())}
+					return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] byteArrayToRow %s", err.Error()))
 				}
 
 				filteredRow := filterRowByColumns(&row, query.RequestColumns)
 				// fmt.Printf("\nResponse filteredrow from Get: %s (%v)", filteredRow.Cells, filteredRow.Cells)
 				retJson, err := json.Marshal(filteredRow.Cells)
 				if err != nil {
-					return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Marshal %s", err.Error())}
+					return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Marshal %s", err.Error()))
 				}
-
 				return string(retJson), nil
 			}
 		}
@@ -724,32 +699,32 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		qRows, err := self.Query(u, &query)
 		// fmt.Printf("\nQRows: [%+v]", qRows)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Query [%+v] %s", query, err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Query [%+v] %s", query, err.Error()))
 		}
 		resp, err = rowDataToJson(qRows)
 		// fmt.Printf("\nJSONED Row is: [%+v] [%s]", resp, resp)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] rowDataToJson %s", err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] rowDataToJson %s", err.Error()))
 		}
 		return resp, nil
 	case "GetTableInfo":
 		tblcols, err := self.tables[tblKey].GetTableInfo()
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTableInfo %s", err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTableInfo %s", err.Error()))
 		}
 		tblinfo, err := json.Marshal(tblcols)
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Marshal %s", err.Error())}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Marshal %s", err.Error()))
 		}
 		return string(tblinfo), nil
 	}
-	return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] RequestType invalid: [%s]", d.RequestType)}
+	return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] RequestType invalid: [%s]", d.RequestType), ErrorCode: 418, ErrorMessage: "Request Invalid"}
 }
 
 func parseData(data string) (*RequestOption, error) {
 	udata := new(RequestOption)
 	if err := json.Unmarshal([]byte(data), udata); err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[swarmdb:parseData] Unmarshal %s", err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[swarmdb:parseData] Unmarshal %s", err.Error()), ErrorCode: 432, ErrorMessage: "Unable to Parse Request"}
 	}
 	return udata, nil
 }
@@ -757,30 +732,35 @@ func parseData(data string) (*RequestOption, error) {
 func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []Row, err error) {
 	column, err := t.getColumn(columnName)
 	if err != nil {
-		return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Scan] getColumn %s", err.Error())}
+		return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Scan] getColumn %s", err.Error()))
 	}
 	if t.primaryColumnName != columnName {
 		return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Scan] Skipping column %s", columnName)}
 	}
-	c := column.dbaccess.(OrderedDatabase)
-	// TODO: Error checking
 
-	// fmt.Printf("\nProcessing column [%s]", columnName)
+	var c OrderedDatabase
+	switch ctype := column.dbaccess.(type) {
+	case (OrderedDatabase):
+		c = column.dbaccess.(OrderedDatabase)
+	default:
+		return rows, &SWARMDBError{message: fmt.Sprintf("Attempt to scan a table with a column [%s] with an unsupported index type [%s]", columnName, ctype), ErrorCode: 431, ErrorMessage: fmt.Sprintf("Scans on Column [%s] not unsupported due to indextype", columnName)}
+	}
+
 	if ascending == 1 {
 		res, err := c.SeekFirst(u)
 		if err != nil {
-			return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Scan] SeekFirst %s ", err.Error())}
+			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Scan] SeekFirst %s ", err.Error()))
 		} else {
 			records := 0
 			for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
 				fmt.Printf("\n *int*> %d: K: %s V: %v (%s) \n", records, KeyToString(column.columnType, k), v, v)
 				row, errG := t.Get(u, k)
 				if errG != nil {
-					return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Scan] Get %s", errG.Error())}
+					return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Scan] Get %s", errG.Error()))
 				}
 				rowObj, errR := t.byteArrayToRow(row)
 				if errR != nil {
-					return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Scan] byteArrayToRow [%s] bytearray to row: [%s]", v, errR.Error())}
+					return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Scan] byteArrayToRow [%s] bytearray to row: [%s]", v, errR.Error()))
 				}
 				// fmt.Printf("table Scan, row set: %+v\n", row)
 				rows = append(rows, rowObj)
@@ -790,14 +770,14 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 	} else {
 		res, err := c.SeekLast(u)
 		if err != nil {
-			return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Scan] SeekLast %s", err.Error())}
+			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Scan] SeekLast %s", err.Error()))
 		} else {
 			records := 0
 			for k, v, err := res.Prev(u); err == nil; k, v, err = res.Prev(u) {
 				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(CT_STRING, k), KeyToString(column.columnType, v))
 				row, err := t.byteArrayToRow(v)
 				if err != nil {
-					return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Scan] byteArrayToRow %s", err.Error())}
+					return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Scan] byteArrayToRow %s", err.Error()))
 				}
 				fmt.Printf("table Scan, row set: %+v\n", row)
 				rows = append(rows, row)
