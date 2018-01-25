@@ -149,11 +149,14 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error)
 		}
 		existingByteRow, err := table.Get(u, convertedKey)
 		if err != nil {
+			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] Get - %s", err.Error()))
+		}
+		if len(existingByteRow) > 0 {
 			existingRow, errB := table.byteArrayToRow(existingByteRow)
 			if errB != nil {
 				return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] byteArrayToRow - %s", errB.Error())}
 			}
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row key %s already exists: %+v", row.Cells[table.primaryColumnName], existingRow)}
+			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row key %s already exists: %+v", row.Cells[table.primaryColumnName], existingRow), ErrorCode: 434, ErrorMessage: fmt.Sprintf("Record with key [%s] already exists.  If you wish to modify, please use UPDATE SQL statement or PUT", convertedKey)}
 		}
 		// put the new Row in
 		err = table.Put(u, row.Cells)
@@ -702,9 +705,13 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Query [%+v] %s", query, err.Error()))
 		}
 		resp, err = rowDataToJson(qRows)
-		// fmt.Printf("\nJSONED Row is: [%+v] [%s]", resp, resp)
+		log.Debug("JSONED Row is: [%+v] [%s]", resp, resp)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] rowDataToJson %s", err.Error()))
+		}
+
+		if resp == "null" {
+			resp = OK_RESPONSE
 		}
 		return resp, nil
 	case "GetTableInfo":
@@ -735,7 +742,7 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 		return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Scan] getColumn %s", err.Error()))
 	}
 	if t.primaryColumnName != columnName {
-		return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Scan] Skipping column %s", columnName)}
+		return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Scan] Skipping column %s", columnName), ErrorCode: -1, ErrorMessage: "Query Filters currently only supported on the primary key"}
 	}
 
 	var c OrderedDatabase
@@ -854,7 +861,7 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 	copy(buf[4000:4024], IntToByte(tbl.encrypted))
 	swarmhash, err := swdb.StoreDBChunk(u, buf, tbl.encrypted)
 	if err != nil {
-		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] StoreDBChunk %s", err.Error())}
+		return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreDBChunk %s", err.Error()))
 	}
 	tbl.primaryColumnName = primaryColumnName
 
@@ -862,13 +869,12 @@ func (swdb *SwarmDB) CreateTable(u *SWARMDBUser, tableName string, columns []Col
 	tblKey := swdb.GetTableKey(tbl.ownerID, tbl.tableName)
 	err = swdb.StoreRootHash(u, []byte(tblKey), []byte(swarmhash))
 	if err != nil {
-		delete(swdb.tables, tbl.tableName)
-		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] StoreRootHash %s", err.Error())}
+		return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreRootHash %s", err.Error()))
 	}
 
 	err = tbl.OpenTable(u)
 	if err != nil {
-		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] OpenTable %s", err.Error())}
+		return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] OpenTable %s", err.Error()))
 	}
 	swdb.RegisterTable(u.Address, tableName, tbl)
 	return tbl, nil
@@ -891,7 +897,7 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 	roothash, err := t.swarmdb.GetRootHash(u, []byte(tblKey))
 	// fmt.Printf("opening table @ %s roothash [%x]\n", t.tableName, roothash)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:OpenTable] GetRootHash for table [%s]: %v", tblKey, err)}
+		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:OpenTable] GetRootHash for table [%s]: %v", tblKey, err))
 	}
 	if len(roothash) == 0 {
 		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:OpenTable] Empty root hash"), ErrorCode: 403, ErrorMessage: fmt.Sprintf("Table Does Not Exist: TableName [%s] OwnerID [%s]", t.tableName, t.ownerID)}
@@ -899,7 +905,7 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 	setprimary := false
 	columndata, err := t.swarmdb.RetrieveDBChunk(u, roothash)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:OpenTable] RetrieveDBChunk %s", err.Error())}
+		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:OpenTable] RetrieveDBChunk %s", err.Error()))
 	}
 
 	columnbuf := columndata
@@ -928,13 +934,13 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 		case IT_BPLUSTREE:
 			bplustree, err := NewBPlusTreeDB(u, *t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType))
 			if err != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[swarmdb:OpenTable] NewBPlusTreeDB %s", err.Error())}
+				return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:OpenTable] NewBPlusTreeDB %s", err.Error()))
 			}
 			columninfo.dbaccess = bplustree
 		case IT_HASHTREE:
 			columninfo.dbaccess, err = NewHashDB(u, columninfo.roothash, *t.swarmdb, ColumnType(columninfo.columnType))
 			if err != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[swarmdb:OpenTable] NewHashDB %s", err.Error())}
+				return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:OpenTable] NewHashDB %s", err.Error()))
 			}
 		}
 		t.columns[columninfo.columnName] = columninfo
@@ -1004,7 +1010,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 
 	rawvalue, err := json.Marshal(row)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:Put] Marshal %s", err.Error())}
+		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:Put] Marshal %s", err.Error()), ErrorCode: 435, ErrorMessage: "Invalid Row Data"}
 	}
 
 	k := make([]byte, 32)
@@ -1015,22 +1021,22 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 
 			pvalue, ok := row[t.primaryColumnName]
 			if !ok {
-				return &SWARMDBError{message: fmt.Sprintf("[swarmdb:Put] Primary key %s not specified in input", t.primaryColumnName)}
+				return &SWARMDBError{message: fmt.Sprintf("[swarmdb:Put] Primary key %s not specified in input", t.primaryColumnName), ErrorCode: 428, ErrorMessage: "Row missing primary key"}
 			}
 			k, err = convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, pvalue)
 			if err != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[swarmdb:Put] convertJSONValueToKey %s", err.Error())}
+				return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Put] convertJSONValueToKey %s", err.Error()))
 			}
 
 			t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
 			khash, err := t.swarmdb.kaddb.Put(u, k, []byte(rawvalue)) // TODO: use u (sk) in kaddb
 			if err != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[swarmdb:Put] kaddb.Put %s", err.Error())}
+				return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Put] kaddb.Put %s", err.Error()))
 			}
 			// fmt.Printf(" - primary  %s | %x\n", c.columnName, k)
 			_, err = t.columns[c.columnName].dbaccess.Put(u, k, khash)
 			if err != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[swarmdb:Put] dbaccess.Put %s", err.Error())}
+				return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Put] dbaccess.Put %s", err.Error()))
 			}
 		} else {
 			k2 := make([]byte, 32)
@@ -1042,13 +1048,13 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 			}
 			k2, errPvalue = convertJSONValueToKey(c.columnType, pvalue)
 			if errPvalue != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[swarmdb:Put] convertJSONValueToKey %s", errPvalue.Error())}
+				return GenerateSWARMDBError(errPvalue, fmt.Sprintf("[swarmdb:Put] convertJSONValueToKey %s", errPvalue.Error()))
 			}
 
 			// fmt.Printf(" - secondary %s %x | %x\n", c.columnName, k2, k)
 			_, err = t.columns[c.columnName].dbaccess.Put(u, k2, k)
 			if err != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[swarmdb:Put] dbaccess.Put %s", err.Error())}
+				return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Put] dbaccess.Put %s", err.Error()))
 			}
 			//t.columns[c.columnName].dbaccess.Print()
 		}
@@ -1059,7 +1065,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 	} else {
 		err = t.FlushBuffer(u)
 		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:Put] FlushBuffer %s", err.Error())}
+			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Put] FlushBuffer %s", err.Error()))
 		}
 	}
 	return nil
@@ -1079,7 +1085,7 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	row := NewRow()
 	if err := json.Unmarshal(byteData, &row.Cells); err != nil {
-		return row, &SWARMDBError{message: fmt.Sprintf("[swarmdb:byteArrayToRow] Unmarshal %s", err.Error())}
+		return row, &SWARMDBError{message: fmt.Sprintf("[swarmdb:byteArrayToRow] Unmarshal %s for [%s]", err.Error(), byteData), ErrorCode: 436, ErrorMessage: "Unable to converty byte array to Row Object"}
 	}
 	return row, nil
 }
@@ -1094,31 +1100,31 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, err error) {
 
 	_, ok, err2 := t.columns[primaryColumnName].dbaccess.Get(u, key)
 	if err2 != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Get] dbaccess.Get %s", err2.Error())}
+		return nil, GenerateSWARMDBError(err2, fmt.Sprintf("[swarmdb:Get] dbaccess.Get %s", err2.Error()))
 	}
 	if ok {
 		// get value from kdb
 		kres, err3 := t.swarmdb.kaddb.GetByKey(u, key)
 		if err3 != nil {
-			return out, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Get] kaddb.GetByKey %s", err3.Error())}
+			return out, GenerateSWARMDBError(err3, fmt.Sprintf("[swarmdb:Get] kaddb.GetByKey %s", err3.Error()))
 		}
 		fres := bytes.Trim(kres, "\x00")
 		return fres, nil
 	} else {
-		return []byte(""), &SWARMDBError{message: fmt.Sprintf("[swarmdb:Get] Missing key %s", key)}
+		return []byte(""), nil
 	}
 }
 
 func (t *Table) Delete(u *SWARMDBUser, key interface{}) (ok bool, err error) {
 	k, err2 := convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, key)
 	if err2 != nil {
-		return ok, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Delete] convertJSONValueToKey %s", err2.Error())}
+		return ok, GenerateSWARMDBError(err2, fmt.Sprintf("[swarmdb:Delete] convertJSONValueToKey %s", err2.Error()))
 	}
 	ok = false
 	for _, ip := range t.columns {
 		ok2, err := ip.dbaccess.Delete(u, k)
 		if err != nil {
-			return ok2, &SWARMDBError{message: fmt.Sprintf("[swarmdb:Delete] dbaccess.Delete %s", err.Error())}
+			return ok2, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Delete] dbaccess.Delete %s", err.Error()))
 		}
 		if ok2 {
 			ok = true
@@ -1141,7 +1147,7 @@ func (t *Table) StartBuffer(u *SWARMDBUser) (err error) {
 	for _, ip := range t.columns {
 		_, err := ip.dbaccess.StartBuffer(u)
 		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:StartBuffer] dbaccess.StartBuffer %s", err.Error())}
+			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:StartBuffer] dbaccess.StartBuffer %s", err.Error()))
 		}
 	}
 	return nil
@@ -1151,14 +1157,14 @@ func (t *Table) FlushBuffer(u *SWARMDBUser) (err error) {
 	for _, ip := range t.columns {
 		_, err := ip.dbaccess.FlushBuffer(u)
 		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:FlushBuffer] dbaccess.FlushBuffer %s", err.Error())}
+			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:FlushBuffer] dbaccess.FlushBuffer %s", err.Error()))
 		}
 		roothash := ip.dbaccess.GetRootHash()
 		ip.roothash = roothash
 	}
 	err = t.updateTableInfo(u)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:FlushBuffer] updateTableInfo %s", err.Error())}
+		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:FlushBuffer] updateTableInfo %s", err.Error()))
 	}
 	return nil
 }
@@ -1187,12 +1193,12 @@ func (t *Table) updateTableInfo(u *SWARMDBUser) (err error) {
 	isEncrypted := 1
 	swarmhash, err := t.swarmdb.StoreDBChunk(u, buf, isEncrypted)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:updateTableInfo] StoreDBChunk %s", err.Error())}
+		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:updateTableInfo] StoreDBChunk %s", err.Error()))
 	}
 	tblKey := t.swarmdb.GetTableKey(t.ownerID, t.tableName)
 	err = t.swarmdb.StoreRootHash(u, []byte(tblKey), []byte(swarmhash))
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:updateTableInfo] StoreRootHash %s", err.Error())}
+		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:updateTableInfo] StoreRootHash %s", err.Error()))
 	}
 	return nil
 }
@@ -1213,7 +1219,7 @@ func (t *Table) GetTableInfo() (tblInfo map[string]Column, err error) {
 		cinfo.Primary = int(c.primary)
 		cinfo.ColumnType = c.columnType
 		if _, ok := tblInfo[cname]; ok { // if ok, would mean for some reason there are two cols named the same thing
-			return tblInfo, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetTableInfo] Duplicate column: [%s]", cname)}
+			return tblInfo, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetTableInfo] Duplicate column: [%s]", cname), ErrorCode: -1, ErrorMessage: "Table has Duplicate columns?"} //TODO: how would this occur?
 		}
 		tblInfo[cname] = cinfo
 	}
