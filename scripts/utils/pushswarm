@@ -1,0 +1,9 @@
+#!/bin/bash
+
+if [ -z $1 ]
+  then
+    echo "
+           Usage:\"pushswarm sourabh /path/to/file/to/rsync\""
+else
+gcloud compute instances list | grep $1 | grep -v dev | awk '{print"rsync -avz '$2'",$1":'$2'"}' > /tmp/$1.sh && sh /tmp/$1.sh
+fi
