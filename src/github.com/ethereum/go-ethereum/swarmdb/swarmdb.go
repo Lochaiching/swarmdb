@@ -587,6 +587,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
+			fmt.Printf(fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s\n", err.Error()))
 			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error())}
 		}
 		primaryColumnType := tbl.columns[tbl.primaryColumnName].columnType
@@ -596,6 +597,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 		ret, err := tbl.Get(u, convertedKey)
 		if err != nil {
+			fmt.Printf(fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error()))
 			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error())}
 		}
 		return string(ret), nil
