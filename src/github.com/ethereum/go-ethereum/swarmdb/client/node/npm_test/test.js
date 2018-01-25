@@ -9,7 +9,7 @@ var tableowner = "ADDRESS_IN_YOUR_CONFIG_FILE";
 
 // create table
 var columns = [
-    { "indextype": 1, "columnname": "email", "columntype": 2, "primary": 1 },
+    { "indextype": 2, "columnname": "email", "columntype": 2, "primary": 1 },
     { "indextype": 2, "columnname": "age", "columntype": 1, "primary": 0 }
 ];
 connection.createTable("test", columns, function (err, result) {
