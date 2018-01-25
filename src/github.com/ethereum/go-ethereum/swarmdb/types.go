@@ -55,12 +55,13 @@ type RequestOption struct {
 	RawQuery string   `json:"rawquery,omitempty"` //"Select name, age from contacts where email = 'blah'"
 }
 
+//shouldn't Data be an interface{}?
 type SWARMDBResponse struct {
 	ErrorCode        int    `json:"errorcode,omitempty"`
 	ErrorMessage     string `json:"errormessage,omitempty"`
 	Data             []Row  `json:"data,omitempty"`
-	AffectedRowCount int    `json:"affectedrowcount",omitempty`
-	MatchedRowCount  int    `json:"matchedrowcount",omitempty`
+	AffectedRowCount int    `json:"affectedrowcount,omitempty"`
+	MatchedRowCount  int    `json:"matchedrowcount,omitempty"`
 }
 
 type SWARMDBConnection struct {
@@ -618,12 +619,18 @@ type SWARMDBError struct {
 	ErrorMessage string
 }
 
-func (t *SWARMDBError) Error() string {
-	return t.message
+func (e *SWARMDBError) Error() string {
+	return e.message
 }
 
-func (t *SWARMDBError) SetError(m string) {
-	t.message = m
+func (e *SWARMDBError) SetError(m string) {
+	e.message = m
+}
+
+//for client output
+//TODO: take the e.message out ... just for debugging at the moment
+func (e *SWARMDBError) Print() string {
+	return fmt.Sprintf("Error (%d): %s [%s]\n", e.ErrorCode, e.ErrorMessage, e.message)
 }
 
 type TableNotExistError struct {
