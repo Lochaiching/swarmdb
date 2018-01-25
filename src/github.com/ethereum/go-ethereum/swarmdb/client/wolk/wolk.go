@@ -40,16 +40,6 @@ type Session struct {
 	DBTable   *swarmdb.SWARMDBTable
 }
 
-type IncomingInfo struct {
-	//Bid  float64
-	Info []interface{} //usually []map[string]interface{}
-}
-
-type IncomingGet struct {
-	//Bid float64
-	Key string //must be primary key value
-}
-
 var session *Session
 var DBC *swarmdb.SWARMDBConnection
 
@@ -64,7 +54,7 @@ func main() {
 	dbc, err := swarmdb.NewSWARMDBConnection()
 	DBC = &dbc
 	if err != nil {
-		fmt.Printf("Err: %v\n", err)
+		fmt.Printf(err.(*swarmdb.SWARMDBError).Print())
 		os.Exit(0)
 	}
 
@@ -80,8 +70,8 @@ func main() {
 
 		arg0 := call.Argument(0).String()
 		if err := json.Unmarshal([]byte(arg0), &session); err != nil {
-			err = fmt.Errorf("ERR: %v\n", err)
-			result, _ := vm.ToValue(err.Error())
+			swdberr := &swarmdb.SWARMDBError{ErrorCode:400, ErrorMessage:`Bad JSON Supplied: [`+arg0+`]`}
+			result, _ := vm.ToValue(swdberr.Print())
 			//TODO: Error Checking
 			return result
 		}
@@ -93,7 +83,8 @@ func main() {
 		//??
 		//}
 		if len(session.TableName) == 0 {
-			result, _ := vm.ToValue("ERR: no table name\n")
+			swdberr := &swarmdb.SWARMDBError{ErrorCode:426, ErrorMessage:`Table Name Missing`}
+			result, _ := vm.ToValue(swdberr.Print())
 			//TODO: Error Checking
 			return result
 		}
@@ -106,7 +97,7 @@ func main() {
 		//open up session with table specified
 		session.DBTable, err = DBC.Open(session.TableName, session.TableOwner, *session.Encrypted)
 		if err != nil {
-			result, _ := vm.ToValue(err.Error())
+			result, _ := vm.ToValue(err.(*swarmdb.SWARMDBError).Print())
 			return result
 		}
 
@@ -118,9 +109,11 @@ func main() {
 
 	})
 
+	//TODO: do we want to do this?
 	vm.Set("closeSession", func(call otto.FunctionCall) otto.Value {
 		if !session.IsOpen {
-			result, _ := vm.ToValue("ERR: No open session to close\n")
+			swdberr := &swarmdb.SWARMDBError{ErrorCode:0, ErrorMessage:`Session Is Not Open`}			
+			result, _ := vm.ToValue(swdberr.Print())
 			//TODO: Error Checking
 			return result
 		}
@@ -142,39 +135,34 @@ func main() {
 	vm.Set("createTable", func(call otto.FunctionCall) otto.Value {
 
 		if !session.IsOpen {
-			result, _ := vm.ToValue("ERR: Please open session first\n")
+			swdberr := &swarmdb.SWARMDBError{ErrorCode:0, ErrorMessage:`Session Is Not Open`}
+			result, _ := vm.ToValue(swdberr.Print())
 			//TODO: Error Checking
 			return result
 		}
 		raw := call.Argument(0).String()
-		//fmt.Printf("raw:\n%s\n", raw)
 
-		var in IncomingInfo
+		var in []map[string]interface{}
 		if err := json.Unmarshal([]byte(raw), &in); err != nil {
-			err := fmt.Errorf("ERR: %v\n", err)
-			result, _ := vm.ToValue(err.Error())
+			errmsg := fmt.Sprintf(`Bad JSON Supplied: [%v]`, raw)
+			swdberr := &swarmdb.SWARMDBError{ErrorCode:400, ErrorMessage:errmsg}
+			result, _ := vm.ToValue(swdberr.Print())
 			//TODO: Error Checking
 			return result
 		}
-		//fmt.Printf("incoming table:\n%+v\n", in)
-
-		if len(in.Info) == 0 {
-			result, _ := vm.ToValue("ERR: No table columns specified\n")
+		if len(in) == 0 {
+			swdberr := &swarmdb.SWARMDBError{ErrorCode:0, ErrorMessage:`Columns Not Specified`}
+			result, _ := vm.ToValue(swdberr.Print())
 			//TODO: Error Checking
 			return result
 		}
-
-		//if in.Bid == float64(0) {
-		//	result, _ := vm.ToValue("Cannot have 0 bid")
-		//TODO: Error Checking
-		//	return result
-		//}
+		//Bid check would go here if we were accepting bids
 
 		var sCols []swarmdb.Column
 		hasPrimary := false
-		for _, col := range in.Info {
+		for _, col := range in {
 			var sCol swarmdb.Column
-			colbyte, err := json.Marshal(col.(map[string]interface{}))
+			colbyte, err := json.Marshal(col) //.(map[string]interface{}))
 			if err != nil {
 				err = fmt.Errorf("ERR: %+v, %v\n", col, err)
 				result, _ := vm.ToValue(err.Error())
@@ -246,7 +234,7 @@ func main() {
 		*/
 	})
 
-	vm.Set("addRow", func(call otto.FunctionCall) otto.Value {
+	vm.Set("put", func(call otto.FunctionCall) otto.Value {
 
 		if !session.IsOpen {
 			result, _ := vm.ToValue("ERR: Please open session first\n")
@@ -254,34 +242,25 @@ func main() {
 			return result
 		}
 		raw := call.Argument(0).String()
-		//fmt.Printf("raw:\n%s\n", raw)
 
-		var in IncomingInfo
+		var in []map[string]interface{}
 		if err := json.Unmarshal([]byte(raw), &in); err != nil {
 			err = fmt.Errorf("ERR: %v\n", err)
 			result, _ := vm.ToValue(err.Error())
 			//TODO: Error Checking
 			return result
 		}
-		//fmt.Printf("incoming rows:\n%+v\n", in)
-		if len(in.Info) == 0 {
+		if len(in) == 0 {
 			result, _ := vm.ToValue("ERR: No rows specified\n")
 			//TODO: Error Checking
 			return result
 		}
-		//if in.Bid == float64(0) {
-		//	result, _ := vm.ToValue("Cannot have 0 bid")
-		//TODO: Error Checking
-		//	return result
-		//}
+		//if we were doing bid check, it would be here
 
 		var sRows []swarmdb.Row
-		for _, row := range in.Info {
+		for _, row := range in {
 			sRow := swarmdb.NewRow()
-			sRow.Cells = row.(map[string]interface{})
-			//should check for primary key in each row?
-			//should check for duplicate rows?
-			//should check for rows that already exist here? -- or kick the can down the line?
+			sRow.Cells = row  //.(map[string]interface{})
 			sRows = append(sRows, sRow)
 		}
 
