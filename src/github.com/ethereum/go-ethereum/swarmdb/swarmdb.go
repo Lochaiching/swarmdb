@@ -261,7 +261,7 @@ func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
 						row.Cells[name] = value.(int)
 					case float64:
 						row.Cells[name] = int(value.(float64))
-						log.Debug("Converting value[%s] from float64 to int => [%d][%s]\n", value, row.Cells[name])
+						log.Debug(fmt.Sprintf("Converting value[%s] from float64 to int => [%d][%s]\n", value, row.Cells[name]))
 					default:
 						return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: "The value passed in for [%s] is not of the defined type"}
 					}
@@ -274,7 +274,7 @@ func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
 					case float64:
 						row.Cells[name] = strconv.FormatFloat(value.(float64), 'f', -1, 64)
 						//TODO: handle err
-						log.Debug("Converting value[%s] from float64 to string => [%s]\n", value, row.Cells[name])
+						log.Debug(fmt.Sprintf("Converting value[%s] from float64 to string => [%s]\n", value, row.Cells[name]))
 					default:
 						return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: "The value passed in for [%s] is not of the defined type"}
 					}
@@ -287,8 +287,8 @@ func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
 					default:
 						return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: "The value passed in for [%s] is not of the defined type"}
 					}
-				case CT_BLOB:
-					// TODO: add blob support
+				//case CT_BLOB:
+				// TODO: add blob support
 				default:
 					return rows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:assignRowColumnTypes] Coltype not found", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: "The value passed in for [%s] is not of the defined type"}
 				}
@@ -512,7 +512,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 		return OK_RESPONSE, err
 	case "Put":
-		// fmt.Printf("\nPut DATA: [%+v]", d)
+		//fmt.Printf("\nPut DATA: [%+v]\n", d)
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
 			wlkErr := GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error()))
@@ -579,7 +579,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 		tbl, err := self.GetTable(u, d.TableOwner, d.Table)
 		if err != nil {
-			fmt.Printf(fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s\n", err.Error()))
+			//fmt.Printf(fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s\n", err.Error()))
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
 		}
 		primaryColumnType := tbl.columns[tbl.primaryColumnName].columnType
@@ -589,7 +589,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 		ret, err := tbl.Get(u, convertedKey)
 		if err != nil {
-			fmt.Printf(fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error()))
+			//fmt.Printf(fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error()))
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error()))
 		}
 		return string(ret), nil
@@ -762,7 +762,7 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 		} else {
 			records := 0
 			for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
-				fmt.Printf("\n *int*> %d: K: %s V: %v (%s) \n", records, KeyToString(column.columnType, k), v, v)
+				fmt.Printf("\n *int*> %d: K: %s V: %v \n", records, KeyToString(column.columnType, k), v)
 				row, errG := t.Get(u, k)
 				if errG != nil {
 					return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Scan] Get %s", errG.Error()))
@@ -897,7 +897,7 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 	tblKey := t.swarmdb.GetTableKey(t.ownerID, t.tableName)
 	log.Debug("[OpenTable]Getting RootHash for ", tblKey)
 	roothash, err := t.swarmdb.GetRootHash(u, []byte(tblKey))
-	// fmt.Printf("opening table @ %s roothash [%x]\n", t.tableName, roothash)
+	//fmt.Printf("opening table @ %s roothash [%x]\n", t.tableName, roothash)
 	if err != nil {
 		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:OpenTable] GetRootHash for table [%s]: %v", tblKey, err))
 	}
@@ -1100,27 +1100,26 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, err error) {
 	t.swarmdb.kaddb.Open([]byte(t.ownerID), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
 	// fmt.Printf("\n GET key: (%s)%v\n", key, key)
 
-	_, ok, err2 := t.columns[primaryColumnName].dbaccess.Get(u, key)
-	if err2 != nil {
-		return nil, GenerateSWARMDBError(err2, fmt.Sprintf("[swarmdb:Get] dbaccess.Get %s", err2.Error()))
+	_, ok, err := t.columns[primaryColumnName].dbaccess.Get(u, key)
+	if err != nil {
+		return nil, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Get] dbaccess.Get %s", err.Error()))
 	}
-	if ok {
-		// get value from kdb
-		kres, err3 := t.swarmdb.kaddb.GetByKey(u, key)
-		if err3 != nil {
-			return out, GenerateSWARMDBError(err3, fmt.Sprintf("[swarmdb:Get] kaddb.GetByKey %s", err3.Error()))
-		}
-		fres := bytes.Trim(kres, "\x00")
-		return fres, nil
-	} else {
+	if !ok {
 		return []byte(""), nil
 	}
+	// get value from kdb
+	kres, err := t.swarmdb.kaddb.GetByKey(u, key)
+	if err != nil {
+		return out, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Get] kaddb.GetByKey %s", err.Error()))
+	}
+	fres := bytes.Trim(kres, "\x00")
+	return fres, nil
 }
 
 func (t *Table) Delete(u *SWARMDBUser, key interface{}) (ok bool, err error) {
-	k, err2 := convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, key)
-	if err2 != nil {
-		return ok, GenerateSWARMDBError(err2, fmt.Sprintf("[swarmdb:Delete] convertJSONValueToKey %s", err2.Error()))
+	k, err := convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, key)
+	if err != nil {
+		return ok, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Delete] convertJSONValueToKey %s", err.Error()))
 	}
 	ok = false
 	for _, ip := range t.columns {
@@ -1133,7 +1132,6 @@ func (t *Table) Delete(u *SWARMDBUser, key interface{}) (ok bool, err error) {
 		} else {
 			// TODO: if the index delete fails, what should be done?
 		}
-
 	}
 	// TODO: K node deletion
 	return ok, nil
