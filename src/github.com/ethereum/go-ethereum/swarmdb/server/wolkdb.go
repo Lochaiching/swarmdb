@@ -66,25 +66,22 @@ func buildErrorResp(err error) string {
 	var respObj swarmdb.SWARMDBResponse
 	wolkErr, ok := err.(*swarmdb.SWARMDBError)
 	if !ok {
-		return (`{ "errorcode":-1, "error":"UNKNOWN ERROR"}`) //TODO: Make Default Error Handling
+		return (`{ "errorcode":-1, "errormessage":"UNKNOWN ERROR"}`) //TODO: Make Default Error Handling
 	}
-	fmt.Printf("wolkErr is %+v\n", wolkErr)
 	if wolkErr.ErrorCode == 0 { //FYI: default empty int is 0. maybe should be a pointer.  //TODO this is a hack with what errors are being returned right now
 		//fmt.Printf("wolkErr.ErrorCode doesn't exist\n")
-		respObj.ErrorCode = 888	
+		respObj.ErrorCode = 888
 		respObj.ErrorMessage = err.Error()
-		fmt.Printf("respObj.ErrorMessage is %s\n", respObj.ErrorMessage)
 	} else {
-		respObj.ErrorCode = wolkErr.ErrorCode  
+		respObj.ErrorCode = wolkErr.ErrorCode
 		respObj.ErrorMessage = wolkErr.ErrorMessage
 	}
 	jbyte, jErr := json.Marshal(respObj)
 	if jErr != nil {
 		fmt.Printf("Error: [%s] [%+v]", jErr.Error(), respObj)
-		return `{ "errorcode":-1, "error":"DEFAULT ERROR"}` //TODO: Make Default Error Handling
+		return `{ "errorcode":-1, "errormessage":"DEFAULT ERROR"}` //TODO: Make Default Error Handling
 	}
 	jstr := string(jbyte)
-	fmt.Printf("returning from buildErrorResp: %s\n", jstr)
 	return jstr
 }
 
@@ -156,16 +153,21 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 			}
 			if true {
 				if resp, err := svr.swarmdb.SelectHandler(u, string(str)); err != nil {
-					fmt.Printf("tcpip - selecthandler returned an err...%v\n", err)
 					tcpJson := buildErrorResp(err)
-					fmt.Printf("tcpip - buildErrorResp built: %s\n", tcpJson)
-					fmt.Printf("\nRead: [%s] Wrote: [%s]\n", str, tcpJson)
-					writer.WriteString(tcpJson)
+					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, tcpJson)
+					_, err := writer.WriteString(tcpJson + "\n")
+					if err != nil {
+						fmt.Printf("writer err: %v\n", err)
+						//TODO handle if writestring has err
+					}
 					writer.Flush()
 				} else {
-					fmt.Printf("tcpip - Read: [%s] Wrote: [%s]\n", str, resp)
-					
-					writer.WriteString(resp + "\n")
+					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, resp)
+					_, err := writer.WriteString(resp + "\n")
+					if err != nil {
+						fmt.Printf("writer err: %v\n", err)
+						//TODO handle if writestring has err
+					}
 					writer.Flush()
 				}
 			} else {
