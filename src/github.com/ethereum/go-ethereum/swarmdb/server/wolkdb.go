@@ -130,6 +130,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 
 	u, err := svr.keymanager.VerifyMessage(challenge_bytes, response_bytes)
 	if err != nil {
+		log.Debug("\nERROR: %s", err.Error())
 		tcpJson := buildErrorResp(err)
 		writer.WriteString(tcpJson)
 		writer.Flush()
@@ -147,6 +148,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 			}
 			if true {
 				if resp, err := svr.swarmdb.SelectHandler(u, string(str)); err != nil {
+					log.Debug("ERROR: %+v", err)
 					tcpJson := buildErrorResp(err)
 					fmt.Printf("\nRead: [%s] Wrote: [%s]\n", str, tcpJson)
 					writer.WriteString(tcpJson)
