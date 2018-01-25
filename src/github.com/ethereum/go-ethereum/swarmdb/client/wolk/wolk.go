@@ -264,8 +264,8 @@ func main() {
 			sRows = append(sRows, sRow)
 		}
 
-		response, err := session.DBTable.Put(sRows)
-		fmt.Printf("response: [%v] err: [%v]\n", response, err)
+		_, err := session.DBTable.Put(sRows)
+		//fmt.Printf("response: [%v] err: [%v]\n", response, err)
 		if err != nil {
 			result, _ := vm.ToValue(err.(*swarmdb.SWARMDBError).Print())
 			//TODO: Error Checking
@@ -307,12 +307,10 @@ func main() {
 
 		dbResponse, err := session.DBTable.Get(raw)
 		if err != nil {
-			fmt.Printf("cli - got an err back: %+v\n", err.(*swarmdb.SWARMDBError).Print())
 			result, _ := vm.ToValue(err.(*swarmdb.SWARMDBError).Print())
 			//TODO: Error Checking
 			return result
 		}
-		fmt.Printf("cli - got this response back: %+v\n", dbResponse)
 		result, _ := vm.ToValue(dbResponse)
 		//TODO: Error Checking
 		return result
@@ -345,7 +343,7 @@ func main() {
 	//}
 
 	vm.Set("quit", func(call otto.FunctionCall) otto.Value {
-		os.Exit(0)
+		os.Exit(0) //TODO this doesn't work
 		return otto.Value{}
 	})
 
