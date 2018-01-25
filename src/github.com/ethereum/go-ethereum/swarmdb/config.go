@@ -42,20 +42,20 @@ func GenerateSampleSWARMDBConfig(privateKey string, address string, passphrase s
 	u.AutoRenew = 1
 
 	c.ListenAddrTCP = SWARMDBCONF_LISTENADDR
-	c.PortTCP = SWARMDBCONF_PORTTCP 
+	c.PortTCP = SWARMDBCONF_PORTTCP
 
 	c.ListenAddrHTTP = SWARMDBCONF_LISTENADDR
-	c.PortHTTP = SWARMDBCONF_PORTHTTP 
+	c.PortHTTP = SWARMDBCONF_PORTHTTP
 
 	c.Address = u.Address
 	c.PrivateKey = privateKey
 
 	c.Authentication = 1
-	c.ChunkDBPath = SWARMDBCONF_CHUNKDB_PATH    
-	c.KeystorePath = SWARMDBCONF_KEYSTORE_PATH  
+	c.ChunkDBPath = SWARMDBCONF_CHUNKDB_PATH
+	c.KeystorePath = SWARMDBCONF_KEYSTORE_PATH
 	c.Users = append(c.Users, u)
 
-	c.Currency = SWARMDBCONF_CURRENCY 
+	c.Currency = SWARMDBCONF_CURRENCY
 	c.TargetCostStorage = SWARMDBCONF_TARGET_COST_STORAGE
 	c.TargetCostBandwidth = SWARMDBCONF_TARGET_COST_BANDWIDTH
 	return c
