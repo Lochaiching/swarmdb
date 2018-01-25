@@ -159,6 +159,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 					fmt.Printf("tcpip - selecthandler returned an err...%v\n", err)
 					tcpJson := buildErrorResp(err)
 					fmt.Printf("tcpip - buildErrorResp built: %s\n", tcpJson)
+					fmt.Printf("\nRead: [%s] Wrote: [%s]\n", str, tcpJson)
 					writer.WriteString(tcpJson)
 					writer.Flush()
 				} else {
