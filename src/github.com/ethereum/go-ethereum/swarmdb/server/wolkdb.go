@@ -62,22 +62,30 @@ type SwarmDBReq struct {
 	key      string
 }
 
-func buildErrorResp(err error) (resp string) {
+func buildErrorResp(err error) string {
 	var respObj swarmdb.SWARMDBResponse
-	var jstr []byte
-	var jErr error
-	if wolkErr, ok := err.(*swarmdb.SWARMDBError); ok {
-		respObj.ErrorCode = wolkErr.ErrorCode
-		respObj.ErrorMessage = wolkErr.ErrorMessage
-		jstr, jErr = json.Marshal(respObj)
-		if jErr != nil {
-			fmt.Printf("Error: [%s] [%+v]", jErr.Error(), respObj)
-			jstr = []byte(`{ "errorcode":-1, "error":"DEFAULT ERROR"}`) //TODO: Make Default Error Handling
-		}
-	} else {
-		jstr = []byte(`{ "errorcode":-1, "error":"UNKNOWN ERROR"}`) //TODO: Make Default Error Handling
+	wolkErr, ok := err.(*swarmdb.SWARMDBError)
+	if !ok {
+		return (`{ "errorcode":-1, "error":"UNKNOWN ERROR"}`) //TODO: Make Default Error Handling
 	}
-	return fmt.Sprintf("%s", jstr)
+	fmt.Printf("wolkErr is %+v\n", wolkErr)
+	if wolkErr.ErrorCode == 0 { //FYI: default empty int is 0. maybe should be a pointer.  //TODO this is a hack with what errors are being returned right now
+		//fmt.Printf("wolkErr.ErrorCode doesn't exist\n")
+		respObj.ErrorCode = 888	
+		respObj.ErrorMessage = err.Error()
+		fmt.Printf("respObj.ErrorMessage is %s\n", respObj.ErrorMessage)
+	} else {
+		respObj.ErrorCode = wolkErr.ErrorCode  
+		respObj.ErrorMessage = wolkErr.ErrorMessage
+	}
+	jbyte, jErr := json.Marshal(respObj)
+	if jErr != nil {
+		fmt.Printf("Error: [%s] [%+v]", jErr.Error(), respObj)
+		return `{ "errorcode":-1, "error":"DEFAULT ERROR"}` //TODO: Make Default Error Handling
+	}
+	jstr := string(jbyte)
+	fmt.Printf("returning from buildErrorResp: %s\n", jstr)
+	return jstr
 }
 
 // Handles incoming TCPIP requests.
@@ -115,6 +123,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 		resp = strings.Trim(resp, "\r")
 		resp = strings.Trim(resp, "\n")
 	}
+	fmt.Printf("handleTcpipRequest response %v\n", resp)
 
 	// this should be the signed challenge, verify using valid_response
 	response_bytes, errDecoding := hex.DecodeString(resp)
@@ -147,11 +156,14 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 			}
 			if true {
 				if resp, err := svr.swarmdb.SelectHandler(u, string(str)); err != nil {
+					fmt.Printf("tcpip - selecthandler returned an err...%v\n", err)
 					tcpJson := buildErrorResp(err)
+					fmt.Printf("tcpip - buildErrorResp built: %s\n", tcpJson)
 					writer.WriteString(tcpJson)
 					writer.Flush()
 				} else {
-					fmt.Printf("\nRead: [%s] Wrote: [%s]\n", str, resp)
+					fmt.Printf("tcpip - Read: [%s] Wrote: [%s]\n", str, resp)
+					
 					writer.WriteString(resp + "\n")
 					writer.Flush()
 				}
