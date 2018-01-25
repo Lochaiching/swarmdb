@@ -70,7 +70,7 @@ func main() {
 
 		arg0 := call.Argument(0).String()
 		if err := json.Unmarshal([]byte(arg0), &session); err != nil {
-			swdberr := &swarmdb.SWARMDBError{ErrorCode:400, ErrorMessage:`Bad JSON Supplied: [`+arg0+`]`}
+			swdberr := &swarmdb.SWARMDBError{ErrorCode: 400, ErrorMessage: `Bad JSON Supplied: [` + arg0 + `]`}
 			result, _ := vm.ToValue(swdberr.Print())
 			//TODO: Error Checking
 			return result
@@ -83,7 +83,7 @@ func main() {
 		//??
 		//}
 		if len(session.TableName) == 0 {
-			swdberr := &swarmdb.SWARMDBError{ErrorCode:426, ErrorMessage:`Table Name Missing`}
+			swdberr := &swarmdb.SWARMDBError{ErrorCode: 426, ErrorMessage: `Table Name Missing`}
 			result, _ := vm.ToValue(swdberr.Print())
 			//TODO: Error Checking
 			return result
@@ -112,7 +112,7 @@ func main() {
 	//TODO: do we want to do this?
 	vm.Set("closeSession", func(call otto.FunctionCall) otto.Value {
 		if !session.IsOpen {
-			swdberr := &swarmdb.SWARMDBError{ErrorCode:0, ErrorMessage:`Session Is Not Open`}			
+			swdberr := &swarmdb.SWARMDBError{ErrorCode: 0, ErrorMessage: `Session Is Not Open`}
 			result, _ := vm.ToValue(swdberr.Print())
 			//TODO: Error Checking
 			return result
@@ -135,7 +135,7 @@ func main() {
 	vm.Set("createTable", func(call otto.FunctionCall) otto.Value {
 
 		if !session.IsOpen {
-			swdberr := &swarmdb.SWARMDBError{ErrorCode:0, ErrorMessage:`Session Is Not Open`}
+			swdberr := &swarmdb.SWARMDBError{ErrorCode: 0, ErrorMessage: `Session Is Not Open`}
 			result, _ := vm.ToValue(swdberr.Print())
 			//TODO: Error Checking
 			return result
@@ -145,13 +145,13 @@ func main() {
 		var in []map[string]interface{}
 		if err := json.Unmarshal([]byte(raw), &in); err != nil {
 			errmsg := fmt.Sprintf(`Bad JSON Supplied: [%v]`, raw)
-			swdberr := &swarmdb.SWARMDBError{ErrorCode:400, ErrorMessage:errmsg}
+			swdberr := &swarmdb.SWARMDBError{ErrorCode: 400, ErrorMessage: errmsg}
 			result, _ := vm.ToValue(swdberr.Print())
 			//TODO: Error Checking
 			return result
 		}
 		if len(in) == 0 {
-			swdberr := &swarmdb.SWARMDBError{ErrorCode:0, ErrorMessage:`Columns Not Specified`}
+			swdberr := &swarmdb.SWARMDBError{ErrorCode: 0, ErrorMessage: `Columns Not Specified`}
 			result, _ := vm.ToValue(swdberr.Print())
 			//TODO: Error Checking
 			return result
@@ -208,7 +208,7 @@ func main() {
 
 		session.DBTable, err = DBC.CreateTable(session.TableOwner, *session.Encrypted, session.TableName, sCols)
 		if err != nil {
-			result, _ := vm.ToValue(err.Error())
+			result, _ := vm.ToValue(err.(*swarmdb.SWARMDBError).Print())
 			//TODO: Error Checking
 			return result
 		}
@@ -260,15 +260,14 @@ func main() {
 		var sRows []swarmdb.Row
 		for _, row := range in {
 			sRow := swarmdb.NewRow()
-			sRow.Cells = row  //.(map[string]interface{})
+			sRow.Cells = row //.(map[string]interface{})
 			sRows = append(sRows, sRow)
 		}
 
 		response, err := session.DBTable.Put(sRows)
 		fmt.Printf("response: [%v] err: [%v]\n", response, err)
 		if err != nil {
-			fmt.Printf("should have gotten to the error!\n")
-			result, _ := vm.ToValue(err.Error())
+			result, _ := vm.ToValue(err.(*swarmdb.SWARMDBError).Print())
 			//TODO: Error Checking
 			return result
 		}
@@ -308,10 +307,12 @@ func main() {
 
 		dbResponse, err := session.DBTable.Get(raw)
 		if err != nil {
-			result, _ := vm.ToValue(err.Error())
+			fmt.Printf("cli - got an err back: %+v\n", err.(*swarmdb.SWARMDBError).Print())
+			result, _ := vm.ToValue(err.(*swarmdb.SWARMDBError).Print())
 			//TODO: Error Checking
 			return result
 		}
+		fmt.Printf("cli - got this response back: %+v\n", dbResponse)
 		result, _ := vm.ToValue(dbResponse)
 		//TODO: Error Checking
 		return result
@@ -330,7 +331,7 @@ func main() {
 		//fmt.Printf("session used: %+v\n", session)
 		dbResponse, err := session.DBTable.Query(raw)
 		if err != nil {
-			result, _ := vm.ToValue(err.Error())
+			result, _ := vm.ToValue(err.(*swarmdb.SWARMDBError).Print())
 			//TODO: Error Checking
 			return result
 		}
