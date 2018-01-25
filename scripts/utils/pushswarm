@@ -5,9 +5,13 @@ if [ -z $1 ]
     echo "
            Usage:\"pushswarm sourabh /path/to/file/to/rsync\""
 else
-echo "rsyncing file/s..."
-gcloud compute instances list | grep $1 | grep -v dev | awk '{print"rsync -avz '$2'",$1":'$2' 2>&1 &"}' > /tmp/$1.sh && sh /tmp/$1.sh
+echo "
+rsyncing file/s...
+"
+gcloud compute instances list | grep $1 | grep -v dev | awk '{print"rsync -q -avz '$2'",$1":'$2' 2>&1 &"}' > /tmp/$1.sh && sh /tmp/$1.sh
 
-echo "restarting swarm..."
+sleep 3
+echo "
+restarting swarm..."
 gcloud compute instances list | grep $1 | grep -v dev | awk '{print"ssh -q",$1,"pkill -9 swarm && ssh -q",$1,"/root/scripts/swarm-start.sh 2>&1 &"}' > /tmp/pkill-$1.sh && sh /tmp/pkill-$1.sh &> /dev/null
 fi
