@@ -22,17 +22,19 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	// "github.com/ethereum/go-ethereum/swarmdb/keymanager"
 	"time"
 )
 
+//TODO: should this go client live somewhere else, not with the server swarmdb package?
+
 //TODO: flags for host/port info
-const (
-	CONN_HOST = "127.0.0.1"
-	CONN_PORT = "2001"
-	CONN_TYPE = "tcp"
-)
+
+var CONN_HOST = "127.0.0.1" //default, but reads from config
+var CONN_PORT = int(2001)   //default, but reads from config
+var CONN_TYPE = "tcp"
 
 var TEST_NOCONNECTION = false
 
@@ -103,7 +105,14 @@ func NewSWARMDBConnection() (dbc SWARMDBConnection, err error) {
 	if err != nil {
 		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] NewKeyManager %s", err.Error())}
 	}
-	conn, err := net.Dial(CONN_TYPE, CONN_HOST+":"+CONN_PORT)
+	if len(config.ListenAddrTCP) > 0 {
+		CONN_HOST = config.ListenAddrTCP
+	}
+	if config.PortTCP > 0 {
+		CONN_PORT = config.PortTCP
+	}
+	//fmt.Printf("connection host %v and port %v\n", CONN_HOST, CONN_PORT)
+	conn, err := net.Dial(CONN_TYPE, CONN_HOST+":"+strconv.Itoa(CONN_PORT))
 	if err != nil {
 		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] Dial %s", err.Error())}
 	}
@@ -115,6 +124,38 @@ func NewSWARMDBConnection() (dbc SWARMDBConnection, err error) {
 	dbc.reader = reader
 	dbc.writer = writer
 	return dbc, nil
+}
+
+//TODO: fix this when Rodney gives wolkdb.go a standard response back
+func processConnectionResponse(in string) (out string, err error) {
+
+	if !strings.Contains(strings.ToLower(in), "errorcode") { //Getting around the fact that a valid response is not always a SWARMDBResponse right now
+		//fmt.Printf("checking for the word errorcode\n")
+		return in, nil
+	}
+
+	//hack b/c SWARMDBResponse.Data is a []Row.
+	type tempResponse struct {
+		ErrorCode        int    `json:"errorcode,omitempty"`
+		ErrorMessage     string `json:"errormessage,omitempty"`
+		Data             string `json:"data,omitempty"`
+		AffectedRowCount int    `json:"affectedrowcount,omitempty"`
+		MatchedRowCount  int    `json:"matchedrowcount,omitempty"`
+	}
+
+	var response tempResponse
+	err = json.Unmarshal([]byte(in), &response)
+	if err != nil {
+		return "", &SWARMDBError{ErrorCode: 400, ErrorMessage: `Bad JSON Supplied: [` + in + `]`, message: "[processConnectionResponse]"}
+	}
+	//fmt.Printf("so now response is: %+v\n", response)
+	var swdbErr SWARMDBError
+	swdbErr.ErrorMessage = response.ErrorMessage
+	swdbErr.ErrorCode = response.ErrorCode
+	//fmt.Printf("made swarmdberror: %v\n", swdbErr)
+	out = response.Data
+
+	return out, &swdbErr
 }
 
 func (dbc *SWARMDBConnection) Close(tbl *SWARMDBTable) (err error) {
@@ -221,7 +262,7 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseRow(request RequestOption) (
 // TODO: make sure this returns the right string, in correct formatting
 func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOption) (response string, err error) {
 
-	//fmt.Printf("\nprocess request response cmd: %+v\n", request)
+	//fmt.Printf("process request response cmd: %+v\n", request)
 	message, err := json.Marshal(request)
 	if err != nil {
 		return response, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseCommand] Marshal %s", err.Error())}
@@ -232,9 +273,12 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 	dbc.writer.Flush()
 	response, err = dbc.reader.ReadString('\n')
 	if err != nil {
+		//fmt.Printf("Readstring err: %v\n", err)
 		return response, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseCommand] ReadString %s", err.Error())}
 	}
-	return response, nil
+	//fmt.Printf("original response from readstring: %s\n", response)
+	responseData, swdbErr := processConnectionResponse(response)
+	return responseData, swdbErr
 }
 
 //func (t *SWARMDBTable) Get(key string) (row *Row, err error) {
