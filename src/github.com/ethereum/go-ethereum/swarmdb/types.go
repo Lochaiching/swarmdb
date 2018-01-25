@@ -626,6 +626,14 @@ func (t *SWARMDBError) SetError(m string) {
 	t.message = m
 }
 
+func GenerateSWARMDBError(err error, msg string) (swErr error) {
+	if wolkErr, ok := err.(*SWARMDBError); ok {
+		return &SWARMDBError{message: msg, ErrorCode: wolkErr.ErrorCode, ErrorMessage: wolkErr.ErrorMessage}
+	} else {
+		return &SWARMDBError{message: msg}
+	}
+}
+
 type TableNotExistError struct {
 	tableName string
 	ownerID   string
