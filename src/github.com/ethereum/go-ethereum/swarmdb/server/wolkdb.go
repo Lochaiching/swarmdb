@@ -78,7 +78,7 @@ func buildErrorResp(err error) string {
 	}
 	jbyte, jErr := json.Marshal(respObj)
 	if jErr != nil {
-		fmt.Printf("Error: [%s] [%+v]", jErr.Error(), respObj)
+		//fmt.Printf("Error: [%s] [%+v]", jErr.Error(), respObj)
 		return `{ "errorcode":-1, "errormessage":"DEFAULT ERROR"}` //TODO: Make Default Error Handling
 	}
 	jstr := string(jbyte)
