@@ -49,7 +49,8 @@ func NewKeyManager(c *SWARMDBConfig) (keymgr KeyManager, err error) {
 	if c != nil {
 		// for all users specified in the config file, set up their { sk, pk }  in the config
 		keymgr.config = c
-		keymgr.keystore = keystore.NewKeyStore(c.ChunkDBPath, keystore.StandardScryptN, keystore.StandardScryptP)
+		//keymgr.keystore = keystore.NewKeyStore(c.ChunkDBPath, keystore.StandardScryptN, keystore.StandardScryptP)
+		keymgr.keystore = keystore.NewKeyStore(c.KeystorePath, keystore.StandardScryptN, keystore.StandardScryptP)
 		wallets := keymgr.keystore.Wallets()
 		for _, u := range c.Users {
 			address := common.HexToAddress(u.Address)
