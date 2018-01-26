@@ -407,7 +407,7 @@ func stringToColumnType(in string, columnType ColumnType) (out interface{}, err 
 	//case: CT_BLOB:
 	//?
 	default:
-		err = fmt.Errorf("column type not found")
+		err = &SWARMDBError{message: "[types|stringToColumnType] columnType not found", ErrorCode: 434, ErrorMessage: fmt.Sprintf("ColumnType [%s] not SUPPORTED. Value [%s] rejected", columnType, in)}
 	}
 	return out, err
 }
