@@ -76,8 +76,8 @@ Deploying the image above will run SWARMDB in the Docker container. To verify if
       Usage of /usr/local/swarmdb/bin/wolkdb:
       -config string
     	      Full path location to SWARMDB configuration file. (default "/swarmdb/swarmdb.conf")
-      -init
-    	      Used to initialize a new SWARMDB
+      -loglevel int
+    	Log Level Verbosity 1-6 (4 for debug) (default 3)
 
 ### The default swarmDB configuration file
     
