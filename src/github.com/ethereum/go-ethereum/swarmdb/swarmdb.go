@@ -304,12 +304,14 @@ func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
 func (t *Table) applyWhere(rawRows []Row, where Where) (outRows []Row, err error) {
 	for _, row := range rawRows {
 		if _, ok := row.Cells[where.Left]; !ok {
-			return outRows, fmt.Errorf("Where clause col %s doesn't exist in table")
+			continue
+			//TODO: confirm we're not letting columns in the WHERE clause that don't exist in the table get this far
+			//return outRows, &SWARMDBError{message:"Where clause col %s doesn't exist in table", ErrorCode:, ErrorMessage:""}
 		}
 		colType := t.columns[where.Left].columnType
 		right, err := stringToColumnType(where.Right, colType)
 		if err != nil {
-			return outRows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:applyWhere] stringToColumnType %s", err.Error())}
+			return outRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:applyWhere] stringToColumnType %s", err.Error()))
 		}
 		fRow := NewRow()
 		switch where.Operator {
@@ -1045,8 +1047,8 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 			var errPvalue error
 			pvalue, ok := row[c.columnName]
 			if !ok {
-				// TODO: this is ok <- WHY?
-				// return fmt.Errorf("Column [%s] not found in [%+v]", c.columnName, jsonrecord)
+				//OK b/c non-primary keys aren't required for rows
+				continue
 			}
 			k2, errPvalue = convertJSONValueToKey(c.columnType, pvalue)
 			if errPvalue != nil {
