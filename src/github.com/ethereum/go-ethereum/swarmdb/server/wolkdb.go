@@ -136,6 +136,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 
 	u, err := svr.keymanager.VerifyMessage(challenge_bytes, response_bytes)
 	if err != nil {
+		log.Debug("\nERROR: %s", err.Error())
 		tcpJson := buildErrorResp(err)
 		writer.WriteString(tcpJson)
 		writer.Flush()
@@ -153,6 +154,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 			}
 			if true {
 				if resp, err := svr.swarmdb.SelectHandler(u, string(str)); err != nil {
+					log.Debug("ERROR: %+v", err)
 					tcpJson := buildErrorResp(err)
 					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, tcpJson)
 					_, err := writer.WriteString(tcpJson + "\n")
@@ -473,15 +475,11 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func main() {
 	configFileLocation := flag.String("config", swarmdb.SWARMDBCONF_FILE, "Full path location to SWARMDB configuration file.")
 	//TODO: store this somewhere accessible to be used later
-	initFlag := flag.Bool("init", false, "Used to initialize a new SWARMDB")
+	logLevelFlag := flag.Int("loglevel", 3, "Log Level Verbosity 1-6 (4 for debug)")
 	flag.Parse()
-	fmt.Println("Launching HTTP server...")
+	fmt.Println("Launching HTTP server...", *logLevelFlag)
 
-	// start swarm http proxy server
-	if *initFlag {
-		fmt.Printf("Initializing a new SWARMDB")
-	}
-	fmt.Printf("Starting SWARMDB using [%s]", *configFileLocation)
+	log.Debug("Starting SWARMDB using [%s]", *configFileLocation)
 
 	if _, err := os.Stat(*configFileLocation); os.IsNotExist(err) {
 		log.Debug("Default config file missing.  Building ..")
@@ -497,7 +495,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(4), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
+	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*logLevelFlag), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
 
 	swdb, err := swarmdb.NewSwarmDB(config.ChunkDBPath, config.ChunkDBPath)
 	if err != nil {
