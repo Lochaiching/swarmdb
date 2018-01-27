@@ -150,6 +150,7 @@ type QueryOption struct {
 	Type           string //"Select" or "Insert" or "Update" probably should be an enum
 	Table          string
 	TableOwner     string
+	Encrypted      int
 	RequestColumns []Column
 	Inserts        []Row
 	Update         map[string]interface{} //'SET' portion: map[columnName]value
@@ -603,6 +604,11 @@ func BytesToFloat(b []byte) (f float64) {
 
 func BytesToInt64(b []byte) (i int64) {
 	i = int64(binary.BigEndian.Uint64(b))
+	return i
+}
+
+func BytesToInt(b []byte) (i int) {
+	i = int(binary.BigEndian.Uint64(b))
 	return i
 }
 
