@@ -90,9 +90,10 @@ func (self *KademliaDB) Put(u *SWARMDBUser, k []byte, v []byte) (b []byte, err e
 	}
 
 	hashVal := sdata[512:544] // 32 bytes
+	log.Debug(fmt.Sprintf("Kademlia Encrypted Bit: %d", self.encrypted))
 	errStore := self.dbChunkstore.StoreKChunk(u, hashVal, sdata, self.encrypted)
 	if errStore != nil {
-		return hashVal, &SWARMDBError{message: `[kademliadb:Put] StoreKChunk ` + errStore.Error()}
+		return hashVal, GenerateSWARMDBError(err, `[kademliadb:Put] StoreKChunk `+errStore.Error())
 	}
 	return hashVal, nil
 }
