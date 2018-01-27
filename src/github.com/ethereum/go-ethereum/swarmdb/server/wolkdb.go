@@ -108,7 +108,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 	var swErr swarmdb.SWARMDBError
 	resp, err := reader.ReadString('\n')
 	if err != nil {
-		fmt.Printf("Problem reading RAW TCPIP input (%s).  ERROR:[%s]", resp, err.Error())
+		log.Error("Problem reading RAW TCPIP input (%s).  ERROR:[%s]", resp, err.Error())
 		swErr.SetError(fmt.Sprintf("Problem reading RAW TCPIP input (%s).  ERROR:[%s]", resp, err.Error()))
 		log.Error(swErr.Error())
 		//TODO: return a TCPIP error response
@@ -289,7 +289,6 @@ func StartHttpServer(sdb *swarmdb.SwarmDB, config *swarmdb.SWARMDBConfig) {
 	//sk, pk := GetKeys()
 	hdlr := c.Handler(httpSvr)
 
-	fmt.Printf("\nRunning ListenAndServe")
 	fmt.Printf("\nHTTP Listening on %s and port %d\n", config.ListenAddrHTTP, config.PortHTTP)
 	addr := net.JoinHostPort(config.ListenAddrHTTP, strconv.Itoa(config.PortHTTP))
 	//go http.ListenAndServe(config.Addr, hdlr)
@@ -408,66 +407,77 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 			var bodyMapInt interface{}
 			json.Unmarshal(bodyContent, &bodyMapInt)
-			//fmt.Println("\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
-			bodyMap := bodyMapInt.(map[string]interface{})
-			if reqType, ok := bodyMap["requesttype"]; ok {
-				dataReq.RequestType = reqType.(string)
-				if dataReq.RequestType == "CreateTable" {
-					dataReq.TableOwner = verifiedUser.Address //bodyMap["tableowner"].(string);
-					//TODO: ValidateCreateTableRequest
-				} else if dataReq.RequestType == "Query" {
-					dataReq.TableOwner = swReq.table
-					//Don't pass table for now (rely on Query parsing)
-					if rq, ok := bodyMap["rawquery"]; ok {
-						dataReq.RawQuery = rq.(string)
+			log.Debug(fmt.Sprintf("Processing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt))
+			if bodyMap, ok := bodyMapInt.(map[string]interface{}); ok {
+				if reqType, ok := bodyMap["requesttype"]; ok {
+					dataReq.RequestType = reqType.(string)
+					if dataReq.RequestType == "CreateTable" {
+						dataReq.TableOwner = verifiedUser.Address //bodyMap["tableowner"].(string);
+						//TODO: ValidateCreateTableRequest
+					} else if dataReq.RequestType == "Query" {
+						dataReq.TableOwner = swReq.table
+						//Don't pass table for now (rely on Query parsing)
+						if rq, ok := bodyMap["rawquery"]; ok {
+							dataReq.RawQuery = rq.(string)
+							reqJson, err = json.Marshal(dataReq)
+							if err != nil {
+								swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Error Marshaling request, %s", err.Error()))
+								log.Error(swErr.Error())
+								swErr.ErrorCode = 424
+								swErr.ErrorMessage = fmt.Sprintf("Error Reading Request", err.Error())
+								retJson := buildErrorResp(&swErr)
+								fmt.Fprint(w, retJson)
+							}
+						} else {
+							//Invalid Query Request: rawquery missing
+							swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Invalid Query Request.  Missing RawQuery"))
+							log.Error(swErr.Error())
+							swErr.ErrorCode = 425
+							swErr.ErrorMessage = fmt.Sprintf("Invalid Query Request. Missing Rawquery")
+							retJson := buildErrorResp(&swErr)
+							fmt.Fprint(w, retJson)
+						}
+					} else if dataReq.RequestType == "Put" {
+						dataReq.Table = swReq.table
+						dataReq.TableOwner = swReq.owner
+						if row, ok := bodyMap["row"]; ok {
+							newRow := swarmdb.Row{Cells: row.(map[string]interface{})}
+							dataReq.Rows = append(dataReq.Rows, newRow)
+						}
 						reqJson, err = json.Marshal(dataReq)
 						if err != nil {
+							//TODO: Return Error to Client
 							swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Error Marshaling request, %s", err.Error()))
 							log.Error(swErr.Error())
 							swErr.ErrorCode = 424
 							swErr.ErrorMessage = fmt.Sprintf("Error Reading Request", err.Error())
 							retJson := buildErrorResp(&swErr)
-							fmt.Fprint(w, retJson)
+							fmt.Fprintf(w, retJson)
 						}
-					} else {
-						//Invalid Query Request: rawquery missing
-						swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Invalid Query Request.  Missing RawQuery"))
-						log.Error(swErr.Error())
-						swErr.ErrorCode = 425
-						swErr.ErrorMessage = fmt.Sprintf("Invalid Query Request. Missing Rawquery")
-						retJson := buildErrorResp(&swErr)
-						fmt.Fprint(w, retJson)
 					}
-				} else if dataReq.RequestType == "Put" {
-					dataReq.Table = swReq.table
-					dataReq.TableOwner = swReq.owner
-					if row, ok := bodyMap["row"]; ok {
-						newRow := swarmdb.Row{Cells: row.(map[string]interface{})}
-						dataReq.Rows = append(dataReq.Rows, newRow)
-					}
-					reqJson, err = json.Marshal(dataReq)
-					if err != nil {
-						//TODO: Return Error to Client
-						swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Error Marshaling request, %s", err.Error()))
-						log.Error(swErr.Error())
-						swErr.ErrorCode = 424
-						swErr.ErrorMessage = fmt.Sprintf("Error Reading Request", err.Error())
-						retJson := buildErrorResp(&swErr)
-						fmt.Fprintf(w, retJson)
-					}
+				} else {
+					swErr = swarmdb.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body -- Missing requesttype"}
+					swErr.SetError(fmt.Sprintf("POST operations require a requestType, (%+v), (%s)", bodyMap, bodyMap["requesttype"]))
+					retJson := buildErrorResp(&swErr)
+					fmt.Fprint(w, retJson)
 				}
 			} else {
-				fmt.Fprintf(w, "\nPOST operations require a requestType, (%+v), (%s)", bodyMap, bodyMap["requesttype"])
+				swErr = swarmdb.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body"}
+				swErr.SetError(fmt.Sprintf("Input Data Invalid [%v]", bodyMapInt))
+				log.Debug(swErr.Error())
+				retJson := buildErrorResp(&swErr)
+				fmt.Fprint(w, retJson)
 			}
 		}
-		//Redirect to SelectHandler after "building" GET RequestOption
-		//fmt.Printf("Sending this JSON to SelectHandler (%s) and Owner=[%s]", reqJson, keymanager.WOLKSWARMDB_ADDRESS)
-		response, errResp := s.swarmdb.SelectHandler(verifiedUser, string(reqJson))
-		if errResp != nil {
-			retJson := buildErrorResp(errResp)
-			fmt.Fprint(w, retJson)
-		} else {
-			fmt.Fprintf(w, response)
+		if swErr.ErrorMessage == "" {
+			//Redirect to SelectHandler after "building" GET RequestOption
+			response, errResp := s.swarmdb.SelectHandler(verifiedUser, string(reqJson))
+			if errResp != nil {
+				retJson := buildErrorResp(errResp)
+				fmt.Fprint(w, retJson)
+			} else {
+				fmt.Fprintf(w, response)
+			}
 		}
 	}
 }
