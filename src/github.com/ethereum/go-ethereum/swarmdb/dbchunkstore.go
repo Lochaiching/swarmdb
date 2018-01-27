@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
 	"math/big"
@@ -123,6 +124,7 @@ func (self *DBChunkstore) MarshalJSON() (data []byte, err error) {
 	}
 }
 
+//TODO: richer errors
 func (self *DBChunkstore) UnmarshalJSON(data []byte) (err error) {
 	var file = NetstatFile{
 		Claim: make(map[string]*big.Int),
@@ -346,6 +348,7 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 	defer stmt.Close()
 
 	recordData := val[577:4096]
+	log.Debug(fmt.Sprintf("StoreKChunk: Encrypted bit when saving was: %d", encrypted))
 	if encrypted == 1 {
 		recordData = self.km.EncryptData(u, recordData)
 	}
@@ -355,7 +358,7 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 	copy(finalSdata[577:], recordData)
 	_, err2 := stmt.Exec(key[:32], finalSdata[0:], encrypted, key[:32], key[:32], u.AutoRenew, u.MinReplication, u.MaxReplication, u.Address, key[:32])
 	if err2 != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreKChunk] Exec - Insert%s | data:%x | Encrypted: %s ", err2.Error(), finalSdata, encrypted)}
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreKChunk] Exec - Insert%s | data:%x | Encrypted: %s ", err2.Error(), finalSdata, encrypted), ErrorCode: 439, ErrorMessage: "Failure storing K node Chunk"}
 	}
 	stmt.Close()
 	self.netstat.LWriteDT = &ts
@@ -388,7 +391,7 @@ func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte
 
 		err2 := rows.Scan(&kV, &val, &bdt, &sdt, &enc)
 		if err2 != nil {
-			return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveKChunk] Scan %s", err2.Error())}
+			return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveKChunk] Scan %s", err2.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve K Chunk"}
 		}
 		//TODO: (Rodney) parse encrypted chunk
 		jsonRecord := val[577:]
@@ -415,6 +418,7 @@ func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) 
 	if len(val) < minChunkSize {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Chunk too small (< %s)| %x", minChunkSize, val)}
 	}
+	log.Debug(fmt.Sprintf("StoreChunk: Encrypted bit when saving was: %d", encrypted))
 	inp := make([]byte, minChunkSize)
 	copy(inp, val[0:minChunkSize])
 	h := sha256.New()
