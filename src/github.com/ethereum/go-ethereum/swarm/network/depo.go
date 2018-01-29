@@ -19,6 +19,7 @@ package network
 import (
 	"bytes"
 	"encoding/binary"
+        "encoding/json"
 	"fmt"
 	"time"
 
@@ -62,10 +63,10 @@ func (self *Depo) HandleUnsyncedKeysMsg(req *unsyncedKeysMsgData, p *peer) error
 		log.Trace(fmt.Sprintf("Depo.HandleUnsyncedKeysMsg: received req %v %v", req, req.Key))
 		if req.Priority == 3{
 			ret, _, err := self.sdbStore.RetrieveDB([]byte(req.Key))
-///// Mayumi : need to implement to store data to swarmdb : check version???
 			if err != nil || ret == nil{
 				missing = append(missing, req)
 			}
+///// Mayumi : need to implement to store data to swarmdb : check version???
 		} else {
 			// skip keys that are found,
 			chunk, err = self.localStore.Get(storage.Key(req.Key[:]))
@@ -165,11 +166,23 @@ func (self *Depo) HandleSdbStoreRequestMsg(req *sDBStoreRequestMsgData, p *peer)
         log.Trace(fmt.Sprintf("Depo.HandleSdbStoreRequest: %v %v", req.Key, p))
         req.from = p
         ret, opt, err := self.sdbStore.RetrieveDB(req.Key)
+        log.Debug(fmt.Sprintf("depo.HandleSdbStoreRequestMsg :option %v from %v", req.option, p))
+	var ropt storage.CloudOption
+	jerr := json.Unmarshal([]byte(req.option), &ropt)
+	if jerr != nil{
+        	log.Debug(fmt.Sprintf("depo.HandleSdbStoreRequestMsg :json error option %v  %v", req.option, jerr))
+		return
+	}
+	ropt.Source = p
+	if ropt.Version <= opt.Version{
+	///////debug commented out
+		//return
+	}
 	if err != nil{
-        	self.sdbStore.StoreDB([]byte(req.Key), req.SData, req.option)
+        	self.sdbStore.StoreDB([]byte(req.Key), req.SData, &ropt)
 	}
 ///// Mayumi :need to change args. 
-        self.sdbStore.SwarmStore.StoreDB([]byte(req.Key), req.SData, opt)
+        self.sdbStore.SwarmStore.StoreDB([]byte(req.Key), req.SData, &ropt)
 		
         switch {
         case err != nil:
@@ -249,12 +262,16 @@ func (self *Depo) HandleSdbRetrieveRequestMsg(req *retrieveRequestMsgData, p *pe
 
         // check if we can immediately deliver
 	if ret != nil {
+		jopt, err := json.Marshal(opt)
+		if err != nil{
+                	log.Debug(fmt.Sprintf("Depo.HandleSdbRetrieveRequest: json err %v %v %v", req.Key.Log(), opt, err))
+		}
                 log.Trace(fmt.Sprintf("Depo.HandleSdbRetrieveRequest: %v - content found, delivering...", req.Key.Log()))
 		sreq := &sDBStoreRequestMsgData{
 			Id:             req.Id,
 			Key:            req.Key,
 			SData:          ret,
-			option:         opt,
+			option:         string(jopt),
 			rtype:          2,
 			requestTimeout: req.timeout, //
 		}

@@ -106,31 +106,6 @@ func (self storeRequestMsgData) String() string {
 	return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x, stype %d", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end], self.stype)
 }
 
-type storeRequestDBMsgData struct {
-    Key   storage.Key // hash of datasize | data
-    SData []byte      // the actual chunk Data
-    // optional
-    Id             uint64     // request ID. if delivery, the ID is retrieve request ID
-    requestTimeout *time.Time // expiry for forwarding - [not serialised][not currently used]
-    storageTimeout *time.Time // expiry of content - [not serialised][not currently used]
-    from           *peer      // [not serialised] protocol registers the requester
-}
-
-func (self storeRequestDBMsgData) String() string {
-    var from string
-    if self.from == nil {
-        from = "self"
-    } else {
-        from = self.from.Addr().String()
-    }
-    end := len(self.SData)
-    if len(self.SData) > 10 {
-        end = 10
-    }
-    return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end])
-}
-
-
 /*
 Retrieve request
 
@@ -350,14 +325,59 @@ func (self *paymentMsgData) String() string {
 type sDBStoreRequestMsgData struct{
         Key   storage.Key // hash of datasize | data
         SData []byte      // the actual chunk Data
-        // optional
         Id             uint64     // request ID. if delivery, the ID is retrieve request ID
         requestTimeout *time.Time // expiry for forwarding - [not serialised][not currently used]
         storageTimeout *time.Time // expiry of content - [not serialised][not currently used]
         from           *peer      // [not serialised] protocol registers the requester
         rtype          int
-        option         *storage.CloudOption
+	//BirthDT		int
+        //option         *storage.CloudOption
+        option         string
+	version		int
 }
+
+func (self sDBStoreRequestMsgData) String() string {
+        var from string
+        if self.from == nil {
+                from = "self"
+        } else {
+                from = self.from.Addr().String()
+        }
+        end := len(self.SData)
+        if len(self.SData) > 10 {
+                end = 10
+        }
+        return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x, rtype %d option %v", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end], self.rtype, self.option)
+}
+
+/*
+type sDBStoreRequestMsgDataTest struct{
+        Key   storage.Key // hash of datasize | data
+        SData []byte      // the actual chunk Data
+        Id             uint64     // request ID. if delivery, the ID is retrieve request ID
+        requestTimeout *time.Time // expiry for forwarding - [not serialised][not currently used]
+        storageTimeout *time.Time // expiry of content - [not serialised][not currently used]
+        from           *peer      // [not serialised] protocol registers the requester
+        rtype          int
+        //option         *storage.CloudOption
+	option		string
+}
+
+func (self sDBStoreRequestMsgDataTest) String() string {
+        var from string
+        if self.from == nil {
+                from = "self"
+        } else {
+                from = self.from.Addr().String()
+        }
+        end := len(self.SData)
+        if len(self.SData) > 10 {
+                end = 10
+        }
+	var t int
+        return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x, rtype %d option test %d", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end], self.option)
+}
+*/
 
 type sDBRetrieveRequestMsgData struct{
         Key      storage.Key // target Key address of chunk to be retrieved

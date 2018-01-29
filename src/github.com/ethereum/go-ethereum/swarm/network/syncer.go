@@ -676,6 +676,7 @@ func (self *syncer) addRequest(req interface{}, ty int) {
 	// retrieve priority for request type name int8
 	priority := self.SyncPriorities[ty]
 	// sync mode for this type ON
+	log.Debug(fmt.Sprintf("addRequest  %v: %v", self.SyncModes, ty))
 	if self.syncF() || ty == DeliverReq {
 		if self.SyncModes[ty] {
 			self.addKey(req, priority, self.quit)
@@ -688,6 +689,7 @@ func (self *syncer) addRequest(req interface{}, ty int) {
 // addKey queues sync request for sync confirmation with given priority
 // ie the key will go out in an unsyncedKeys message
 func (self *syncer) addKey(req interface{}, priority uint, quit chan bool) bool {
+	log.Debug(fmt.Sprintf("addKey  %v: %T", req, req))
 	select {
 	case self.keys[priority] <- req:
 		// this wakes up the unsynced keys loop if idle
@@ -705,6 +707,7 @@ func (self *syncer) addKey(req interface{}, priority uint, quit chan bool) bool 
 // ie the chunk will be delivered ASAP mod priority queueing handled by syncdb
 // requests are persisted across sessions for correct sync
 func (self *syncer) addDelivery(req interface{}, priority uint, quit chan bool) bool {
+	log.Debug(fmt.Sprintf("addDelivery  %v: %T", req, req))
 	select {
 	case self.queues[priority].buffer <- req:
 		return true
@@ -823,12 +826,13 @@ func (self *syncer) newSdbStoreRequestMsgData(req interface{}) (*sDBStoreRequest
                    return nil, err
                }
 
+               jopt, err := json.Marshal(option)
                sreq = &sDBStoreRequestMsgData{
                         Id:    id,
                         Key:   key,
                         SData: chunk,
 			rtype: 2,
-			option:option,
+			option:string(jopt),
                 }
         }
 

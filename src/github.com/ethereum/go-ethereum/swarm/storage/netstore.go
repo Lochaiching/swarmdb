@@ -117,8 +117,7 @@ func (self *NetStore) Put(entry *Chunk) {
 	}
 }
 
-func (self *NetStore) PutDB(k, v []byte, ts *time.Time) {
-	opt := &CloudOption{BirthDT:ts}
+func (self *NetStore) PutDB(k, v []byte, opt *CloudOption) {
 	self.cloud.StoreDB(k, v, opt)
 }
 

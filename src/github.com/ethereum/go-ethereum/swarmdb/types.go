@@ -237,7 +237,9 @@ const (
 
 /*
 type CloudOption struct{
-	BirthDT	*time.Time
+        BirthDT *time.Time      `json:"birthdt,omitempty"`
+        Encrypted int           `json:"birthdt,omitempty"`
+        Version int             `json:"version,omitempty"`
 }
 */
 
