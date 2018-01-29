@@ -40,7 +40,7 @@ type Column struct {
 //for passing request data from client to server
 type RequestOption struct {
 	RequestType string `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	Owner       string `json:"tableowner,omitempty"`
+	Owner       string `json:"owner,omitempty"`
 	Database    string `json:"database,omitempty"`
 
 	Table     string      `json:"table,omitempty"` //"contacts"
@@ -496,8 +496,7 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, owner string, database string, tab
 // TODO: when there are errors, the error must be parsable make user friendly developer errors that can be trapped by Node.js, Go library, JS CLI
 func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, err error) {
 
-	log.Debug("SelectHandler Input: %s\n", data)
-	// var rerr *RequestFormatError
+	log.Debug(fmt.Sprintf("SelectHandler Input: %s\n", data))
 	d, err := parseData(data)
 	if err != nil {
 		return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] parseData %s", err.Error()))
@@ -509,7 +508,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 	if d.RequestType != "CreateTable" && d.RequestType != "CreateDatabase" && d.RequestType != "DropDatabase" && d.RequestType != "ListDatabases" && d.RequestType != "DescribeDatabase" && d.RequestType != "ListTables" {
 		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
 		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
-		log.Debug(fmt.Sprintf("GetTable returned table: [%+v] for tablekey: [%s]\n", tbl, tblKey))
+		log.Debug(fmt.Sprintf("[swarmdb:SelectHandler] GetTable returned table: [%+v] for tablekey: [%s]\n", tbl, tblKey))
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error()))
 		}
@@ -585,8 +584,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		d.Rows, err = tbl.assignRowColumnTypes(d.Rows)
 		//fmt.Printf("\nPut DATA: [%+v]\n", d)
 		if err != nil {
-			wlkErr := GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] assignRowColumnTypes %s", err.Error()))
-			return resp, wlkErr
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] assignRowColumnTypes %s", err.Error()))
 		}
 
 		//error checking for primary column, and valid columns
@@ -805,12 +803,13 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 	} else {
 		buf, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
 		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateDatabase] RetrieveDBChunk %s", err)}
+			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateDatabase] RetrieveDBChunk %s", err))
 		}
 
 		// the first 32 bytes of the buf should match
 		if bytes.Compare(buf[0:32], ownerHash[0:32]) != 0 {
 			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateDatabase] Invalid owner %x != %x", ownerHash, buf[0:32])}
+			//TODOD: add ErrorCode, ErrorMessage
 		}
 
 		// check if there is already a database entry
@@ -997,6 +996,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 		}
 		if !found {
 			return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetDatabase] Database could not be found")}
+			//TODO: ErrorCode/Msg
 		}
 	}
 
@@ -1013,6 +1013,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 				newdatabaseHash, err := self.StoreDBChunk(u, bufDB, encrypted)
 				if err != nil {
 					return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] StoreDBChunk %s", err)}
+					//TODO: ErrorCode/Msg
 				}
 				// update the database hash in the owner's databases
 				copy(buf[(dbi+32):(dbi+64)], newdatabaseHash[0:32])
@@ -1020,7 +1021,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 				if err != nil {
 					return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] StoreDBChunk %s", err)}
 				}
-
+				log.Debug(fmt.Sprintf("[swarmdb:CreateTable] Storing Hash of [%s](%x) and ChunkID: [%s]", ownerHash, ownerHash, ownerDatabaseChunkID))
 				err = self.StoreRootHash(u, ownerHash, ownerDatabaseChunkID)
 				if err != nil {
 					return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreRootHash %s", err.Error()))
@@ -1039,7 +1040,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 	// ok now make the table!
 	fmt.Printf("Creating Table [%s] - Owner [%s] Database [%s]\n", tableName, owner, database)
 	tbl = self.NewTable(owner, database, tableName)
-
+	tbl.encrypted = encrypted
 	for i, columninfo := range columns {
 		copy(buf[2048+i*64:], columninfo.ColumnName)
 		b := make([]byte, 1)
@@ -1057,7 +1058,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 	//Could (Should?) be less bytes, but leaving space in case more is to be there
 	copy(buf[4000:4024], IntToByte(tbl.encrypted))
 
-	log.Debug(fmt.Sprintf("Storing Table with encrypted bit set to %d [%v]", tbl.encrypted), buf[4000:4024])
+	log.Debug(fmt.Sprintf("Storing Table with encrypted bit set to %d [%v]", tbl.encrypted, buf[4000:4024]))
 	swarmhash, err := self.StoreDBChunk(u, buf, tbl.encrypted)
 	if err != nil {
 		return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreDBChunk %s", err.Error()))

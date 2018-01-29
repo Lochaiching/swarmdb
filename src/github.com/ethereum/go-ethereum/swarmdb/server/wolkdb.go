@@ -237,29 +237,48 @@ func StartTcpipServer(sdb *swarmdb.SwarmDB, conf *swarmdb.SWARMDBConfig) (err er
 }
 
 func parsePath(path string) (swdbReq SwarmDBReq, err error) {
+	var swErr swarmdb.SWARMDBError
 	pathParts := strings.Split(path, "/")
 	if len(pathParts) < 2 {
-		swErr := swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Request URL invalid"}
+		swErr = swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Request URL invalid"}
 		swErr.SetError("Invalid Path in Request URL")
 		return swdbReq, &swErr
 	} else {
 		for k, v := range pathParts {
 			switch k {
 			case 1:
-				swdbReq.protocol = v
-
+				swdbReq.owner, swdbReq.database, err = parseOwnerDB(v)
+				if err != nil {
+					return swdbReq, swarmdb.GenerateSWARMDBError(err, fmt.Sprintf("Invalid Owner/ENS path passed in [%s]", v))
+				}
 			case 2:
-				swdbReq.owner = v
-
-			case 3:
 				swdbReq.table = v
-
-			case 4:
+			case 3:
 				swdbReq.key = v
+			default:
+				//TODO:
 			}
 		}
 	}
 	return swdbReq, nil
+}
+
+func parseOwnerDB(v string) (owner string, db string, err error) {
+	vParts := strings.Split(v, ".")
+	if len(vParts) < 3 {
+		return db, owner, &swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Owner portion of request invalid"}
+		//TODO: robust error!
+	}
+	owner = fmt.Sprintf("%s.%s", vParts[len(vParts)-2], vParts[len(vParts)-1])
+	var dbParts []string
+	for k, v := range vParts {
+		if k == len(vParts)-2 {
+			break
+		}
+		dbParts = append(dbParts, v)
+	}
+	db = strings.Join(dbParts, ".")
+	return owner, db, nil
 }
 
 func StartHttpServer(sdb *swarmdb.SwarmDB, config *swarmdb.SWARMDBConfig) {
@@ -321,6 +340,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	reqJson := bodyContent
 	//fmt.Println("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
 	swReq, err := parsePath(r.URL.Path)
+	log.Debug(fmt.Sprintf("swReq [%+v]", swReq))
 	//TODO: parsePath Error
 	if err != nil {
 		retJson := buildErrorResp(err)
@@ -380,108 +400,99 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	verifiedUser := vUser
-
 	var dataReq swarmdb.RequestOption
-	if swReq.protocol != "swarmdb:" {
-		//Invalid Protocol: Throw Error
-		//fmt.Fprintf(w, "The protocol sent in: %s is invalid | %+v\n", swReq.protocol, swReq)
-	} else {
-		var err error
-		if r.Method == "GET" {
-			//fmt.Fprintf(w, "Processing [%s] protocol request with Body of () \n", swReq.protocol)
-			dataReq.RequestType = "Get"
-			dataReq.Owner = swReq.owner
-			dataReq.Database = swReq.database
-			dataReq.Table = swReq.table
-			dataReq.Key = swReq.key
-			reqJson, err = json.Marshal(dataReq)
-			if err != nil {
-				//TODO: Return Error to Client
-				swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Error Marshaling request, %s", err.Error()))
-				log.Error(swErr.Error())
-				swErr.ErrorCode = 424
-				swErr.ErrorMessage = fmt.Sprintf("Error Reading Request", err.Error())
-				retJson := buildErrorResp(&swErr)
-				fmt.Fprint(w, retJson)
-			}
-		} else if r.Method == "POST" {
-			//fmt.Printf("\nBODY Json: %s", reqJson)
+	dataReq.Owner = swReq.owner
+	dataReq.Database = swReq.database
+	dataReq.Table = swReq.table
+	dataReq.Key = swReq.key
+	if r.Method == "GET" {
+		//fmt.Fprintf(w, "Processing [%s] protocol request with Body of () \n", swReq.protocol)
+		dataReq.RequestType = "Get"
+		reqJson, err = json.Marshal(dataReq)
+		if err != nil {
+			//TODO: Return Error to Client
+			swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Error Marshaling request, %s", err.Error()))
+			log.Error(swErr.Error())
+			swErr.ErrorCode = 424
+			swErr.ErrorMessage = fmt.Sprintf("Error Reading Request", err.Error())
+			retJson := buildErrorResp(&swErr)
+			fmt.Fprint(w, retJson)
+		}
+	} else if r.Method == "POST" {
+		//fmt.Printf("\nBODY Json: %s", reqJson)
 
-			var bodyMapInt interface{}
-			json.Unmarshal(bodyContent, &bodyMapInt)
-			log.Debug(fmt.Sprintf("Processing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt))
-			if bodyMap, ok := bodyMapInt.(map[string]interface{}); ok {
-				if reqType, ok := bodyMap["requesttype"]; ok {
-					dataReq.RequestType = reqType.(string)
-					if dataReq.RequestType == "CreateTable" {
-						dataReq.Owner = verifiedUser.Address //bodyMap["tableowner"].(string);
-						dataReq.Database = "tbd"
-						//TODO: ValidateCreateTableRequest
-					} else if dataReq.RequestType == "Query" {
-						dataReq.Owner = swReq.table
-						//Don't pass table for now (rely on Query parsing)
-						if rq, ok := bodyMap["rawquery"]; ok {
-							dataReq.RawQuery = rq.(string)
-							reqJson, err = json.Marshal(dataReq)
-							if err != nil {
-								swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Error Marshaling request, %s", err.Error()))
-								log.Error(swErr.Error())
-								swErr.ErrorCode = 424
-								swErr.ErrorMessage = fmt.Sprintf("Error Reading Request", err.Error())
-								retJson := buildErrorResp(&swErr)
-								fmt.Fprint(w, retJson)
-							}
-						} else {
-							//Invalid Query Request: rawquery missing
-							swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Invalid Query Request.  Missing RawQuery"))
-							log.Error(swErr.Error())
-							swErr.ErrorCode = 425
-							swErr.ErrorMessage = fmt.Sprintf("Invalid Query Request. Missing Rawquery")
-							retJson := buildErrorResp(&swErr)
-							fmt.Fprint(w, retJson)
-						}
-					} else if dataReq.RequestType == "Put" {
-						dataReq.Table = swReq.table
-						dataReq.Owner = swReq.owner
-						dataReq.Database = "tbd"
-						if row, ok := bodyMap["row"]; ok {
-							newRow := swarmdb.Row{Cells: row.(map[string]interface{})}
-							dataReq.Rows = append(dataReq.Rows, newRow)
-						}
+		var bodyMapInt interface{}
+		json.Unmarshal(bodyContent, &bodyMapInt)
+		log.Debug(fmt.Sprintf("Processing request with Body of (%s) \n", bodyMapInt))
+		if bodyMap, ok := bodyMapInt.(map[string]interface{}); ok {
+			if reqType, ok := bodyMap["requesttype"]; ok {
+				dataReq.RequestType = reqType.(string)
+				if dataReq.RequestType == "CreateTable" {
+					bodyMap["owner"] = swReq.owner
+					bodyMap["database"] = swReq.database
+					//TODO: ValidateCreateTableRequest
+					reqJson, err = json.Marshal(bodyMap)
+				} else if dataReq.RequestType == "Query" {
+					//Don't pass table for now (rely on Query parsing)
+					if rq, ok := bodyMap["rawquery"]; ok {
+						dataReq.RawQuery = rq.(string)
 						reqJson, err = json.Marshal(dataReq)
 						if err != nil {
-							//TODO: Return Error to Client
 							swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Error Marshaling request, %s", err.Error()))
 							log.Error(swErr.Error())
 							swErr.ErrorCode = 424
 							swErr.ErrorMessage = fmt.Sprintf("Error Reading Request", err.Error())
 							retJson := buildErrorResp(&swErr)
-							fmt.Fprintf(w, retJson)
+							fmt.Fprint(w, retJson)
 						}
+					} else {
+						//Invalid Query Request: rawquery missing
+						swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Invalid Query Request.  Missing RawQuery"))
+						log.Error(swErr.Error())
+						swErr.ErrorCode = 425
+						swErr.ErrorMessage = fmt.Sprintf("Invalid Query Request. Missing Rawquery")
+						retJson := buildErrorResp(&swErr)
+						fmt.Fprint(w, retJson)
 					}
-				} else {
-					swErr = swarmdb.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body -- Missing requesttype"}
-					swErr.SetError(fmt.Sprintf("POST operations require a requestType, (%+v), (%s)", bodyMap, bodyMap["requesttype"]))
-					retJson := buildErrorResp(&swErr)
-					fmt.Fprint(w, retJson)
+				} else if dataReq.RequestType == "Put" {
+					if row, ok := bodyMap["row"]; ok {
+						newRow := swarmdb.Row{Cells: row.(map[string]interface{})}
+						dataReq.Rows = append(dataReq.Rows, newRow)
+					}
+					reqJson, err = json.Marshal(dataReq)
+					if err != nil {
+						//TODO: Return Error to Client
+						swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Error Marshaling request, %s", err.Error()))
+						log.Error(swErr.Error())
+						swErr.ErrorCode = 424
+						swErr.ErrorMessage = fmt.Sprintf("Error Reading Request", err.Error())
+						retJson := buildErrorResp(&swErr)
+						fmt.Fprintf(w, retJson)
+					}
 				}
 			} else {
-				swErr = swarmdb.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body"}
-				swErr.SetError(fmt.Sprintf("Input Data Invalid [%v]", bodyMapInt))
-				log.Debug(swErr.Error())
+				swErr = swarmdb.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body -- Missing requesttype"}
+				swErr.SetError(fmt.Sprintf("POST operations require a requestType, (%+v), (%s)", bodyMap, bodyMap["requesttype"]))
 				retJson := buildErrorResp(&swErr)
 				fmt.Fprint(w, retJson)
 			}
+		} else {
+			swErr = swarmdb.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body"}
+			swErr.SetError(fmt.Sprintf("Input Data Invalid [%v]", bodyMapInt))
+			log.Debug(swErr.Error())
+			retJson := buildErrorResp(&swErr)
+			fmt.Fprint(w, retJson)
 		}
-		if swErr.ErrorMessage == "" {
-			//Redirect to SelectHandler after "building" GET RequestOption
-			response, errResp := s.swarmdb.SelectHandler(verifiedUser, string(reqJson))
-			if errResp != nil {
-				retJson := buildErrorResp(errResp)
-				fmt.Fprint(w, retJson)
-			} else {
-				fmt.Fprintf(w, response)
-			}
+	}
+	if swErr.ErrorMessage == "" {
+		//Redirect to SelectHandler after "building" GET RequestOption
+		log.Debug(fmt.Sprintf("JSON sent in request [%s]", reqJson))
+		response, errResp := s.swarmdb.SelectHandler(verifiedUser, string(reqJson))
+		if errResp != nil {
+			retJson := buildErrorResp(errResp)
+			fmt.Fprint(w, retJson)
+		} else {
+			fmt.Fprintf(w, response)
 		}
 	}
 }
