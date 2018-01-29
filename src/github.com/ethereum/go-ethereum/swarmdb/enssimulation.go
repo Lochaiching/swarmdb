@@ -72,6 +72,7 @@ func (self *ENSSimulation) StoreRootHash(u *SWARMDBUser, indexName []byte, rooth
 }
 
 func (self *ENSSimulation) GetRootHash(u *SWARMDBUser, indexName []byte) (val []byte, err error) {
+	//TODO: why are we passing in 'u' but not using?
 	log.Debug(fmt.Sprintf("[enssimulation:GetRootHash] indexName: (%s)[%x] => roothash[%x]", indexName, indexName)) //, roothash))
 	sql := `SELECT roothash FROM ens WHERE indexName = $1`
 	stmt, err := self.db.Prepare(sql)

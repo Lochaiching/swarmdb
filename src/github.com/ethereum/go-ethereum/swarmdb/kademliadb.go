@@ -95,6 +95,7 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) (mergedBodycontent 
 	return mergedBodycontent, err
 }
 
+//TODO: remove "open" and just pass it all into Put
 func (self *KademliaDB) Put(u *SWARMDBUser, k []byte, v []byte) (b []byte, err error) {
 	self.autoRenew = u.AutoRenew
 	self.minReplication = u.MinReplication
