@@ -272,8 +272,8 @@ func TestCreateListDescribeDatabase(t *testing.T) {
 	testKey := "rodneytest1@wolk.com"
 
 	testReqOption.RequestType = swarmdb.RT_PUT
-	testReqOption.Owner = TEST_OWNER
-	testReqOption.Database = TEST_DATABASE
+	testReqOption.Owner = owner
+	testReqOption.Database = database
 	testReqOption.Table = tableName
 	testReqOption.Key = testKey
 	rowObj := make(map[string]interface{})
@@ -300,8 +300,8 @@ func TestCreateListDescribeDatabase(t *testing.T) {
 	}
 
 	testReqOption.RequestType = swarmdb.RT_GET
-	testReqOption.Owner = TEST_OWNER
-	testReqOption.Database = TEST_DATABASE
+	testReqOption.Owner = owner
+	testReqOption.Database = database
 	testReqOption.Table = tableName
 
 	testReqOption.Key = testKey
@@ -355,6 +355,9 @@ func zTestPutInteger(t *testing.T) {
 	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
 	u := getUser()
 
+	owner := make_name("owner")
+	database := make_name("db")
+
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	ensdbPath := TEST_ENS_DIR
 	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
@@ -375,8 +378,8 @@ func zTestPutInteger(t *testing.T) {
 
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = swarmdb.RT_CREATE_TABLE
-	testReqOption.Owner = TEST_OWNER
-	testReqOption.Database = TEST_DATABASE
+	testReqOption.Owner = owner
+	testReqOption.Database = database
 	testReqOption.Table = tableName
 	testReqOption.Columns = testColumn
 
@@ -403,8 +406,8 @@ func zTestPutInteger(t *testing.T) {
 
 		var testReqOption swarmdb.RequestOption
 		testReqOption.RequestType = swarmdb.RT_PUT
-		testReqOption.Owner = TEST_OWNER
-		testReqOption.Database = TEST_DATABASE
+		testReqOption.Owner = owner
+		testReqOption.Database = database
 		testReqOption.Table = tableName
 		testReqOption.Rows = append(testReqOption.Rows, swarmdb.Row{Cells: rowObj})
 		marshalTestReqOption, err := json.Marshal(testReqOption)
@@ -420,8 +423,8 @@ func zTestPutInteger(t *testing.T) {
 	// Get(8)
 	var testReqOptionGet swarmdb.RequestOption
 	testReqOptionGet.RequestType = swarmdb.RT_GET
-	testReqOptionGet.Owner = TEST_OWNER
-	testReqOptionGet.Database = TEST_DATABASE
+	testReqOptionGet.Owner = owner
+	testReqOptionGet.Database = database
 	testReqOptionGet.Table = tableName
 	testReqOptionGet.Key = 8
 
@@ -566,8 +569,11 @@ func bTestTableSecondaryInt(t *testing.T) {
 	u := getUser()
 	swarmdb, _ := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
+	owner := make_name("owner")
+	database := make_name("db")
+	tableName := make_name("tbl")
 
-	rows, err := swarmdb.Scan(u, TEST_OWNER, TEST_DATABASE, TEST_TABLE, "age", 1)
+	rows, err := swarmdb.Scan(u, owner, database, tableName, "age", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -588,6 +594,9 @@ func bTestTableSecondaryInt(t *testing.T) {
 
 func bTestTableSecondaryFloat(t *testing.T) {
 	t.SkipNow()
+	owner := make_name("owner")
+	database := make_name("db")
+
 	u := getUser()
 	swdb, _ := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_FLOAT, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
@@ -598,8 +607,8 @@ func bTestTableSecondaryFloat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	query.Owner = TEST_OWNER
-	query.Database = TEST_DATABASE
+	query.Owner = owner
+	query.Database = database
 
 	rows, err := swdb.QuerySelect(u, &query)
 	if err != nil {
@@ -613,6 +622,9 @@ func bTestTableSecondaryFloat(t *testing.T) {
 
 func bTestTableSecondaryString(t *testing.T) {
 	t.SkipNow()
+	owner := make_name("owner")
+	database := make_name("db")
+
 	u := getUser()
 	swdb, _ := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
@@ -622,8 +634,8 @@ func bTestTableSecondaryString(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	query.Owner = TEST_OWNER
-	query.Database = TEST_DATABASE
+	query.Owner = owner
+	query.Database = database
 
 	rows, err := swdb.QuerySelect(u, &query)
 	if err != nil {
@@ -636,6 +648,7 @@ func bTestTableSecondaryString(t *testing.T) {
 }
 
 func aTestDelete0(t *testing.T) {
+	
 	u := getUser()
 	r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 

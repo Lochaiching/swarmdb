@@ -509,7 +509,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 	if d.RequestType != "CreateTable" && d.RequestType != "CreateDatabase" && d.RequestType != "DropDatabase" && d.RequestType != "ListDatabases" && d.RequestType != "DescribeDatabase" && d.RequestType != "ListTables" {
 		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
 		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
-		log.Debug(fmt.Sprintf("GetTable returned table: [%+v]", tbl))
+		log.Debug(fmt.Sprintf("GetTable returned table: [%+v] for tablekey: [%s]\n", tbl, tblKey))
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error()))
 		}
@@ -1063,14 +1063,15 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 		return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreDBChunk %s", err.Error()))
 	}
 	tbl.primaryColumnName = primaryColumnName
+	tbl.roothash = swarmhash
 
-	log.Debug(fmt.Sprintf("CreateTable (owner [%s] database [%s] tableName: [%s]) Primary: [%s] Roothash:[%x]\n", tbl.Owner, tbl.Database, tbl.tableName, tbl.primaryColumnName, swarmhash))
 	tblKey := self.GetTableKey(tbl.Owner, tbl.Database, tbl.tableName)
+
+	log.Debug(fmt.Sprintf("**** CreateTable (owner [%s] database [%s] tableName: [%s]) Primary: [%s] tblKey: [%s] Roothash:[%x]\n", tbl.Owner, tbl.Database, tbl.tableName, tbl.primaryColumnName, tblKey, swarmhash))
 	err = self.StoreRootHash(u, []byte(tblKey), []byte(swarmhash))
 	if err != nil {
 		return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreRootHash %s", err.Error()))
 	}
-
 	err = tbl.OpenTable(u)
 	if err != nil {
 		return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] OpenTable %s", err.Error()))
