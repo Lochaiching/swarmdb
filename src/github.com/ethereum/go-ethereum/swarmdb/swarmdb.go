@@ -40,7 +40,7 @@ type Column struct {
 //for passing request data from client to server
 type RequestOption struct {
 	RequestType string `json:"requesttype"` //"OpenConnection, Insert, Get, Put, etc"
-	Owner       string `json:"owner,omitempty"`
+	Owner       string `json:"tableowner,omitempty"`
 	Database    string `json:"database,omitempty"`
 
 	Table     string      `json:"table,omitempty"` //"contacts"
@@ -500,7 +500,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 	// var rerr *RequestFormatError
 	d, err := parseData(data)
 	if err != nil {
-		return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] parseData %s", err.Error()), ErrorCode: 417, ErrorMessage: "Request Not Parseable"}
+		return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] parseData %s", err.Error()))
 	}
 
 	var tblKey string
@@ -1039,6 +1039,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 	// ok now make the table!
 	fmt.Printf("Creating Table [%s] - Owner [%s] Database [%s]\n", tableName, owner, database)
 	tbl = self.NewTable(owner, database, tableName)
+
 	for i, columninfo := range columns {
 		copy(buf[2048+i*64:], columninfo.ColumnName)
 		b := make([]byte, 1)
