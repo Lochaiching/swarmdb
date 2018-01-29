@@ -25,6 +25,10 @@ import (
 	"testing"
 )
 
+const (
+	TEST_ENCRYPTED = 0
+)
+
 func rng() *mathutil.FC32 {
 	x, err := mathutil.NewFC32(math.MinInt32/4, math.MaxInt32/4, false)
 	if err != nil {
@@ -50,7 +54,7 @@ func TestPutInteger(t *testing.T) {
 
 	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
 	hashid := make([]byte, 32)
-	r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_INTEGER)
+	r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_INTEGER, TEST_ENCRYPTED)
 
 	// write 20 values into B-tree (only kept in memory)
 	r.StartBuffer(u)
@@ -66,7 +70,7 @@ func TestPutInteger(t *testing.T) {
 	r.Print(u)
 
 	hashid = r.GetRootHash()
-	s, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_INTEGER)
+	s, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_INTEGER, TEST_ENCRYPTED)
 	//s.Print()
 	g, ok, err := s.Get(u, swarmdb.IntToByte(10))
 	if !ok || err != nil {
@@ -115,7 +119,7 @@ func TestPutString(t *testing.T) {
 	u := config.GetSWARMDBUser()
 
 	hashid := make([]byte, 32)
-	r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_STRING)
+	r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_STRING, TEST_ENCRYPTED)
 
 	r.StartBuffer(u)
 	vals := rand.Perm(20)
@@ -131,7 +135,7 @@ func TestPutString(t *testing.T) {
 	// r.Print()
 
 	hashid = r.GetRootHash()
-	s, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_STRING)
+	s, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_STRING, TEST_ENCRYPTED)
 	g, _, _ := s.Get(u, []byte("000008"))
 	fmt.Printf("Get(000008): %v\n", string(g))
 
@@ -156,7 +160,7 @@ func TestPutFloat(t *testing.T) {
 	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
 
-	r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_FLOAT)
+	r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_FLOAT, TEST_ENCRYPTED)
 
 	r.StartBuffer(u)
 	vals := rand.Perm(20)
@@ -174,7 +178,7 @@ func TestPutFloat(t *testing.T) {
 	// r.Print()
 	// ENUMERATOR
 	hashid := r.GetRootHash()
-	s, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_FLOAT)
+	s, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_FLOAT, TEST_ENCRYPTED)
 	res, _, err := s.Seek(u, swarmdb.FloatToByte(0.314159))
 	if res == nil || err != nil {
 		t.Fatal(err)
@@ -194,7 +198,7 @@ func TestSetGetString(t *testing.T) {
 	u := config.GetSWARMDBUser()
 
 	hashid := make([]byte, 32)
-	r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_STRING)
+	r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_STRING, TEST_ENCRYPTED)
 
 	// put
 	key := []byte("42")
@@ -213,7 +217,7 @@ func TestSetGetString(t *testing.T) {
 	hashid = r.GetRootHash()
 
 	// r2 put
-	r2, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_STRING)
+	r2, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_STRING, TEST_ENCRYPTED)
 	val2 := swarmdb.SHA256("278")
 	r2.Put(u, key, val2)
 	//r2.Print()
@@ -229,7 +233,7 @@ func TestSetGetString(t *testing.T) {
 	hashid = r2.GetRootHash()
 
 	// r3 put
-	r3, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_STRING)
+	r3, _ := swarmdb.NewHashDB(u, hashid, getSwarmDB(t), swarmdb.CT_STRING, TEST_ENCRYPTED)
 	key2 := []byte("420")
 	val3 := swarmdb.SHA256("bbb")
 	r3.Put(u, key2, val3)
@@ -254,7 +258,7 @@ func TestSetGetInt(t *testing.T) {
 
 	const N = 4
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_INTEGER)
+		r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_INTEGER, TEST_ENCRYPTED)
 
 		a := make([]int, N)
 		for i := range a {
@@ -314,7 +318,7 @@ func TestDelete0(t *testing.T) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
-	r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_INTEGER)
+	r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_INTEGER, TEST_ENCRYPTED)
 
 	key0 := swarmdb.IntToByte(0)
 	key1 := swarmdb.IntToByte(1)
@@ -382,7 +386,7 @@ func TestDelete1(t *testing.T) {
 	u := config.GetSWARMDBUser()
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_INTEGER)
+		r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_INTEGER, TEST_ENCRYPTED)
 		a := make([]int, N)
 		for i := range a {
 			a[i] = (i ^ x) << 1
@@ -407,7 +411,7 @@ func TestDelete2(t *testing.T) {
 	u := config.GetSWARMDBUser()
 	const N = 100
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_INTEGER)
+		r, _ := swarmdb.NewHashDB(u, nil, getSwarmDB(t), swarmdb.CT_INTEGER, TEST_ENCRYPTED)
 		a := make([]int, N)
 		rng := rng()
 		for i := range a {

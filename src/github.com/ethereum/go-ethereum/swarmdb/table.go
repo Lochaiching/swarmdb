@@ -1,12 +1,12 @@
-package swarmdb 
+package swarmdb
 
 import (
-	"encoding/json"
 	"bytes"
-	"github.com/ethereum/go-ethereum/log"
+	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/log"
 	"strconv"
-	)
+)
 
 type Table struct {
 	buffered          bool
@@ -20,7 +20,6 @@ type Table struct {
 	encrypted         int
 }
 
-
 type ColumnInfo struct {
 	columnName string
 	indexType  IndexType
@@ -29,8 +28,6 @@ type ColumnInfo struct {
 	primary    uint8
 	columnType ColumnType
 }
-
-
 
 type Row struct {
 	//primaryKeyValue interface{}
@@ -45,8 +42,6 @@ func NewRow() (r Row) {
 func (r Row) Set(columnName string, val interface{}) {
 	r.Cells[columnName] = val
 }
-
-
 
 func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 
@@ -94,13 +89,13 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 		// fmt.Printf("\n columnName: %s (%d) roothash: %x (secondary: %v) columnType: %d", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary, columninfo.columnType)
 		switch columninfo.indexType {
 		case IT_BPLUSTREE:
-			bplustree, err := NewBPlusTreeDB(u, *t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType))
+			bplustree, err := NewBPlusTreeDB(u, *t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType), t.encrypted)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:OpenTable] NewBPlusTreeDB %s", err.Error()))
 			}
 			columninfo.dbaccess = bplustree
 		case IT_HASHTREE:
-			columninfo.dbaccess, err = NewHashDB(u, columninfo.roothash, *t.swarmdb, ColumnType(columninfo.columnType))
+			columninfo.dbaccess, err = NewHashDB(u, columninfo.roothash, *t.swarmdb, ColumnType(columninfo.columnType), t.encrypted)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:OpenTable] NewHashDB %s", err.Error()))
 			}
@@ -119,7 +114,6 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 	log.Debug(fmt.Sprintf("OpenTable [%s] with Owner [%s] Database [%s] Returning with Columns: %v\n", t.tableName, t.Owner, t.Database, t.columns))
 	return nil
 }
-
 
 func (t *Table) getPrimaryColumn() (c *ColumnInfo, err error) {
 	return t.getColumn(t.primaryColumnName)

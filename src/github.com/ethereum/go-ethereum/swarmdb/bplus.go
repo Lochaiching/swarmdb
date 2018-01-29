@@ -104,6 +104,7 @@ type Tree struct {
 	columnType        ColumnType
 	columnTypePrimary ColumnType
 	secondary         bool
+	encrypted         int
 	hashid            []byte
 }
 
@@ -307,7 +308,7 @@ func (l *d) mvR(r *d, c int) {
 // The SWARMDB Manager instantiates a B+ tree with the top level SWARMDB hashid along with a specific user u
 // that holds the public/private keys for writing chunks
 // To manage ordering a "cmp" is instantiated with a suitable columnType (blob/float/string/integer/...)
-func NewBPlusTreeDB(u *SWARMDBUser, swarmdb SwarmDB, hashid []byte, columnType ColumnType, secondary bool, columnTypePrimary ColumnType) (t *Tree, err error) {
+func NewBPlusTreeDB(u *SWARMDBUser, swarmdb SwarmDB, hashid []byte, columnType ColumnType, secondary bool, columnTypePrimary ColumnType, encrypted int) (t *Tree, err error) {
 	// set up the comparator
 	cmpPrimary := cmpBytes
 	if secondary == true {
@@ -340,6 +341,7 @@ func NewBPlusTreeDB(u *SWARMDBUser, swarmdb SwarmDB, hashid []byte, columnType C
 	// used to SWARMGET
 	t.swarmdb = &swarmdb
 	t.secondary = secondary
+	t.encrypted = encrypted
 
 	// get the top level node (only)
 	t.swarmGet(u)
@@ -586,7 +588,7 @@ func (t *Tree) swarmPut(u *SWARMDBUser) (new_hashid []byte, changed bool, err er
 	case *x: // intermediate node -- descend on the next pass
 		// fmt.Printf("ROOT XNode %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
 		var errPut error
-		new_hashid, changed, errPut = x.swarmPut(u, t.swarmdb, t.columnType)
+		new_hashid, changed, errPut = x.swarmPut(u, t.swarmdb, t.columnType, t.encrypted)
 		if errPut != nil {
 			return new_hashid, changed, err
 		}
@@ -595,7 +597,7 @@ func (t *Tree) swarmPut(u *SWARMDBUser) (new_hashid []byte, changed bool, err er
 		}
 	case *d: // data node -- EXACT match
 		// fmt.Printf("ROOT DNode %x [dirty=%v|notloaded=%v]\n", x.hashid, x.dirty, x.notloaded)
-		new_hashid, changed, err = x.swarmPut(u, t.swarmdb, t.columnType)
+		new_hashid, changed, err = x.swarmPut(u, t.swarmdb, t.columnType, t.encrypted)
 		if changed {
 			t.hashid = x.hashid
 		}
@@ -604,21 +606,21 @@ func (t *Tree) swarmPut(u *SWARMDBUser) (new_hashid []byte, changed bool, err er
 	return new_hashid, changed, nil
 }
 
-func (q *x) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnType) (new_hashid []byte, changed bool, err error) {
+func (q *x) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnType, encrypted int) (new_hashid []byte, changed bool, err error) {
 	// recurse through children
 	// fmt.Printf("put XNode [c=%d] %x [dirty=%v|notloaded=%v]\n", q.c, q.hashid, q.dirty, q.notloaded)
 	for i := 0; i <= q.c; i++ {
 		switch z := q.x[i].ch.(type) {
 		case *x:
 			if z.dirty {
-				_, _, err = z.swarmPut(u, swarmdb, columnType)
+				_, _, err = z.swarmPut(u, swarmdb, columnType, encrypted)
 				if err != nil {
 					return new_hashid, false, &SWARMDBError{message: fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error())}
 				}
 			}
 		case *d:
 			if z.dirty {
-				_, _, err = z.swarmPut(u, swarmdb, columnType)
+				_, _, err = z.swarmPut(u, swarmdb, columnType, encrypted)
 				if err != nil {
 					return new_hashid, false, &SWARMDBError{message: fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error())}
 				}
@@ -646,7 +648,7 @@ func (q *x) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 	set_chunk_childtype(sdata, childtype)
 
 	// Core interface with DBChunkstore is here
-	new_hashid, err = swarmdb.StoreDBChunk(u, sdata, 1)
+	new_hashid, err = swarmdb.StoreDBChunk(u, sdata, encrypted)
 	if err != nil {
 		return q.hashid, false, &SWARMDBError{message: `[bplus:swarmPut] StoreDBChunk ` + err.Error()}
 	}
@@ -654,11 +656,11 @@ func (q *x) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 	return new_hashid, true, nil
 }
 
-func (q *d) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnType) (new_hashid []byte, changed bool, err error) {
+func (q *d) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnType, encrypted int) (new_hashid []byte, changed bool, err error) {
 	// fmt.Printf("put DNode [c=%d] [dirty=%v|notloaded=%v, prev=%x, next=%x]\n", q.c, q.dirty, q.notloaded, q.prevhashid, q.nexthashid)
 	if q.n != nil {
 		if q.n.dirty {
-			_, _, err = q.n.swarmPut(u, swarmdb, columnType)
+			_, _, err = q.n.swarmPut(u, swarmdb, columnType, encrypted)
 			if err != nil {
 				return new_hashid, false, &SWARMDBError{message: fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error())}
 			}
@@ -670,7 +672,7 @@ func (q *d) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 
 	if q.p != nil {
 		if q.p.dirty {
-			_, _, err = q.p.swarmPut(u, swarmdb, columnType)
+			_, _, err = q.p.swarmPut(u, swarmdb, columnType, encrypted)
 			if err != nil {
 				return new_hashid, false, &SWARMDBError{message: fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error())}
 			}
@@ -698,7 +700,7 @@ func (q *d) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 	set_chunk_childtype(sdata, "C")
 
 	// Core interface with DBChunkstore is here
-	new_hashid, err = swarmdb.StoreDBChunk(u, sdata, 1)
+	new_hashid, err = swarmdb.StoreDBChunk(u, sdata, encrypted)
 	if err != nil {
 		return q.hashid, false, &SWARMDBError{message: `[bplus:swarmPut] StoreDBChunk ` + err.Error()}
 	}
