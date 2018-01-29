@@ -19,10 +19,10 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"database/sql"
-	//"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
@@ -38,6 +38,30 @@ var (
 const (
 	minChunkSize = 4000
 )
+
+type NetstatFile struct {
+	NodeID        string
+	WalletAddress string
+	Ticket        map[string]string
+	ChunkStat     map[string]string
+	ByteStat      map[string]string
+	CStat         map[string]*big.Int `json:"-"`
+	BStat         map[string]*big.Int `json:"-"`
+	Claim         map[string]*big.Int `json:"-"`
+	LaunchDT      *time.Time
+	LReadDT       *time.Time
+	LWriteDT      *time.Time
+	LogDT         *time.Time
+}
+
+type DBChunkstore struct {
+	db       *sql.DB
+	km       *KeyManager
+	farmer   ethcommon.Address
+	netstat  *NetstatFile
+	filepath string
+	statpath string
+}
 
 type DBChunk struct {
 	Key          []byte // 32

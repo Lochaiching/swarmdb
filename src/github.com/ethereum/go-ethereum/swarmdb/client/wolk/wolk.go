@@ -32,9 +32,8 @@ import (
 )
 
 type Session struct {
-	TableOwner string //might need []byte or hex?
-	Encrypted  *int
-	//Replication *int
+	Owner string //might need []byte or hex?
+	Database string 
 	TableName string
 	IsOpen    bool
 	DBTable   *swarmdb.SWARMDBTable
@@ -76,9 +75,6 @@ func main() {
 			return result
 		}
 
-		if session.Encrypted == nil {
-			*session.Encrypted = 1 //if encrypted is omitted, defaults to yes
-		}
 		//if session.Replication == nil {
 		//??
 		//}
@@ -88,14 +84,20 @@ func main() {
 			//TODO: Error Checking
 			return result
 		}
-		if len(session.TableOwner) == 0 {
+		if len(session.Owner) == 0 {
 			//no input tableowner means session owner is table owner
-			session.TableOwner = DBC.GetOwnerID()
-			//fmt.Printf("session's tableowner gotten from dbc: %v\n", session.TableOwner)
+			session.Owner = DBC.GetOwner()
+			//fmt.Printf("session's owner gotten from dbc: %v\n", session.Owner)
+		}
+
+		if len(session.Database) == 0 {
+			//no input tableowner means session owner is table owner
+			session.Database = DBC.GetDatabase()
+			//fmt.Printf("session's database gotten from dbc: %v\n", session.Database)
 		}
 
 		//open up session with table specified
-		session.DBTable, err = DBC.Open(session.TableName, session.TableOwner, *session.Encrypted)
+		session.DBTable, err = DBC.Open(session.TableName, session.Owner, session.Database)
 		if err != nil {
 			result, _ := vm.ToValue(err.(*swarmdb.SWARMDBError).Print())
 			return result
@@ -205,8 +207,7 @@ func main() {
 		}
 
 		//TODO: need to check for duplicate table here (need to hook up 'get table info' or use ens)
-
-		session.DBTable, err = DBC.CreateTable(session.TableOwner, *session.Encrypted, session.TableName, sCols)
+		session.DBTable, err = DBC.CreateTable(session.Owner, session.Database, session.TableName, sCols, 0)
 		if err != nil {
 			result, _ := vm.ToValue(err.(*swarmdb.SWARMDBError).Print())
 			//TODO: Error Checking
@@ -361,7 +362,7 @@ func main() {
 }
 
 func NewSession() *Session {
-	return &Session{"", nil, "", false, nil}
+	return &Session{"wolkowner", "db", "", false, nil}
 }
 
 func replaceSwarmDBTypes(in []byte) []byte {

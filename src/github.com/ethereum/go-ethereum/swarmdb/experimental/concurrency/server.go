@@ -15,6 +15,11 @@ import (
 	"sync"
 )
 
+type IncomingInfo struct {
+	Data    string
+	Address string
+}
+
 type ServerConfig struct {
 	Addr string
 	Port string

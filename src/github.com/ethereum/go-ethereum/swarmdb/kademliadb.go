@@ -20,6 +20,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
+	"sync"
 )
 
 // TODO: document this
@@ -27,6 +28,20 @@ import (
 const (
 	chunkSize = 4096
 )
+
+type KademliaDB struct {
+	dbChunkstore   *DBChunkstore
+	mutex          sync.Mutex
+	owner          []byte
+	tableName      []byte
+	column         []byte
+	nodeType       []byte
+	updateCount    int
+	encrypted      int
+	autoRenew      int
+	minReplication int
+	maxReplication int
+}
 
 func NewKademliaDB(dbChunkstore *DBChunkstore) (*KademliaDB, error) {
 	kd := new(KademliaDB)

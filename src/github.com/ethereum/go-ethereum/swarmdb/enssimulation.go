@@ -22,6 +22,11 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+type ENSSimulation struct {
+	filepath string
+	db       *sql.DB
+}
+
 func NewENSSimulation(path string) (ens ENSSimulation, err error) {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {

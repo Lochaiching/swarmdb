@@ -29,8 +29,9 @@ import (
 )
 
 const (
-	TEST_OWNER           = "9982ad7bfbe62567287dafec879d20687e4b76f5"
-	TEST_TABLE           = "secondary"
+	TEST_OWNER           = "wolktoken.eth"
+	TEST_DATABASE        = "pets"
+	TEST_TABLE           = "dogs"
 	TEST_PKEY_INT        = "accountID"
 	TEST_PKEY_STRING     = "email"
 	TEST_PKEY_FLOAT      = "ts"
@@ -42,8 +43,8 @@ const (
 	TEST_ENS_DIR         = "/tmp"
 )
 
-func make_table_name(s string) (tablePrefix string) {
-	return fmt.Sprintf("%s%d", s, int32(time.Now().Unix()))
+func make_name(prefix string) (nm string) {
+	return fmt.Sprintf("%s%d", prefix, int32(time.Now().Unix()))
 }
 
 func getUser() (u *swarmdb.SWARMDBUser) {
@@ -66,12 +67,15 @@ func getSWARMDBTable(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName st
 		panic("Could not create NewSWARMDB")
 	}
 
+	owner := TEST_OWNER
+	database := TEST_DATABASE
+
 	// CreateTable
 	if create {
 		var option []swarmdb.Column
 		o := swarmdb.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
 		option = append(option, o)
-		tbl, _ = swarmdbObj.CreateTable(u, tableName, option, TEST_ENCRYPTED)
+		tbl, _ = swarmdbObj.CreateTable(u, owner, database, tableName, option, TEST_ENCRYPTED)
 
 		// OpenTable
 		err = tbl.OpenTable(u)
@@ -80,7 +84,7 @@ func getSWARMDBTable(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName st
 		}
 		return tbl
 	} else {
-		tbl = swarmdbObj.NewTable(u.Address, tableName, 1) // TODO: check why encrypted is a parameter?
+		tbl = swarmdbObj.NewTable(owner, database, tableName) // TODO: check why encrypted is a parameter?
 		err = tbl.OpenTable(u)
 		if err != nil {
 			panic("Could not open table")
@@ -97,6 +101,9 @@ func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryK
 	ensdbPath := TEST_ENS_DIR
 	swarmdbObj, _ = swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 
+	owner := TEST_OWNER
+	database := TEST_DATABASE
+
 	// CreateTable
 	var swErr swarmdb.SWARMDBError
 	if create {
@@ -106,7 +113,7 @@ func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryK
 
 		s := swarmdb.Column{ColumnName: secondaryKeyName, Primary: 0, IndexType: secondaryIndexType, ColumnType: secondaryColumnType}
 		option = append(option, s)
-		tbl, errTblCreate := swarmdbObj.CreateTable(u, tableName, option, TEST_ENCRYPTED)
+		tbl, errTblCreate := swarmdbObj.CreateTable(u, owner, database, tableName, option, TEST_ENCRYPTED)
 		if errTblCreate != nil {
 			swErr.SetError("Error: [%s] " + errTblCreate.Error())
 		}
@@ -145,7 +152,7 @@ func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryK
 
 		}
 	} else {
-		tbl, _ := swarmdbObj.GetTable(u, u.Address, tableName)
+		tbl, _ := swarmdbObj.GetTable(u, owner, database, tableName)
 		err := tbl.OpenTable(u)
 		if err != nil {
 			fmt.Printf("OPENTABLE ERR %v\n", err)
@@ -162,9 +169,73 @@ func rng() *mathutil.FC32 {
 	return x
 }
 
-func TestCreateTablePutGet(t *testing.T) {
+func TestCreateListDescribeDatabase(t *testing.T) {
+	// t.SkipNow()
+
 	u := getUser()
-	tableName := make_table_name("test")
+	owner := make_name("owner")
+	database := make_name("db")
+
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := TEST_ENS_DIR
+	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+
+	// create database
+	var testReqOption swarmdb.RequestOption
+	testReqOption.RequestType = swarmdb.RT_CREATE_DATABASE
+	testReqOption.Owner = owner
+	testReqOption.Database = database
+
+	marshalTestReqOption, err := json.Marshal(testReqOption)
+	fmt.Printf("%s: %s\n", testReqOption.RequestType, marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+
+	}
+	swdb.SelectHandler(u, string(marshalTestReqOption))
+
+	// describe database
+	testReqOption.RequestType = swarmdb.RT_DESCRIBE_DATABASE
+	testReqOption.Owner = owner
+	testReqOption.Database = database
+
+	marshalTestReqOption, err = json.Marshal(testReqOption)
+	fmt.Printf("%s: %s\n", testReqOption.RequestType, marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+
+	}
+	swdb.SelectHandler(u, string(marshalTestReqOption))
+
+	// list databases
+	testReqOption.RequestType = swarmdb.RT_LIST_DATABASES
+	testReqOption.Owner = owner
+	testReqOption.Database = database
+	marshalTestReqOption, err = json.Marshal(testReqOption)
+	fmt.Printf("%s: %s\n", testReqOption.RequestType, marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+
+	}
+	swdb.SelectHandler(u, string(marshalTestReqOption))
+
+	// drop database
+	testReqOption.RequestType = swarmdb.RT_DROP_DATABASE
+	testReqOption.Owner = owner
+	testReqOption.Database = database
+	marshalTestReqOption, err = json.Marshal(testReqOption)
+	fmt.Printf("%s: %s\n", testReqOption.RequestType, marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+
+	}
+	swdb.SelectHandler(u, string(marshalTestReqOption))
+
+}
+
+func aTestCreateTablePutGet(t *testing.T) {
+	u := getUser()
+	tableName := make_name("test")
 
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	ensdbPath := TEST_ENS_DIR
@@ -190,7 +261,8 @@ func TestCreateTablePutGet(t *testing.T) {
 	var testReqOption swarmdb.RequestOption
 
 	testReqOption.RequestType = swarmdb.RT_CREATE_TABLE
-	testReqOption.TableOwner = TEST_OWNER
+	testReqOption.Owner = TEST_OWNER
+	testReqOption.Database = TEST_DATABASE
 	testReqOption.Table = tableName
 
 	testReqOption.Encrypted = 1
@@ -207,7 +279,8 @@ func TestCreateTablePutGet(t *testing.T) {
 	testKey := "rodneytest1@wolk.com"
 
 	testReqOption.RequestType = swarmdb.RT_PUT
-	testReqOption.TableOwner = TEST_OWNER
+	testReqOption.Owner = TEST_OWNER
+	testReqOption.Database = TEST_DATABASE
 	testReqOption.Table = tableName
 	testReqOption.Key = testKey
 	rowObj := make(map[string]interface{})
@@ -234,8 +307,10 @@ func TestCreateTablePutGet(t *testing.T) {
 	}
 
 	testReqOption.RequestType = swarmdb.RT_GET
-	testReqOption.TableOwner = TEST_OWNER
+	testReqOption.Owner = TEST_OWNER
+	testReqOption.Database = TEST_DATABASE
 	testReqOption.Table = tableName
+
 	testReqOption.Key = testKey
 
 	marshalTestReqOption, err = json.Marshal(testReqOption)
@@ -266,14 +341,15 @@ func TestCreateTablePutGet(t *testing.T) {
 	}
 }
 
-func TestGetTableFail(t *testing.T) {
+func zTestGetTableFail(t *testing.T) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	ensdbPath := TEST_ENS_DIR
 	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-	ownerID := "BadOwner"
+	owner := "BadOwner"
+	database := "BadDatabase"
 	tableName := "BadTable"
 	u := getUser()
-	_, err := swdb.GetTable(u, ownerID, tableName)
+	_, err := swdb.GetTable(u, owner, database, tableName)
 	if err == nil {
 		t.Fatalf("TestGetTableFail: FAILED")
 	} else {
@@ -282,7 +358,7 @@ func TestGetTableFail(t *testing.T) {
 }
 
 // primary key is integer
-func TestPutInteger(t *testing.T) {
+func zTestPutInteger(t *testing.T) {
 	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
 	u := getUser()
 
@@ -291,7 +367,7 @@ func TestPutInteger(t *testing.T) {
 	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 
 	// set up table
-	tableName := make_table_name("testputinteger")
+	tableName := make_name("testputinteger")
 	var testColumn []swarmdb.Column
 	testColumn = make([]swarmdb.Column, 2)
 	testColumn[0].ColumnName = TEST_PKEY_INT
@@ -306,7 +382,8 @@ func TestPutInteger(t *testing.T) {
 
 	var testReqOption swarmdb.RequestOption
 	testReqOption.RequestType = swarmdb.RT_CREATE_TABLE
-	testReqOption.TableOwner = TEST_OWNER
+	testReqOption.Owner = TEST_OWNER
+	testReqOption.Database = TEST_DATABASE
 	testReqOption.Table = tableName
 
 	testReqOption.Encrypted = 1
@@ -335,7 +412,8 @@ func TestPutInteger(t *testing.T) {
 
 		var testReqOption swarmdb.RequestOption
 		testReqOption.RequestType = swarmdb.RT_PUT
-		testReqOption.TableOwner = TEST_OWNER
+		testReqOption.Owner = TEST_OWNER
+		testReqOption.Database = TEST_DATABASE
 		testReqOption.Table = tableName
 		testReqOption.Rows = append(testReqOption.Rows, swarmdb.Row{Cells: rowObj})
 		marshalTestReqOption, err := json.Marshal(testReqOption)
@@ -351,7 +429,8 @@ func TestPutInteger(t *testing.T) {
 	// Get(8)
 	var testReqOptionGet swarmdb.RequestOption
 	testReqOptionGet.RequestType = swarmdb.RT_GET
-	testReqOptionGet.TableOwner = TEST_OWNER
+	testReqOptionGet.Owner = TEST_OWNER
+	testReqOptionGet.Database = TEST_DATABASE
 	testReqOptionGet.Table = tableName
 	testReqOptionGet.Key = 8
 
@@ -497,7 +576,7 @@ func bTestTableSecondaryInt(t *testing.T) {
 	swarmdb, _ := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
 		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
-	rows, err := swarmdb.Scan(u, TEST_OWNER, TEST_TABLE, "age", 1)
+	rows, err := swarmdb.Scan(u, TEST_OWNER, TEST_DATABASE, TEST_TABLE, "age", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -528,7 +607,8 @@ func bTestTableSecondaryFloat(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	query.TableOwner = TEST_OWNER
+	query.Owner = TEST_OWNER
+	query.Database = TEST_DATABASE
 
 	rows, err := swdb.QuerySelect(u, &query)
 	if err != nil {
@@ -551,7 +631,8 @@ func bTestTableSecondaryString(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	query.TableOwner = TEST_OWNER
+	query.Owner = TEST_OWNER
+	query.Database = TEST_DATABASE
 
 	rows, err := swdb.QuerySelect(u, &query)
 	if err != nil {

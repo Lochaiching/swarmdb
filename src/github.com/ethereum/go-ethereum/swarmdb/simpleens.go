@@ -27,6 +27,11 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
+type ENSSimple struct {
+	auth *bind.TransactOpts
+	sens *Simplestens
+}
+
 func NewENSSimple(path string) (ens ENSSimple, err error) {
 	// Create an IPC based RPC connection to a remote node
 	//y	conn, err := ethclient.Dial("/home/karalabe/.ethereum/testnet/geth.ipc")

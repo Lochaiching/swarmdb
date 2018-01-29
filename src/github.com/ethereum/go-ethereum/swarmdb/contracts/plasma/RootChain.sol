@@ -1,11 +1,294 @@
 pragma solidity 0.4.18;
-import 'SafeMath.sol';
-import 'Math.sol';
-import 'RLP.sol';
-import 'Merkle.sol';
-import 'Validate.sol';
-import 'PriorityQueue.sol';
 
+import 'RLP.sol';
+
+// SafeMath.sol
+function mul(uint256 a, uint256 b)
+        internal
+        pure
+        returns (uint256)
+    {
+        if (a == 0) {
+        return 0;
+        }
+        uint256 c = a * b;
+        assert(c / a == b);
+        return c;
+    }
+
+    function div(uint256 a, uint256 b)
+        internal
+        pure
+        returns (uint256)
+    {
+        // assert(b > 0); // Solidity automatically throws when dividing by 0
+        uint256 c = a / b;
+        // assert(a == b * c + a % b); // There is no case in which this doesn't hold
+        return c;
+    }
+
+    function sub(uint256 a, uint256 b)
+        internal
+        pure
+        returns (uint256) 
+    {
+        assert(b <= a);
+        return a - b;
+    }
+
+    function add(uint256 a, uint256 b)
+        internal
+        pure
+        returns (uint256) 
+    {
+        uint256 c = a + b;
+        assert(c >= a);
+        return c;
+    }
+
+
+/**
+ * @title Bytes operations
+ *
+ * @dev Based on https://github.com/GNSPS/solidity-bytes-utils/blob/master/contracts/BytesLib.sol
+ */
+function slice(bytes _bytes, uint _start, uint _length)
+        internal
+        pure
+        returns (bytes)
+{
+        
+        bytes memory tempBytes;
+        
+        assembly {
+            tempBytes := mload(0x40)
+            
+            let lengthmod := and(_length, 31)
+            
+            let mc := add(tempBytes, lengthmod)
+            let end := add(mc, _length)
+            
+            for {
+                let cc := add(add(_bytes, lengthmod), _start)
+            } lt(mc, end) {
+                mc := add(mc, 0x20)
+                cc := add(cc, 0x20)
+            } {
+                mstore(mc, mload(cc))
+            }
+            
+            mstore(tempBytes, _length)
+            
+            //update free-memory pointer
+            //allocating the array padded to 32 bytes like the compiler does now
+            mstore(0x40, and(add(mc, 31), not(31)))
+        }
+        
+        return tempBytes;
+    }
+/**
+   * @dev Recover signer address from a message by using his signature
+   * @param hash bytes32 message, the hash is the signed message. What is recovered is the signer address.
+   * @param sig bytes signature, the signature is generated using web3.eth.sign()
+   */
+
+function recover(bytes32 hash, bytes sig)
+        internal
+        pure
+        returns (address)
+{
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+
+        //Check the signature length
+        if (sig.length != 65) {
+        return (address(0));
+        }
+
+        // Divide the signature in v, r, and s variables
+        assembly {
+        r := mload(add(sig, 32))
+        s := mload(add(sig, 64))
+        v := byte(0, mload(add(sig, 96)))
+        }
+
+        // Version of signature should be 27 or 28, but 0 and 1 are also possible versions
+        if (v < 27) {
+        v += 27;
+        }
+
+        // If the version is correct return the signer address
+        if (v != 27 && v != 28) {
+        return (address(0));
+        } else {
+        return ecrecover(hash, v, r, s);
+        }
+}
+
+// 4 sigs in "sigs" byte array (260 bytes)
+//  sig1 [0:65]  -- signed transaction txhash, must match confSig
+//  sig2 [65:130] -- signed transaction txhash, must match confSig2
+//  confSig1 [130:195] -- for confirmationHash
+//  confSig2 [195:196+65]
+// where confirmationHash = hash(txhas, sig1, sig2, roothash)
+
+// inputCount is based on blocknum1 and blocknum2
+function checkSigs(bytes32 txHash, bytes32 rootHash, uint256 inputCount, bytes sigs)
+        internal
+        view
+        returns (bool)
+{
+        require(sigs.length % 65 == 0 && sigs.length <= 260);
+        bytes memory sig1 = ByteUtils.slice(sigs, 0, 65);
+        bytes memory sig2 = ByteUtils.slice(sigs, 65, 65);
+        bytes memory confSig1 = ByteUtils.slice(sigs, 130, 65);
+        bytes32 confirmationHash = keccak256(txHash, sig1, sig2, rootHash);
+        if (inputCount == 0) {
+            return msg.sender == ECRecovery.recover(confirmationHash, confSig1);
+        }
+        if (inputCount < 1000000) { // only blocknum1
+            return ECRecovery.recover(txHash, sig1) == ECRecovery.recover(confirmationHash, confSig1);
+        } else {
+            bytes memory confSig2 = ByteUtils.slice(sigs, 195, 65);
+            bool check1 = ECRecovery.recover(txHash, sig1) == ECRecovery.recover(confirmationHash, confSig1);
+            bool check2 = ECRecovery.recover(txHash, sig2) == ECRecovery.recover(confirmationHash, confSig2);
+            return check1 && check2;
+        }
+}
+
+function max(uint256 a, uint256 b)
+        internal
+        pure
+        returns (uint256)
+{
+        if (a > b) 
+            return a;
+        return b;
+}
+
+function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof)
+        internal
+        pure
+        returns (bool)
+{
+        require(proof.length == 512);
+        bytes32 proofElement;
+        bytes32 computedHash = leaf;
+
+        for (uint256 i = 32; i <= 512; i += 32) {
+            assembly {
+                proofElement := mload(add(proof, i))
+            }
+            if (index % 2 == 0) {
+                computedHash = keccak256(computedHash, proofElement);
+            } else {
+                computedHash = keccak256(proofElement, computedHash);
+            }
+            index = index / 2;
+        }
+        return computedHash == rootHash;
+}
+
+contract PriorityQueue {
+    using SafeMath for uint256;
+
+    /*
+     *  Modifiers
+     */
+    modifier onlyOwner() {
+        require(msg.sender == owner);
+        _;
+    }
+
+    /* 
+     *  Storage
+     */
+    address owner;
+    uint256[] heapList;
+    uint256 public currentSize;
+
+    function PriorityQueue()
+        public
+    {
+        owner = msg.sender;
+        heapList = [0];
+        currentSize = 0;
+    }
+
+    function insert(uint256 k) 
+        public
+        onlyOwner
+    {
+        heapList.push(k);
+        currentSize = currentSize.add(1);
+        percUp(currentSize);
+    }
+
+    function minChild(uint256 i)
+        public
+        view
+        returns (uint256)
+    {
+        if (i.mul(2).add(1) > currentSize) {
+            return i.mul(2);
+        } else {
+            if (heapList[i.mul(2)] < heapList[i.mul(2).add(1)]) {
+                return i.mul(2);
+            } else {
+                return i.mul(2).add(1);
+            }
+        }
+    }
+
+    function getMin()
+        public
+        view
+        returns (uint256)
+    {
+        return heapList[1];
+    }
+
+    function delMin()
+        public
+        onlyOwner
+        returns (uint256)
+    {
+        uint256 retVal = heapList[1];
+        heapList[1] = heapList[currentSize];
+        delete heapList[currentSize];
+        currentSize = currentSize.sub(1);
+        percDown(1);
+        return retVal;
+    }
+
+    function percUp(uint256 i) 
+        private
+    {
+        while (i.div(2) > 0) {
+            if (heapList[i] < heapList[i.div(2)]) {
+                uint256 tmp = heapList[i.div(2)];
+                heapList[i.div(2)] = heapList[i];
+                heapList[i] = tmp;
+            }
+            i = i.div(2);
+        }
+    }
+
+    function percDown(uint256 i)
+        private
+    {
+        while (i.mul(2) <= currentSize) {
+            uint256 mc = minChild(i);
+            if (heapList[i] > heapList[mc]) {
+                uint256 tmp = heapList[i];
+                heapList[i] = heapList[mc];
+                heapList[mc] = tmp;
+            }
+            i = mc;
+        }
+    }
+}
 
 contract RootChain {
     using SafeMath for uint256;
@@ -175,11 +458,11 @@ contract RootChain {
     /*
     startExit(uint256 plasmaBlockNum, uint256 txindex, uint256 oindex, bytes tx, bytes proof, bytes confirmSig): 
      starts an exit procedure for a given UTXO. Requires as input
-     (i) the Plasma block number and tx index in which the UTXO was created, 
-     (ii) the output index, 
-     (iii) the transaction containing that UTXO, 
-     (iv) a Merkle proof of the transaction, and
-     (v) a confirm signature from each of the previous owners of the now-spent outputs that were used to create the UTXO.
+     (i)  the Plasma block number (txPos[0]) and tx index in which the UTXO was created, 
+     (ii) the output index (txPos[2]), 
+     (iii) the transaction containing that UTXO (txPos[1]), 
+     (iv) a Merkle proof of the transaction (proof)
+     (v) a confirm signature (sig) from each of the previous owners of the now-spent outputs that were used to create the UTXO.
     */
     function startExit(uint256[3] txPos, bytes txBytes, bytes proof, bytes sigs)
         public
@@ -187,20 +470,26 @@ contract RootChain {
     {
         var txList = txBytes.toRLPItem().toList();
 /*
-    A transaction is an RLP-encoded object (length 11) of the form: (sig1, sig2 is skipped for now)
+    A transaction is an RLP-encoded object (length 11) of the form: (sig1, sig2 is put in "sigs")
 
       [0: blknum1, 1: txindex1, 2: oindex1, (sig1) # Input 1 
-       3: blknum2, 4: txindex2, oindex2, (sig2) # Input 2
+       3: blknum2, 4: txindex2, 4: oindex2, (sig2) # Input 2
        6: newowner1, denom1,                 # Output 1
        8: newowner2, denom2,                 # Output 2
        10: fee]
 */
         require(txList.length == 11);
-        require(msg.sender == txList[6 + 2 * txPos[2]].toAddress());
+        require(msg.sender == txList[6 + 2 * txPos[2]].toAddress());  // sender has to be newowner1 (0) or newowner2 (1) depending on what txPos[2]  is
         bytes32 txHash = keccak256(txBytes);
-        bytes32 merkleHash = keccak256(txHash, ByteUtils.slice(sigs, 0, 130));
+        bytes32 merkleHash = keccak256(txHash, ByteUtils.slice(sigs, 0, 130));  // txHash, sig1, sig2
         uint256 inputCount = txList[3].toUint() * 1000000 + txList[0].toUint();
         require(Validate.checkSigs(txHash, childChain[txPos[0]].root, inputCount, sigs));
+
+        txPos: 
+        // function checkMembership(bytes32 leaf, uint256 index, bytes32 rootHash, bytes proof)
+        // leaf: txPos[1]
+        // index: childChain[txPos[0]].root
+        // proof: supplied 512-byte (32*16) 
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
         // arrange exits into a priority queue structure, where priority is normally the tuple (blknum, txindex, oindex) (alternatively, blknum * 1000000000 + txindex * 10000 + oindex). 
         // txPos[0] - blocknum
@@ -251,6 +540,7 @@ contract RootChain {
         address owner = exits[priority].owner;
         require(owner == ECRecovery.recover(confirmationHash, confirmationSig));
         require(merkleHash.checkMembership(txPos[1], childChain[txPos[0]].root, proof));
+
         delete exits[priority];
         delete exitIds[exitId];
     }

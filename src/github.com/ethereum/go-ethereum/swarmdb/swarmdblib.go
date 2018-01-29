@@ -28,6 +28,23 @@ import (
 	"time"
 )
 
+type SWARMDBConnection struct {
+	connection net.Conn
+	keymanager KeyManager
+	owner      string //owner of the connection opened
+	database   string //owner of the connection opened
+	reader     *bufio.Reader
+	writer     *bufio.Writer
+}
+
+type SWARMDBTable struct {
+	dbc       *SWARMDBConnection
+	Owner     string // Owner > Database > Table
+	Database  string
+	tableName string
+	encrypted int //means all transactions on the table are encrypted
+}
+
 //TODO: should this go client live somewhere else, not with the server swarmdb package?
 
 //TODO: flags for host/port info
@@ -48,7 +65,7 @@ func NewGoClient() {
 	//var ens ENSSimulation
 	tableName := "test"
 
-	tbl, err2 := dbc.Open(tableName, dbc.ownerID, 1)
+	tbl, err2 := dbc.Open(tableName, dbc.owner, dbc.database)
 	if err2 != nil {
 	}
 	var columns []Column
@@ -57,7 +74,7 @@ func NewGoClient() {
 	columns[0].Primary = 1              // What if this is inconsistent?
 	columns[0].IndexType = IT_BPLUSTREE //  What if this is inconsistent?
 	columns[0].ColumnType = CT_STRING
-	tbl, err3 := dbc.CreateTable(dbc.ownerID, 1, tableName, columns) //, ens)
+	tbl, err3 := dbc.CreateTable(dbc.owner, dbc.database, tableName, columns, 0) //, ens)
 	if err3 != nil {
 		fmt.Printf("ERR CREATE TABLE %v\n", err3)
 	} else {
@@ -163,7 +180,7 @@ func (dbc *SWARMDBConnection) Close(tbl *SWARMDBTable) (err error) {
 	return nil
 }
 
-func (dbc *SWARMDBConnection) Open(tableName string, tableOwner string, encrypted int) (tbl *SWARMDBTable, err error) {
+func (dbc *SWARMDBConnection) Open(tableName string, owner string, database string) (tbl *SWARMDBTable, err error) {
 
 	// read a random length string from the server
 	challenge, err := dbc.reader.ReadString('\n')
@@ -191,25 +208,30 @@ func (dbc *SWARMDBConnection) Open(tableName string, tableOwner string, encrypte
 	tbl = new(SWARMDBTable)
 	tbl.tableName = tableName
 	tbl.dbc = dbc
-	tbl.encrypted = encrypted
-	tbl.tableOwner = tableOwner
+	tbl.Owner = owner
+	tbl.Database = database
 	return tbl, nil
 }
 
-// expose the ownerID of the swarmdb connection
-func (dbc *SWARMDBConnection) GetOwnerID() string {
-	return dbc.ownerID
+// expose the owner of the swarmdb connection
+func (dbc *SWARMDBConnection) GetOwner() string {
+	return dbc.owner
 }
 
-func (dbc *SWARMDBConnection) CreateTable(tableOwner string, encrypted int, tableName string, columns []Column) (tbl *SWARMDBTable, err error) {
+// expose the database of the swarmdb connection
+func (dbc *SWARMDBConnection) GetDatabase() string {
+	return dbc.database
+}
+
+func (dbc *SWARMDBConnection) CreateTable(owner string, database string, tableName string, columns []Column, encrypted int) (tbl *SWARMDBTable, err error) {
 	// TODO: ens = ENSSimulation / GetTable lookup to verify if table exists already
 
 	// create request
 	var req RequestOption
 	req.RequestType = RT_CREATE_TABLE
-	req.TableOwner = tableOwner //dbc.ownerID is the owner of the session, not always the table
+	req.Owner = owner //dbc.owner is the owner of the session, but not always the table
+	req.Database = database
 	req.Table = tableName
-	req.Encrypted = encrypted
 	req.Columns = columns
 	_, err = dbc.ProcessRequestResponseCommand(req)
 	if err != nil {
@@ -218,11 +240,12 @@ func (dbc *SWARMDBConnection) CreateTable(tableOwner string, encrypted int, tabl
 
 	// send to server
 	tbl = new(SWARMDBTable)
+	tbl.Owner = owner
+	tbl.Database = database
 	tbl.tableName = tableName
 	tbl.dbc = dbc
 	tbl.encrypted = encrypted
-	tbl.tableOwner = tableOwner
-	//tbl.replication = replication
+
 	return tbl, nil
 
 }
@@ -232,7 +255,8 @@ func (t *SWARMDBTable) Put(row interface{}) (response string, err error) {
 
 	var r RequestOption
 	r.RequestType = RT_PUT
-	r.TableOwner = t.tableOwner
+	r.Owner = t.Owner
+	r.Database = t.Database
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
 
@@ -286,7 +310,8 @@ func (t *SWARMDBTable) Get(key string) (response string, err error) {
 
 	var r RequestOption
 	r.RequestType = RT_GET
-	r.TableOwner = t.tableOwner
+	r.Owner = t.Owner
+	r.Database = t.Database
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
 	r.Key = key
@@ -297,7 +322,8 @@ func (t *SWARMDBTable) Delete(key string) (response string, err error) {
 
 	var r RequestOption
 	r.RequestType = RT_DELETE
-	r.TableOwner = t.tableOwner
+	r.Owner = t.Owner
+	r.Database = t.Database
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
 	r.Key = key
@@ -315,7 +341,8 @@ func (t *SWARMDBTable) Scan(rowfunc func(r Row) bool) (err error) {
 func (t *SWARMDBTable) Query(query string) (string, error) {
 	var r RequestOption
 	r.RequestType = RT_QUERY
-	r.TableOwner = t.tableOwner
+	r.Owner = t.Owner
+	r.Database = t.Database
 	r.Table = t.tableName
 	r.Encrypted = t.encrypted
 	r.RawQuery = query

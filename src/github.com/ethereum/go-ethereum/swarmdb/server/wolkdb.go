@@ -58,6 +58,7 @@ type HTTPServer struct {
 type SwarmDBReq struct {
 	protocol string
 	owner    string
+	database string
 	table    string
 	key      string
 }
@@ -389,7 +390,8 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "GET" {
 			//fmt.Fprintf(w, "Processing [%s] protocol request with Body of () \n", swReq.protocol)
 			dataReq.RequestType = "Get"
-			dataReq.TableOwner = swReq.owner
+			dataReq.Owner = swReq.owner
+			dataReq.Database = swReq.database
 			dataReq.Table = swReq.table
 			dataReq.Key = swReq.key
 			reqJson, err = json.Marshal(dataReq)
@@ -412,10 +414,11 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				if reqType, ok := bodyMap["requesttype"]; ok {
 					dataReq.RequestType = reqType.(string)
 					if dataReq.RequestType == "CreateTable" {
-						dataReq.TableOwner = verifiedUser.Address //bodyMap["tableowner"].(string);
+						dataReq.Owner = verifiedUser.Address //bodyMap["tableowner"].(string);
+						dataReq.Database = "tbd"
 						//TODO: ValidateCreateTableRequest
 					} else if dataReq.RequestType == "Query" {
-						dataReq.TableOwner = swReq.table
+						dataReq.Owner = swReq.table
 						//Don't pass table for now (rely on Query parsing)
 						if rq, ok := bodyMap["rawquery"]; ok {
 							dataReq.RawQuery = rq.(string)
@@ -439,7 +442,8 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						}
 					} else if dataReq.RequestType == "Put" {
 						dataReq.Table = swReq.table
-						dataReq.TableOwner = swReq.owner
+						dataReq.Owner = swReq.owner
+						dataReq.Database = "tbd"
 						if row, ok := bodyMap["row"]; ok {
 							newRow := swarmdb.Row{Cells: row.(map[string]interface{})}
 							dataReq.Rows = append(dataReq.Rows, newRow)

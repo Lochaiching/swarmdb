@@ -21,6 +21,54 @@ import (
 	"io/ioutil"
 )
 
+// SwarmDB Configuration Defaults
+const (
+	SWARMDBCONF_FILE                  = "/usr/local/swarmdb/etc/swarmdb.conf"
+	SWARMDBCONF_DEFAULT_PASSPHRASE    = "wolk"
+	SWARMDBCONF_CHUNKDB_PATH          = "/usr/local/swarmdb/data"
+	SWARMDBCONF_KEYSTORE_PATH         = "/usr/local/swarmdb/data/keystore"
+	SWARMDBCONF_ENSDOMAIN             = "ens.wolk.com"
+	SWARMDBCONF_LISTENADDR            = "0.0.0.0"
+	SWARMDBCONF_PORTTCP               = 2001
+	SWARMDBCONF_PORTHTTP              = 8501
+	SWARMDBCONF_PORTENS               = 8545
+	SWARMDBCONF_CURRENCY              = "WLK"
+	SWARMDBCONF_TARGET_COST_STORAGE   = 2.71828
+	SWARMDBCONF_TARGET_COST_BANDWIDTH = 3.14159
+)
+
+type SWARMDBUser struct {
+	Address        string `json:"address,omitempty"`        //value of val, usually the whole json record
+	Passphrase     string `json:"passphrase,omitempty"`     // password to unlock key in keystore directory
+	MinReplication int    `json:"minReplication,omitempty"` // should this be in config
+	MaxReplication int    `json:"maxReplication,omitempty"` // should this be in config
+	AutoRenew      int    `json:"autoRenew,omitempty"`      // should this be in config
+	pk             []byte
+	sk             []byte
+	publicK        [32]byte
+	secretK        [32]byte
+}
+
+type SWARMDBConfig struct {
+	ListenAddrTCP string `json:"listenAddrTCP,omitempty"` // IP for TCP server
+	PortTCP       int    `json:"portTCP,omitempty"`       // port for TCP server
+
+	ListenAddrHTTP string `json:"listenAddrHTTP,omitempty"` // IP for HTTP server
+	PortHTTP       int    `json:"portHTTP,omitempty"`       // port for HTTP server
+
+	Address    string `json:"address,omitempty"`    // the address that earns, must be in keystore directory
+	PrivateKey string `json:"privateKey,omitempty"` // to access child chain
+
+	ChunkDBPath    string        `json:"chunkDBPath,omitempty"`    // the directory of the SQLite3 chunk databases (SWARMDBCONF_CHUNKDB_PATH)
+	KeystorePath   string        `json:"usersKeysPath,omitempty"`  // directory containing the keystore of Ethereum wallets (SWARMDBCONF_KEYSTORE_PATH)
+	Authentication int           `json:"authentication,omitempty"` // 0 - authentication is not required, 1 - required 2 - only users data stored
+	Users          []SWARMDBUser `json:"users,omitempty"`          // array of users with permissions
+
+	Currency            string  `json:"currency,omitempty"`            //
+	TargetCostStorage   float64 `json:"targetCostStorage,omitempty"`   //
+	TargetCostBandwidth float64 `json:"targetCostBandwidth,omitempty"` //
+}
+
 func (self *SWARMDBConfig) GetNodeID() (out string) {
 	// TODO: replace with public key of farmer
 	return "abcd"
