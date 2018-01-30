@@ -162,6 +162,21 @@ type DBChunkstorage interface {
 	PrintDBChunk(columnType ColumnType, hashid []byte, c []byte)
 }
 
+type SWARMDBError struct {
+	message      string
+	ErrorCode    int
+	ErrorMessage string
+}
+
+func (t *SWARMDBError) Error() string {
+	return t.message
+}
+
+func (t *SWARMDBError) SetError(m string) {
+	t.message = m
+}
+
+
 type Database interface {
 	GetRootHash() ([]byte, error)
 

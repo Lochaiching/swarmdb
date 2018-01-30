@@ -338,6 +338,22 @@ func (self *bzz) handle() error {
                 }
                 // direct response with peers, TODO: sort this out
                 self.hive.peers(&req)
+        case sDBPaymentMsg:
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got sDBPaymentMsg %v", msg))
+/*
+SwarmDBSwap: receiving payment request from a peer
+
+		// TODO: swapdb 
+		if swarmdb.swapEnable {
+			var req sDBPaymentMsgData
+			if err := msg.Decode(&req); err != nil {
+				return fmt.Errorf("<- %v: %v", msg, err)
+			}
+			log.Debug(fmt.Sprintf("<- payment: %s", req.String()))
+			self.swapdb.Receive()		
+		}
+*/
+
 	default:
 		// no other message is allowed
 		return fmt.Errorf("invalid message code: %v", msg.Code)
@@ -549,6 +565,14 @@ func (self *bzz) sDBstore(req *sDBStoreRequestMsgData) error {
 		
 	return self.send(sDBStoreRequestMsg, req)
 }
+
+/*
+SwarmDBSwap: sending payment request to the peer
+func (self *bzz) SDBPay(units int, promise swarmdb.Promise){
+	req := &sDBPaymentMsgData{uint(units), promise.(*swarmdb.SwapCheck)}
+	self.send(sDBPaymentMsg, req)
+}
+*/
 
 func (self *bzz) send(msg uint64, data interface{}) error {
         log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.send :sending %v: %v", msg, data))

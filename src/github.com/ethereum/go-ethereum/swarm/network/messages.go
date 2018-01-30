@@ -26,7 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/network/kademlia"
 	"github.com/ethereum/go-ethereum/swarm/services/swap"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-//	"github.com/ethereum/go-ethereum/swarmdb"
+	"github.com/ethereum/go-ethereum/swarmdb"
 )
 
 /*
@@ -46,6 +46,7 @@ const (
 	sDBStoreRequestMsg        // 0x08
 	sDBRetrieveRequestMsg     // 0x09
 	sDBDeliveryRequestMsg     // 0x0A
+	sDBPaymentMsg		  // 0x0B
 )
 
 /*
@@ -395,3 +396,15 @@ type sDBDeliveryRequestMsg struct{
 }
 
 */
+
+///
+/// SwarmDBSwap: payment msg type
+type sDBPaymentMsgData struct{
+	Units uint
+	Promise *swarmdb.SwapCheck
+}
+
+func (self *sDBPaymentMsgData) String() string{
+	return fmt.Sprintf("sDBPayment for %d units: %v", self.Units, self.Promise)
+}
+	

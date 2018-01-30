@@ -17,6 +17,7 @@
 package network
 
 import (
+        "encoding/json"
 	"fmt"
 	"math/rand"
 	"time"
@@ -116,18 +117,28 @@ func (self *forwarder) Store(chunk *storage.Chunk) {
 func (self *forwarder) StoreDB(key, value []byte, option *storage.CloudOption) {
         log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.StoreDB :request peers to store swarmdb :%v", key))
         var n int
+        jopt, err := json.Marshal(option)
+	if err != nil{
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.StoreDB :err %v = %v", option, err))
+	}
+
         msg := &sDBStoreRequestMsgData{
                 Key:   storage.Key(key),
                 SData: value,
 		rtype : 2,
-		option : option,
+		option : string(jopt),
         }
 
         var source *peer
+        if option.Source != nil{
+               source = option.Source.(*peer)
+        }
+
         for _, p := range self.hive.getPeers(storage.Key(key), 0) {
                 log.Debug(fmt.Sprintf("forwarder.StoreDB: %v %v", p, key))
 
                 if p.syncer != nil && (source == nil || p.Addr() != source.Addr()) {
+                log.Debug(fmt.Sprintf("forwarder.StoreDB source check: %v %v", p, source))
                         n++
                         Deliver(p, msg, StoreDBReq)
                 }

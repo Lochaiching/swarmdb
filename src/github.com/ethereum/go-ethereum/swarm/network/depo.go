@@ -243,6 +243,7 @@ func (self *Depo) HandleSdbRetrieveRequestMsg(req *retrieveRequestMsgData, p *pe
         log.Debug(fmt.Sprintf("[wolk-cloudstore] depo.HandleSdbRetrieveRequestMsg :received %v from %v", req.Key, p))
         req.from = p
 /*
+SwarmDBSwap: Check balance and send money if needed
         // swap - record credit for 1 request
         // note that only charge actual reqsearches
         var err error
