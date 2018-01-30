@@ -993,6 +993,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 				databaseHash = make([]byte, 32)
 				copy(databaseHash[:], buf[(i+32):(i+64)])
 				// bufDB has the tables
+				log.Debug(fmt.Sprintf("Pulled bufDB using [%x]", databaseHash))
 				bufDB, err = self.RetrieveDBChunk(u, databaseHash)
 				if err != nil {
 					return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetDatabase] RetrieveDBChunk %s", err))
@@ -1036,12 +1037,12 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 					return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreRootHash %s", err.Error()))
 				}
 				debugbufDB, _ := self.RetrieveDBChunk(u, newdatabaseHash)
-				log.Debug(fmt.Sprintf("debugbufDB[%d:%d] => [%s]", i, i+32, debugbufDB[i:(i+32)]))
+				log.Debug(fmt.Sprintf("debugbufDB[%d:%d] => [%s] using [%x]", i, i+32, debugbufDB[i:(i+32)], newdatabaseHash))
 				found = true
 				break //TODO: This ok?
 			}
 		} else {
-			tbl0 := string(bytes.Trim(buf[i:(i+32)], "\x00"))
+			tbl0 := string(bytes.Trim(bufDB[i:(i+32)], "\x00"))
 			log.Debug(fmt.Sprintf("Comparing tableName [%s](%+v) to tbl0 [%s](%+v)", tableName, tableName, tbl0, tbl0))
 			if strings.Compare(tableName, tbl0) == 0 {
 				return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] table exists already"), ErrorCode: 500, ErrorMessage: "Table exists already"}
