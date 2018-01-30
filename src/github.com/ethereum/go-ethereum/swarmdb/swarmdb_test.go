@@ -83,7 +83,7 @@ func getSWARMDBTable(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName st
 		}
 		return tbl
 	} else {
-		tbl = swarmdbObj.NewTable(owner, database, tableName) 
+		tbl = swarmdbObj.NewTable(owner, database, tableName)
 		err = tbl.OpenTable(u)
 		if err != nil {
 			panic("Could not open table")
@@ -236,7 +236,6 @@ func TestCreateListDescribeDatabase(t *testing.T) {
 	*/
 
 	tableName := make_name("test")
-
 
 	var testColumn []swarmdb.Column
 	testColumn = make([]swarmdb.Column, 3)
@@ -648,7 +647,7 @@ func bTestTableSecondaryString(t *testing.T) {
 }
 
 func aTestDelete0(t *testing.T) {
-	
+
 	u := getUser()
 	r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 
