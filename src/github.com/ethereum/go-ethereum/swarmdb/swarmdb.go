@@ -1011,7 +1011,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 	found := false
 	for i := 64; i < 4096; i += 64 {
 		log.Debug(fmt.Sprintf("looking at %d %d", i, i+32))
-		if EmptyBytes(buf[i:(i + 32)]) {
+		if EmptyBytes(bufDB[i:(i + 32)]) {
 			if found == true {
 			} else {
 				// update the table name in bufDB and write the chunk
@@ -1038,10 +1038,11 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 				debugbufDB, _ := self.RetrieveDBChunk(u, newdatabaseHash)
 				log.Debug(fmt.Sprintf("debugbufDB[%d:%d] => [%s]", i, i+32, debugbufDB[i:(i+32)]))
 				found = true
+				break //TODO: This ok?
 			}
 		} else {
 			tbl0 := string(bytes.Trim(buf[i:(i+32)], "\x00"))
-			log.Debug(fmt.Sprintf("Comparing tableName [%s] to tbl0 [%s]", tableName, tbl0))
+			log.Debug(fmt.Sprintf("Comparing tableName [%s](%+v) to tbl0 [%s](%+v)", tableName, tableName, tbl0, tbl0))
 			if strings.Compare(tableName, tbl0) == 0 {
 				return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] table exists already"), ErrorCode: 500, ErrorMessage: "Table exists already"}
 			}
