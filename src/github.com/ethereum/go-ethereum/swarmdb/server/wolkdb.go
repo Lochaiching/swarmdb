@@ -154,6 +154,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 				break
 			}
 			if true {
+				log.Debug("[main:handleTcpipRequest] sending [%s]", str)
 				if resp, err := svr.swarmdb.SelectHandler(u, string(str)); err != nil {
 					log.Debug("ERROR: %+v", err)
 					tcpJson := buildErrorResp(err)
@@ -507,9 +508,8 @@ func main() {
 	//TODO: store this somewhere accessible to be used later
 	logLevelFlag := flag.Int("loglevel", 3, "Log Level Verbosity 1-6 (4 for debug)")
 	flag.Parse()
-	fmt.Println("Launching HTTP server...", *logLevelFlag)
 
-	log.Debug("Starting SWARMDB using [%s]", *configFileLocation)
+	log.Debug("Starting SWARMDB using [%s] and loglevel [%s]", *configFileLocation, *loglevel)
 
 	if _, err := os.Stat(*configFileLocation); os.IsNotExist(err) {
 		log.Debug("Default config file missing.  Building ..")
@@ -521,7 +521,7 @@ func main() {
 
 	config, err := swarmdb.LoadSWARMDBConfig(*configFileLocation)
 	if err != nil {
-		fmt.Printf("\n The config file location provided [%s] is invalid.  Exiting ...\n", *configFileLocation)
+		log.Debug("The config file location provided [%s] is invalid.  Exiting ...", *configFileLocation)
 		os.Exit(1)
 	}
 
@@ -531,9 +531,9 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("Cannot start: %s", err.Error()))
 	}
+	log.Debug("Trying to start HttpServer")
 	go StartHttpServer(swdb, &config)
-	fmt.Println("\nHttpServer Started\n")
 
-	fmt.Println("Launching TCPIP server...\n")
+	log.Debug("Trying to start TCPIP server...\n")
 	StartTcpipServer(swdb, &config)
 }
