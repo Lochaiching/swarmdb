@@ -432,6 +432,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					bodyMap["database"] = swReq.database
 					//TODO: ValidateCreateTableRequest
 					reqJson, err = json.Marshal(bodyMap)
+					//TODO: error check
 				} else if dataReq.RequestType == "Query" {
 					//Don't pass table for now (rely on Query parsing)
 					if rq, ok := bodyMap["rawquery"]; ok {
@@ -469,6 +470,10 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						retJson := buildErrorResp(&swErr)
 						fmt.Fprintf(w, retJson)
 					}
+				} else {
+					bodyMap["owner"] = swReq.owner
+					bodyMap["database"] = swReq.database
+					reqJson, err = json.Marshal(bodyMap)
 				}
 			} else {
 				swErr = swarmdb.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body -- Missing requesttype"}
