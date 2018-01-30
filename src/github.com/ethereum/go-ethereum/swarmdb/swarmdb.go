@@ -794,7 +794,7 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 	if err != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateDatabase] GetRootHash %s", err)}
 	}
-	log.Debug( fmt.Sprintf("[swarmdb:CreateDatabase] Getting Root Hash using ownerHash [%x] and got [%x]", ownerHash, ownerDatabaseChunkID) )
+	log.Debug(fmt.Sprintf("[swarmdb:CreateDatabase] Getting Root Hash using ownerHash [%x] and got [%x]", ownerHash, ownerDatabaseChunkID))
 	buf := make([]byte, 4096)
 	if EmptyBytes(ownerDatabaseChunkID) {
 		// put the 32-byte ownerHash in the first 32 bytes
@@ -814,7 +814,7 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 
 		// check if there is already a database entry
 		for i := 64; i < 4096; i += 64 {
-			log.Debug(fmt.Sprintf("Comparing buf[%d:%d] => %s (%+v) to newDBName => %s (%+v)",i,i+DATABASE_NAME_LENGTH_MAX, buf[i:(i+DATABASE_NAME_LENGTH_MAX)], buf[i:(i+DATABASE_NAME_LENGTH_MAX)], newDBName, newDBName) )
+			log.Debug(fmt.Sprintf("Comparing buf[%d:%d] => %s (%+v) to newDBName => %s (%+v)", i, i+DATABASE_NAME_LENGTH_MAX, buf[i:(i+DATABASE_NAME_LENGTH_MAX)], buf[i:(i+DATABASE_NAME_LENGTH_MAX)], newDBName, newDBName))
 			if bytes.Equal(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], newDBName) {
 				return &SWARMDBError{message: "[swarmdb:CreateDatabase] Database exists already", ErrorCode: 500, ErrorMessage: "Database Exists Already"}
 			}
@@ -957,9 +957,9 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 	// look up what databases the owner has already
 	ownerDatabaseChunkID, err := self.ens.GetRootHash(u, ownerHash)
 	if err != nil {
-		return tbl, GenerateSWARMDBError( err, fmt.Sprintf("[swarmdb:GetDatabase] GetRootHash %s", err) )
+		return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetDatabase] GetRootHash %s", err))
 	}
-	log.Debug( fmt.Sprintf("[swarmdb:CreateTable] GetRootHash using ownerHash (%x) for DBChunkID => (%x)", ownerHash, ownerDatabaseChunkID ) ) 
+	log.Debug(fmt.Sprintf("[swarmdb:CreateTable] GetRootHash using ownerHash (%x) for DBChunkID => (%x)", ownerHash, ownerDatabaseChunkID))
 	var buf []byte
 	var bufDB []byte
 	dbi := 0
@@ -971,7 +971,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 		// buf holds a list of the owner's databases
 		buf, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
 		if err != nil {
-			return tbl, GenerateSWARMDBError( err, fmt.Sprintf("[swarmdb:GetDatabase] RetrieveDBChunk %s", err) )
+			return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetDatabase] RetrieveDBChunk %s", err))
 		}
 
 		// the first 32 bytes of the buf should match the ownerHash
@@ -981,7 +981,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 
 		// look for the database
 		for i := 64; i < 4096; i += 64 {
-			log.Debug( fmt.Sprintf("Comparing buf[ %d : %d ] looking for [%s] -- currentbuff is [%s]", i, i+DATABASE_NAME_LENGTH_MAX, databaseName, buf[i:i+DATABASE_NAME_LENGTH_MAX]) )
+			log.Debug(fmt.Sprintf("Comparing buf[ %d : %d ] looking for [%s] -- currentbuff is [%s]", i, i+DATABASE_NAME_LENGTH_MAX, databaseName, buf[i:i+DATABASE_NAME_LENGTH_MAX]))
 			//No plus 1 b/c databaseName actually uses DATABASE_NAME_LENGTH_MAX for size
 			if (bytes.Compare(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], databaseName) == 0) && (found == false) {
 				log.Debug(fmt.Sprintf("Found Database [%s] and it's encrypted bit is: [%+v]", databaseName, buf[i+DATABASE_NAME_LENGTH_MAX]))
@@ -995,7 +995,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 				// bufDB has the tables
 				bufDB, err = self.RetrieveDBChunk(u, databaseHash)
 				if err != nil {
-					return tbl, GenerateSWARMDBError( err, fmt.Sprintf("[swarmdb:GetDatabase] RetrieveDBChunk %s", err) )
+					return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetDatabase] RetrieveDBChunk %s", err))
 				}
 				found = true
 				break //TODO: think this should be ok?
@@ -1010,7 +1010,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 	// add table to bufDB
 	found := false
 	for i := 64; i < 4096; i += 64 {
-		log.Debug( fmt.Sprintf("looking at %d %d",i, i+32 ) )
+		log.Debug(fmt.Sprintf("looking at %d %d", i, i+32))
 		if EmptyBytes(buf[i:(i + 32)]) {
 			if found == true {
 			} else {
@@ -1018,7 +1018,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 				tblN := make([]byte, 32)
 				copy(tblN[0:32], tableName)
 				copy(bufDB[i:(i+32)], tblN[0:32])
-				log.Debug( fmt.Sprintf("Copying tableName [%s] to bufDB [%s]", tblN[0:32], bufDB[i:(i+32)]) )
+				log.Debug(fmt.Sprintf("Copying tableName [%s] to bufDB [%s]", tblN[0:32], bufDB[i:(i+32)]))
 				newdatabaseHash, err := self.StoreDBChunk(u, bufDB, encrypted)
 				if err != nil {
 					return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] StoreDBChunk %s", err)}
@@ -1036,12 +1036,12 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 					return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreRootHash %s", err.Error()))
 				}
 				debugbufDB, _ := self.RetrieveDBChunk(u, newdatabaseHash)
-				log.Debug( fmt.Sprintf("debugbufDB[%d:%d] => [%s]", i, i+32, debugbufDB[i:(i+32)]) )
+				log.Debug(fmt.Sprintf("debugbufDB[%d:%d] => [%s]", i, i+32, debugbufDB[i:(i+32)]))
 				found = true
 			}
 		} else {
 			tbl0 := string(bytes.Trim(buf[i:(i+32)], "\x00"))
-			log.Debug(fmt.Sprintf("Comparing tableName [%s] to tbl0 [%s]",tableName, tbl0))
+			log.Debug(fmt.Sprintf("Comparing tableName [%s] to tbl0 [%s]", tableName, tbl0))
 			if strings.Compare(tableName, tbl0) == 0 {
 				return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] table exists already"), ErrorCode: 500, ErrorMessage: "Table exists already"}
 			}
