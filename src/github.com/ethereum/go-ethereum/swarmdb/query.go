@@ -28,7 +28,7 @@ import (
 func ParseQuery(rawQuery string) (query QueryOption, err error) {
 	stmt, err := sqlparser.Parse(rawQuery)
 	if err != nil {
-		return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] Parse [%v]", err)}
+		return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] Parse [%v]", err), Error: 401, ErrorCode: fmt.Sprintf("SQL Parsing error: [%s]", err.Error())}
 	}
 
 	switch stmt := stmt.(type) {
@@ -61,11 +61,12 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			query.Where, err = parseWhere(stmt.Where.Expr)
 			//this is where recursion for nested parentheses should take place
 			if err != nil {
-				return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] parseWhere [%s]", rawQuery)}
+				return query, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:ParseQuery] parseWhere [%s]", rawQuery))
 			}
 		} else if stmt.Where.Type == sqlparser.HavingStr { //Having
 			fmt.Printf("type: %s\n", stmt.Where.Type)
 			//TODO: fill in having
+			return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] Parse Having Clause Not currently supported"), Error: 401, ErrorCode: fmt.Sprintf("SQL Parsing error: [HAVING clause not currently supported]", err.Error())}
 		}
 
 		//TODO: GroupBy ([]Expr)
@@ -106,17 +107,16 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		//fmt.Printf("Ignore: %s \n", stmt.Ignore)
 		query.Table = sqlparser.String(stmt.Table.Name)
 		if len(stmt.Rows.(sqlparser.Values)) == 0 {
-			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert has no values found")}
+			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert has no values found"), ErrorCode: 401, ErrorMessage: "SQL Parsing error: [INSERT query missing VALUES]"}
 		}
 		if len(stmt.Rows.(sqlparser.Values)[0]) != len(stmt.Columns) {
-			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert has mismatch # of cols & vals")}
-
+			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert has mismatch # of cols & vals"), ErrorCode: 401, ErrorMessage: "SQL Parsing error: [Mismatch in number of columns and values]"}
 		}
 		insertCells := make(map[string]interface{})
 		for i, c := range stmt.Columns {
 			col := sqlparser.String(c)
 			if _, ok := insertCells[col]; ok {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert can't have duplicate col %s", col)}
+				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert can't have duplicate col %s", col), ErrorCode: 401, ErrorMessage: "SQL Parsing error: [INSERT cannot have duplicate columns]"}
 			}
 			//only detects string and float. how to do int? does it matter
 			value := sqlparser.String(stmt.Rows.(sqlparser.Values)[0][i])
@@ -125,10 +125,11 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			} else if isNumeric(value) {
 				insertCells[col], err = strconv.ParseFloat(value, 64)
 				if err != nil {
-					return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert can't have duplicate col %s", col)}
+					return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert can't have duplicate col %s", col), ErrorCode: 401, ErrorMessage: "SQL Parsing error: [INSERT cannot have duplicate columns]"}
 				}
 			} else {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert value %s has unknown type", value)}
+				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Insert value %s has unknown type", value), ErrorCode: 401, ErrorMessage: "SQL Parsing error: [Invalid value type passed in.]"}
+				//TODO: more clear message
 			}
 			//insertCells[col] = trimQuotes(sqlparser.String(stmt.Rows.(sqlparser.Values)[0][i]))
 		}
@@ -150,7 +151,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			col := sqlparser.String(expr.Name)
 			//fmt.Printf("col: %+v\n", col)
 			if _, ok := query.Update[col]; ok {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Update can't have duplicate col %s", col)}
+				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Update can't have duplicate col %s", col), ErrorCode: 401, ErrorMessage: "SQL Parsing error: [INSERT cannot have duplicate columns]"}
 			}
 			value := readable(expr.Expr)
 			if isQuoted(value) {
@@ -158,10 +159,10 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			} else if isNumeric(value) {
 				query.Update[col], err = strconv.ParseFloat(value, 64)
 				if err != nil {
-					return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] ParseFloat %s", err.Error())}
+					return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] ParseFloat %s", err.Error()), ErrorCode: 401, ErrorMessage: "SQL Parsing error: [Float Value could not be parsed]"}
 				}
 			} else {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Update value %s has unknown type", value)}
+				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] Update value %s has unknown type", value), ErrorCode: 401, ErrorMessage: "SQL Parsing error: [Invalid value type passed in.]"}
 			}
 			//fmt.Printf("val: %v \n", query.Update[col])
 		}
@@ -176,7 +177,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			query.Where, err = parseWhere(stmt.Where.Expr)
 			//TODO: this is where recursion for nested parentheses should probably take place
 			if err != nil {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] parseWhere %s", err.Error())}
+				return query, GenerateSWARMDBError(err, fmt.Sprintf("[query:ParseQuery] parseWhere %s", err.Error()))
 			}
 			//fmt.Printf("Where: %+v\n", query.Where)
 		}
@@ -206,7 +207,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			query.Where, err = parseWhere(stmt.Where.Expr)
 			//TODO: this is where recursion for nested parentheses should take place
 			if err != nil {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] parseWhere %s", err.Error())}
+				return query, GenerateSWARMDBError(err, fmt.Sprintf("[query:ParseQuery] parseWhere %s", err.Error()))
 			}
 			//fmt.Printf("Where: %+v\n", query.Where)
 		}
@@ -261,7 +262,7 @@ func parseWhere(expr sqlparser.Expr) (where Where, err error) {
 		where.Right = readable(expr.Right)
 		where.Operator = expr.Operator
 	default:
-		return where, &SWARMDBError{message: fmt.Sprintf("[swarmdb:parseWhere] exp Type [%s] not supported", expr)}
+		return where, &SWARMDBError{message: fmt.Sprintf("[swarmdb:parseWhere] exp Type [%s] not supported", expr), ErrorCode: 401, ErrorMessage: fmt.Sprintf("SQL Parsing error: [Expression Type (%s) not currently supported]", expr)}
 	}
 	where.Right = trimQuotes(where.Right)
 
