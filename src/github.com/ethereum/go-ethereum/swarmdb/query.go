@@ -52,22 +52,20 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 
 		//Where & Having
 		//fmt.Printf("where or having: %s \n", readable(stmt.Where.Expr))
-	
-		if stmt.Where != nil {
-			if stmt.Where.Type == sqlparser.WhereStr { //Where
-				//fmt.Printf("type: %s\n", stmt.Where.Type)
-				query.Where, err = parseWhere(stmt.Where.Expr)
-				//this is where recursion for nested parentheses should take place
-				if err != nil {
-					return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] parseWhere [%s]", rawQuery)}
-				}
-			} else if stmt.Where.Type == sqlparser.HavingStr { //Having
-				fmt.Printf("type: %s\n", stmt.Where.Type)
-				//TODO: fill in having
-			}
-		} else {
+		if stmt.Where == nil {
 			log.Debug("NOT SUPPORTING SELECT WITH NO WHERE")
 			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] WHERE missing on Update query"), ErrorCode: 444, ErrorMessage: "SELECT & UPDATE query must have WHERE"}
+		}
+		if stmt.Where.Type == sqlparser.WhereStr { //Where
+			//fmt.Printf("type: %s\n", stmt.Where.Type)
+			query.Where, err = parseWhere(stmt.Where.Expr)
+			//this is where recursion for nested parentheses should take place
+			if err != nil {
+				return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] parseWhere [%s]", rawQuery)}
+			}
+		} else if stmt.Where.Type == sqlparser.HavingStr { //Having
+			fmt.Printf("type: %s\n", stmt.Where.Type)
+			//TODO: fill in having
 		}
 
 		//TODO: GroupBy ([]Expr)
@@ -170,20 +168,18 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 
 		// Where
 		log.Debug(fmt.Sprintf("Statement: [%+v] | SqlParser: [%+v]", stmt, sqlparser.WhereStr))
-		if stmt.Where != nil {
-			if stmt.Where.Type == sqlparser.WhereStr {
-				query.Where, err = parseWhere(stmt.Where.Expr)
-				//TODO: this is where recursion for nested parentheses should probably take place
-				if err != nil {
-					return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] parseWhere %s", err.Error())}
-				}
-				//fmt.Printf("Where: %+v\n", query.Where)
-			}
-		} else {
+		if stmt.Where == nil {
 			log.Debug("NOT SUPPORTING UPDATES WITH NO WHERE")
 			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] WHERE missing on Update query"), ErrorCode: 444, ErrorMessage: "UPDATE query must have WHERE"}
 		}
-		//TODO: what if no Where? throw an error or go ahead and modify all?
+		if stmt.Where.Type == sqlparser.WhereStr {
+			query.Where, err = parseWhere(stmt.Where.Expr)
+			//TODO: this is where recursion for nested parentheses should probably take place
+			if err != nil {
+				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] parseWhere %s", err.Error())}
+			}
+			//fmt.Printf("Where: %+v\n", query.Where)
+		}
 
 		//TODO: OrderBy
 		query.Ascending = 1 //default if nothing?
@@ -202,15 +198,18 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		}
 
 		//Where
+		if stmt.Where == nil {
+			log.Debug("NOT SUPPORTING DELETES WITH NO WHERE")
+			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] WHERE missing on Update query"), ErrorCode: 444, ErrorMessage: "UPDATE query must have WHERE"}
+		}
 		if stmt.Where.Type == sqlparser.WhereStr { //Where
 			query.Where, err = parseWhere(stmt.Where.Expr)
-			//this is where recursion for nested parentheses should take place
+			//TODO: this is where recursion for nested parentheses should take place
 			if err != nil {
 				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] parseWhere %s", err.Error())}
 			}
 			//fmt.Printf("Where: %+v\n", query.Where)
 		}
-		//TODO: what if there is no Where? throw an error or go ahead and modify all?
 
 		//TODO: OrderBy
 		query.Ascending = 1 //default if nothing?
