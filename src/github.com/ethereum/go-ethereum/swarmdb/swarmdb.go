@@ -56,6 +56,7 @@ type RequestOption struct {
 
 //shouldn't Data be an interface{}?
 type SWARMDBResponse struct {
+	Error		SWARMDBError `json:"error,omitempty"`
 	ErrorCode        int    `json:"errorcode,omitempty"`
 	ErrorMessage     string `json:"errormessage,omitempty"`
 	Data             []Row  `json:"data,omitempty"`
