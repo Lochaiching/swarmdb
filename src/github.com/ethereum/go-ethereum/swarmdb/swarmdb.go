@@ -423,9 +423,11 @@ func (self *SwarmDB) Query(u *SWARMDBUser, query *QueryOption) (rows []Row, err 
 		if err != nil {
 			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QuerySelect %s", err.Error()))
 		}
+		/* TODO: Not an Error to have nothing come back
 		if len(rows) == 0 {
 			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] select query came back empty"))
 		}
+		*/
 		return rows, nil
 	case "Insert":
 		err = self.QueryInsert(u, query)
