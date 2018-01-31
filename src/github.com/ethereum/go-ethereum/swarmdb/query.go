@@ -200,7 +200,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		//Where
 		if stmt.Where == nil {
 			log.Debug("NOT SUPPORTING DELETES WITH NO WHERE")
-			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] WHERE missing on Update query"), ErrorCode: 444, ErrorMessage: "UPDATE query must have WHERE"}
+			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] WHERE missing on Delete query"), ErrorCode: 444, ErrorMessage: "DELETE query must have WHERE"}
 		}
 		if stmt.Where.Type == sqlparser.WhereStr { //Where
 			query.Where, err = parseWhere(stmt.Where.Expr)
