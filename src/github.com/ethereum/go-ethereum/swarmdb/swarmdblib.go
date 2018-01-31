@@ -61,6 +61,7 @@ var CONN_TYPE = "tcp"
 // usage: dbc, err := NewSWARMDBConnection()
 func NewSWARMDBConnection(ip string, port int) (dbc SWARMDBConnection, err error) {
 
+	//load up configs, set configs
 	config, err := LoadSWARMDBConfig(SWARMDBCONF_FILE)
 	if err != nil {
 		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] LoadSWARMDBConfig %s", err.Error())}
@@ -80,39 +81,36 @@ func NewSWARMDBConnection(ip string, port int) (dbc SWARMDBConnection, err error
 		CONN_PORT = config.PortTCP
 	}
 	//fmt.Printf("connection host %v and port %v\n", CONN_HOST, CONN_PORT)
+
+	//dial the tcp connection
 	conn, err := net.Dial(CONN_TYPE, CONN_HOST+":"+strconv.Itoa(CONN_PORT))
 	if err != nil {
 		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] Dial %s", err.Error())}
 	}
-	dbc.connection = conn
 
+	//set the SWARDBConnection params
+	dbc.connection = conn
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
-
 	dbc.reader = reader
 	dbc.writer = writer
 	dbc.connectionOwner = config.Address //TODO: this is ok for singleton node or default owner
 	dbc.Owner = config.Address
 	dbc.Databases = make(map[string]int)
 
-	//CHALLENGE
+	//server access challenge and verification
 	challenge, err := dbc.reader.ReadString('\n') // read a random length string from the server
 	if err != nil {
 		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:Open] ReadString %s", err.Error())}
 	}
 	challenge = strings.Trim(challenge, "\n")
 	// challenge_bytes, _ := hex.DecodeString(challenge)
-
-	// sign the message Web3 style
-	challenge_bytes := SignHash([]byte(challenge))
-
+	challenge_bytes := SignHash([]byte(challenge)) // sign the message Web3 style
 	sig, err := dbc.keymanager.SignMessage(challenge_bytes)
 	if err != nil {
 		return dbc, err
 	}
-
-	// response should be hex string like this: "6b1c7b37285181ef74fb1946968c675c09f7967a3e69888ee37c42df14a043ac2413d19f96760143ee8e8d58e6b0bda4911f642912d2b81e1f2834814fcfdad700"
-	response := fmt.Sprintf("%x", sig)
+	response := fmt.Sprintf("%x", sig) // response should be hex string like this: "6b1c7b37285181ef74fb1946968c675c09f7967a3e69888ee37c42df14a043ac2413d19f96760143ee8e8d58e6b0bda4911f642912d2b81e1f2834814fcfdad700"
 	//fmt.Printf("challenge:[%v] response:[%v]\n", challenge, response)
 	//fmt.Printf("Challenge: [%x] Sig:[%x]\n", challenge_bytes, sig)
 	dbc.writer.WriteString(response + "\n")
@@ -122,7 +120,7 @@ func NewSWARMDBConnection(ip string, port int) (dbc SWARMDBConnection, err error
 }
 
 func (dbc *SWARMDBConnection) OpenDatabase(name string, encrypted int) (db *SWARMDBDatabase, err error) {
-	//challenge?
+
 	db = new(SWARMDBDatabase)
 	db.DBConnection = dbc
 	db.Name = name
@@ -151,38 +149,6 @@ func (db *SWARMDBDatabase) OpenTable(name string) (tbl *SWARMDBTable, err error)
 	}
 	db.Tables[tbl.Name] = 1
 	return tbl, nil
-}
-
-//TODO: fix this when Rodney gives wolkdb.go a standard response back
-func processConnectionResponse(in string) (out string, err error) {
-
-	if !strings.Contains(strings.ToLower(in), "errorcode") { //Getting around the fact that a valid response is not always a SWARMDBResponse right now
-		//fmt.Printf("checking for the word errorcode\n")
-		return in, nil
-	}
-
-	//hack b/c SWARMDBResponse.Data is a []Row.
-	type tempResponse struct {
-		ErrorCode        int    `json:"errorcode,omitempty"`
-		ErrorMessage     string `json:"errormessage,omitempty"`
-		Data             string `json:"data,omitempty"`
-		AffectedRowCount int    `json:"affectedrowcount,omitempty"`
-		MatchedRowCount  int    `json:"matchedrowcount,omitempty"`
-	}
-
-	var response tempResponse
-	err = json.Unmarshal([]byte(in), &response)
-	if err != nil {
-		return "", &SWARMDBError{ErrorCode: 400, ErrorMessage: `Bad JSON Supplied: [` + in + `]`, message: "[processConnectionResponse]"}
-	}
-	//fmt.Printf("so now response is: %+v\n", response)
-	var swdbErr SWARMDBError
-	swdbErr.ErrorMessage = response.ErrorMessage
-	swdbErr.ErrorCode = response.ErrorCode
-	//fmt.Printf("made swarmdberror: %v\n", swdbErr)
-	out = response.Data
-
-	return out, &swdbErr
 }
 
 func (dbc *SWARMDBConnection) CreateDatabase(name string, encrypted int) (db *SWARMDBDatabase, err error) {
@@ -233,7 +199,7 @@ func (db *SWARMDBDatabase) CreateTable(name string, columns []Column) (tbl *SWAR
 }
 
 //allows to write multiple rows ([]Row) or single row (Row)
-func (tbl *SWARMDBTable) Put(row interface{}) (response string, err error) {
+func (tbl *SWARMDBTable) Put(row interface{}) error {
 
 	var r RequestOption
 	r.RequestType = RT_PUT
@@ -248,9 +214,10 @@ func (tbl *SWARMDBTable) Put(row interface{}) (response string, err error) {
 	case []Row:
 		r.Rows = row.([]Row)
 	default:
-		return "", &SWARMDBError{message: fmt.Sprintf("[swarmdblib:Put] row must be Row or []Row")}
+		return &SWARMDBError{message: fmt.Sprintf("[swarmdblib:Put] row must be Row or []Row")}
 	}
-	return tbl.DBDatabase.DBConnection.ProcessRequestResponseCommand(r)
+	_, err := tbl.DBDatabase.DBConnection.ProcessRequestResponseCommand(r)
+	return err
 }
 
 /*
@@ -268,7 +235,7 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseRow(request RequestOption) (
 */
 
 // TODO: make sure this returns the right string, in correct formatting
-func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOption) (response string, err error) {
+func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOption) (response []Row, err error) {
 
 	//fmt.Printf("process request response cmd: %+v\n", request)
 	message, err := json.Marshal(request)
@@ -279,18 +246,59 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 	//fmt.Printf("Req: %v", str)
 	dbc.writer.WriteString(str)
 	dbc.writer.Flush()
-	response, err = dbc.reader.ReadString('\n')
+	connResponse, err := dbc.reader.ReadString('\n')
 	if err != nil {
 		//fmt.Printf("Readstring err: %v\n", err)
 		return response, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseCommand] ReadString %s", err.Error())}
 	}
 	//fmt.Printf("original response from readstring: %s\n", response)
-	responseData, swdbErr := processConnectionResponse(response)
-	return responseData, swdbErr
+	var sResponse SWARMDBResponse
+	if err = json.Unmarshal([]byte(connResponse), &sResponse); err != nil {
+		return response, &SWARMDBError{ErrorCode: 400, ErrorMessage: `[swarmdblib:ProcessRequestResponseCommand] Bad JSON Supplied: [` + connResponse + `]`}
+	}
+	//response, swdbErr := processConnectionResponse(sresponse)
+	return sResponse.Data, &sResponse.Error
 }
 
+/*
+//TODO: fix this when Rodney gives wolkdb.go a standard response back
+func processConnectionResponse(in string) (out []Row, err error) {
+
+
+	if !strings.Contains(strings.ToLower(in), "errorcode") { //Getting around the fact that a valid response is not always a SWARMDBResponse right now
+		//fmt.Printf("checking for the word errorcode\n")
+		return in, nil
+	}
+
+	//hack b/c SWARMDBResponse.Data is a []Row.
+
+	type tempResponse struct {
+		ErrorCode        int    `json:"errorcode,omitempty"`
+		ErrorMessage     string `json:"errormessage,omitempty"`
+		Data             string `json:"data,omitempty"`
+		AffectedRowCount int    `json:"affectedrowcount,omitempty"`
+		MatchedRowCount  int    `json:"matchedrowcount,omitempty"`
+	}
+
+	var response tempResponse
+	err = json.Unmarshal([]byte(in), &response)
+	if err != nil {
+		return "", &SWARMDBError{ErrorCode: 400, ErrorMessage: `Bad JSON Supplied: [` + in + `]`, message: "[processConnectionResponse]"}
+	 }
+
+
+	//fmt.Printf("so now response is: %+v\n", response)
+	var swdbErr SWARMDBError
+	swdbErr.ErrorMessage = response.ErrorMessage
+	swdbErr.ErrorCode = response.ErrorCode
+	//fmt.Printf("made swarmdberror: %v\n", swdbErr)
+
+	return response.Data.([]Row), response.Error
+}
+*/
+
 //func (t *SWARMDBTable) Get(key string) (row *Row, err error) {
-func (tbl *SWARMDBTable) Get(key string) (response string, err error) {
+func (tbl *SWARMDBTable) Get(key string) (rows []Row, err error) {
 
 	var r RequestOption
 	r.RequestType = RT_GET
@@ -299,10 +307,11 @@ func (tbl *SWARMDBTable) Get(key string) (response string, err error) {
 	r.Table = tbl.Name
 	r.Encrypted = tbl.DBDatabase.Encrypted
 	r.Key = key
-	return tbl.DBDatabase.DBConnection.ProcessRequestResponseCommand(r)
+	rows, err = tbl.DBDatabase.DBConnection.ProcessRequestResponseCommand(r)
+	return rows, err
 }
 
-func (tbl *SWARMDBTable) Delete(key string) (response string, err error) {
+func (tbl *SWARMDBTable) Delete(key string) error {
 
 	var r RequestOption
 	r.RequestType = RT_DELETE
@@ -311,7 +320,8 @@ func (tbl *SWARMDBTable) Delete(key string) (response string, err error) {
 	r.Table = tbl.Name
 	r.Encrypted = tbl.DBDatabase.Encrypted
 	r.Key = key
-	return tbl.DBDatabase.DBConnection.ProcessRequestResponseCommand(r)
+	_, err := tbl.DBDatabase.DBConnection.ProcessRequestResponseCommand(r)
+	return err
 }
 
 func (t *SWARMDBTable) Scan(rowfunc func(r Row) bool) (err error) {
@@ -319,7 +329,7 @@ func (t *SWARMDBTable) Scan(rowfunc func(r Row) bool) (err error) {
 	return nil
 }
 
-func (tbl *SWARMDBTable) Query(query string) (string, error) {
+func (tbl *SWARMDBTable) Query(query string) (response []Row, err error) {
 
 	var r RequestOption
 	r.RequestType = RT_QUERY
@@ -328,7 +338,8 @@ func (tbl *SWARMDBTable) Query(query string) (string, error) {
 	r.Table = tbl.Name
 	r.Encrypted = tbl.DBDatabase.Encrypted
 	r.RawQuery = query
-	return tbl.DBDatabase.DBConnection.ProcessRequestResponseCommand(r)
+	rows, err := tbl.DBDatabase.DBConnection.ProcessRequestResponseCommand(r)
+	return rows, err
 }
 
 func (t *SWARMDBTable) Close() {
