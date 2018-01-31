@@ -44,6 +44,7 @@ import (
 	bzzswap "github.com/ethereum/go-ethereum/swarm/services/swap"
 	"github.com/ethereum/go-ethereum/swarm/services/swap/swap"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+	"github.com/ethereum/go-ethereum/swarmdb"
 )
 
 const (
@@ -76,6 +77,7 @@ type bzz struct {
 	syncer      *syncer             // syncer instance for the peer connection
 	syncParams  *SyncParams         // syncer params
 	syncState   *syncState          // outgoing syncronisation state (contains reference to remote peers db counter)
+	swapDB      *swarmdb.SwapDB
 }
 
 // interface type for handler of storage/retrieval related requests coming
@@ -416,6 +418,12 @@ func (self *bzz) handleStatus() (err error) {
 		if err != nil {
 			return err
 		}
+		self.swapDB, err = swarmdb.NewSwapDB("/tmp/swap.db")
+		if err != nil {
+			log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.handleStatus swarmdb.NewSwapDB err: %v ", err))
+			return err
+		}
+		log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.handleStatus swarmdb.NewSwapDB OK"))
 	}
 
 	log.Info(fmt.Sprintf("Peer %08x is capable (%d/%d)", self.remoteAddr.Addr[:4], status.Version, status.NetworkId))
