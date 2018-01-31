@@ -52,16 +52,22 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 
 		//Where & Having
 		//fmt.Printf("where or having: %s \n", readable(stmt.Where.Expr))
-		if stmt.Where.Type == sqlparser.WhereStr { //Where
-			//fmt.Printf("type: %s\n", stmt.Where.Type)
-			query.Where, err = parseWhere(stmt.Where.Expr)
-			//this is where recursion for nested parentheses should take place
-			if err != nil {
-				return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] parseWhere [%s]", rawQuery)}
+	
+		if stmt.Where != nil {
+			if stmt.Where.Type == sqlparser.WhereStr { //Where
+				//fmt.Printf("type: %s\n", stmt.Where.Type)
+				query.Where, err = parseWhere(stmt.Where.Expr)
+				//this is where recursion for nested parentheses should take place
+				if err != nil {
+					return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] parseWhere [%s]", rawQuery)}
+				}
+			} else if stmt.Where.Type == sqlparser.HavingStr { //Having
+				fmt.Printf("type: %s\n", stmt.Where.Type)
+				//TODO: fill in having
 			}
-		} else if stmt.Where.Type == sqlparser.HavingStr { //Having
-			fmt.Printf("type: %s\n", stmt.Where.Type)
-			//TODO: fill in having
+		} else {
+			log.Debug("NOT SUPPORTING SELECT WITH NO WHERE")
+			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] WHERE missing on Update query"), ErrorCode: 444, ErrorMessage: "SELECT & UPDATE query must have WHERE"}
 		}
 
 		//TODO: GroupBy ([]Expr)
