@@ -17,7 +17,7 @@ package swarmdb
 
 import (
 	"fmt"
-	//"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/xwb1989/sqlparser"
 	"strconv"
 )
@@ -26,8 +26,6 @@ import (
 //'Select name, age from contacts where email = "rodney@wolk.com"'
 //TODO: nested where clauses
 func ParseQuery(rawQuery string) (query QueryOption, err error) {
-
-	//fmt.Printf("\nin ParseQuery\n")
 	stmt, err := sqlparser.Parse(rawQuery)
 	if err != nil {
 		return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] Parse [%v]", err)}
@@ -165,13 +163,19 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		}
 
 		// Where
-		if stmt.Where.Type == sqlparser.WhereStr {
-			query.Where, err = parseWhere(stmt.Where.Expr)
-			//TODO: this is where recursion for nested parentheses should probably take place
-			if err != nil {
-				return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] parseWhere %s", err.Error())}
+		log.Debug(fmt.Sprintf("Statement: [%+v] | SqlParser: [%+v]", stmt, sqlparser.WhereStr))
+		if stmt.Where != nil {
+			if stmt.Where.Type == sqlparser.WhereStr {
+				query.Where, err = parseWhere(stmt.Where.Expr)
+				//TODO: this is where recursion for nested parentheses should probably take place
+				if err != nil {
+					return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] parseWhere %s", err.Error())}
+				}
+				//fmt.Printf("Where: %+v\n", query.Where)
 			}
-			//fmt.Printf("Where: %+v\n", query.Where)
+		} else {
+			log.Debug("NOT SUPPORTING UPDATES WITH NO WHERE")
+			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] WHERE missing on Update query"), ErrorCode: 444, ErrorMessage: "UPDATE query must have WHERE"}
 		}
 		//TODO: what if no Where? throw an error or go ahead and modify all?
 
@@ -183,7 +187,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		return query, nil
 	case *sqlparser.Delete:
 		query.Type = "Delete"
-		query.Table = sqlparser.String(stmt.TableExprs[0])
+		query.Table = sqlparser.String(stmt.TableExprs[0]) // TODO: an OK around the array in case of panic
 		//fmt.Printf("Comments: %+v \n", stmt.Comments)
 
 		//Targets

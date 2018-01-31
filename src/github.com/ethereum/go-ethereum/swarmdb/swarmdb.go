@@ -355,14 +355,16 @@ func (self *SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (err error)
 	// apply WHERE clause
 	filteredRows, err := table.applyWhere(rawRows, query.Where)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryUpdate] applyWhere %s", err.Error())}
+		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] applyWhere %s", err.Error()))
 	}
 
 	// set the appropriate columns in filtered set
 	for i, row := range filteredRows {
 		for colname, value := range query.Update {
 			if _, ok := row.Cells[colname]; !ok {
-				return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryUpdate] Update SET column name %s is not in filtered rows", colname)}
+				//return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryUpdate] Update SET column name %s is not in filtered rows", colname), ErrorCode: , ErrorMessage:""}
+				//TODO: need to actually add this cell if it's an update query and the columnname is actually "valid"
+				continue
 			}
 			filteredRows[i].Cells[colname] = value
 		}
@@ -372,7 +374,7 @@ func (self *SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (err error)
 	for _, row := range filteredRows {
 		err := table.Put(u, row.Cells)
 		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryUpdate] Put %s", err.Error())}
+			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] Put %s", err.Error()))
 		}
 	}
 
@@ -674,7 +676,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		query, err := ParseQuery(d.RawQuery)
 		query.Encrypted = d.Encrypted
 		if err != nil {
-			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] ParseQuery [%s] %s", d.RawQuery, err.Error()), ErrorCode: 401, ErrorMessage: "SQL Parsing error: [SQLError in SQL]"}
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] ParseQuery [%s] %s", d.RawQuery, err.Error()))
 		}
 		if len(d.Table) == 0 {
 			// fmt.Printf("Getting Table from Query rather than data obj\n")
