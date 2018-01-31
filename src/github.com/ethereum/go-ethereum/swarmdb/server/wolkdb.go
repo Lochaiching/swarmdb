@@ -309,7 +309,7 @@ func StartHttpServer(sdb *swarmdb.SwarmDB, config *swarmdb.SWARMDBConfig) {
 	//sk, pk := GetKeys()
 	hdlr := c.Handler(httpSvr)
 
-	log.Debug( fmt.Sprintf("HTTP Listening on %s and port %d", config.ListenAddrHTTP, config.PortHTTP) )
+	log.Debug(fmt.Sprintf("HTTP Listening on %s and port %d", config.ListenAddrHTTP, config.PortHTTP))
 	addr := net.JoinHostPort(config.ListenAddrHTTP, strconv.Itoa(config.PortHTTP))
 	//go http.ListenAndServe(config.Addr, hdlr)
 	logger.Fatal(http.ListenAndServe(addr, hdlr))
@@ -427,6 +427,13 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if bodyMap, ok := bodyMapInt.(map[string]interface{}); ok {
 			if reqType, ok := bodyMap["requesttype"]; ok {
 				dataReq.RequestType = reqType.(string)
+				log.Debug(fmt.Sprintf("Table (%s) [%+v]", dataReq.Table, dataReq))
+				if dataReq.Table == "" {
+					log.Debug("Table not included in URL.  Checking RequestBody")
+					if tblBody, ok := bodyMap["table"]; ok {
+						dataReq.Table = tblBody.(string)
+					}
+				}
 				if dataReq.RequestType == "CreateTable" {
 					bodyMap["owner"] = swReq.owner
 					bodyMap["database"] = swReq.database
