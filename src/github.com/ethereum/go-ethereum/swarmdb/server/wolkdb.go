@@ -283,7 +283,6 @@ func parseOwnerDB(v string) (owner string, db string, err error) {
 }
 
 func StartHttpServer(sdb *swarmdb.SwarmDB, config *swarmdb.SWARMDBConfig) {
-	fmt.Println("\nstarting http server")
 	httpSvr := new(HTTPServer)
 	httpSvr.swarmdb = sdb
 	km, errkm := swarmdb.NewKeyManager(config)
@@ -310,7 +309,7 @@ func StartHttpServer(sdb *swarmdb.SwarmDB, config *swarmdb.SWARMDBConfig) {
 	//sk, pk := GetKeys()
 	hdlr := c.Handler(httpSvr)
 
-	fmt.Printf("\nHTTP Listening on %s and port %d\n", config.ListenAddrHTTP, config.PortHTTP)
+	log.Debug( fmt.Sprintf("HTTP Listening on %s and port %d", config.ListenAddrHTTP, config.PortHTTP) )
 	addr := net.JoinHostPort(config.ListenAddrHTTP, strconv.Itoa(config.PortHTTP))
 	//go http.ListenAndServe(config.Addr, hdlr)
 	logger.Fatal(http.ListenAndServe(addr, hdlr))
@@ -353,12 +352,12 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		us := []byte(`{ "requesttype":"Put", "row":{"email":"rodney@wolk.com", "name":"Rodney F. Witcher", "age":370} }`)
 		msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(us), us)
 		msg_hash := crypto.Keccak256([]byte(msg))
-		fmt.Printf("\nMessage Hash: [%s][%x]", msg_hash, msg_hash)
+		//fmt.Printf("\nMessage Hash: [%s][%x]", msg_hash, msg_hash)
 
 		pa, _ := s.keymanager.SignMessage(msg_hash)
 		//TODO: SignMessageError
 
-		fmt.Printf("\nUser: [%s], Msg Hash [%x], SignedMsg: [%x]\n", us, msg_hash, pa)
+		//fmt.Printf("\nUser: [%s], Msg Hash [%x], SignedMsg: [%x]\n", us, msg_hash, pa)
 		vUser, errVerified = s.keymanager.VerifyMessage(msg_hash, pa)
 		if errVerified != nil {
 			//TODO: Show Error to Client
@@ -509,7 +508,7 @@ func main() {
 	logLevelFlag := flag.Int("loglevel", 3, "Log Level Verbosity 1-6 (4 for debug)")
 	flag.Parse()
 
-	log.Debug("Starting SWARMDB using [%s] and loglevel [%s]", *configFileLocation, *loglevel)
+	log.Debug("Starting SWARMDB using [%s] and loglevel [%s]", *configFileLocation, *logLevelFlag)
 
 	if _, err := os.Stat(*configFileLocation); os.IsNotExist(err) {
 		log.Debug("Default config file missing.  Building ..")
