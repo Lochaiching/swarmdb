@@ -28,7 +28,7 @@ import (
 func ParseQuery(rawQuery string) (query QueryOption, err error) {
 	stmt, err := sqlparser.Parse(rawQuery)
 	if err != nil {
-		return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] Parse [%v]", err), Error: 401, ErrorCode: fmt.Sprintf("SQL Parsing error: [%s]", err.Error())}
+		return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] Parse [%v]", err), ErrorCode: 401, ErrorMessage: fmt.Sprintf("SQL Parsing error: [%s]", err.Error())}
 	}
 
 	switch stmt := stmt.(type) {
@@ -66,7 +66,7 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		} else if stmt.Where.Type == sqlparser.HavingStr { //Having
 			fmt.Printf("type: %s\n", stmt.Where.Type)
 			//TODO: fill in having
-			return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] Parse Having Clause Not currently supported"), Error: 401, ErrorCode: fmt.Sprintf("SQL Parsing error: [HAVING clause not currently supported]", err.Error())}
+			return query, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ParseQuery] Parse Having Clause Not currently supported"), ErrorCode: 401, ErrorMessage: fmt.Sprintf("SQL Parsing error: [HAVING clause not currently supported]", err.Error())}
 		}
 
 		//TODO: GroupBy ([]Expr)
