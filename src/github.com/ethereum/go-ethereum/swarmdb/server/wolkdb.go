@@ -442,7 +442,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					//TODO: error check
 				} else if dataReq.RequestType == "Query" {
 					//Don't pass table for now (rely on Query parsing)
-					if rq, ok := bodyMap["rawquery"]; ok {
+					if rq, ok := bodyMap["query"]; ok {
 						dataReq.RawQuery = rq.(string)
 						reqJson, err = json.Marshal(dataReq)
 						if err != nil {
@@ -454,11 +454,11 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							fmt.Fprint(w, retJson)
 						}
 					} else {
-						//Invalid Query Request: rawquery missing
-						swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Invalid Query Request.  Missing RawQuery"))
+						//Invalid Query Request: query missing
+						swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Invalid Query Request.  Missing Query"))
 						log.Error(swErr.Error())
 						swErr.ErrorCode = 425
-						swErr.ErrorMessage = fmt.Sprintf("Invalid Query Request. Missing Rawquery")
+						swErr.ErrorMessage = fmt.Sprintf("Invalid Query Request. Missing query")
 						retJson := buildErrorResp(&swErr)
 						fmt.Fprint(w, retJson)
 					}

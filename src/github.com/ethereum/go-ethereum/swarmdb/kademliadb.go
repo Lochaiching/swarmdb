@@ -118,7 +118,7 @@ func (self *KademliaDB) GetByKey(u *SWARMDBUser, k []byte) ([]byte, error) {
 	chunkKey := self.GenerateChunkKey(k)
 	content, err := self.Get(u, chunkKey)
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[kademliadb:GetByKey] Get - Key not found: %s", err.Error())}
+		return nil, GenerateSWARMDBError(err, fmt.Sprintf("[kademliadb:GetByKey] Get - Key not found: %s", err.Error()))
 	}
 	return content, nil
 }
@@ -129,7 +129,7 @@ func (self *KademliaDB) Get(u *SWARMDBUser, h []byte) ([]byte, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[kademliadb:Get] RetrieveKChunk - Key not found: %s", err.Error())}
+		return nil, GenerateSWARMDBError(err, fmt.Sprintf("[kademliadb:Get] RetrieveKChunk - Key not found: %s", err.Error()))
 	}
 	return contentReader, nil
 }

@@ -113,11 +113,11 @@ func SaveSWARMDBConfig(c SWARMDBConfig, filename string) (err error) {
 	// save file
 	cout, err1 := json.Marshal(c)
 	if err1 != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[config:SaveSWARMDBConfig] Marshal %s", err.Error())}
+		return &SWARMDBError{message: fmt.Sprintf("[config:SaveSWARMDBConfig] Marshal %s", err1.Error()), ErrorCode: 457, ErrorMessage: "Unable to Save Config File"}
 	} else {
 		err := ioutil.WriteFile(filename, cout, 0644)
 		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[config:SaveSWARMDBConfig] WriteFile %s", err.Error())}
+			return &SWARMDBError{message: fmt.Sprintf("[config:SaveSWARMDBConfig] WriteFile %s", err.Error()), ErrorCode: 457, ErrorMessage: "Unable to Save Config File"}
 		}
 	}
 	return nil
@@ -127,11 +127,11 @@ func LoadSWARMDBConfig(filename string) (c SWARMDBConfig, err error) {
 	// read file
 	dat, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return c, &SWARMDBError{message: fmt.Sprintf("[config:LoadSWARMDBConfig] ReadFile %s", err.Error())}
+		return c, &SWARMDBError{message: fmt.Sprintf("[config:LoadSWARMDBConfig] ReadFile %s", err.Error()), ErrorCode: 458, ErrorMessage: "Unable to Load Config File"}
 	}
 	err = json.Unmarshal(dat, &c)
 	if err != nil {
-		return c, &SWARMDBError{message: fmt.Sprintf("[config:LoadSWARMDBConfig] Unmarshal %s", err.Error())}
+		return c, &SWARMDBError{message: fmt.Sprintf("[config:LoadSWARMDBConfig] Unmarshal %s", err.Error()), ErrorCode: 458, ErrorMessage: "Unable to Load Config File"}
 	}
 	return c, nil
 }
