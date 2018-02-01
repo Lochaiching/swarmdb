@@ -49,13 +49,21 @@ type SwapLog struct {
 
 type Promise interface{}
 
+// interface for the peer protocol for testing or external alternative payment
+type Protocol interface {
+	SDBPay(int, Promise) // units, payment proof
+	Drop()
+	String() string
+}
+
 type SwapDB struct {
 	db       *sql.DB
 	filepath string
+	proto   Protocol   // peer communication protocol
 }
 
 // path = "swap.db"
-func NewSwapDB(path string) (self *SwapDB, err error) {
+func NewSwapDB(path string, proto Protocol) (self *SwapDB, err error) {
 	// ts := time.Now()
 	db, err := sql.Open("sqlite3", path)
 	if err != nil || db == nil {
@@ -81,6 +89,7 @@ func NewSwapDB(path string) (self *SwapDB, err error) {
 	self = &SwapDB{
 		db:       db,
 		filepath: path,
+		proto:   proto,
 	}
 	return self, nil
 }

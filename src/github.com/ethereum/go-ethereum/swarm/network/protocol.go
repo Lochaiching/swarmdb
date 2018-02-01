@@ -45,7 +45,7 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/services/swap/swap"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/ethereum/go-ethereum/swarmdb"
-)
+	)
 
 const (
 	Version            = 0
@@ -418,8 +418,7 @@ func (self *bzz) handleStatus() (err error) {
 		if err != nil {
 			return err
 		}
-		
-		self.swapDB, err = swarmdb.NewSwapDB("/tmp/swap.db")
+		self.swapDB, err = swarmdb.NewSwapDB("/tmp/swap.db", self)
 		if err != nil {
 			log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.handleStatus swarmdb.NewSwapDB err: %v ", err))
 			return err
@@ -575,13 +574,11 @@ func (self *bzz) sDBstore(req *sDBStoreRequestMsgData) error {
 	return self.send(sDBStoreRequestMsg, req)
 }
 
-/*
-SwarmDBSwap: sending payment request to the peer
+//SwarmDBSwap: sending payment request to the peer
 func (self *bzz) SDBPay(units int, promise swarmdb.Promise){
 	req := &sDBPaymentMsgData{uint(units), promise.(*swarmdb.SwapCheck)}
 	self.send(sDBPaymentMsg, req)
 }
-*/
 
 func (self *bzz) send(msg uint64, data interface{}) error {
         log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.send :sending %v: %v", msg, data))
