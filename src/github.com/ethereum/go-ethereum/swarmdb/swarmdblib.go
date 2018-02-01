@@ -257,7 +257,7 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 		return response, &SWARMDBError{ErrorCode: 400, ErrorMessage: `[swarmdblib:ProcessRequestResponseCommand] Bad JSON Supplied: [` + connResponse + `]`}
 	}
 	//response, swdbErr := processConnectionResponse(sresponse)
-	return sResponse.Data, &sResponse.Error
+	return sResponse.Data, sResponse.Error
 }
 
 /*
