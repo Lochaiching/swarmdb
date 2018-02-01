@@ -56,12 +56,12 @@ type RequestOption struct {
 
 //shouldn't Data be an interface{}?
 type SWARMDBResponse struct {
-	Error            SWARMDBError `json:"error,omitempty"`
-	ErrorCode        int          `json:"errorcode,omitempty"`
-	ErrorMessage     string       `json:"errormessage,omitempty"`
-	Data             []Row        `json:"data,omitempty"`
-	AffectedRowCount int          `json:"affectedrowcount,omitempty"`
-	MatchedRowCount  int          `json:"matchedrowcount,omitempty"`
+	Error            *SWARMDBError `json:"error,omitempty"`
+	ErrorCode        int           `json:"errorcode,omitempty"`
+	ErrorMessage     string        `json:"errormessage,omitempty"`
+	Data             []Row         `json:"data,omitempty"`
+	AffectedRowCount int           `json:"affectedrowcount,omitempty"`
+	MatchedRowCount  int           `json:"matchedrowcount,omitempty"`
 }
 
 func (resp *SWARMDBResponse) Stringify() string {
