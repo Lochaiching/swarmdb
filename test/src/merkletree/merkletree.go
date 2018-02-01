@@ -1,21 +1,27 @@
-// ASH
-// Extension of github.com/cbergoon/merkletree
+// ASH Extension of github.com/cbergoon/merkletree
 
-package merkletree
+package ash
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-//Content represents the data that is stored and verified by the tree. A type that
-//implements this interface can be used as an item in the tree.
-type Content interface {
-	CalculateHash() []byte
-	Equals(other Content) bool
-	Returnbyte() []byte
+type Content struct {
+	S string
+	B []byte
+}
+
+//Equals tests for equality of two Contents
+func (f Content) Equals(other Content) bool {
+	if bytes.Compare(f.B, other.B) == 0 {
+		return true
+	} else {
+		return false
+	}
 }
 
 //MerkleTree is the container for the tree. It holds a pointer to the root of the tree,
@@ -39,19 +45,21 @@ type Node struct {
 	C      Content
 }
 
+//Computehash: Wrapper function for Keccak256
+func Computehash(input []byte) (output []byte) {
+	return crypto.Keccak256(bytes.TrimRight(input, "\x00"))
+}
+
 //verifyNode walks down the tree until hitting a leaf, calculating the hash at each level
 //and returning the resulting hash of Node n.
 func (n *Node) verifyNode() []byte {
 	if n.leaf {
-		return n.C.CalculateHash()
+		return Computehash(n.C.B)
 	}
-	lhash := n.Left.verifyNode()
-	rhash := n.Right.verifyNode()
-	lhash = bytes.TrimRight(lhash, "\x00")
-	rhash = bytes.TrimRight(rhash, "\x00")
-
+	lhash := bytes.TrimRight(n.Left.verifyNode(), "\x00")
+	rhash := bytes.TrimRight(n.Right.verifyNode(), "\x00")
 	lr := append(lhash, rhash...)
-	lrhash := crypto.Keccak256(lr)
+	lrhash := Computehash(lr)
 	fmt.Printf("L+R: %s => %x\n", bsplit(lr), lrhash)
 	return lrhash
 
@@ -60,7 +68,7 @@ func (n *Node) verifyNode() []byte {
 //calculateNodeHash is a helper function that calculates the hash of the node.
 func (n *Node) calculateNodeHash() []byte {
 	if n.leaf {
-		return n.C.CalculateHash()
+		return Computehash(n.C.B)
 	}
 	lrhash := n.calculateLRHash()
 	return lrhash
@@ -71,8 +79,8 @@ func (n *Node) calculateLRHash() []byte {
 	lhash := bytes.TrimRight(n.Left.Hash, "\x00")
 	rhash := bytes.TrimRight(n.Right.Hash, "\x00")
 	lr := append(lhash, rhash...)
-	lrhash := crypto.Keccak256(lr)
-	fmt.Printf("L+R: %s => %x\n", bsplit(lr), lrhash)
+	lrhash := Computehash(lr)
+	//fmt.Printf("L+R: %s => %x\n", bsplit(lr), lrhash)
 	return lrhash
 }
 
@@ -100,7 +108,7 @@ func buildWithContent(cs []Content) (*Node, []*Node, error) {
 	var leafs []*Node
 	for _, c := range cs {
 		leafs = append(leafs, &Node{
-			Hash: c.CalculateHash(),
+			Hash: Computehash(c.B),
 			C:    c,
 			leaf: true,
 		})
@@ -113,14 +121,13 @@ func buildWithContent(cs []Content) (*Node, []*Node, error) {
 	return root, leafs, nil
 }
 
-
 //buildIntermediate is a helper function that for a given list of leaf nodes, constructs
 //the intermediate and root levels of the tree. Returns the resulting root node of the tree.
 func buildIntermediate(nl []*Node) *Node {
 	var nodes []*Node
 	for i := 0; i < len(nl); i += 2 {
 		chash := append(nl[i].Hash, nl[i+1].Hash...)
-		h := crypto.Keccak256(chash)
+		h := Computehash(chash)
 		n := &Node{
 			Left:  nl[i],
 			Right: nl[i+1],
@@ -129,7 +136,9 @@ func buildIntermediate(nl []*Node) *Node {
 		nodes = append(nodes, n)
 		nl[i].Parent = n
 		nl[i+1].Parent = n
-        //TODO: set sister nodes
+		//TODO: set sister nodes
+		n.Left.Sister = n.Right.Sister
+		n.Right.Sister = n.Left.Sister
 		if len(nl) == 2 {
 			return n
 		}
@@ -217,7 +226,7 @@ func (m *MerkleTree) VerifyContent(expectedMerkleRoot []byte, content Content) (
 
 				if currentParent.Left.leaf && currentParent.Right.leaf {
 					currentParentLR := append(currentParent.Left.calculateNodeHash(), currentParent.Right.calculateNodeHash()...)
-					currentParentHash := crypto.Keccak256(currentParentLR)
+					currentParentHash := Computehash(currentParentLR)
 					if bytes.Compare(currentParentHash, currentParent.Hash) != 0 {
 						fmt.Printf("[Mismatch0] [ParentLRHash:%v] => CurrentParent Hash: %v\n", currentParentHash, currentParent.Hash)
 						return false, nil
@@ -230,7 +239,7 @@ func (m *MerkleTree) VerifyContent(expectedMerkleRoot []byte, content Content) (
 					fmt.Printf("New Parent:%x\n", currentParent.Hash)
 				} else {
 					currentParentLR := append(currentParent.Left.calculateNodeHash(), currentParent.Right.calculateNodeHash()...)
-					currentParentHash := crypto.Keccak256(currentParentLR)
+					currentParentHash := Computehash(currentParentLR)
 					if bytes.Compare(currentParentHash, currentParent.Hash) != 0 {
 						fmt.Printf("[Mismatch1] [ParentLRHash:%v] => CurrentParent Hash: %v\n", currentParentHash, currentParent.Hash)
 						return false, nil
@@ -276,7 +285,6 @@ func (m *MerkleTree) GetProof(expectedMerkleRoot []byte, content Content) bool {
 	return false
 }
 
-
 func CheckProof(expectedMerkleRoot []byte, content []byte, mkproof []byte) bool {
 	merkleroot := append(content[:0], content...)
 	merklepath := merkleroot
@@ -284,7 +292,7 @@ func CheckProof(expectedMerkleRoot []byte, content []byte, mkproof []byte) bool 
 	for depth < len(mkproof)/32 {
 		start := depth * 32
 		end := start + 32
-		merkleroot = crypto.Keccak256(append(merkleroot, mkproof[start:end]...))
+		merkleroot = Computehash(append(merkleroot, mkproof[start:end]...))
 		merklepath = append(merklepath, merkleroot...)
 		depth++
 	}
@@ -312,8 +320,6 @@ func (n *Node) getString() string {
 	return x
 }
 
-//String returns a string representation of the tree. Only leaf nodes are included
-//in the output.
 func (m *MerkleTree) String() string {
 	s := ""
 	s += m.Root.getString()
@@ -322,4 +328,34 @@ func (m *MerkleTree) String() string {
 		s += x
 	}
 	return s
+}
+
+func chunksplit(chunk []byte) (segments [][]byte) {
+	curr := 0
+	for curr < 4096 {
+		prev := curr
+		curr += 32
+		rawseg := make([]byte, 32)
+		copy(rawseg[:], chunk[prev:curr])
+		//rawseg := bytes.TrimRight(rawseg, "\x00")
+		//fmt.Printf("Segemgt[%v:%v] | %v (%s)\n", prev, curr, rawseg, rawseg)
+		segments = append(segments, rawseg)
+	}
+	return segments
+}
+
+//Compute segment index j
+func getIndex(seedsecret string) (index uint8) {
+	seedhash := Computehash([]byte(seedsecret))
+	_ = binary.Read(bytes.NewReader(seedhash[31:]), binary.BigEndian, &index)
+	fmt.Printf("%v | Index: %s\n", seedhash, index)
+	return index
+}
+
+//Replace jth segment with h(content+seed)
+func PrepareASH(chunk []byte, seed string) (segments [][]byte) {
+	j := getIndex(seed)
+	segments = chunksplit(chunk)
+	segments[j] = Computehash(append(segments[j], []byte(seed)...))
+	return segments
 }

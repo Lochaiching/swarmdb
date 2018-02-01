@@ -312,10 +312,7 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error)
 			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] convertJSONValueToKey - %s", err.Error()))
 		}
 		existingByteRow, err := table.Get(u, convertedKey)
-		if err != nil {
-			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] Get - %s", err.Error()))
-		}
-		if len(existingByteRow) > 0 {
+		if len(existingByteRow) > 0 || err == nil {
 			existingRow, errB := table.byteArrayToRow(existingByteRow)
 			if errB != nil {
 				return GenerateSWARMDBError(errB, fmt.Sprintf("[swarmdb:QueryInsert] byteArrayToRow - %s", errB.Error()))
@@ -507,7 +504,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 	var tblKey string
 	var tbl *Table
 	var tblInfo map[string]Column
-	if d.RequestType != "CreateTable" && d.RequestType != "CreateDatabase" && d.RequestType != "DropDatabase" && d.RequestType != "ListDatabases" && d.RequestType != "DescribeDatabase" && d.RequestType != "ListTables" {
+	if d.RequestType != "CreateTable" && d.RequestType != "CreateDatabase" && d.RequestType != "DropDatabase" && d.RequestType != "ListDatabases" && d.RequestType != "DescribeDatabase" && d.RequestType != "ListTables" && d.RequestType != RT_QUERY {
 		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
 		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
 		log.Debug(fmt.Sprintf("[swarmdb:SelectHandler] GetTable returned table: [%+v] for tablekey: [%s]\n", tbl, tblKey))
@@ -672,15 +669,25 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] ParseQuery [%s] %s", d.RawQuery, err.Error()))
 		}
+		query.Owner = d.Owner       //probably should check the owner against the tableinfo owner here
+		query.Database = d.Database //probably should check the owner against the tableinfo owner here
+		fmt.Printf("d.Table: %v, query.Table: %v\n", d.Table, query.Table)
 		if len(d.Table) == 0 {
-			// fmt.Printf("Getting Table from Query rather than data obj\n")
+			fmt.Printf("Getting Table from Query rather than data obj\n")
 			//TODO: check if empty even after query.Table check
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
-
-		// fmt.Printf("right before GetTable, u: %v, d.Owner: %v, d.Table: %v \n", u, d.Owner, d.Table)
-		query.Owner = d.Owner       //probably should check the owner against the tableinfo owner here
-		query.Database = d.Database //probably should check the owner against the tableinfo owner here
+		fmt.Printf("right before GetTable, u: %v, d.Owner: %v, d.Table: %v \n", u, d.Owner, d.Table)
+		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
+		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
+		log.Debug(fmt.Sprintf("[swarmdb:SelectHandler] GetTable returned table: [%+v] for tablekey: [%s]\n", tbl, tblKey))
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error()))
+		}
+		tblInfo, err = tbl.DescribeTable()
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeTable %s", err.Error()))
+		}
 
 		//fmt.Printf("Table info gotten: [%+v]\n", tblInfo)
 		// fmt.Printf("QueryOption is: [%+v]\n", query)
