@@ -1,43 +1,19 @@
 package main
 
 import (
-	"merkletree"
-	"bytes"
+	"ash"
 	"fmt"
-	"github.com/ethereum/go-ethereum/crypto"
 	"io/ioutil"
 )
 
 var (
 	debug      = false
-	testmode   = 2
+	testmode   = 1
 	list       []ash.Content
 	sampleFile = "data2"
+	seed       = "secret"
 	testList   = []string{"a", "b", "c", "d", "e", "f", "g", "h"}
 )
-
-//Segment implements the Content interface provided by merkletree and represents the content stored in the tree.
-type Fragment struct {
-	s string
-	b []byte
-}
-
-//CalculateHash hashes the values of a Segment
-func (f Fragment) CalculateHash() []byte {
-	r := bytes.TrimRight(f.b, "\x00")
-	res := crypto.Keccak256(r)
-	//fmt.Printf("keccak256: %s %v => %x\n", t.x, r, res)
-	return res
-}
-
-//Equals tests for equality of two Contents
-func (f Fragment) Equals(other ash.Content) bool {
-    if bytes.Compare(f.b, other.(Fragment).b) == 0 {
-        return true
-    }else{
-        return false
-    }
-}
 
 func main() {
 
@@ -46,8 +22,7 @@ func main() {
 		data, _ := ioutil.ReadFile(sampleFile)
 		copy(samplechunk[:], data)
 		fmt.Printf("%s\n%v\n", samplechunk, data)
-
-		segments := ash.PrepareASH(samplechunk, "secret")
+		segments := ash.PrepareASH(samplechunk, seed)
 		//fmt.Printf("Segments: %v", segments)
 
 		for j, seg := range segments {
@@ -55,11 +30,10 @@ func main() {
 				//s := fmt.Sprintf("%s", seg)
 				fmt.Printf("[seg %v]%v(%s)\n", j, seg, seg)
 			}
-			list = append(list, Fragment{s: fmt.Sprintf("%s", seg), b: seg})
+			list = append(list, ash.Content{S: fmt.Sprintf("%s", seg), B: seg})
 		}
 
 	} else {
-
 		//Build list of Content to build tree
 		raws := testList
 		for j, rs := range raws {
@@ -68,8 +42,7 @@ func main() {
 			if debug {
 				fmt.Printf("[seg %v]%v(%v)\n", j, rs, rawseg)
 			}
-			list = append(list, Fragment{s: rs, b: rawseg})
-
+			list = append(list, ash.Content{S: rs, B: rawseg})
 		}
 	}
 
@@ -94,11 +67,7 @@ func main() {
 	fmt.Printf("Merkle Proof: [%v] [%x] [%t]\n", list[0], proof, vc)
 
 	//Verify Merkle proof
-	chash := list[0].CalculateHash()
+	chash := ash.Computehash(list[0].B)
 	_ = ash.CheckProof(mr, chash, proof)
-
-	//String representation
-	fmt.Printf("%s", t.String())
-	//fmt.Println(t)
 
 }
