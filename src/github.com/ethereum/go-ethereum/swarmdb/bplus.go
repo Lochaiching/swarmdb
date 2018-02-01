@@ -308,6 +308,7 @@ func (l *d) mvR(r *d, c int) {
 // The SWARMDB Manager instantiates a B+ tree with the top level SWARMDB hashid along with a specific user u
 // that holds the public/private keys for writing chunks
 // To manage ordering a "cmp" is instantiated with a suitable columnType (blob/float/string/integer/...)
+//TODO: No error ever returned -- are we checking everything correctly?
 func NewBPlusTreeDB(u *SWARMDBUser, swarmdb SwarmDB, hashid []byte, columnType ColumnType, secondary bool, columnTypePrimary ColumnType, encrypted int) (t *Tree, err error) {
 	// set up the comparator
 	cmpPrimary := cmpBytes
@@ -360,7 +361,7 @@ func (t *Tree) FlushBuffer(u *SWARMDBUser) (ok bool, err error) {
 		t.buffered = false
 		new_hashid, changed, errPut := t.swarmPut(u)
 		if errPut != nil {
-			return false, &SWARMDBError{message: fmt.Sprintf("[bplus:FlushBuffer] swarmPut - %s", errPut.Error())}
+			return false, &SWARMDBError{message: fmt.Sprintf("[bplus:FlushBuffer] swarmPut - %s", errPut.Error()), ErrorCode: 471, ErrorMessage: "Failure encountered attempting to Flush nodes"}
 		}
 		if changed {
 			t.hashid = new_hashid
@@ -378,7 +379,7 @@ func (t *Tree) check_flush(u *SWARMDBUser) (ok bool, err error) {
 
 	new_hashid, changed, errPut := t.swarmPut(u)
 	if errPut != nil {
-		return false, &SWARMDBError{message: fmt.Sprintf("[bplus:check_flush] swarmPut - %s", errPut.Error())}
+		return false, GenerateSWARMDBError(errPut, fmt.Sprintf("[bplus:check_flush] swarmPut - %s", errPut.Error()))
 	}
 
 	if changed {
@@ -394,7 +395,7 @@ func (t *Tree) Close(u *SWARMDBUser) (ok bool, err error) {
 	if t.buffered {
 		ok, err = t.FlushBuffer(u)
 		if err != nil {
-			return false, &SWARMDBError{message: `[bplus:Close] FlushBuffer ` + err.Error()}
+			return false, GenerateSWARMDBError(err, `[bplus:Close] FlushBuffer `+err.Error())
 		}
 	}
 	t.Clear()
@@ -439,7 +440,7 @@ func (t *Tree) swarmGet(u *SWARMDBUser) (success bool, err error) {
 	// do a read from local file system, filling in: (a) hashid and (b) items
 	buf, err := t.swarmdb.RetrieveDBChunk(u, t.hashid)
 	if err != nil {
-		return false, &SWARMDBError{message: `[bplus:swarmGet] RetrieveDBChunk ` + err.Error()}
+		return false, GenerateSWARMDBError(err, `[bplus:swarmGet] RetrieveDBChunk `+err.Error())
 	}
 
 	// two bytes
@@ -520,7 +521,7 @@ func (q *x) swarmGet(u *SWARMDBUser, swarmdb DBChunkstorage) (success bool, err 
 	// do a read from local file system, filling in: (a) hashid and (b) items
 	buf, err := swarmdb.RetrieveDBChunk(u, q.hashid)
 	if err != nil {
-		return false, &SWARMDBError{message: `[bplus:swarmGet] RetrieveDBChunk ` + err.Error()}
+		return false, GenerateSWARMDBError(err, `[bplus:swarmGet] RetrieveDBChunk `+err.Error())
 	}
 
 	childtype := get_chunk_childtype(buf)
@@ -559,7 +560,7 @@ func (q *d) swarmGet(u *SWARMDBUser, swarmdb DBChunkstorage) (success bool, err 
 	// do a read from local file system, filling in: (a) hashid and (b) items
 	buf, err := swarmdb.RetrieveDBChunk(u, q.hashid)
 	if err != nil {
-		return false, &SWARMDBError{message: `[bplus:swarmGet] RetrieveDBChunk ` + err.Error()}
+		return false, GenerateSWARMDBError(err, `[bplus:swarmGet] RetrieveDBChunk `+err.Error())
 	}
 	for i := 0; i < KEYS_PER_CHUNK; i++ {
 		k := buf[i*KV_SIZE : i*KV_SIZE+K_SIZE]
@@ -615,14 +616,14 @@ func (q *x) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 			if z.dirty {
 				_, _, err = z.swarmPut(u, swarmdb, columnType, encrypted)
 				if err != nil {
-					return new_hashid, false, &SWARMDBError{message: fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error())}
+					return new_hashid, false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error()))
 				}
 			}
 		case *d:
 			if z.dirty {
 				_, _, err = z.swarmPut(u, swarmdb, columnType, encrypted)
 				if err != nil {
-					return new_hashid, false, &SWARMDBError{message: fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error())}
+					return new_hashid, false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error()))
 				}
 
 			}
@@ -650,7 +651,7 @@ func (q *x) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 	// Core interface with DBChunkstore is here
 	new_hashid, err = swarmdb.StoreDBChunk(u, sdata, encrypted)
 	if err != nil {
-		return q.hashid, false, &SWARMDBError{message: `[bplus:swarmPut] StoreDBChunk ` + err.Error()}
+		return q.hashid, false, GenerateSWARMDBError(err, `[bplus:swarmPut] StoreDBChunk `+err.Error())
 	}
 	q.hashid = new_hashid
 	return new_hashid, true, nil
@@ -662,7 +663,7 @@ func (q *d) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 		if q.n.dirty {
 			_, _, err = q.n.swarmPut(u, swarmdb, columnType, encrypted)
 			if err != nil {
-				return new_hashid, false, &SWARMDBError{message: fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error())}
+				return new_hashid, false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error()))
 			}
 		}
 		q.nexthashid = q.n.hashid
@@ -674,7 +675,7 @@ func (q *d) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 		if q.p.dirty {
 			_, _, err = q.p.swarmPut(u, swarmdb, columnType, encrypted)
 			if err != nil {
-				return new_hashid, false, &SWARMDBError{message: fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error())}
+				return new_hashid, false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:swarmPut] swarmPut - %s", err.Error()))
 			}
 		}
 		q.prevhashid = q.p.hashid
@@ -702,7 +703,7 @@ func (q *d) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 	// Core interface with DBChunkstore is here
 	new_hashid, err = swarmdb.StoreDBChunk(u, sdata, encrypted)
 	if err != nil {
-		return q.hashid, false, &SWARMDBError{message: `[bplus:swarmPut] StoreDBChunk ` + err.Error()}
+		return q.hashid, false, GenerateSWARMDBError(err, `[bplus:swarmPut] StoreDBChunk `+err.Error())
 	}
 	q.hashid = new_hashid
 
@@ -792,7 +793,7 @@ func (t *Tree) Delete(u *SWARMDBUser, k []byte /*K*/) (ok bool, err error) {
 	for {
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Delete] checkload - %s", err.Error())}
+			return false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:Delete] checkload - %s", err.Error()))
 
 		}
 		var i int
@@ -824,7 +825,7 @@ func (t *Tree) Delete(u *SWARMDBUser, k []byte /*K*/) (ok bool, err error) {
 				x.dirty = true // we found the key and  actually deleted it!
 				_, err = t.check_flush(u)
 				if err != nil {
-					return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Delete] check_flush - %s", err.Error())}
+					return false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:Delete] check_flush - %s", err.Error()))
 				}
 				return true, nil
 			}
@@ -902,14 +903,14 @@ func checkload(u *SWARMDBUser, swarmdb DBChunkstorage, q interface{}) (err error
 		if x.notloaded {
 			_, err = x.swarmGet(u, swarmdb)
 			if err != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[bplus:checkload] swarmGet - %s", err.Error())}
+				return &SWARMDBError{message: fmt.Sprintf("[bplus:checkload] swarmGet - %s", err.Error()), ErrorCode: 473, ErrorMessage: "Failure encountered checking load"}
 			}
 		}
 	case *d: // data node -- EXACT match
 		if x.notloaded {
 			x.swarmGet(u, swarmdb)
 			if err != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[bplus:checkload] swarmGet - %s", err.Error())}
+				return &SWARMDBError{message: fmt.Sprintf("[bplus:checkload] swarmGet - %s", err.Error()), ErrorCode: 473, ErrorMessage: "Failure encountered checking load"}
 			}
 		}
 	}
