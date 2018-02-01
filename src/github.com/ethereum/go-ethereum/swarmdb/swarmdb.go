@@ -275,9 +275,8 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 	if err != nil {
 		return rows, GenerateSWARMDBError(err, `[swarmdb:QuerySelect] applyWhere `+err.Error())
 	}
-	// fmt.Printf("\nQuerySelect applied where rows: %+v\n", whereRows)
+	log.Debug( fmt.Sprintf("QuerySelect applied where rows: %+v and number of rows returned = %d", whereRows, len(whereRows)) )
 
-	// fmt.Printf("\nNumber of WHERE rows returned : %d", len(whereRows))
 	//filter for requested columns
 	for _, row := range whereRows {
 		// fmt.Printf("QS b4 filterRowByColumns row: %+v\n", row)
@@ -498,7 +497,7 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, owner string, database string, tab
 }
 
 // TODO: when there are errors, the error must be parsable make user friendly developer errors that can be trapped by Node.js, Go library, JS CLI
-func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, err error) {
+func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBResponse, err error) {
 	log.Debug(fmt.Sprintf("SelectHandler Input: %s\n", data))
 	d, err := parseData(data)
 	if err != nil {
@@ -527,19 +526,15 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] CreateDatabase %s", err.Error()))
 		}
-		return OK_RESPONSE, nil
+		
+		return &SWARMDBResponse{AffectedRowCount:1}, nil
 	case RT_DROP_DATABASE:
 		err = self.DropDatabase(u, d.Owner, d.Database)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DropDatabase %s", err.Error()))
+			//TODO: &SWARMDBResponse{Error: GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DropDatabase %s", err.Error()))}
 		}
-		return OK_RESPONSE, nil
-	case RT_DESCRIBE_DATABASE:
-		ret, err := self.DescribeDatabase(u, d.Owner, d.Database)
-		if err != nil {
-			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeDatabase %s", err.Error()))
-		}
-		return string(ret), nil
+		return &SWARMDBResponse{AffectedRowCount:1}, nil
 	case RT_LIST_DATABASES:
 		databases, err := self.ListDatabases(u, d.Owner)
 		if err != nil {
@@ -559,13 +554,13 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] CreateTable %s", err.Error()))
 		}
-		return OK_RESPONSE, err
+		return &SWARMDBResponse{AffectedRowCount:1}, nil 
 	case RT_DROP_TABLE:
 		err = self.DropTable(u, d.Owner, d.Database)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DropTable %s", err.Error()))
 		}
-		return OK_RESPONSE, nil
+		return &SWARMDBResponse{AffectedRowCount:1}, nil
 	case RT_DESCRIBE_TABLE:
 		tblcols, err := self.tables[tblKey].DescribeTable()
 		if err != nil {
@@ -621,13 +616,15 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 
 		//put the rows in
+		successfulRows := 0
 		for _, row := range d.Rows {
 			err = tbl.Put(u, row.Cells)
 			if err != nil {
 				return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Put %s", err.Error()))
 			}
+			successfulRows++
 		}
-		return OK_RESPONSE, nil
+		return &SWARMDBResponse{AffectedRowCount: successfulRows}, nil
 
 	case RT_GET:
 		if isNil(d.Key) {
@@ -643,6 +640,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			//fmt.Printf(fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error()))
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error()))
 		}
+		//Convert ret ([]byte) to []Rows
 		return string(ret), nil
 	case RT_DELETE:
 		if isNil(d.Key) {
@@ -652,7 +650,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Delete %s", err.Error()))
 		}
-		return OK_RESPONSE, nil
+		return &SWARMDBResponse{AffectedRowCount:1}, nil
 	case RT_START_BUFFER:
 		err = tbl.StartBuffer(u)
 		if err != nil {
@@ -741,9 +739,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 
 		if resp == "null" {
-			resp = OK_RESPONSE
+			resp = &SWARMDBResponse{AffectedRowCount:0} 
 		}
-		return resp, nil
+		return &SWARMDBResponse{AffectedRowCount:len(qRows), Data: qRows}, nil
 	}
 	return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] RequestType invalid: [%s]", d.RequestType), ErrorCode: 418, ErrorMessage: "Request Invalid"}
 }
