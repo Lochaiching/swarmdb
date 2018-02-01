@@ -133,7 +133,9 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 			}
 			//insertCells[col] = trimQuotes(sqlparser.String(stmt.Rows.(sqlparser.Values)[0][i]))
 		}
-		query.Inserts = append(query.Inserts, Row{Cells: insertCells})
+		r := NewRow()
+		r = insertCells
+		query.Inserts = append(query.Inserts, r)
 		//fmt.Printf("OnDup: %+v\n", stmt.OnDup)
 		//fmt.Printf("Rows: %+v\n", stmt.Rows.(sqlparser.Values))
 		//fmt.Printf("Rows: %+v\n", sqlparser.String(stmt.Rows.(sqlparser.Values)))
