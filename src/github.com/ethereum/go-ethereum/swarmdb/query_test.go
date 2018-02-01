@@ -86,11 +86,9 @@ func TestParseQuery(t *testing.T) {
 		Table: "contacts",
 		Inserts: []swarmdb.Row{
 			swarmdb.Row{
-				Cells: map[string]interface{}{
-					"name":  "Bertie Basset",
-					"age":   float64(7),
-					"email": "bertie@gmail.com"},
-			},
+				"name":  "Bertie Basset",
+				"age":   float64(7),
+				"email": "bertie@gmail.com"},
 		},
 		Ascending: 1,
 	}
@@ -124,6 +122,7 @@ func TestParseQuery(t *testing.T) {
 			fmt.Printf("expected: %+v\n\n", expected[testid])
 			fail = append(fail, testid)
 		}
+
 	}
 	if len(fail) > 0 {
 		t.Fatal(fmt.Errorf("tests [%s] failed", strings.Join(fail, ",")))
