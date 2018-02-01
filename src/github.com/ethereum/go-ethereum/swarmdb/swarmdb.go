@@ -313,10 +313,7 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error)
 			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] convertJSONValueToKey - %s", err.Error()))
 		}
 		existingByteRow, err := table.Get(u, convertedKey)
-		if err != nil {
-			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] Get - %s", err.Error()))
-		}
-		if len(existingByteRow) > 0 {
+		if len(existingByteRow) > 0 || err == nil {
 			existingRow, errB := table.byteArrayToRow(existingByteRow)
 			if errB != nil {
 				return GenerateSWARMDBError(errB, fmt.Sprintf("[swarmdb:QueryInsert] byteArrayToRow - %s", errB.Error()))
