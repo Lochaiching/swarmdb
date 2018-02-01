@@ -33,16 +33,18 @@ type SWARMDBConnection struct {
 	keymanager      KeyManager
 	reader          *bufio.Reader
 	writer          *bufio.Writer
-	connectionOwner string         //owner of the connection; right now the same as "owner" in singleton mode
-	Owner           string         //owner of the databases/tables
-	Databases       map[string]int //string is database name
+	connectionOwner string //owner of the connection; right now the same as "owner" in singleton mode
+	Owner           string //owner of the databases/tables
+	//Databases       map[string]int //string is database name
+	Databases map[string]*SWARMDBDatabase
 }
 
 type SWARMDBDatabase struct {
 	DBConnection *SWARMDBConnection
-	Tables       map[string]int
 	Name         string
 	Encrypted    int //means all transactions on the tables in this db will be encrypted or not
+	//Tables       map[string]int
+	Tables map[string]*SWARMDBTable
 }
 
 type SWARMDBTable struct {
@@ -96,7 +98,7 @@ func NewSWARMDBConnection(ip string, port int) (dbc SWARMDBConnection, err error
 	dbc.writer = writer
 	dbc.connectionOwner = config.Address //TODO: this is ok for singleton node or default owner
 	dbc.Owner = config.Address
-	dbc.Databases = make(map[string]int)
+	dbc.Databases = make(map[string]*SWARMDBDatabase)
 
 	//server access challenge and verification
 	challenge, err := dbc.reader.ReadString('\n') // read a random length string from the server
@@ -126,14 +128,14 @@ func (dbc *SWARMDBConnection) OpenDatabase(name string, encrypted int) (db *SWAR
 	db.Name = name
 	db.Encrypted = encrypted
 	if len(db.Tables) == 0 {
-		db.Tables = make(map[string]int)
+		db.Tables = make(map[string]*SWARMDBTable)
 	}
 
 	if _, ok := dbc.Databases[db.Name]; ok {
 		//database already opened err, is this still ok?
 		return db, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:OpenDatabase] db already open")}
 	}
-	dbc.Databases[db.Name] = 1
+	dbc.Databases[db.Name] = db
 
 	return db, nil
 }
@@ -147,7 +149,7 @@ func (db *SWARMDBDatabase) OpenTable(name string) (tbl *SWARMDBTable, err error)
 		//table already opened err, is this still ok?
 		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:OpenTable] Table already open")}
 	}
-	db.Tables[tbl.Name] = 1
+	db.Tables[tbl.Name] = tbl
 	return tbl, nil
 }
 
@@ -196,6 +198,56 @@ func (db *SWARMDBDatabase) CreateTable(name string, columns []Column) (tbl *SWAR
 	}
 
 	return tbl, nil
+}
+
+func (dbc *SWARMDBConnection) ListDatabases() (databases []Row, err error) {
+	var req RequestOption
+	req.RequestType = RT_LIST_DATABASES
+	req.Owner = dbc.Owner
+	databases, err := db.ProcessRequestResponseCommand(req)
+	if err != nil {
+		return databases, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ListDatabases] ProcessRequestResponseCommand %s", err.Error())}
+	}
+
+	return databases, nil
+}
+
+func (db *SWARMDBDatabase) ListTables() (tables []Row, err error) {
+	var req RequestOption
+	req.RequestType = RT_LIST_TABLES
+	req.Owner = db.DBConnection.Owner
+	req.Database = db.Name
+	tables, err := db.ProcessRequestResponseCommand(req)
+	if err != nil {
+		return tables, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ListTables] ProcessRequestResponseCommand %s", err.Error())}
+	}
+	return tables, nil
+}
+
+func (db *SWARMDBDatabase) DescribeDatabase() (description []Row, err error) {
+	var req RequestOption
+	req.RequestType = RT_DESCRIBE_DATABASE
+	req.Owner = db.DBConnection.Owner
+	req.Database = db.Name
+	description, err := db.ProcessRequestResponseCommand(req)
+	if err != nil {
+		return tables, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:DescribeDatabase] ProcessRequestResponseCommand %s", err.Error())}
+	}
+	return description, nil
+}
+
+func (tbl *SWARMDBTable) DescribeTable() (description []Row, err error) {
+	var req RequestOption
+	req.RequestType = RT_DESCRIBE_TABLE
+	req.Owner = tbl.DBDatabase.DBConnection.Owner
+	req.Database = tbl.DBDatabase.Name
+	req.Table = tbl.Name
+	description, err := db.ProcessRequestResponseCommand(req)
+	if err != nil {
+		return tables, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:DescribeTable] ProcessRequestResponseCommand %s", err.Error())}
+	}
+	return description, nil
+
 }
 
 //allows to write multiple rows ([]Row) or single row (Row)
