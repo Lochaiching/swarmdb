@@ -197,7 +197,7 @@ func (dbc *SWARMDBConnection) ListDatabases() (databases []Row, err error) {
 	var req RequestOption
 	req.RequestType = RT_LIST_DATABASES
 	req.Owner = dbc.Owner
-	databases, err := db.ProcessRequestResponseCommand(req)
+	databases, err = dbc.ProcessRequestResponseCommand(req)
 	if err != nil {
 		return databases, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ListDatabases] ProcessRequestResponseCommand %s", err.Error())}
 	}
@@ -210,7 +210,7 @@ func (db *SWARMDBDatabase) ListTables() (tables []Row, err error) {
 	req.RequestType = RT_LIST_TABLES
 	req.Owner = db.DBConnection.Owner
 	req.Database = db.Name
-	tables, err := db.ProcessRequestResponseCommand(req)
+	tables, err = db.DBConnection.ProcessRequestResponseCommand(req)
 	if err != nil {
 		return tables, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ListTables] ProcessRequestResponseCommand %s", err.Error())}
 	}
@@ -222,9 +222,9 @@ func (db *SWARMDBDatabase) DescribeDatabase() (description []Row, err error) {
 	req.RequestType = RT_DESCRIBE_DATABASE
 	req.Owner = db.DBConnection.Owner
 	req.Database = db.Name
-	description, err := db.ProcessRequestResponseCommand(req)
+	description, err = db.DBConnection.ProcessRequestResponseCommand(req)
 	if err != nil {
-		return tables, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:DescribeDatabase] ProcessRequestResponseCommand %s", err.Error())}
+		return description, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:DescribeDatabase] ProcessRequestResponseCommand %s", err.Error())}
 	}
 	return description, nil
 }
@@ -235,9 +235,9 @@ func (tbl *SWARMDBTable) DescribeTable() (description []Row, err error) {
 	req.Owner = tbl.DBDatabase.DBConnection.Owner
 	req.Database = tbl.DBDatabase.Name
 	req.Table = tbl.Name
-	description, err := db.ProcessRequestResponseCommand(req)
+	description, err = tbl.DBDatabase.DBConnection.ProcessRequestResponseCommand(req)
 	if err != nil {
-		return tables, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:DescribeTable] ProcessRequestResponseCommand %s", err.Error())}
+		return description, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:DescribeTable] ProcessRequestResponseCommand %s", err.Error())}
 	}
 	return description, nil
 
