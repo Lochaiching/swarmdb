@@ -932,7 +932,7 @@ func (t *Tree) Get(u *SWARMDBUser, key []byte /*K*/) (v []byte /*V*/, ok bool, e
 	for {
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return v, false, &SWARMDBError{message: fmt.Sprintf("[bplus:Get] checkload - %s", err.Error())}
+			return v, false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:Get] checkload - %s", err.Error()))
 		}
 
 		var i int
@@ -1075,7 +1075,7 @@ func (t *Tree) Seek(u *SWARMDBUser, key []byte /*K*/) (e OrderedDatabaseCursor, 
 	for {
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return e, false, &SWARMDBError{message: fmt.Sprintf("[bplus:Seek] checkload - %s", err.Error())}
+			return e, false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:Seek] checkload - %s", err.Error()))
 		}
 
 		var i int
@@ -1110,7 +1110,7 @@ func (t *Tree) SeekFirst(u *SWARMDBUser) (e OrderedDatabaseCursor, err error) {
 	for {
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return e, &SWARMDBError{message: fmt.Sprintf("[bplus:SeekFirst] checkload - %s", err.Error())}
+			return e, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:SeekFirst] checkload - %s", err.Error()))
 		}
 
 		var i int
@@ -1137,7 +1137,7 @@ func (t *Tree) SeekLast(u *SWARMDBUser) (e OrderedDatabaseCursor, err error) {
 	for {
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return e, &SWARMDBError{message: fmt.Sprintf("[bplus:SeekLast] checkload - %s", err.Error())}
+			return e, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:SeekLast] checkload - %s", err.Error()))
 		}
 
 		switch x := q.(type) {
@@ -1172,7 +1172,7 @@ func (t *Tree) Put(u *SWARMDBUser, key []byte /*K*/, v []byte /*V*/) (okresult b
 	for {
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Put] checkload - %s", err.Error())}
+			return false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:Put] checkload - %s", err.Error()))
 		}
 
 		i, ok := t.find(q, k)
@@ -1194,7 +1194,7 @@ func (t *Tree) Put(u *SWARMDBUser, key []byte /*K*/, v []byte /*V*/) (okresult b
 				x.dirty = true // we updated the value but did not insert anything
 				_, err = t.check_flush(u)
 				if err != nil {
-					return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Put] check_flush - %s", err.Error())}
+					return false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:Put] check_flush - %s", err.Error()))
 				}
 				return true, nil
 			}
@@ -1219,7 +1219,7 @@ func (t *Tree) Put(u *SWARMDBUser, key []byte /*K*/, v []byte /*V*/) (okresult b
 			x.dirty = true // we inserted the value at the intermediate node or leaf node
 			_, err = t.check_flush(u)
 			if err != nil {
-				return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Put] check_flush - %s", err.Error())}
+				return false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:Put] check_flush - %s", err.Error()))
 			}
 			return true, nil
 		}
@@ -1241,7 +1241,7 @@ func (t *Tree) Insert(u *SWARMDBUser, k []byte /*K*/, v []byte /*V*/) (okres boo
 	for {
 		err = checkload(u, t.swarmdb, q)
 		if err != nil {
-			return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Insert] checkload - %s", err.Error())}
+			return false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:Insert] checkload - %s", err.Error()))
 		}
 
 		i, ok := t.find(q, k)
@@ -1269,7 +1269,7 @@ func (t *Tree) Insert(u *SWARMDBUser, k []byte /*K*/, v []byte /*V*/) (okres boo
 			x.dirty = true // we inserted the value at the intermediate node or leaf node
 			_, err = t.check_flush(u)
 			if err != nil {
-				return false, &SWARMDBError{message: fmt.Sprintf("[bplus:Insert] check_flush - %s", err.Error())}
+				return false, GenerateSWARMDBError(err, fmt.Sprintf("[bplus:Insert] check_flush - %s", err.Error()))
 			}
 
 			return true, nil
@@ -1469,7 +1469,7 @@ func (e *Enumerator) next(u *SWARMDBUser) (err error) {
 			r.notloaded = true
 			_, err = r.swarmGet(u, e.t.swarmdb)
 			if err != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[bplus:next] swarmGet - %s", err.Error())}
+				return GenerateSWARMDBError(err, fmt.Sprintf("[bplus:next] swarmGet - %s", err.Error()))
 			}
 			e.q = r
 			e.i = 0
@@ -1531,7 +1531,7 @@ func (e *Enumerator) prev(u *SWARMDBUser) (err error) {
 			r.notloaded = true
 			_, err = r.swarmGet(u, e.t.swarmdb)
 			if err != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[bplus:prev] swarmGet - %s", err.Error())}
+				return GenerateSWARMDBError(err, fmt.Sprintf("[bplus:prev] swarmGet - %s", err.Error()))
 			}
 			e.q = r
 			if r.c >= 0 {
