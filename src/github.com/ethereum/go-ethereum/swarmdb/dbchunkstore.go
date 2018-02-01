@@ -103,7 +103,7 @@ func (self *DBChunkstore) MarshalJSON() (data []byte, err error) {
 
 	fileInfo, err := os.Stat(self.filepath)
 	if err != nil {
-		return nil, GenerateSWARMDBError{message: fmt.Sprintf("[dbchunkstore:MarshalJSON] Stat %s", err.Error()), ErrorCode: 459, ErrorMessage: fmt.Sprintf("Unable to marshal [%s]", self.filepath)}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:MarshalJSON] Stat %s", err.Error()), ErrorCode: 459, ErrorMessage: fmt.Sprintf("Unable to marshal [%s]", self.filepath)}
 	} else {
 		deltaBS := new(big.Int).SetInt64(fileInfo.Size())
 		self.netstat.BStat["ByteS"].Sub(deltaBS, self.netstat.BStat["ByteSL"])
@@ -271,7 +271,7 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 	}
 	config, errConfig := LoadSWARMDBConfig(SWARMDBCONF_FILE)
 	if errConfig != nil {
-		return nil, GenerateSWARMDBError(erroConfig, fmt.Sprintf("[dbchunkstore:NewDBChunkStore] LoadSWARMDBConfig - KeyManager Config Loading %s", errConfig.Error()))
+		return nil, GenerateSWARMDBError(errConfig, fmt.Sprintf("[dbchunkstore:NewDBChunkStore] LoadSWARMDBConfig - KeyManager Config Loading %s", errConfig.Error()))
 	}
 	km, errKM := NewKeyManager(&config)
 	if errKM != nil {
