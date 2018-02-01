@@ -464,9 +464,9 @@ func NewGoClient() {
 		//row.Set("email", fmt.Sprintf("test%03d@wolk.com", i))
 		//row.Set("age", fmt.Sprintf("%d", i))
 		var row Row
-		row.Cells = make(map[string]interface{})
-		row.Cells["email"] = `"test%03d@wolk.com"`
-		row.Cells["age"] = i
+		row = make(map[string]interface{})
+		row["email"] = `"test%03d@wolk.com"`
+		row["age"] = i
 		_, err := tbl.Put(row)
 		if err != nil {
 			fmt.Printf("ERROR PUT %s %v\n", err, row)

@@ -156,7 +156,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 			if true {
 				log.Debug("[main:handleTcpipRequest] sending [%s]", str)
 				if resp, err := svr.swarmdb.SelectHandler(u, string(str)); err != nil {
-					log.Debug("ERROR: %+v", err)
+					log.Debug(fmt.Sprintf("ERROR: %+v", err))
 					tcpJson := buildErrorResp(err)
 					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, tcpJson)
 					_, err := writer.WriteString(tcpJson + "\n")
@@ -167,7 +167,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 					writer.Flush()
 				} else {
 					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, resp)
-					_, err := writer.WriteString(resp + "\n")
+					_, err := writer.WriteString(resp.Stringify() + "\n")
 					if err != nil {
 						fmt.Printf("writer err: %v\n", err)
 						//TODO handle if writestring has err
@@ -464,7 +464,8 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				} else if dataReq.RequestType == "Put" {
 					if row, ok := bodyMap["row"]; ok {
-						newRow := swarmdb.Row{Cells: row.(map[string]interface{})}
+						newRow := swarmdb.NewRow()
+						newRow = row.(map[string]interface{})
 						dataReq.Rows = append(dataReq.Rows, newRow)
 					}
 					reqJson, err = json.Marshal(dataReq)
@@ -504,7 +505,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			retJson := buildErrorResp(errResp)
 			fmt.Fprint(w, retJson)
 		} else {
-			fmt.Fprintf(w, response)
+			fmt.Fprintf(w, response.Stringify())
 		}
 	}
 }
