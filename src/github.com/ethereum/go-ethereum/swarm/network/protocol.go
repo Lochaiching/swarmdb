@@ -23,7 +23,7 @@ bzz protocol handler is registered on the p2p server.
 
 The bzz protocol component speaks the bzz protocol
 * handle the protocol handshake
-* register peers in the KΛÐΞMLIΛ table via the hive logistic manager
+* register peers in the KÎ›Ã�ÎžMLIÎ› table via the hive logistic manager
 * dispatch to hive for handling the DHT logic
 * encode and decode requests for storage and retrieval
 * handle sync protocol messages via the syncer
@@ -416,7 +416,7 @@ func (self *bzz) handleStatus() (err error) {
 		if err != nil {
 			return err
 		}
-		self.swapDB, err = swarmdb.NewSwapDB("/tmp/swap.db")
+		self.swapDB, err = swarmdb.NewSwapDB("/tmp/swap.db", self)
 		if err != nil {
 			log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.handleStatus swarmdb.NewSwapDB err: %v ", err))
 			return err
@@ -576,13 +576,11 @@ func (self *bzz) sDBstore(req *sDBStoreRequestMsgData) error {
 	return self.send(sDBStoreRequestMsg, req)
 }
 
-/*
-SwarmDBSwap: sending payment request to the peer
+//SwarmDBSwap: sending payment request to the peer
 func (self *bzz) SDBPay(units int, promise swarmdb.Promise){
 	req := &sDBPaymentMsgData{uint(units), promise.(*swarmdb.SwapCheck)}
 	self.send(sDBPaymentMsg, req)
 }
-*/
 
 func (self *bzz) send(msg uint64, data interface{}) error {
         log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.send :sending %v: %v", msg, data))
