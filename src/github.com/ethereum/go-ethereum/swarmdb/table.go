@@ -406,7 +406,7 @@ func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
 						row[name] = int(value.(float64))
 						log.Debug(fmt.Sprintf("Converting value[%s] from float64 to int => [%d][%s]\n", value, row[name]))
 					default:
-						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: "The value passed in for [%s] is not of the defined type"}
+						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: fmt.Sprintf("The value passed in for [%s] is of an unsupported type",name)}
 					}
 				case CT_STRING:
 					switch value.(type) {
@@ -419,7 +419,7 @@ func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
 						//TODO: handle err
 						log.Debug(fmt.Sprintf("Converting value[%s] from float64 to string => [%s]\n", value, row[name]))
 					default:
-						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: "The value passed in for [%s] is not of the defined type"}
+						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: fmt.Sprintf("The value passed in for [%s] is of an unsupported type",name)} 
 					}
 				case CT_FLOAT:
 					switch value.(type) {
@@ -428,12 +428,12 @@ func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
 					case int:
 						row[name] = float64(value.(int))
 					default:
-						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: "The value passed in for [%s] is not of the defined type"}
+						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: fmt.Sprintf("The value passed in for [%s] is of an unsupported type",name)} 
 					}
 				//case CT_BLOB:
 				// TODO: add blob support
 				default:
-					return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] Coltype not found", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: "The value passed in for [%s] is not of the defined type"}
+					return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] Coltype not found", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: fmt.Sprintf("The value passed in for [%s] is of an unsupported type",name)} 
 				}
 			} else {
 				return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] Invalid column %s", name), ErrorCode: 404, ErrorMessage: fmt.Sprintf("Column Does Not Exist in table definition: [%s]", name)}
