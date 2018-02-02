@@ -81,7 +81,8 @@ type DBChunkstore struct {
 	netstat  *NetstatFile
 	filepath string
 	statpath string
-	cloud    storage.CloudStore
+	//cloud    storage.CloudStore
+	cloud    storage.ChunkStore
 }
 
 type ENSSimulation struct {
@@ -109,7 +110,7 @@ type SwarmDB struct {
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
 	kaddb        *KademliaDB
-	SwarmStore   storage.CloudStore
+	SwarmStore   storage.ChunkStore
 }
 
 //for sql parsing

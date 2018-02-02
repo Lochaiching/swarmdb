@@ -82,3 +82,11 @@ func (self *LocalStore) PutDB(k, v []byte, ts *time.Time)(){
 func (self *LocalStore) Close() {
 	return
 }
+
+
+/*
+func(self *LocalStore) PutDB(k, v []byte, opt string){
+	return
+}
+*/
+

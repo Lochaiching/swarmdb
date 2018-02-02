@@ -66,6 +66,7 @@ type Swarm struct {
 	sfs         *fuse.SwarmFS       // need this to cleanup all the active mounts on node exit
 	ldb         *storage.LDBDatabase
 	swarmdb     *swarmdb.SwarmDB
+	sdbstorage  storage.ChunkStore
 }
 
 type SwarmAPI struct {
@@ -122,20 +123,21 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 
 	// setup cloud storage backend
 	cloud := network.NewForwarder(self.hive)
-	self.cloud = cloud
+	//self.cloud = cloud
 	log.Debug(fmt.Sprintf("-> set swarm forwarder as cloud storage backend"))
 	// setup cloud storage internal access layer
 
 	self.storage = storage.NewNetStore(hash, self.lstore, cloud, config.StoreParams)
+	self.sdbstorage = storage.NewSdbStore(self.lstore, cloud)
 	log.Debug(fmt.Sprintf("-> swarm net store shared access layer to Swarm Chunk Store"))
 
 	// set up Depo (storage handler = cloud storage access layer for incoming remote requests)
-	self.swarmdb = swarmdb.NewSwarmDB(self.cloud)
+	//self.swarmdb = swarmdb.NewSwarmDB(cloud)
+	self.swarmdb = swarmdb.NewSwarmDB(self.sdbstorage)
 	self.dbAccess = network.NewDbAccess(self.lstore, self.swarmdb)
 	log.Debug(fmt.Sprintf("Set up local db access (iterator/counter)"))
-	self.depo = network.NewDepo(hash, self.lstore, self.storage, self.swarmdb)
+	self.depo = network.NewDepo(hash, self.lstore, self.storage, self.sdbstorage, self.swarmdb)
 	self.ldb, _ = storage.NewLDBDatabase(filepath.Join(self.config.Path, "ldb"))
-	//self.depo = network.NewDepoTest(hash, self.lstore, self.storage, self.ldb)
 	log.Debug(fmt.Sprintf("-> REmote Access to CHunks"))
 
 	// set up DPA, the cloud storage local access layer

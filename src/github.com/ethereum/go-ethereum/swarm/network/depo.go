@@ -34,16 +34,17 @@ type Depo struct {
 	hashfunc   storage.Hasher
 	localStore storage.ChunkStore
 	netStore   storage.ChunkStore
-	sdbStore   *swarmdb.SwarmDB // will be change to ChunkStore
-	//sdbStore   storage.ChunkStore
+	sdbStore   storage.ChunkStore
+	swarmdb   *swarmdb.SwarmDB // will be change to ChunkStore
 }
 
-func NewDepo(hash storage.Hasher, localStore, remoteStore storage.ChunkStore, sdbStore *swarmdb.SwarmDB) *Depo {
+func NewDepo(hash storage.Hasher, localStore, remoteStore storage.ChunkStore, sdbStore storage.ChunkStore, swarmdb *swarmdb.SwarmDB) *Depo {
 	return &Depo{
 		hashfunc:   hash,
 		localStore: localStore,
 		netStore:   remoteStore, // entrypoint internal
-		sdbStore:   sdbStore, 	//will be changed to ChunkStore 
+		sdbStore:   sdbStore, 
+		swarmdb:   swarmdb, 	//will be changed to ChunkStore 
 	}
 }
 
@@ -62,7 +63,9 @@ func (self *Depo) HandleUnsyncedKeysMsg(req *unsyncedKeysMsgData, p *peer) error
 	for _, req := range unsynced {
 		log.Trace(fmt.Sprintf("Depo.HandleUnsyncedKeysMsg: received req %v %v", req, req.Key))
 		if req.Priority == 3{
-			ret, _, err := self.sdbStore.RetrieveDB([]byte(req.Key))
+			ret, _, err := self.swarmdb.RetrieveDB([]byte(req.Key))
+//////// debug
+//			ret = nil
 			if err != nil || ret == nil{
 				missing = append(missing, req)
 			}
@@ -165,24 +168,37 @@ func (self *Depo) HandleSdbStoreRequestMsg(req *sDBStoreRequestMsgData, p *peer)
         log.Debug(fmt.Sprintf("[wolk-cloudstore] depo.HandleSdbStoreRequestMsg :received %v from %v", req.Key, p))
         log.Trace(fmt.Sprintf("Depo.HandleSdbStoreRequest: %v %v", req.Key, p))
         req.from = p
-        ret, opt, err := self.sdbStore.RetrieveDB(req.Key)
+        ret, opt, err := self.swarmdb.RetrieveDB(req.Key)
         log.Debug(fmt.Sprintf("depo.HandleSdbStoreRequestMsg :option %v from %v", req.option, p))
 	var ropt storage.CloudOption
+/* debug */
 	jerr := json.Unmarshal([]byte(req.option), &ropt)
 	if jerr != nil{
         	log.Debug(fmt.Sprintf("depo.HandleSdbStoreRequestMsg :json error option %v  %v", req.option, jerr))
 		return
 	}
+/* */
 	ropt.Source = p
 	if ropt.Version <= opt.Version{
 	///////debug commented out
 		//return
+		return
 	}
 	if err != nil{
-        	self.sdbStore.StoreDB([]byte(req.Key), req.SData, &ropt)
+        	self.swarmdb.StoreDB([]byte(req.Key), req.SData, &ropt)
 	}
 ///// Mayumi :need to change args. 
-        self.sdbStore.SwarmStore.StoreDB([]byte(req.Key), req.SData, &ropt)
+	//jopt, err := json.Marshal(ropt)
+/// TODO: review options
+	chunk := storage.NewChunk(req.Key, nil)
+	chunk.SData = req.SData
+	chunk.Options = []byte(req.option)
+	chunk.Source = p
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] depo.HandleSdbStoreRequestMsg :storing to sdbStore %v from %v with %v", req.Key, p, chunk))
+	self.sdbStore.Put(chunk)
+        //self.swarmdb.SwarmStore.StoreDB([]byte(req.Key), req.SData, jopt)
+	//self.localStore.memStore.Get(k)
+        //self.netStore.PutDB([]byte(req.Key), req.SData, &ropt)
 		
         switch {
         case err != nil:
@@ -247,8 +263,8 @@ SwarmDBSwap: Check balance and send money if needed
         // swap - record credit for 1 request
         // note that only charge actual reqsearches
         var err error
-        if p.swap != nil {
-                err = p.swap.Add(1)
+        if p.swapdb != nil {
+                err = p.swapdb.Add(1)
         }
         if err != nil {
                 log.Warn(fmt.Sprintf("Depo.HandleRetrieveRequest: %v - cannot process request: %v", req.Key.Log(), err))
@@ -257,8 +273,8 @@ SwarmDBSwap: Check balance and send money if needed
 */
 
 	// okay to ignore err since it means this node doesn't have the key's result
-	ret, opt, _ := self.sdbStore.RetrieveDB([]byte(req.Key))
-////TODO
+	ret, opt, _ := self.swarmdb.RetrieveDB([]byte(req.Key))
+////TODO : check what is needed
         //req = self.strategyUpdateRequest(chunk.Req, req)
 
         // check if we can immediately deliver
@@ -277,7 +293,7 @@ SwarmDBSwap: Check balance and send money if needed
 			requestTimeout: req.timeout, //
 		}
                 log.Debug(fmt.Sprintf("Depo.HandleSdbRetrieveRequest: %v - sreq", req.Key.Log(), sreq))
-                p.syncer.addRequest(sreq, DeliverReq)
+                p.syncer.addRequest(sreq, StoreDBReq)
 	} else {
                 log.Trace(fmt.Sprintf("Depo.HandleSdbRetrieveRequest: %v - content not found locally. asked swarm for help. will get back", req.Key.Log()))
 	}

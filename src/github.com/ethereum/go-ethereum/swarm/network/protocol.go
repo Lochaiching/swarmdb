@@ -309,8 +309,6 @@ func (self *bzz) handle() error {
 	case sDBStoreRequestMsg:
         	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got sDBStoreRequestMsg %v", msg))
                 // store requests are dispatched to netStore
-                //var req sDBStoreRequestMsgData
-                //var req storeRequestMsgData
 		var req sDBStoreRequestMsgData
                 if err := msg.Decode(&req); err != nil {
                         return fmt.Errorf("<- %v: %v", msg, err)
@@ -320,7 +318,7 @@ func (self *bzz) handle() error {
                 self.lastActive = time.Now()
                 log.Trace(fmt.Sprintf("incoming store request: %s", req.String()))
                 // swap accounting is done within forwarding
-                //self.storage.HandleSdbStoreRequestMsg(&req, &peer{bzz: self})
+                self.storage.HandleSdbStoreRequestMsg(&req, &peer{bzz: self})
         case sDBRetrieveRequestMsg:
         	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got sDBRetrieveRequestMsg %v", msg))
                 // retrieve Requests are dispatched to netStore
@@ -511,6 +509,10 @@ func (self *bzz) selfAddr() *peerAddr {
 // send retrieveRequestMsg
 func (self *bzz) retrieve(req *retrieveRequestMsgData) error {
 	return self.send(retrieveRequestMsg, req)
+}
+
+func (self *bzz) sDBRetrieve(req *sDBRetrieveRequestMsgData) error {
+	return self.send(sDBRetrieveRequestMsg, req)
 }
 
 // send storeRequestMsg

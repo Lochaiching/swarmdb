@@ -130,6 +130,10 @@ type RequestStatus struct {
 	Requesters map[uint64][]interface{}
 }
 
+func NewRequestStatus(key Key) *RequestStatus{
+ return newRequestStatus(key)
+}
+
 func newRequestStatus(key Key) *RequestStatus {
 	return &RequestStatus{
 		Key:        key,
@@ -152,11 +156,11 @@ type Chunk struct {
 	Req      *RequestStatus  // request Status needed by netStore
 	wg       *sync.WaitGroup // wg to synchronize
 	dbStored chan bool       // never remove a chunk from memStore before it is written to dbStore
-	swarmdb  bool
+	Options	 []byte		// for swarmdb
 }
 
 func NewChunk(key Key, rs *RequestStatus) *Chunk {
-	return &Chunk{Key: key, Req: rs, swarmdb: false}
+	return &Chunk{Key: key, Req: rs}
 }
 
 /*
@@ -168,6 +172,7 @@ The ChunkStore interface is implemented by :
 - NetStore: cloud storage abstraction layer
 - DPA: local requests for swarm storage and retrieval
 */
+//TODO: separate PutDB/GetDB from ChunkStore and add sSDBStore using ChunkStore
 type ChunkStore interface {
 	Put(*Chunk) // effectively there is no error even if there is an error
 	Get(Key) (*Chunk, error)
@@ -236,10 +241,11 @@ func (self *LazyTestSectionReader) Size(chan bool) (int64, error) {
 	return self.SectionReader.Size(), nil
 }
 
+// TODO: will be removed from here
 type CloudOption struct{
         BirthDT *time.Time	`json:"birthdt,omitempty"`
-	Encrypted int		`json:"birthdt,omitempty"`
+	Encrypted int		`json:"encrypted,omitempty"`
 	Version	int		`json:"version,omitempty"`	
-	Source	Peer
+	Source	Peer		`json:"source,omitempty"`
 }
 

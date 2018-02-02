@@ -20,6 +20,8 @@ import (
 	"time"
 )
 
+
+var searchTimeout = 3 * time.Second
 var (
 	netCounter NetstatFile
 )
@@ -169,7 +171,8 @@ func (self *DBChunkstore) Flush() (err error) {
 	return nil
 }
 
-func NewDBChunkStore(path string, cloud storage.CloudStore) (self *DBChunkstore, err error) {
+//func NewDBChunkStore(path string, cloud storage.CloudStore) (self *DBChunkstore, err error) {
+func NewDBChunkStore(path string, cloud storage.ChunkStore) (self *DBChunkstore, err error) {
 	ts := time.Now()
 	claim := make(map[string]*big.Int)
 	chunkstat := map[string]*big.Int{"ChunkR": big.NewInt(0), "ChunkW": big.NewInt(0), "ChunkS": big.NewInt(0), "ChunkRL": big.NewInt(0), "ChunkWL": big.NewInt(0), "ChunkSL": big.NewInt(0)}
@@ -244,7 +247,8 @@ func NewDBChunkStore(path string, cloud storage.CloudStore) (self *DBChunkstore,
 	return
 }
 
-func LoadDBChunkStore(path string, cloud storage.CloudStore) (self *DBChunkstore, err error) {
+//func LoadDBChunkStore(path string, cloud storage.CloudStore) (self *DBChunkstore, err error) {
+func LoadDBChunkStore(path string, cloud storage.ChunkStore) (self *DBChunkstore, err error) {
 	var data []byte
 	defaultDBPath := "netstat.json"
 
@@ -341,11 +345,17 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err er
 		Version:	1,
 		Encrypted:	encrypted,
 	}
-        self.cloud.StoreDB(k, v, opt)
+        jopt, err := json.Marshal(opt)
+        //self.cloud.StoreDB(k, v, jopt)
+	chunk := storage.NewChunk(k, nil)
+	chunk.SData = v
+	chunk.Options = jopt
+        self.cloud.Put(chunk)
 	return nil
 }
 
 func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.RetrieveKChunk  :%v", key))
 	ts := time.Now()
 	val = make([]byte, 8192)
 	sql := `SELECT chunkKey, chunkVal, chunkBirthDT, chunkStoreDT, encrypted FROM chunk WHERE chunkKey = $1`
@@ -380,11 +390,23 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 		decVal := self.km.DecryptData(trimmedJson)
 		decVal = bytes.TrimRight(decVal, "\x00")
 */
-		decVal := val
+		//decVal := val
 		self.netstat.LReadDT = &ts
 		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
-		return decVal, nil
+		//return decVal, nil
 	}
+// TODO : the data what I have is latest or not?
+	val = nil
+	
+        if val == nil{
+/////////////
+//              chunk, err := self.cloud.RetrieveDB(key)
+        var chunk *storage.Chunk
+                chunk, err = self.CloudGet(key)
+                if chunk.SData != nil{
+                        val = chunk.SData
+                }
+        }
 	return val, nil
 }
 
@@ -439,11 +461,17 @@ func (self *DBChunkstore) StoreChunk(v []byte, encrypted int) (k []byte, err err
 		Version:	1,
 		Encrypted:	encrypted,
 	}
-	self.cloud.StoreDB(k, v, opt)
+        jopt, err := json.Marshal(opt)
+//	self.cloud.StoreDB(k, v, jopt)
+	chunk := storage.NewChunk(k, nil)
+	chunk.SData = v
+	chunk.Options = jopt
+	self.cloud.Put(chunk)
 	return k, nil
 }
 
 func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.RetrieveChunk  : %v", key))
 	ts := time.Now()
 	val = make([]byte, 8192)
 	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
@@ -466,12 +494,38 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 		if err2 != nil {
 			return nil, err2
 		}
-		decVal := self.km.DecryptData(val)
+		val = self.km.DecryptData(val)
 		self.netstat.LReadDT = &ts
 		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
-		return decVal, nil
+		//return decVal, nil
 	}
-	return val, nil
+// TODO : the data what I have is latest or not?
+	if val == nil{
+/////////////
+//        	chunk, err := self.cloud.RetrieveDB(key)
+		var chunk *storage.Chunk
+        	chunk, err = self.CloudGet(key)
+		if chunk.SData != nil{
+			val = chunk.SData
+		}
+	}
+	return val, err
+}
+
+func (self *DBChunkstore) CloudGet(key []byte) (chunk *storage.Chunk, err error) {
+	//chunk = storage.NewChunk(storage.Key(key), storage.NewRequestStatus(key))
+	//self.cloud.RetrieveDB(chunk)
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] CloudGet :retreaving from swarmdb %v", key))
+	chunk, err = self.cloud.Get(key)
+        timer := time.After(searchTimeout)
+        select {
+        case <-timer:
+                log.Trace(fmt.Sprintf("DPA.Get: %v request time out ", key))
+                err = fmt.Errorf("Not found")
+        case <-chunk.Req.C:
+                log.Trace(fmt.Sprintf("DPA.Get: %v retrieved, %d bytes (%p)", key, len(chunk.SData), chunk))
+        }
+        return chunk, err
 }
 
 func (self *DBChunkstore) RetrieveChunkTest(key []byte) (val []byte, err error) {
@@ -694,6 +748,7 @@ func (self *DBChunkstore) RetrieveDB(key []byte) (val []byte, option *storage.Cl
 			opt := new(storage.CloudOption)
 			opt.BirthDT = &bdt
 			opt.Encrypted = encrypted
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] RetrieveDB :retreaved from swarmdb %v %v %v", val, opt, err))
 			return val, opt, nil
 		}
 	}

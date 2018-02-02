@@ -241,9 +241,6 @@ func (self *dpaChunkStore) Put(entry *Chunk) {
 		chunk.Size = entry.Size
 	} else {
 		log.Trace(fmt.Sprintf("DPA.Put: %v chunk already known", entry.Key.Log()))
-		if !entry.swarmdb {
-			return
-		}
 	}
 	// from this point on the storage logic is the same with network storage requests
 	log.Debug(fmt.Sprintf("DPA.Put %v: %v", self.n, chunk.Key.Log()))
@@ -251,28 +248,6 @@ func (self *dpaChunkStore) Put(entry *Chunk) {
 	self.netStore.Put(chunk)
 }
 
-/*
-func (self *dpaChunkStore) PutDB(entry *Chunk) {
-    chunk, err := self.localStore.Get(entry.Key)
-    if err != nil {
-        log.Trace(fmt.Sprintf("DPA.Put: %v new chunk. call netStore.Put", entry.Key.Log()))
-        chunk = entry
-    } else if chunk.SData == nil {
-        log.Trace(fmt.Sprintf("DPA.Put: %v request entry found", entry.Key.Log()))
-        chunk.SData = entry.SData
-        chunk.Size = entry.Size
-    } else {
-        log.Trace(fmt.Sprintf("DPA.Put: %v chunk already known", entry.Key.Log()))
-        if !entry.swarmdb{
-        //  return
-        }
-    }
-    // from this point on the storage logic is the same with network storage requests
-    log.Trace(fmt.Sprintf("DPA.PutDB %v: %v", self.n, chunk.Key.Log()))
-    self.n++
-    self.netStore.Put(chunk)
-}
-*/
 
 // Close chunk store
 func (self *dpaChunkStore) Close() {

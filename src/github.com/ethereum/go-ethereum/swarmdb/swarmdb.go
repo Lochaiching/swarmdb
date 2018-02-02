@@ -13,7 +13,7 @@ import (
 	"strconv"
 )
 
-func NewSwarmDB(cloud storage.CloudStore) *SwarmDB {
+func NewSwarmDB(cloud storage.ChunkStore) *SwarmDB {
 	sd := new(SwarmDB)
 	sd.SwarmStore = cloud
 
@@ -1024,6 +1024,7 @@ func (t *Table) Get(key string) (out []byte, err error) {
 	if len(v) > 0 {
 		// get value from kdb
 		kres, _, err3 := t.swarmdb.kaddb.GetByKey(k)
+        	elog.Debug(fmt.Sprintf("swarmdb GetByKey %v %v", k, kres))
 		if err3 != nil {
 			return out, err3
 		}

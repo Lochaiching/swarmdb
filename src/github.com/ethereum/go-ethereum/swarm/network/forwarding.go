@@ -87,6 +87,41 @@ OUT:
 	}
 }
 
+// TODO: will be saparated from forwarder
+func (self *forwarder) RetrieveDB(chunk *storage.Chunk) {
+        log.Trace(fmt.Sprintf("[wolk-cloudstore] forwarder.RetrieveDB: hive %s ", self.hive.String()))
+        peers := self.hive.getPeers(chunk.Key, 0)
+        log.Trace(fmt.Sprintf("forwarder.RetrieveDB: %v - received %d peers from KΛÐΞMLIΛ... %v", chunk.Key.Log(), len(peers), peers))
+OUT:
+        for _, p := range peers {
+                log.Trace(fmt.Sprintf("forwarder.Retrieve DB: sending retrieveRequest %v to peer [%v] %v", chunk.Key.Log(), p, chunk.Key))
+                for _, recipients := range chunk.Req.Requesters {
+                        for _, recipient := range recipients {
+                                req := recipient.(*sDBRetrieveRequestMsgData)
+                                if req.from.Addr() == p.Addr() {
+                                        continue OUT
+                                }
+                        }
+                }
+                req := &sDBRetrieveRequestMsgData{
+                        Key: chunk.Key,
+                        Id:  generateId(),
+                }
+                var err error
+/*
+SWARMDB payment
+                if p.swapdb != nil {
+                        err = p.swapdb.Add(-1)
+                }
+*/
+                if err == nil {
+                        p.sDBRetrieve(req)
+                        break OUT
+                }
+                log.Warn(fmt.Sprintf("forwarder.RetrieveDB: unable to send retrieveRequest to peer [%v]: %v", chunk.Key.Log(), err))
+        }
+}
+
 // requests to specific peers given by the kademlia hive
 // except for peers that the store request came from (if any)
 // delivery queueing taken care of by syncer
@@ -113,11 +148,12 @@ func (self *forwarder) Store(chunk *storage.Chunk) {
 	log.Trace(fmt.Sprintf("forwarder.Store: sent to %v peers (chunk = %v)", n, chunk))
 }
 
-// need to think to move the other place since forwarder is supporting ChunkStore
-func (self *forwarder) StoreDB(key, value []byte, option *storage.CloudOption) {
+//TODO: will be separated from forwarder. 
+func (self *forwarder) StoreDB(key, value []byte, option []byte) {
         log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.StoreDB :request peers to store swarmdb :%v", key))
         var n int
-        jopt, err := json.Marshal(option)
+	var copt storage.CloudOption
+        err := json.Unmarshal(option, &copt)
 	if err != nil{
         	log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.StoreDB :err %v = %v", option, err))
 	}
@@ -126,12 +162,12 @@ func (self *forwarder) StoreDB(key, value []byte, option *storage.CloudOption) {
                 Key:   storage.Key(key),
                 SData: value,
 		rtype : 2,
-		option : string(jopt),
+		option : string(option),
         }
 
         var source *peer
-        if option.Source != nil{
-               source = option.Source.(*peer)
+        if copt.Source != nil{
+               source = copt.Source.(*peer)
         }
 
         for _, p := range self.hive.getPeers(storage.Key(key), 0) {
@@ -144,6 +180,10 @@ func (self *forwarder) StoreDB(key, value []byte, option *storage.CloudOption) {
                 }
         }
         log.Debug(fmt.Sprintf("forwarder.StoreDB: sent to %v peers (key = %v)", n, key))
+}
+
+
+func (self *forwarder) DeliverDB(){
 }
 
 
