@@ -92,7 +92,7 @@ type SwarmDB struct {
 	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
-	kaddb        *KademliaDB
+	//kaddb	     *KademliaDB
 }
 
 //for sql parsing
@@ -177,26 +177,20 @@ type OrderedDatabaseCursor interface {
 }
 
 type ColumnType uint8
+type IndexType uint8
+type RequestType string
 
 const (
 	CT_INTEGER = 1
 	CT_STRING  = 2
 	CT_FLOAT   = 3
 	CT_BLOB    = 4
-)
 
-type IndexType uint8
-
-const (
 	IT_NONE      = 0
 	IT_HASHTREE  = 1
 	IT_BPLUSTREE = 2
 	IT_FULLTEXT  = 3
-)
 
-type RequestType string
-
-const (
 	RT_CREATE_DATABASE   = "CreateDatabase"
 	RT_DESCRIBE_DATABASE = "DescribeDatabase"
 	RT_LIST_DATABASES    = "ListDatabases"
@@ -214,12 +208,14 @@ const (
 	RT_GET    = "Get"
 	RT_DELETE = "Delete"
 	RT_QUERY  = "Query"
-)
 
-const (
 	DATABASE_NAME_LENGTH_MAX = 31
 	DATABASES_PER_USER_MAX   = 30
 	COLUMNS_PER_TABLE_MAX    = 30
+
+	KNODE_START_ENCRYPTION = 512
+	KNODE_START_CHUNKKEY = 96 
+	KNODE_END_CHUNKKEY = 128
 )
 
 func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
@@ -244,13 +240,14 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 		sd.ens = ens
 	}
 
+	/*
 	kaddb, err := NewKademliaDB(dbchunkstore)
 	if err != nil {
 		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewKademliaDB `+err.Error())
 	} else {
 		sd.kaddb = kaddb
 	}
-
+	*/
 	return sd, nil
 }
 
