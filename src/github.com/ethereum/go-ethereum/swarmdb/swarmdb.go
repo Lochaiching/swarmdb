@@ -519,29 +519,15 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, owner string, database string, tab
 
 // TODO: when there are errors, the error must be parsable make user friendly developer errors that can be trapped by Node.js, Go library, JS CLI
 func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBResponse, err error) {
+
 	log.Debug(fmt.Sprintf("SelectHandler Input: %s\n", data))
 	d, err := parseData(data)
 	if err != nil {
 		return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] parseData %s", err.Error()))
 	}
 
-	var tblKey string
-	var tbl *Table
-	var tblInfo map[string]Column
-	if d.RequestType != "CreateTable" && d.RequestType != "CreateDatabase" && d.RequestType != "DropDatabase" && d.RequestType != "ListDatabases" && d.RequestType != "DescribeDatabase" && d.RequestType != "ListTables" && d.RequestType != RT_QUERY {
-		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
-		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
-		log.Debug(fmt.Sprintf("[swarmdb:SelectHandler] GetTable returned table: [%+v] for tablekey: [%s]\n", tbl, tblKey))
-		if err != nil {
-			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error()))
-		}
-		tblInfo, err = tbl.DescribeTable()
-		if err != nil {
-			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeTable %s", err.Error()))
-		}
-	}
-
 	switch d.RequestType {
+
 	case RT_CREATE_DATABASE:
 		err = self.CreateDatabase(u, d.Owner, d.Database, d.Encrypted)
 		if err != nil {
@@ -549,6 +535,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		}
 
 		return SWARMDBResponse{AffectedRowCount: 1}, nil
+
 	case RT_DROP_DATABASE:
 		err = self.DropDatabase(u, d.Owner, d.Database)
 		if err != nil {
@@ -556,6 +543,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			//TODO: SWARMDBResponse{Error: GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DropDatabase %s", err.Error()))}
 		}
 		return SWARMDBResponse{AffectedRowCount: 1}, nil
+
 	case RT_LIST_DATABASES:
 		databases, err := self.ListDatabases(u, d.Owner)
 		resp.Data = databases
@@ -563,6 +551,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] ListDatabases %s", err.Error()))
 		}
 		return resp, nil
+
 	case RT_CREATE_TABLE:
 		if len(d.Table) == 0 || len(d.Columns) == 0 {
 			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] empty table and column"), ErrorCode: 417, ErrorMessage: "Invalid [CreateTable] Request: Missing Table and/or Columns"}
@@ -573,13 +562,16 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] CreateTable %s", err.Error()))
 		}
 		return SWARMDBResponse{AffectedRowCount: 1}, nil
+
 	case RT_DROP_TABLE:
 		err = self.DropTable(u, d.Owner, d.Database)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DropTable %s", err.Error()))
 		}
 		return SWARMDBResponse{AffectedRowCount: 1}, nil
+
 	case RT_DESCRIBE_TABLE:
+		tblKey := self.GetTableKey(d.Owner, d.Database, d.Table)
 		tblcols, err := self.tables[tblKey].DescribeTable()
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeTable %s", err.Error()))
@@ -599,6 +591,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		   		}
 		*/
 		return resp, nil
+
 	case RT_LIST_TABLES:
 		ret, err := self.ListTables(u, d.Owner, d.Database)
 		if err != nil {
@@ -606,9 +599,13 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		}
 		resp.Data = ret
 		return resp, nil
+
 	case RT_PUT:
+		tbl, tblInfo, err := self.GetTableInformation(u, d)
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTableInformation %s", err.Error()))
+		}
 		d.Rows, err = tbl.assignRowColumnTypes(d.Rows)
-		//fmt.Printf("\nPut DATA: [%+v]\n", d)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] assignRowColumnTypes %s", err.Error()))
 		}
@@ -656,6 +653,10 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		return SWARMDBResponse{AffectedRowCount: successfulRows}, nil
 
 	case RT_GET:
+		tbl, err := self.GetTable(u, d.Owner, d.Database, d.Table)
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
+		}
 		if isNil(d.Key) {
 			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Get - Missing Key"), ErrorCode: 433, ErrorMessage: "GET Request Missing Key"}
 		}
@@ -675,7 +676,12 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		}
 		resp.Data = append(resp.Data, validRow)
 		return resp, nil
+
 	case RT_DELETE:
+		tbl, err := self.GetTable(u, d.Owner, d.Database, d.Table)
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
+		}
 		if isNil(d.Key) {
 			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Delete is Missing Key"), ErrorCode: 448, ErrorMessage: "Delete Statement missing KEY"}
 		}
@@ -684,20 +690,31 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Delete %s", err.Error()))
 		}
 		return SWARMDBResponse{AffectedRowCount: 1}, nil
+
 	case RT_START_BUFFER:
+		tbl, err := self.GetTable(u, d.Owner, d.Database, d.Table)
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
+		}
 		err = tbl.StartBuffer(u)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] StartBuffer %s", err.Error()))
 		}
 		//TODO: update to use real "count"
 		return SWARMDBResponse{AffectedRowCount: 1}, nil
+
 	case RT_FLUSH_BUFFER:
+		tbl, err := self.GetTable(u, d.Owner, d.Database, d.Table)
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
+		}
 		err = tbl.FlushBuffer(u)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] FlushBuffer %s", err.Error()))
 		}
 		//TODO: update to use real "count"
 		return SWARMDBResponse{AffectedRowCount: 1}, nil
+
 	case RT_QUERY:
 		if len(d.RawQuery) == 0 {
 			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] RawQuery is blank"), ErrorCode: 425, ErrorMessage: "Invalid Query Request. Missing Rawquery"}
@@ -707,28 +724,17 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] ParseQuery [%s] %s", d.RawQuery, err.Error()))
 		}
-		query.Owner = d.Owner       //probably should check the owner against the tableinfo owner here
-		query.Database = d.Database //probably should check the owner against the tableinfo owner here
-		fmt.Printf("d.Table: %v, query.Table: %v\n", d.Table, query.Table)
+		query.Owner = d.Owner
+		query.Database = d.Database
 		if len(d.Table) == 0 {
-			fmt.Printf("Getting Table from Query rather than data obj\n")
 			//TODO: check if empty even after query.Table check
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
-		fmt.Printf("right before GetTable, u: %v, d.Owner: %v, d.Table: %v \n", u, d.Owner, d.Table)
-		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
-		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
-		log.Debug(fmt.Sprintf("[swarmdb:SelectHandler] GetTable returned table: [%+v] for tablekey: [%s]\n", tbl, tblKey))
-		if err != nil {
-			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error()))
-		}
-		tblInfo, err = tbl.DescribeTable()
-		if err != nil {
-			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeTable %s", err.Error()))
-		}
 
-		//fmt.Printf("Table info gotten: [%+v]\n", tblInfo)
-		// fmt.Printf("QueryOption is: [%+v]\n", query)
+		tbl, tblInfo, err := self.GetTableInformation(u, d)
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTableInformation %s", err.Error()))
+		}
 
 		//checking validity of columns
 		for _, reqCol := range query.RequestColumns {
@@ -776,8 +782,11 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Query [%+v] %s", query, err.Error()))
 		}
 		return SWARMDBResponse{AffectedRowCount: len(qRows), Data: qRows}, nil
-	}
+
+	} //end switch
+
 	return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] RequestType invalid: [%s]", d.RequestType), ErrorCode: 418, ErrorMessage: "Request Invalid"}
+
 }
 
 func parseData(data string) (*RequestOption, error) {
@@ -786,6 +795,19 @@ func parseData(data string) (*RequestOption, error) {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[swarmdb:parseData] Unmarshal %s", err.Error()), ErrorCode: 432, ErrorMessage: "Unable to Parse Request"}
 	}
 	return udata, nil
+}
+
+func (self *SwarmDB) GetTableInformation(u *SWARMDBUser, r *RequestOption) (table *Table, tableInfo map[string]Column, err error) {
+	table, err = self.GetTable(u, r.Owner, r.Database, r.Table)
+	log.Debug(fmt.Sprintf("[swarmdb:GetTableInformation] GetTable returned table: [%+v]", table))
+	if err != nil {
+		return table, tableInfo, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTableInformation] GetTable %s", err.Error()))
+	}
+	tableInfo, err = table.DescribeTable()
+	if err != nil {
+		return table, tableInfo, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTableInformation] DescribeTable %s", err.Error()))
+	}
+	return table, tableInfo, nil
 }
 
 func (self *SwarmDB) NewTable(owner string, database string, tableName string) *Table {
