@@ -5,7 +5,18 @@ var swarmdb = new swarmdbAPI.createConnection({
     port: 2001
 });
 
-var tableowner = "ADDRESS_IN_YOUR_CONFIG_FILE";
+var dbname = "testdb";
+var tablename = "contacts";
+var owner = "test.eth";
+
+// create database
+console.time('createDatabase took');
+swarmdb.createTable(dbname, owner, 1, function (err, result) {
+    if (err) throw err;
+    console.log("create database response: " + result);
+    console.timeEnd('createDatabase took');
+    console.log("\n");
+});
 
 // create table
 var columns = [
@@ -13,7 +24,7 @@ var columns = [
     { "indextype": 2, "columnname": "age", "columntype": 1, "primary": 0 }
 ];
 console.time('createTable took');
-swarmdb.createTable("test", columns, function (err, result) {
+swarmdb.createTable(dbname, tablename, owner, columns, function (err, result) {
     if (err) throw err;
     console.log("create table response: " + result);
     console.timeEnd('createTable took');
@@ -23,7 +34,7 @@ swarmdb.createTable("test", columns, function (err, result) {
 
 // put
 console.time('put 1 took');
-swarmdb.put("test", tableowner, [ {"age":1,"email":"test001@wolk.com"}, {"age":2,"email":"test002@wolk.com"} ], function (err, result) {
+swarmdb.put(dbname, tablename, owner, [ {"age":1,"email":"test001@wolk.com"}, {"age":2,"email":"test002@wolk.com"} ], function (err, result) {
     if (err) throw err;
     console.log("put response 1: " + result);
     console.timeEnd('put 1 took');
@@ -31,7 +42,7 @@ swarmdb.put("test", tableowner, [ {"age":1,"email":"test001@wolk.com"}, {"age":2
 });
 
 console.time('put 2 took');
-swarmdb.put("test", tableowner, [ {"age":3,"email":"test003@wolk.com"} ], function (err, result) {
+swarmdb.put(dbname, tablename, owner, [ {"age":3,"email":"test003@wolk.com"} ], function (err, result) {
     if (err) throw err;
     console.log("put response 2: " + result);
     console.timeEnd('put 2 took');
@@ -40,7 +51,7 @@ swarmdb.put("test", tableowner, [ {"age":3,"email":"test003@wolk.com"} ], functi
 
 // insert
 console.time('insert query took');
-swarmdb.query("insert into test (email, age) values ('test004@wolk.com', 4)", tableowner, function (err, result) {
+swarmdb.query("insert into test (email, age) values ('test004@wolk.com', 4)", dbname, tableowner, function (err, result) {
     if (err) throw err;
     console.log("insert query response: " + result);
     console.timeEnd('insert query took');
@@ -49,7 +60,7 @@ swarmdb.query("insert into test (email, age) values ('test004@wolk.com', 4)", ta
 
 // get
 console.time('get 1 took');
-swarmdb.get("test", tableowner, "test001@wolk.com", function (err, result) {
+swarmdb.get(dbname, tablename, owner, "test001@wolk.com", function (err, result) {
     if (err) throw err;
     console.log("get response 1: " + result);
     console.timeEnd('get 1 took');
@@ -57,7 +68,7 @@ swarmdb.get("test", tableowner, "test001@wolk.com", function (err, result) {
 });
 
 console.time('get 2 took');
-swarmdb.get("test", tableowner, "test003@wolk.com", function (err, result) {
+swarmdb.get(dbname, tablename, owner, "test003@wolk.com", function (err, result) {
     if (err) throw err;
     console.log("get response 2: " + result);
     console.timeEnd('get 2 took');
@@ -66,7 +77,7 @@ swarmdb.get("test", tableowner, "test003@wolk.com", function (err, result) {
 
 // select
 console.time('select query 1 took');
-swarmdb.query("select email, age from test where email = 'test002@wolk.com'", tableowner, function (err, result) {
+swarmdb.query("select email, age from test where email = 'test002@wolk.com'", dbname, tableowner, function (err, result) {
     if (err) throw err;
     console.log("select query response 1: " + result);
     console.timeEnd('select query 1 took');
@@ -74,7 +85,7 @@ swarmdb.query("select email, age from test where email = 'test002@wolk.com'", ta
 });
 
 console.time('select query 2 took');
-swarmdb.query("select email, age from test where age >= 2", tableowner, function (err, result) {
+swarmdb.query("select email, age from test where age >= 2", dbname, tableowner, function (err, result) {
     if (err) throw err;
     console.log("select query response 2: " + result);
     console.timeEnd('select query 2 took');

@@ -29,18 +29,17 @@ type ColumnInfo struct {
 	columnType ColumnType
 }
 
-type Row struct {
-	//primaryKeyValue interface{}
-	Cells map[string]interface{}
-}
+type Row map[string]interface{}
+
+//primaryKeyValue interface{}
 
 func NewRow() (r Row) {
-	r.Cells = make(map[string]interface{})
+	r = make(map[string]interface{})
 	return r
 }
 
 func (r Row) Set(columnName string, val interface{}) {
-	r.Cells[columnName] = val
+	r[columnName] = val
 }
 
 func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
@@ -128,7 +127,10 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 
 func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	row := NewRow()
-	if err := json.Unmarshal(byteData, &row.Cells); err != nil {
+	if len(byteData) == 0 {
+		return row, nil
+	}
+	if err := json.Unmarshal(byteData, &row); err != nil {
 		return row, &SWARMDBError{message: fmt.Sprintf("[table:byteArrayToRow] Unmarshal %s for [%s]", err.Error(), byteData), ErrorCode: 436, ErrorMessage: "Unable to converty byte array to Row Object"}
 	}
 	return row, nil
@@ -321,7 +323,7 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 			}
 		}
 	}
-	fmt.Printf("table Scan, rows returned: %+v\n", rows)
+	log.Debug(fmt.Sprintf("table Scan, rows returned: %+v\n", rows))
 	return rows, nil
 }
 
@@ -393,45 +395,45 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
 	// fmt.Printf("assignRowColumnTypes: %v\n", t.columns)
 	for _, row := range rows {
-		for name, value := range row.Cells {
+		for name, value := range row {
 			if c, ok := t.columns[name]; ok {
 				switch c.columnType {
 				case CT_INTEGER:
 					switch value.(type) {
 					case int:
-						row.Cells[name] = value.(int)
+						row[name] = value.(int)
 					case float64:
-						row.Cells[name] = int(value.(float64))
-						log.Debug(fmt.Sprintf("Converting value[%s] from float64 to int => [%d][%s]\n", value, row.Cells[name]))
+						row[name] = int(value.(float64))
+						log.Debug(fmt.Sprintf("Converting value[%s] from float64 to int => [%d][%s]\n", value, row[name]))
 					default:
-						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: "The value passed in for [%s] is not of the defined type"}
+						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: fmt.Sprintf("The value passed in for [%s] is of an unsupported type",name)}
 					}
 				case CT_STRING:
 					switch value.(type) {
 					case string:
-						row.Cells[name] = value.(string)
+						row[name] = value.(string)
 					case int:
-						row.Cells[name] = strconv.Itoa(value.(int))
+						row[name] = strconv.Itoa(value.(int))
 					case float64:
-						row.Cells[name] = strconv.FormatFloat(value.(float64), 'f', -1, 64)
+						row[name] = strconv.FormatFloat(value.(float64), 'f', -1, 64)
 						//TODO: handle err
-						log.Debug(fmt.Sprintf("Converting value[%s] from float64 to string => [%s]\n", value, row.Cells[name]))
+						log.Debug(fmt.Sprintf("Converting value[%s] from float64 to string => [%s]\n", value, row[name]))
 					default:
-						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: "The value passed in for [%s] is not of the defined type"}
+						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: fmt.Sprintf("The value passed in for [%s] is of an unsupported type",name)} 
 					}
 				case CT_FLOAT:
 					switch value.(type) {
 					case float64:
-						row.Cells[name] = value.(float64)
+						row[name] = value.(float64)
 					case int:
-						row.Cells[name] = float64(value.(int))
+						row[name] = float64(value.(int))
 					default:
-						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: "The value passed in for [%s] is not of the defined type"}
+						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: fmt.Sprintf("The value passed in for [%s] is of an unsupported type",name)} 
 					}
 				//case CT_BLOB:
 				// TODO: add blob support
 				default:
-					return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] Coltype not found", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: "The value passed in for [%s] is not of the defined type"}
+					return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] Coltype not found", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: fmt.Sprintf("The value passed in for [%s] is of an unsupported type",name)} 
 				}
 			} else {
 				return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] Invalid column %s", name), ErrorCode: 404, ErrorMessage: fmt.Sprintf("Column Does Not Exist in table definition: [%s]", name)}
@@ -444,106 +446,113 @@ func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
 //TODO: could overload the operators so this isn't so clunky
 func (t *Table) applyWhere(rawRows []Row, where Where) (outRows []Row, err error) {
 	for _, row := range rawRows {
-		if _, ok := row.Cells[where.Left]; !ok {
+		if _, ok := row[where.Left]; !ok {
 			continue
 			//TODO: confirm we're not letting columns in the WHERE clause that don't exist in the table get this far
 			//return outRows, &SWARMDBError{message:"Where clause col %s doesn't exist in table", ErrorCode:, ErrorMessage:""}
 		}
 		colType := t.columns[where.Left].columnType
 		right, err := stringToColumnType(where.Right, colType)
+		//TODO: Should we be checking that the type of where.Right matches the colType?
 		if err != nil {
 			return outRows, GenerateSWARMDBError(err, fmt.Sprintf("[table:applyWhere] stringToColumnType %s", err.Error()))
 		}
+		log.Debug(fmt.Sprintf("ColType [%s] and Right [%s]", colType, right))
 		fRow := NewRow()
 		switch where.Operator {
 		case "=":
 			switch colType {
 			case CT_INTEGER:
-				if row.Cells[where.Left].(int) == right.(int) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(int) == right.(int) {
+					fRow = row
 				}
 			case CT_FLOAT:
-				if row.Cells[where.Left].(float64) == right.(float64) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(float64) == right.(float64) {
+					fRow = row
 				}
 			case CT_STRING:
-				if row.Cells[where.Left].(string) == right.(string) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(string) == right.(string) {
+					fRow = row
 				}
 			}
 		case "<":
 			switch colType {
 			case CT_INTEGER:
-				if row.Cells[where.Left].(int) < right.(int) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(int) < right.(int) {
+					fRow = row
 				}
 			case CT_FLOAT:
-				if row.Cells[where.Left].(float64) < right.(float64) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(float64) < right.(float64) {
+					fRow = row
 				}
 			case CT_STRING:
-				if row.Cells[where.Left].(string) < right.(string) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(string) < right.(string) {
+					fRow = row
 				}
 			}
 		case "<=":
 			switch colType {
 			case CT_INTEGER:
-				if row.Cells[where.Left].(int) <= right.(int) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(int) <= right.(int) {
+					fRow = row
 				}
 			case CT_FLOAT:
-				if row.Cells[where.Left].(float64) <= right.(float64) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(float64) <= right.(float64) {
+					fRow = row
 				}
 			case CT_STRING:
-				if row.Cells[where.Left].(string) <= right.(string) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(string) <= right.(string) {
+					fRow = row
 				}
 			}
 		case ">":
 			switch colType {
 			case CT_INTEGER:
-				if row.Cells[where.Left].(int) > right.(int) {
-					fRow.Cells = row.Cells
+				log.Debug("FOUND INTEGER")
+				if row[where.Left].(int) > right.(int) {
+					fRow = row
+				} else {
+					log.Debug("[]BAD NEWS!")
 				}
 			case CT_FLOAT:
-				if row.Cells[where.Left].(float64) > right.(float64) {
-					fRow.Cells = row.Cells
+				log.Debug("FOUND FLOAT")
+				if row[where.Left].(float64) > right.(float64) {
+					fRow = row
 				}
 			case CT_STRING:
-				if row.Cells[where.Left].(string) > right.(string) {
-					fRow.Cells = row.Cells
+				log.Debug("FOUND STRING")
+				if row[where.Left].(string) > right.(string) {
+					fRow = row
 				}
 			}
 		case ">=":
 			switch colType {
 			case CT_INTEGER:
-				if row.Cells[where.Left].(int) >= right.(int) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(int) >= right.(int) {
+					fRow = row
 				}
 			case CT_FLOAT:
-				if row.Cells[where.Left].(float64) >= right.(float64) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(float64) >= right.(float64) {
+					fRow = row
 				}
 			case CT_STRING:
-				if row.Cells[where.Left].(string) >= right.(string) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(string) >= right.(string) {
+					fRow = row
 				}
 			}
 		case "!=":
 			switch colType {
 			case CT_INTEGER:
-				if row.Cells[where.Left].(int) != right.(int) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(int) != right.(int) {
+					fRow = row
 				}
 			case CT_FLOAT:
-				if row.Cells[where.Left].(float64) != right.(float64) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(float64) != right.(float64) {
+					fRow = row
 				}
 			case CT_STRING:
-				if row.Cells[where.Left].(string) != right.(string) {
-					fRow.Cells = row.Cells
+				if row[where.Left].(string) != right.(string) {
+					fRow = row
 				}
 			}
 		}

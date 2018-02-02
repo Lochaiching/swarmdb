@@ -38,20 +38,20 @@ func isDuplicateRow(row1 Row, row2 Row) bool {
 	//	return true
 	//}
 
-	for k1, r1 := range row1.Cells {
-		if _, ok := row2.Cells[k1]; !ok {
+	for k1, r1 := range row1 {
+		if _, ok := row2[k1]; !ok {
 			return false
 		}
-		if r1 != row2.Cells[k1] {
+		if r1 != row2[k1] {
 			return false
 		}
 	}
 
-	for k2, r2 := range row2.Cells {
-		if _, ok := row1.Cells[k2]; !ok {
+	for k2, r2 := range row2 {
+		if _, ok := row1[k2]; !ok {
 			return false
 		}
-		if r2 != row1.Cells[k2] {
+		if r2 != row1[k2] {
 			return false
 		}
 	}
@@ -59,11 +59,11 @@ func isDuplicateRow(row1 Row, row2 Row) bool {
 	return true
 }
 
-//gets data (Row.Cells) out of a slice of Rows, and rtns as one json.
+//gets data (Row) out of a slice of Rows, and rtns as one json.
 func rowDataToJson(rows []Row) (string, error) {
 	var resRows []map[string]interface{}
 	for _, row := range rows {
-		resRows = append(resRows, row.Cells)
+		resRows = append(resRows, row)
 	}
 	resBytes, err := json.Marshal(resRows)
 	if err != nil {
@@ -81,7 +81,7 @@ func JsonDataToRow(in string) (rows []Row, err error) {
 	}
 	for _, jRow := range jsonRows {
 		row := NewRow()
-		row.Cells = jRow
+		row = jRow
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -104,12 +104,11 @@ func stringToColumnType(in string, columnType ColumnType) (out interface{}, err 
 }
 
 //gets only the specified Columns (column name and value) out of a single Row, returns as a Row with only the relevant data
-func filterRowByColumns(row *Row, columns []Column) (filteredRow Row) {
-	//filteredRow.primaryKeyValue = row.primaryKeyValue
-	filteredRow.Cells = make(map[string]interface{})
+func filterRowByColumns(row Row, columns []Column) (filteredRow Row) {
+	filteredRow = make(map[string]interface{})
 	for _, col := range columns {
-		if _, ok := row.Cells[col.ColumnName]; ok {
-			filteredRow.Cells[col.ColumnName] = row.Cells[col.ColumnName]
+		if _, ok := row[col.ColumnName]; ok {
+			filteredRow[col.ColumnName] = row[col.ColumnName]
 		}
 	}
 	return filteredRow
@@ -256,6 +255,7 @@ func SHA256(inp string) (k []byte) {
 	k = h.Sum(nil)
 	return k
 }
+
 func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte, err error) {
 	// fmt.Printf(" *** convertJSONValueToKey: CONVERT %v (columnType %v)\n", pvalue, columnType)
 	switch svalue := pvalue.(type) {
