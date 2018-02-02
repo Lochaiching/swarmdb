@@ -50,7 +50,6 @@ type SWARMDBTable struct {
 	Name       string
 }
 
-//TODO: flags for host/port info
 var CONN_HOST = "127.0.0.1" //default, but reads from config. TODO: default this to whatever config defaults to
 var CONN_PORT = int(2001)   //default, but reads from config. TODO: default this to whatever config defaults to
 var CONN_TYPE = "tcp"
@@ -215,18 +214,6 @@ func (db *SWARMDBDatabase) ListTables() (tables []Row, err error) {
 		return tables, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ListTables] ProcessRequestResponseCommand %s", err.Error())}
 	}
 	return tables, nil
-}
-
-func (db *SWARMDBDatabase) DescribeDatabase() (description []Row, err error) {
-	var req RequestOption
-	req.RequestType = RT_DESCRIBE_DATABASE
-	req.Owner = db.DBConnection.Owner
-	req.Database = db.Name
-	description, err = db.DBConnection.ProcessRequestResponseCommand(req)
-	if err != nil {
-		return description, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:DescribeDatabase] ProcessRequestResponseCommand %s", err.Error())}
-	}
-	return description, nil
 }
 
 func (tbl *SWARMDBTable) DescribeTable() (description []Row, err error) {
