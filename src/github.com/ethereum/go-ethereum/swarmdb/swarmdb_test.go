@@ -23,7 +23,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"strings"
+	// "strings"
 	"testing"
 	"time"
 )
@@ -168,7 +168,7 @@ func rng() *mathutil.FC32 {
 	return x
 }
 
-func TestCreateListDescribeDatabase(t *testing.T) {
+func TestCreateListDropDatabase(t *testing.T) {
 	u := getUser()
 	owner := make_name("owner")
 	database := make_name("db")
@@ -184,56 +184,45 @@ func TestCreateListDescribeDatabase(t *testing.T) {
 	testReqOption.Database = database
 
 	marshalTestReqOption, err := json.Marshal(testReqOption)
-	fmt.Printf("%s: %s\n", testReqOption.RequestType, marshalTestReqOption)
+	fmt.Printf("Input: %s\n", marshalTestReqOption)
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 
 	}
-	swdb.SelectHandler(u, string(marshalTestReqOption))
+	res, err := swdb.SelectHandler(u, string(marshalTestReqOption))
+	fmt.Printf("Output: %s\n\n", res.Stringify())
 
 	// list databases
 	testReqOption.RequestType = swarmdb.RT_LIST_DATABASES
 	testReqOption.Owner = owner
 	testReqOption.Database = database
 	marshalTestReqOption, err = json.Marshal(testReqOption)
-	fmt.Printf("%s: %s\n", testReqOption.RequestType, marshalTestReqOption)
+	fmt.Printf("Input: %s\n", marshalTestReqOption)
 	if err != nil {
-
 		t.Fatalf("error marshaling testReqOption 1: %s", err)
-
 	}
-	res, err := swdb.SelectHandler(u, string(marshalTestReqOption))
+	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption 2: %s", err)
 	}
-	fmt.Printf("OUT: %s\n", res)
+	fmt.Printf("Output: %s\n\n", res.Stringify())
 
-	/*
-		// describe database
-		testReqOption.RequestType = swarmdb.RT_DESCRIBE_DATABASE
-		testReqOption.Owner = owner
-		testReqOption.Database = database
+	// list tables
+	testReqOption.RequestType = swarmdb.RT_LIST_TABLES
+	testReqOption.Owner = owner
+	testReqOption.Database = database
 
-		marshalTestReqOption, err = json.Marshal(testReqOption)
-		fmt.Printf("%s: %s\n", testReqOption.RequestType, marshalTestReqOption)
-		if err != nil {
-			t.Fatalf("error marshaling testReqOption: %s", err)
+	marshalTestReqOption, err = json.Marshal(testReqOption)
+	fmt.Printf("Input: %s\n", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
 
-		}
-		swdb.SelectHandler(u, string(marshalTestReqOption))
-
-		// drop database
-		testReqOption.RequestType = swarmdb.RT_DROP_DATABASE
-		testReqOption.Owner = owner
-		testReqOption.Database = database
-		marshalTestReqOption, err = json.Marshal(testReqOption)
-		fmt.Printf("%s: %s\n", testReqOption.RequestType, marshalTestReqOption)
-		if err != nil {
-			t.Fatalf("error marshaling testReqOption: %s", err)
-
-		}
-		swdb.SelectHandler(u, string(marshalTestReqOption))
-	*/
+	}
+	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption 2: %s", err)
+	}
+	fmt.Printf("Output: %s\n\n", res.Stringify())
 
 	tableName := make_name("test")
 
@@ -261,12 +250,33 @@ func TestCreateListDescribeDatabase(t *testing.T) {
 	testReqOption.Columns = testColumn
 
 	marshalTestReqOption, err = json.Marshal(testReqOption)
-	fmt.Printf("CreateTable JSON --> %s", marshalTestReqOption)
+	fmt.Printf("Input: %s\n", marshalTestReqOption)
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 
 	}
-	swdb.SelectHandler(u, string(marshalTestReqOption))
+	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption 2: %s", err)
+	}
+	fmt.Printf("Output: %s\n\n", res.Stringify())
+
+	// list tables
+	testReqOption.RequestType = swarmdb.RT_LIST_TABLES
+	testReqOption.Owner = owner
+	testReqOption.Database = database
+
+	marshalTestReqOption, err = json.Marshal(testReqOption)
+	fmt.Printf("Input: %s\n", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+
+	}
+	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption 2: %s", err)
+	}
+	fmt.Printf("Output: %s\n\n", res.Stringify())
 
 	testKey := "rodneytest1@wolk.com"
 
@@ -275,14 +285,14 @@ func TestCreateListDescribeDatabase(t *testing.T) {
 	testReqOption.Database = database
 	testReqOption.Table = tableName
 	testReqOption.Key = testKey
-	rowObj := make(map[string]interface{})
+	rowObj := make(swarmdb.Row) // map[string]interface{}
 	rowObj["name"] = "Rodney"
 	rowObj["age"] = int(37)
 	rowObj["email"] = testKey
 
-	testReqOption.Rows = append(testReqOption.Rows, swarmdb.Row{Cells: rowObj})
+	testReqOption.Rows = append(testReqOption.Rows, rowObj)
 	marshalTestReqOption, err = json.Marshal(testReqOption)
-	fmt.Printf(" Input: %s\n", marshalTestReqOption)
+	fmt.Printf("Input: %s\n", marshalTestReqOption)
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
@@ -291,8 +301,8 @@ func TestCreateListDescribeDatabase(t *testing.T) {
 	if errS != nil {
 		t.Fatalf("[swarmdb_test:TestPut] SelectHandler %s", errS.Error())
 	}
-	fmt.Printf(" Output: %s\n", resp)
-	if resp != swarmdb.OK_RESPONSE {
+	fmt.Printf("Output: %s\n\n", resp.Stringify())
+	if resp.AffectedRowCount != 1 {
 		t.Fatal("NOT OK")
 	} else {
 		fmt.Printf("PASS\n")
@@ -306,7 +316,7 @@ func TestCreateListDescribeDatabase(t *testing.T) {
 	testReqOption.Key = testKey
 
 	marshalTestReqOption, err = json.Marshal(testReqOption)
-	fmt.Printf(" Input: [%s]\n", marshalTestReqOption)
+	fmt.Printf("Input: %s\n", marshalTestReqOption)
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 	}
@@ -315,8 +325,9 @@ func TestCreateListDescribeDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Printf(" Output: [%s]\n", resp)
-	rowObj = make(map[string]interface{})
+	fmt.Printf("Output: %s\n\n", resp.Stringify())
+
+	/*rowObj = make(map[string]interface{})
 	err = json.Unmarshal([]byte(resp), &rowObj)
 	if err != nil {
 		t.Fatal("error parsing response")
@@ -330,7 +341,72 @@ func TestCreateListDescribeDatabase(t *testing.T) {
 		} else {
 			fmt.Printf("PASS\n")
 		}
+	}*/
+
+	// drop table
+	testReqOption.RequestType = swarmdb.RT_DROP_TABLE
+	testReqOption.Owner = owner
+	testReqOption.Database = database
+	testReqOption.Table = tableName
+	marshalTestReqOption, err = json.Marshal(testReqOption)
+	fmt.Printf("Input: %s\n", marshalTestReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+
 	}
+	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("Output: %s\n\n", res.Stringify())
+
+	// list tables
+	testReqOption.RequestType = swarmdb.RT_LIST_TABLES
+	testReqOption.Owner = owner
+	testReqOption.Database = database
+
+	marshalTestReqOption, err = json.Marshal(testReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+
+	}
+	fmt.Printf("Input: %s\n", marshalTestReqOption)
+	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption 2: %s", err)
+	}
+	fmt.Printf("Output: %s\n\n", res.Stringify())
+
+	// drop database
+	testReqOption.RequestType = swarmdb.RT_DROP_DATABASE
+	testReqOption.Owner = owner
+	testReqOption.Database = database
+	marshalTestReqOption, err = json.Marshal(testReqOption)
+
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption: %s", err)
+	}
+	fmt.Printf("Input: %s\n", marshalTestReqOption)
+	resp, err = swdb.SelectHandler(u, string(marshalTestReqOption))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Printf("Output: %s\n\n", resp.Stringify())
+
+	// list databases
+	testReqOption.RequestType = swarmdb.RT_LIST_DATABASES
+	testReqOption.Owner = owner
+	testReqOption.Database = database
+	marshalTestReqOption, err = json.Marshal(testReqOption)
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption 1: %s", err)
+	}
+	fmt.Printf("Input: %s\n", marshalTestReqOption)
+	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
+	if err != nil {
+		t.Fatalf("error marshaling testReqOption 2: %s", err)
+	}
+	fmt.Printf("Output: %s\n\n", res.Stringify())
 }
 
 func zTestGetTableFail(t *testing.T) {
@@ -384,7 +460,7 @@ func zTestPutInteger(t *testing.T) {
 
 	// create table
 	marshalTestReqOption, err := json.Marshal(testReqOption)
-	fmt.Printf(" Input: [%s]", marshalTestReqOption)
+	fmt.Printf("Input: %s", marshalTestReqOption)
 	if err != nil {
 		t.Fatalf("error marshaling testReqOption: %s", err)
 
@@ -393,7 +469,7 @@ func zTestPutInteger(t *testing.T) {
 		if err != nil {
 			t.Fatalf("[swarm_test:TestPutInteger] SelectHandler %s", err.Error())
 		}
-		fmt.Printf(" Output: [%s]\n", resp)
+		fmt.Printf("Output: %s\n", resp.Stringify())
 	}
 
 	// write 20 values into B-tree (only kept in memory)
@@ -408,14 +484,14 @@ func zTestPutInteger(t *testing.T) {
 		testReqOption.Owner = owner
 		testReqOption.Database = database
 		testReqOption.Table = tableName
-		testReqOption.Rows = append(testReqOption.Rows, swarmdb.Row{Cells: rowObj})
+		testReqOption.Rows = append(testReqOption.Rows, rowObj)
 		marshalTestReqOption, err := json.Marshal(testReqOption)
-		fmt.Printf(" Input: [%s]\n", marshalTestReqOption)
+		fmt.Printf("Input: %s\n", marshalTestReqOption)
 		resp, err := swdb.SelectHandler(u, string(marshalTestReqOption))
 		if err != nil {
 			t.Fatalf("[swarm_test:TestPutInteger] SelectHandler %s", err.Error())
 		} else {
-			fmt.Printf(" Output: [%s]\n", resp)
+			fmt.Printf("Output: %s\n", resp.Stringify())
 		}
 	}
 
@@ -431,16 +507,16 @@ func zTestPutInteger(t *testing.T) {
 	if err1 != nil {
 		t.Fatalf("[swarmdb_test:TestPutInteger] Marshal %s", err1.Error())
 	} else {
-		fmt.Printf(" Input: [%s]\n", marshalTestReqOption)
+		fmt.Printf("Input: %s\n", marshalTestReqOption)
 	}
 
 	resp, err2 := swdb.SelectHandler(u, string(marshalTestReqOption))
 	if err2 != nil {
 		t.Fatalf("[swarmdb_test:TestPutInteger] SelectHandler %s", err2.Error())
 	} else {
-		fmt.Printf(" Output: [%s]\n", resp)
+		fmt.Printf("Output: %s\n", resp.Stringify())
 	}
-
+	/*
 	rowObj := make(map[string]interface{})
 	err = json.Unmarshal([]byte(resp), &rowObj)
 	if err != nil {
@@ -452,6 +528,7 @@ func zTestPutInteger(t *testing.T) {
 			fmt.Printf("PASS\n")
 		}
 	}
+	 */
 }
 
 func aTestSetGetInt(t *testing.T) {

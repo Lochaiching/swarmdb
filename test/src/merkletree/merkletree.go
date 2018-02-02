@@ -348,12 +348,13 @@ func chunksplit(chunk []byte) (segments [][]byte) {
 func getIndex(seedsecret string) (index uint8) {
 	seedhash := Computehash([]byte(seedsecret))
 	_ = binary.Read(bytes.NewReader(seedhash[31:]), binary.BigEndian, &index)
+    index  = index % 128
 	fmt.Printf("%v | Index: %s\n", seedhash, index)
 	return index
 }
 
 //Replace jth segment with h(content+seed)
-func PrepareASH(chunk []byte, seed string) (segments [][]byte) {
+func PrepareSegment(chunk []byte, seed string) (segments [][]byte) {
 	j := getIndex(seed)
 	segments = chunksplit(chunk)
 	segments[j] = Computehash(append(segments[j], []byte(seed)...))

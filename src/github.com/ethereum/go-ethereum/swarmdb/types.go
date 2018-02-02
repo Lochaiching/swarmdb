@@ -26,6 +26,10 @@ import (
 	"math"
 )
 
+const (
+	CHUNK_SIZE = 4096
+)
+
 //for comparing rows in two different sets of data
 //only 1 cell in the row has to be different in order for the rows to be different
 func isDuplicateRow(row1 Row, row2 Row) bool {
