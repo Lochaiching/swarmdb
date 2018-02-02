@@ -269,7 +269,7 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 	if err = json.Unmarshal([]byte(connResponse), &sResponse); err != nil {
 		return response, &SWARMDBError{ErrorCode: 400, ErrorMessage: `[swarmdblib:ProcessRequestResponseCommand] Bad JSON Supplied: [` + connResponse + `]`}
 	}
-	return sResponse.Data, &sResponse.Error
+	return sResponse.Data, sResponse.Error
 }
 
 func (tbl *SWARMDBTable) Get(key string) (rows []Row, err error) {
