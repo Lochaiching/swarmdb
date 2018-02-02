@@ -172,10 +172,9 @@ const (
 type RequestType string
 
 const (
-	RT_CREATE_DATABASE   = "CreateDatabase"
-	RT_DESCRIBE_DATABASE = "DescribeDatabase"
-	RT_LIST_DATABASES    = "ListDatabases"
-	RT_DROP_DATABASE     = "SelectDatabase"
+	RT_CREATE_DATABASE = "CreateDatabase"
+	RT_LIST_DATABASES  = "ListDatabases"
+	RT_DROP_DATABASE   = "DropDatabase"
 
 	RT_CREATE_TABLE   = "CreateTable"
 	RT_DESCRIBE_TABLE = "DescribeTable"
@@ -193,6 +192,7 @@ const (
 
 const (
 	DATABASE_NAME_LENGTH_MAX = 31
+	TABLE_NAME_LENGTH_MAX    = 32
 	DATABASES_PER_USER_MAX   = 30
 	COLUMNS_PER_TABLE_MAX    = 30
 )
@@ -506,7 +506,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 	var tblKey string
 	var tbl *Table
 	var tblInfo map[string]Column
-	if d.RequestType != "CreateTable" && d.RequestType != "CreateDatabase" && d.RequestType != "DropDatabase" && d.RequestType != "ListDatabases" && d.RequestType != "DescribeDatabase" && d.RequestType != "ListTables" {
+	if d.RequestType != "CreateTable" && d.RequestType != "CreateDatabase" && d.RequestType != "DropDatabase" && d.RequestType != "ListDatabases" && d.RequestType != "ListTables" {
 		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
 		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
 		log.Debug(fmt.Sprintf("GetTable returned table: [%+v] for tablekey: [%s]\n", tbl, tblKey))
@@ -532,12 +532,6 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DropDatabase %s", err.Error()))
 		}
 		return OK_RESPONSE, nil
-	case RT_DESCRIBE_DATABASE:
-		ret, err := self.DescribeDatabase(u, d.Owner, d.Database)
-		if err != nil {
-			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeDatabase %s", err.Error()))
-		}
-		return string(ret), nil
 	case RT_LIST_DATABASES:
 		databases, err := self.ListDatabases(u, d.Owner)
 		if err != nil {
@@ -560,7 +554,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 		return OK_RESPONSE, err
 	case RT_DROP_TABLE:
-		err = self.DropTable(u, d.Owner, d.Database)
+		err = self.DropTable(u, d.Owner, d.Database, d.Table)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DropTable %s", err.Error()))
 		}
@@ -576,11 +570,15 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp string, er
 		}
 		return string(tblinfo), nil
 	case RT_LIST_TABLES:
-		ret, err := self.ListTables(u, d.Owner, d.Database)
+		tableNames, err := self.ListTables(u, d.Owner, d.Database)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeDatabase %s", err.Error()))
 		}
-		return ret, nil
+		tblinfo, err := json.Marshal(tableNames)
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Marshal %s", err.Error()))
+		}
+		return string(tblinfo), nil
 	case RT_PUT:
 		d.Rows, err = tbl.assignRowColumnTypes(d.Rows)
 		//fmt.Printf("\nPut DATA: [%+v]\n", d)
@@ -797,10 +795,10 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateDatabase] GetRootHash %s", err)}
 	}
 
-	buf := make([]byte, 4096)
+	buf := make([]byte, CHUNK_SIZE)
 	if EmptyBytes(ownerDatabaseChunkID) {
 		// put the 32-byte ownerHash in the first 32 bytes
-		fmt.Printf("Creating new %s - %x\n", owner, ownerHash)
+		log.Debug(fmt.Sprintf("Creating new %s - %x\n", owner, ownerHash))
 		copy(buf[0:32], []byte(ownerHash))
 	} else {
 		buf, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
@@ -814,19 +812,18 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 		}
 
 		// check if there is already a database entry
-		for i := 64; i < 4096; i += 64 {
+		for i := 64; i < CHUNK_SIZE; i += 64 {
 			if bytes.Compare(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], newDBName) == 0 {
 				return &SWARMDBError{message: "[swarmdb:CreateDatabase] Database exists already", ErrorCode: 500, ErrorMessage: "Database Exists Already"}
 			}
 		}
 	}
 
-	for i := 64; i < 4096; i += 64 {
+	for i := 64; i < CHUNK_SIZE; i += 64 {
 		// find the first 000 byte entry
 		if EmptyBytes(buf[i:(i + 64)]) {
-			fmt.Printf("Byte: %d\n", i)
 			// make a new database chunk, with the first 32 bytes of the chunk being the database name (the next keys will be the tables)
-			bufDB := make([]byte, 4096)
+			bufDB := make([]byte, CHUNK_SIZE)
 			copy(bufDB[0:DATABASE_NAME_LENGTH_MAX], newDBName[0:DATABASE_NAME_LENGTH_MAX])
 
 			newDBHash, err := self.StoreDBChunk(u, bufDB, encrypted)
@@ -843,7 +840,7 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 			}
 			copy(buf[(i+32):(i+64)], newDBHash[0:32])
 
-			ownerDatabaseChunkID, err = self.StoreDBChunk(u, buf, encrypted)
+			ownerDatabaseChunkID, err = self.StoreDBChunk(u, buf, 0) // this could be a function of the top level domain .pri/.eth
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreDBChunk %s", err.Error()))
 			}
@@ -859,15 +856,6 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 
 }
 
-// dropping a database removes the ENS entry
-func (self *SwarmDB) DropDatabase(u *SWARMDBUser, owner string, database string) (err error) {
-	return nil
-}
-
-func (self *SwarmDB) DescribeDatabase(u *SWARMDBUser, owner string, database string) (ret string, err error) {
-	return OK_RESPONSE, nil
-}
-
 func (self *SwarmDB) ListDatabases(u *SWARMDBUser, owner string) (ret []string, err error) {
 	ownerHash := crypto.Keccak256([]byte(owner))
 	// look up what databases the owner has
@@ -875,9 +863,8 @@ func (self *SwarmDB) ListDatabases(u *SWARMDBUser, owner string) (ret []string, 
 	if err != nil {
 		return ret, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListDatabases] GetRootHash %s", err)}
 	}
-	fmt.Printf("list databases: %x -> %x\n", ownerHash, ownerDatabaseChunkID)
 
-	buf := make([]byte, 4096)
+	buf := make([]byte, CHUNK_SIZE)
 	if EmptyBytes(ownerDatabaseChunkID) {
 
 	} else {
@@ -892,7 +879,7 @@ func (self *SwarmDB) ListDatabases(u *SWARMDBUser, owner string) (ret []string, 
 		}
 
 		// check if there is already a database entry
-		for i := 64; i < 4096; i += 64 {
+		for i := 64; i < CHUNK_SIZE; i += 64 {
 			if EmptyBytes(buf[i:(i + 32)]) {
 			} else {
 				db := string(bytes.Trim(buf[i:(i+32)], "\x00"))
@@ -904,12 +891,193 @@ func (self *SwarmDB) ListDatabases(u *SWARMDBUser, owner string) (ret []string, 
 	return ret, nil
 }
 
-func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string) (err error) {
-	return nil
+// dropping a database removes the ENS entry
+func (self *SwarmDB) DropDatabase(u *SWARMDBUser, owner string, database string) (err error) {
+	if len(database) > DATABASE_NAME_LENGTH_MAX {
+		return &SWARMDBError{message: "[swarmdb:CreateDatabase] Database exists already", ErrorCode: 500, ErrorMessage: "Database Name too long (max is 32 chars)"}
+	}
+
+	// this is the 32 byte version of the database name
+	ownerHash := crypto.Keccak256([]byte(owner))
+	dropDBName := make([]byte, DATABASE_NAME_LENGTH_MAX)
+	copy(dropDBName[0:], database)
+
+	// look up what databases the owner has already
+	ownerDatabaseChunkID, err := self.ens.GetRootHash(u, ownerHash)
+	if err != nil {
+		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] GetRootHash %s", err)}
+	}
+
+	buf := make([]byte, CHUNK_SIZE)
+	if EmptyBytes(ownerDatabaseChunkID) {
+		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] No database %s", err)}
+	} else {
+		buf, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
+		if err != nil {
+			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] RetrieveDBChunk %s", err)}
+		}
+
+		// the first 32 bytes of the buf should match
+		if bytes.Compare(buf[0:32], ownerHash[0:32]) != 0 {
+			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] Invalid owner %x != %x", ownerHash, buf[0:32])}
+		}
+
+		// check for the database entry
+		for i := 64; i < CHUNK_SIZE; i += 64 {
+			if bytes.Compare(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], dropDBName) == 0 {
+				// found it, zero out the database
+				copy(buf[i:(i+64)], make([]byte, 64))
+				ownerDatabaseChunkID, err = self.StoreDBChunk(u, buf, 0) // TODO: .eth disc
+				if err != nil {
+					return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:DropDatabase] StoreDBChunk %s", err.Error()))
+				}
+				err = self.StoreRootHash(u, ownerHash, ownerDatabaseChunkID)
+				if err != nil {
+					return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:DropDatabase] StoreRootHash %s", err.Error()))
+				}
+				return nil
+			}
+		}
+	}
+	return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] Database could not be found")}
 }
 
-func (self *SwarmDB) ListTables(u *SWARMDBUser, owner string, database string) (ret string, err error) {
-	return OK_RESPONSE, nil
+func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, tableName string) (err error) {
+	if len(tableName) > TABLE_NAME_LENGTH_MAX {
+		return &SWARMDBError{message: "[swarmdb:DropTable] Tablename length", ErrorCode: 500, ErrorMessage: "Table Name too long (max is 32 chars)"}
+	}
+
+	// this is the 32 byte version of the database name
+	ownerHash := crypto.Keccak256([]byte(owner))
+	dbName := make([]byte, DATABASE_NAME_LENGTH_MAX)
+	copy(dbName[0:], database)
+
+	dropTableName := make([]byte, TABLE_NAME_LENGTH_MAX)
+	copy(dropTableName[0:], tableName)
+
+	// look up what databases the owner has already
+	ownerDatabaseChunkID, err := self.ens.GetRootHash(u, ownerHash)
+	if err != nil {
+		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] GetRootHash %s", err)}
+	}
+
+	buf := make([]byte, CHUNK_SIZE)
+	if EmptyBytes(ownerDatabaseChunkID) {
+		return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] No owner found %s", err)}
+	} else {
+		buf, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
+		if err != nil {
+			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] RetrieveDBChunk %s", err)}
+		}
+
+		// the first 32 bytes of the buf should match
+		if bytes.Compare(buf[0:32], ownerHash[0:32]) != 0 {
+			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] Invalid owner %x != %x", ownerHash, buf[0:32])}
+		}
+
+		// check for the database entry
+		for i := 64; i < CHUNK_SIZE; i += 64 {
+			if bytes.Compare(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], dbName) == 0 {
+				// found it - read the encryption level
+				encrypted := 0
+				if buf[i+DATABASE_NAME_LENGTH_MAX] > 0 {
+					encrypted = 1
+				}
+
+				databaseHash := make([]byte, 32)
+				copy(databaseHash[:], buf[(i+32):(i+64)])
+
+				// bufDB has the tables!
+				bufDB := make([]byte, CHUNK_SIZE)
+				bufDB, err = self.RetrieveDBChunk(u, databaseHash)
+				if err != nil {
+					return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] RetrieveDBChunk %s", err)}
+				}
+
+				// nuke the table name in bufDB and write the updated bufDB
+				for j := 64; j < CHUNK_SIZE; j += 64 {
+					if bytes.Compare(bufDB[j:(j+TABLE_NAME_LENGTH_MAX)], dropTableName) == 0 {
+						blankN := make([]byte, TABLE_NAME_LENGTH_MAX)
+						copy(bufDB[j:(j+TABLE_NAME_LENGTH_MAX)], blankN[0:TABLE_NAME_LENGTH_MAX])
+						databaseHash, err := self.StoreDBChunk(u, bufDB, encrypted)
+						if err != nil {
+							return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] StoreDBChunk %s", err)}
+						}
+						// update the database hash in the owner's databases
+						copy(buf[(i+32):(i+64)], databaseHash[0:32])
+						ownerDatabaseChunkID, err = self.StoreDBChunk(u, buf, 0) // TODO: review
+						if err != nil {
+							return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] StoreDBChunk %s", err)}
+						}
+
+						err = self.StoreRootHash(u, ownerHash, ownerDatabaseChunkID)
+						if err != nil {
+							return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:DropTable] StoreRootHash %s", err.Error()))
+						}
+						return nil
+					}
+				}
+				return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] Did not find table name %s", err)}
+
+			}
+		}
+	}
+	return &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] Database could not be found")}
+
+}
+
+func (self *SwarmDB) ListTables(u *SWARMDBUser, owner string, database string) (tableNames []string, err error) {
+	// this is the 32 byte version of the database name
+	ownerHash := crypto.Keccak256([]byte(owner))
+	dbName := make([]byte, DATABASE_NAME_LENGTH_MAX)
+	copy(dbName[0:], database)
+
+	// look up what databases the owner has already
+	ownerDatabaseChunkID, err := self.ens.GetRootHash(u, ownerHash)
+	if err != nil {
+		return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] GetRootHash %s", err)}
+	}
+
+	buf := make([]byte, CHUNK_SIZE)
+	if EmptyBytes(ownerDatabaseChunkID) {
+		return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] No owner found %s", err)}
+	} else {
+		buf, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
+		if err != nil {
+			return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] RetrieveDBChunk %s", err)}
+		}
+
+		// the first 32 bytes of the buf should match
+		if bytes.Compare(buf[0:32], ownerHash[0:32]) != 0 {
+			return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] Invalid owner %x != %x", ownerHash, buf[0:32])}
+		}
+
+		// check for the database entry
+		for i := 64; i < CHUNK_SIZE; i += 64 {
+			if bytes.Compare(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], dbName) == 0 {
+				// found it - read the encryption level
+				databaseHash := make([]byte, 32)
+				copy(databaseHash[:], buf[(i+32):(i+64)])
+
+				// bufDB has the tables!
+				bufDB := make([]byte, CHUNK_SIZE)
+				bufDB, err = self.RetrieveDBChunk(u, databaseHash)
+				if err != nil {
+					return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] RetrieveDBChunk %s", err)}
+				}
+
+				for j := 64; j < CHUNK_SIZE; j += 64 {
+					if EmptyBytes(bufDB[j:(j + TABLE_NAME_LENGTH_MAX)]) {
+					} else {
+						tableName := string(bytes.Trim(bufDB[j:(j+TABLE_NAME_LENGTH_MAX)], "\x00"))
+						tableNames = append(tableNames, tableName)
+					}
+				}
+				return tableNames, nil
+			}
+		}
+	}
+	return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] Did not find database %s", database)}
 }
 
 // TODO: Review adding owner string, database string input parameters where the goal is to get database.owner/table/key type HTTP urls like:
@@ -924,6 +1092,10 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 	primaryColumnName := ""
 	if len(columns) > columnsMax {
 		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] Max Allowed Columns for a table is %s and you submit %s", columnsMax, len(columns)), ErrorCode: 409, ErrorMessage: fmt.Sprintf("Max Allowed Columns exceeded - [%d] supplied, max is [MaxNumColumns]", len(columns), columnsMax)}
+	}
+
+	if len(tableName) > TABLE_NAME_LENGTH_MAX {
+		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] Maximum length of table name exceeded (max %d chars)", TABLE_NAME_LENGTH_MAX), ErrorCode: 500, ErrorMessage: fmt.Sprintf("Max table name length exceeded")}
 	}
 
 	//error checking
@@ -978,7 +1150,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 		}
 
 		// look for the database
-		for i := 64; i < 4096; i += 64 {
+		for i := 64; i < CHUNK_SIZE; i += 64 {
 			if (bytes.Compare(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], databaseName) == 0) && (found == false) {
 				if buf[i+DATABASE_NAME_LENGTH_MAX] > 0 {
 					encrypted = 1
@@ -1002,7 +1174,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 
 	// add table to bufDB
 	found := false
-	for i := 64; i < 4096; i += 64 {
+	for i := 64; i < CHUNK_SIZE; i += 64 {
 		if EmptyBytes(buf[i:(i + 32)]) {
 			if found == true {
 			} else {
@@ -1014,9 +1186,11 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 				if err != nil {
 					return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] StoreDBChunk %s", err)}
 				}
+
 				// update the database hash in the owner's databases
 				copy(buf[(dbi+32):(dbi+64)], newdatabaseHash[0:32])
-				ownerDatabaseChunkID, err = self.StoreDBChunk(u, buf, encrypted)
+				ownerDatabaseChunkID, err = self.StoreDBChunk(u, buf, 0) // TODO
+
 				if err != nil {
 					return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] StoreDBChunk %s", err)}
 				}
@@ -1037,7 +1211,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 	}
 
 	// ok now make the table!
-	fmt.Printf("Creating Table [%s] - Owner [%s] Database [%s]\n", tableName, owner, database)
+	log.Debug(fmt.Sprintf("Creating Table [%s] - Owner [%s] Database [%s]\n", tableName, owner, database))
 	tbl = self.NewTable(owner, database, tableName)
 
 	for i, columninfo := range columns {

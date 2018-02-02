@@ -112,7 +112,6 @@ const (
 	kx             = 3
 	kd             = 3
 	KEYS_PER_CHUNK = 32 // TODO - OPTIMIZE THIS based on X + D node Chunk structur
-	CHUNK_SIZE     = 4096
 	KV_SIZE        = 64
 	K_SIZE         = 32 // TODO - WHAT allows for bigger keys?
 	V_SIZE         = 32
