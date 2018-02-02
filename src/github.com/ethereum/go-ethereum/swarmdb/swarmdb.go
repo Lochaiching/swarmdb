@@ -843,7 +843,7 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 
 		// check if there is already a database entry
 		for i := 64; i < 4096; i += 64 {
-			log.Debug(fmt.Sprintf("Comparing buf[%d:%d] => %s (%+v) to newDBName => %s (%+v)", i, i+DATABASE_NAME_LENGTH_MAX, buf[i:(i+DATABASE_NAME_LENGTH_MAX)], buf[i:(i+DATABASE_NAME_LENGTH_MAX)], newDBName, newDBName))
+			//log.Debug(fmt.Sprintf("Comparing buf[%d:%d] => %s (%+v) to newDBName => %s (%+v)", i, i+DATABASE_NAME_LENGTH_MAX, buf[i:(i+DATABASE_NAME_LENGTH_MAX)], buf[i:(i+DATABASE_NAME_LENGTH_MAX)], newDBName, newDBName))
 			if bytes.Equal(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], newDBName) {
 				return &SWARMDBError{message: "[swarmdb:CreateDatabase] Database exists already", ErrorCode: 500, ErrorMessage: "Database Exists Already"}
 			}
@@ -927,6 +927,7 @@ func (self *SwarmDB) ListDatabases(u *SWARMDBUser, owner string) (ret []Row, err
 			} else {
 				r := NewRow()
 				db := string(bytes.Trim(buf[i:(i+32)], "\x00"))
+				log.Debug( fmt.Sprintf("DB: %s | %v", db, db) )
 				//rowstring := fmt.Sprintf("{\"database\":\"%s\"}", db)
 				r["database"] = db
 				ret = append(ret, r)
