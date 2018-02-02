@@ -127,6 +127,9 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 
 func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	row := NewRow()
+	if len(byteData) == 0 {
+		return row, nil
+	}
 	if err := json.Unmarshal(byteData, &row); err != nil {
 		return row, &SWARMDBError{message: fmt.Sprintf("[table:byteArrayToRow] Unmarshal %s for [%s]", err.Error(), byteData), ErrorCode: 436, ErrorMessage: "Unable to converty byte array to Row Object"}
 	}
