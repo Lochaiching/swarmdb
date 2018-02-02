@@ -945,11 +945,11 @@ func (self *SwarmDB) ListDatabases(u *SWARMDBUser, owner string) (ret []Row, err
 
 		// check if there is already a database entry
 		for i := 64; i < 4096; i += 64 {
-			if EmptyBytes(buf[i:(i + 32)]) {
+			if EmptyBytes(buf[i:(i + DATABASE_NAME_LENGTH_MAX)]) {
 			} else {
 				r := NewRow()
-				db := string(bytes.Trim(buf[i:(i+32)], "\x00"))
-				log.Debug( fmt.Sprintf("DB: %s | %v", db, db) )
+				db := string(bytes.Trim(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], "\x00"))
+				log.Debug(fmt.Sprintf("DB: %s | %v BUF %s | %v ", db, db, buf[i:(i+32)], buf[i:(i+32)]))
 				//rowstring := fmt.Sprintf("{\"database\":\"%s\"}", db)
 				r["database"] = db
 				ret = append(ret, r)
