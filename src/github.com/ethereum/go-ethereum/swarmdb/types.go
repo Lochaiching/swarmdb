@@ -108,7 +108,8 @@ type SwarmDB struct {
 	Logger       *swarmdblog.Logger
 	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
-	ens          ENSSimulation
+	//ens          ENSSimulation
+	ens          ENSSimple
 	kaddb        *KademliaDB
 	SwarmStore   storage.ChunkStore
 }

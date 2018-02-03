@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	//"errors"
 	"fmt"
+        "github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/swarmdb/log"
 	elog "github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
@@ -27,7 +28,8 @@ func NewSwarmDB(cloud storage.ChunkStore) *SwarmDB {
 		sd.dbchunkstore = dbchunkstore
 	}
 
-	ens, err := NewENSSimulation("/tmp/ens.db")
+	//ens, err := NewENSSimulation("/tmp/ens.db")
+	ens, err := NewENSSimple("/tmp/ens.db")
 	if err != nil {
 		// TODO: PANIC
 		fmt.Printf("NO ENS!\n")
@@ -44,6 +46,10 @@ func NewSwarmDB(cloud storage.ChunkStore) *SwarmDB {
 	sd.Logger = swarmdblog.NewLogger()
 
 	return sd
+}
+
+func hashcolumn(k []byte) [32]byte {
+        return sha3.Sum256(k)
 }
 
 // DBChunkStore  API
@@ -79,11 +85,15 @@ func (self SwarmDB) StoreDBChunk(val []byte, encrypted int) (key []byte, err err
 
 // ENSSimulation  API
 func (self *SwarmDB) GetRootHash(columnName []byte) (roothash []byte, err error) {
-	return self.ens.GetRootHash(columnName)
+	hashc := hashcolumn(columnName)
+	s := hashc[:]
+	return self.ens.GetRootHash(s)
 }
 
 func (self *SwarmDB) StoreRootHash(columnName []byte, roothash []byte) (err error) {
-	return self.ens.StoreRootHash(columnName, roothash)
+	hashc := hashcolumn(columnName)
+	s := hashc[:]
+	return self.ens.StoreRootHash(s, roothash)
 }
 
 // parse sql and return rows in bulk (order by, group by, etc.)
@@ -428,6 +438,7 @@ func (self SwarmDB) Scan(ownerID string, tableName string, columnName string, as
 }
 
 func (self SwarmDB) GetTable(ownerID string, tableName string) (tbl *Table, err error) {
+        elog.Debug(fmt.Sprintf("swarmdb GetTable %v", self.tables))
 
 	if len(tableName) == 0 {
 		return tbl, fmt.Errorf("Invalid table [%s]", tableName)
@@ -503,6 +514,10 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			return resp, fmt.Errorf("Missing key in GET")
 		}
 		tbl, err := self.GetTable(ownerID, d.Table)
+		roothash, err := self.GetRootHash([]byte(tbl.tableName))
+		if bytes.Compare(tbl.GetRootHash(),  roothash) != 0{
+			tbl.OpenTable()
+		}
 		if err != nil {
         elog.Debug(fmt.Sprintf("swarmdb SelectHandler Get err GetTable %v", err))
 			return resp, err
@@ -766,12 +781,17 @@ func (swdb *SwarmDB) CreateTable(ownerID string, tableName string, columns []Col
 	}
 }
 
+func (t *Table) GetRootHash()([]byte){
+	return t.roothash
+}
+
 func (t *Table) OpenTable() (err error) {
 	t.swarmdb.Logger.Debug(fmt.Sprintf("swarmdb.go:OpenTable|%s", t.tableName))
 	t.columns = make(map[string]*ColumnInfo)
 
 	/// get Table RootHash to  retrieve the table descriptor
 	roothash, err := t.swarmdb.GetRootHash([]byte(t.tableName))
+	t.roothash = roothash
 	fmt.Printf("opening table @ %s roothash %s\n", t.tableName, roothash)
 	if err != nil {
 		fmt.Printf("Error retrieving Index Root Hash for table [%s]: %s", t.tableName, err)
