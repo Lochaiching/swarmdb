@@ -217,9 +217,9 @@ const (
 	DATABASES_PER_USER_MAX   = 30
 	COLUMNS_PER_TABLE_MAX    = 30
 
-	KNODE_START_ENCRYPTION = 512
-	KNODE_START_CHUNKKEY = 96 
-	KNODE_END_CHUNKKEY = 128
+	KNODE_START_ENCRYPTION = 320
+	KNODE_START_CHUNKKEY   = 96
+	KNODE_END_CHUNKKEY     = 128
 )
 
 func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
@@ -245,12 +245,12 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 	}
 
 	/*
-	kaddb, err := NewKademliaDB(dbchunkstore)
-	if err != nil {
-		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewKademliaDB `+err.Error())
-	} else {
-		sd.kaddb = kaddb
-	}
+		kaddb, err := NewKademliaDB(dbchunkstore)
+		if err != nil {
+			return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewKademliaDB `+err.Error())
+		} else {
+			sd.kaddb = kaddb
+		}
 	*/
 	return sd, nil
 }
@@ -530,7 +530,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 	var tblKey string
 	var tbl *Table
 	// var tblInfo map[string]Column
-	if d.RequestType != "CreateTable" && d.RequestType != "CreateDatabase" && d.RequestType != "DropDatabase" && d.RequestType != "ListDatabases" && d.RequestType != "ListTables" {
+	if d.RequestType != "CreateTable" && d.RequestType != "CreateDatabase" && d.RequestType != "DropDatabase" && d.RequestType != "ListDatabases" && d.RequestType != "ListTables" && d.RequestType != RT_QUERY {
 		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
 		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
 		log.Debug(fmt.Sprintf("GetTable returned table: [%+v] for tablekey: [%s]\n", tbl, tblKey))
@@ -749,9 +749,17 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
 
-		tbl, tblInfo, err := self.GetTableInformation(u, d)
+		//TODO: Figure out why GetTableInformation doesn't work?
+		//tbl, tblInfo, err := self.GetTableInformation(u, d)
+		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
+		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTableInformation %s", err.Error()))
+		}
+
+		tblInfo, err := tbl.DescribeTable()
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeTable %s", err.Error()))
 		}
 
 		//checking validity of columns
@@ -1142,7 +1150,6 @@ func (self *SwarmDB) ListTables(u *SWARMDBUser, owner string, database string) (
 				if err != nil {
 					return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] RetrieveDBChunk %s", err)}
 				}
-
 
 				for j := 64; j < CHUNK_SIZE; j += 64 {
 					if EmptyBytes(bufDB[j:(j + TABLE_NAME_LENGTH_MAX)]) {

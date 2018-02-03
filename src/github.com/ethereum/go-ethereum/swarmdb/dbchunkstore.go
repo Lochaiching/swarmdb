@@ -370,15 +370,21 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 	}
 	defer stmt.Close()
 
-	recordData := val[577:4096]
+	recordData := val[KNODE_START_ENCRYPTION : 4096-41] //MAJOR TODO: figure out how we pass in to ensure <=4096
 	log.Debug(fmt.Sprintf("StoreKChunk: Encrypted bit when saving was: %d", encrypted))
 	if encrypted == 1 {
 		recordData = self.km.EncryptData(u, recordData)
+		//rev,_ := self.km.DecryptData(u, recordData)
+		log.Debug(fmt.Sprintf("Key: [%x][%v] Encrypted : %s [%v]", key, key, recordData, recordData))
+		//log.Debug(fmt.Sprintf("Key: [%x][%v] Decrypted : %s [%v]", key, key, rev, rev))
 	}
 
-	var finalSdata [8192]byte
-	copy(finalSdata[0:577], val[0:577])
-	copy(finalSdata[577:], recordData)
+	var finalSdata [4096]byte
+	log.Debug(fmt.Sprintf("Key: [%x][%v] After Loop recordData length (%d) and start pos %d", key, key, len(recordData), KNODE_START_ENCRYPTION))
+	copy(finalSdata[0:KNODE_START_ENCRYPTION], val[0:KNODE_START_ENCRYPTION])
+	copy(finalSdata[KNODE_START_ENCRYPTION:4096], recordData)
+	log.Debug(fmt.Sprintf("Key: [%x][%v] After copy recordData sData is : %s [%v]", key, key, finalSdata[KNODE_START_ENCRYPTION:4096], finalSdata[KNODE_START_ENCRYPTION:4096]))
+	log.Debug(fmt.Sprintf("finalSdata (encrypted=%d) being stored is: %+v", encrypted, finalSdata))
 	_, err2 := stmt.Exec(key[:32], finalSdata[0:], encrypted, key[:32], key[:32], u.AutoRenew, u.MinReplication, u.MaxReplication, u.Address, key[:32])
 	if err2 != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreKChunk] Exec - Insert%s | data:%x | Encrypted: %s ", err2.Error(), finalSdata, encrypted), ErrorCode: 439, ErrorMessage: "Failure storing K node Chunk"}
@@ -391,7 +397,7 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 
 func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	ts := time.Now()
-	val = make([]byte, 8192)
+	val = make([]byte, 4096)
 	sql := `SELECT chunkKey, chunkVal, chunkBirthDT, chunkStoreDT, encrypted FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
@@ -417,14 +423,16 @@ func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte
 			return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveKChunk] Scan %s", err2.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve K Chunk"}
 		}
 		//TODO: (Rodney) parse encrypted chunk
-		jsonRecord := val[577:]
+		log.Debug(fmt.Sprintf("Key [%x][%v]  SQLLIT got back: [%+v]", key, key, val))
+		jsonRecord := val[KNODE_START_ENCRYPTION:]
 		trimmedJson := bytes.TrimRight(jsonRecord, "\x00")
 		var retVal []byte
 		retVal = trimmedJson
 		if enc == 1 {
 			retVal, err = self.km.DecryptData(u, trimmedJson)
 			if err != nil {
-				return val, err
+				log.Debug(fmt.Sprintf("ERROR when Decrypting Data : %s", err.Error()))
+				return val, GenerateSWARMDBError(err, fmt.Sprintf("[dbchunkstore:RetrieveKChunk] DecryptData %s", err.Error()))
 			}
 
 			retVal = bytes.TrimRight(retVal, "\x00")
@@ -459,6 +467,7 @@ func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) 
 	chunkVal = val
 	if encrypted == 1 {
 		chunkVal = self.km.EncryptData(u, val)
+
 	}
 	_, err2 := stmt.Exec(key, chunkVal, encrypted, key, key, u.AutoRenew, u.MinReplication, u.MaxReplication, u.Address, key)
 	//TODO: confirm _ doesn't need handling/checking
