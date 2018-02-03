@@ -48,14 +48,6 @@ swarmdb:
 	@echo "test swarmdb."
 	go test ./swarmdb_test.go
 
-client:
-	@echo "test client."
-	go test client_test.go
-
-kademliadb:
-	@echo "test kademliadb."
-	go test kademliadb_test.go
-
 hashdb:
 	@echo "test hashdb."
 	go test hashdb_test.go
