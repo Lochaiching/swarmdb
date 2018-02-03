@@ -82,7 +82,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	// "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/log"
 	"io"
 	"math"
 	"strings"
@@ -919,7 +919,7 @@ func checkload(u *SWARMDBUser, swarmdb DBChunkstorage, q interface{}) (err error
 // Get returns the value associated with k and true if it exists. Otherwise Get
 // returns (zero-value, false).
 func (t *Tree) Get(u *SWARMDBUser, key []byte /*K*/) (v []byte /*V*/, ok bool, err error) {
-
+	log.Debug("[bplus:Get]")
 	q := t.r
 	//	if q == nil {
 	//		return
@@ -956,6 +956,7 @@ func (t *Tree) Get(u *SWARMDBUser, key []byte /*K*/) (v []byte /*V*/, ok bool, e
 		default:
 			//fmt.Printf(" D not FOUND (%d) i:%d k:[%s]\n", i, t.columnType, KeyToString(t.columnType, k))
 			return zk, false, nil
+			//TODO: Does this just mean that it's "empty"?  If so, then I think we should just say "true" (or not?)
 		}
 	}
 }
