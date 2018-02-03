@@ -12,19 +12,18 @@
 //
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-package swarmdb_test
+package ydb_test
 
 import (
 	"bytes"
 	"fmt"
-	//"github.com/ethereum/go-ethereum/swarmdb"
-	"swarmdb"
+	"ydb"
 	"os"
 	"testing"
 )
 
 func TestENSSimple(t *testing.T) {
-	store, err := swarmdb.NewENSSimple("/tmp/ens.db")
+	store, err := ydb.NewENSSimple("/tmp/ens.db")
 	if err != nil {
 		t.Fatal("failure to open ENSSimulation")
 	}
