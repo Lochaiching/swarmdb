@@ -346,24 +346,29 @@ func (self *Node) storeBinToNetwork(u *SWARMDBUser, swarmdb *SwarmDB, encrypted 
 	//wg := &sync.WaitGroup{}
 	adhash, err := swarmdb.StoreDBChunk(u, storedata, encrypted)
 	if err != nil {
-		return adhash, &SWARMDBError{message: `[hashdb:storeBinToNetwork] StoreDBChunk ` + err.Error()}
+		return adhash, GenerateSWARMDBError(err, fmt.Sprintf("[hashdb:storeBinToNetwork] StoreDBChunk ", err.Error()))
 	}
 	//wg.Wait()
 	return adhash, err
 }
 
 func (self *HashDB) Get(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
+	log.Debug("[hashdb:Get]")
 	stack := newStack()
 	ret, err := self.rootnode.Get(u, k, self.swarmdb, self.columnType, stack)
 	if err != nil {
-		return nil, false, err
+		log.Debug(fmt.Sprintf("ERROR retrieving key [%s]", k))
+		return nil, false, GenerateSWARMDBError(err, fmt.Sprintf("Error Retrieving key [%s]", k))
 	}
 	value := bytes.Trim(convertToByte(ret), "\x00")
 	b := true
 	if ret == nil {
-		var err KeyNotFoundError
-		return nil, false, &err
+		//var err KeyNotFoundError
+		//return nil, false, &err
+		log.Debug("KEY NOT FOUND")
+		return nil, false, nil
 	}
+	log.Debug(fmt.Sprintf("[hashdb:Get] Returning [%s]", value))
 	return value, b, nil
 }
 
