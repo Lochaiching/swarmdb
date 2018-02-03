@@ -214,35 +214,40 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, err error) {
 	//t.swarmdb.kaddb.Open([]byte(t.Owner), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
 	// fmt.Printf("\n GET key: (%s)%v\n", key, key)
 
-	_, ok, err := t.columns[primaryColumnName].dbaccess.Get(u, key)
+	log.Debug("About to Get from DB")
+	_, _, err = t.columns[primaryColumnName].dbaccess.Get(u, key)
 	if err != nil {
+		log.Debug(fmt.Sprintf("[table:Get] dbaccess.Get %s", err.Error()))
 		return nil, GenerateSWARMDBError(err, fmt.Sprintf("[table:Get] dbaccess.Get %s", err.Error()))
 	}
+	/* TODO: DONT NEED TO CHECK OK?
+	log.Debug("About to Check OK")
 	if !ok {
-		return []byte(""), nil
+		log.Debug(fmt.Sprintf("[table:Get] column.dbaccess.Get %+v failed %s", t.columns, primaryColumnName))
+		return out, nil
 	}
 	// get value from kdb
-	/*
 		kres, err := t.swarmdb.kaddb.GetByKey(u, key)
 
 		if err != nil {
 			return out, GenerateSWARMDBError(err, fmt.Sprintf("[table:Get] kaddb.GetByKey %s", err.Error()))
 		}
 	*/
+	log.Debug("About to Generate Key")
 
 	chunkKey := t.GenerateKChunkKey(key)
 	log.Debug(fmt.Sprintf("ChunkKey generated is: %s", chunkKey))
 	contentReader, err := t.swarmdb.dbchunkstore.RetrieveKChunk(u, chunkKey)
 	if bytes.Trim(contentReader, "\x00") == nil {
-		return nil, nil
+		log.Debug(fmt.Sprintf("RETURNING NIL CHUNK [%s]", out))
+		return out, nil
 	}
 	if err != nil {
 		return nil, GenerateSWARMDBError(err, fmt.Sprintf("[table:Get] RetrieveKChunk - Cannot Retrieve Chunk (%s): %s", contentReader, err.Error()))
 	}
-	return contentReader, nil
-
-	//fres := bytes.Trim(kres, "\x00")
-	//return fres, nil
+	log.Debug("[dbchunkstore:Get] returning [%s]", contentReader)
+	fres := bytes.Trim(contentReader, "\x00")
+	return fres, nil
 }
 
 func (t *Table) Delete(u *SWARMDBUser, key interface{}) (ok bool, err error) {
