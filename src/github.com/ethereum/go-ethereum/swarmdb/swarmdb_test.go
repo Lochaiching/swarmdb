@@ -18,12 +18,8 @@ package swarmdb_test
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cznic/mathutil"
-	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
-	"math"
 	"math/rand"
-	"os"
-	// "strings"
+	"swarmdb"
 	"testing"
 	"time"
 )
@@ -49,8 +45,7 @@ func make_name(prefix string) (nm string) {
 func getUser() (u *swarmdb.SWARMDBUser) {
 	config, err := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	if err != nil {
-		fmt.Printf("No config error: ", err)
-		os.Exit(0)
+		panic("No config error")
 	}
 
 	swarmdb.NewKeyManager(&config)
@@ -158,14 +153,6 @@ func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryK
 		}
 	}
 	return swarmdbObj, nil
-}
-
-func rng() *mathutil.FC32 {
-	x, err := mathutil.NewFC32(math.MinInt32/4, math.MaxInt32/4, false)
-	if err != nil {
-		panic(err)
-	}
-	return x
 }
 
 func TestCreateListDropDatabase(t *testing.T) {
@@ -517,18 +504,18 @@ func zTestPutInteger(t *testing.T) {
 		fmt.Printf("Output: %s\n", resp.Stringify())
 	}
 	/*
-	rowObj := make(map[string]interface{})
-	err = json.Unmarshal([]byte(resp), &rowObj)
-	if err != nil {
-		t.Fatalf("[swarmdb_test:TestPutInteger] Unmarshal %s", err.Error())
-	} else {
-		if strings.Compare(rowObj["email"].(string), "test008@wolk.com") != 0 {
-			fmt.Printf("MISMATCH email: [%v]\n", rowObj["email"])
+		rowObj := make(map[string]interface{})
+		err = json.Unmarshal([]byte(resp), &rowObj)
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestPutInteger] Unmarshal %s", err.Error())
 		} else {
-			fmt.Printf("PASS\n")
+			if strings.Compare(rowObj["email"].(string), "test008@wolk.com") != 0 {
+				fmt.Printf("MISMATCH email: [%v]\n", rowObj["email"])
+			} else {
+				fmt.Printf("PASS\n")
+			}
 		}
-	}
-	 */
+	*/
 }
 
 func aTestSetGetInt(t *testing.T) {
@@ -831,7 +818,7 @@ func aTestDelete2(t *testing.T) {
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
 		r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
 		a := make([]int, N)
-		rng := rng()
+		rng := swarmdb.Rng()
 		for i := range a {
 			a[i] = (rng.Next() ^ x) << 1
 		}

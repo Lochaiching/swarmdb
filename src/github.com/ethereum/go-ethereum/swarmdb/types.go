@@ -16,14 +16,14 @@
 package swarmdb
 
 import (
-	"reflect"
-	"strconv"
-
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"github.com/cznic/mathutil"
 	"math"
+	"reflect"
+	"strconv"
 )
 
 const (
@@ -286,4 +286,12 @@ func isNil(a interface{}) bool {
 		return true
 	}
 	return false
+}
+
+func Rng() *mathutil.FC32 {
+	x, err := mathutil.NewFC32(math.MinInt32/4, math.MaxInt32/4, false)
+	if err != nil {
+		panic(err)
+	}
+	return x
 }

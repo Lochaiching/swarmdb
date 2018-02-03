@@ -332,7 +332,7 @@ func NewGoClient() {
 	dbc, err := NewSWARMDBConnection()
 	if err != nil {
 		fmt.Printf("%s\n", err)
-		os.Exit(0)
+
 	}
 
 	//var ens ENSSimulation

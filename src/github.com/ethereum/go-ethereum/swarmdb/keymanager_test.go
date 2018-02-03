@@ -23,7 +23,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
+	"swarmdb"
 	"testing"
 )
 

@@ -1,16 +1,9 @@
 package swarmdb_test
 
 import (
-	//"github.com/ethereum/go-ethereum/swarmdb"
 	"swarmdb"
 	"testing"
 )
-
-/*
- package size
-
- import "testing"
-*/
 
 type Test struct {
     in  int
@@ -30,20 +23,3 @@ func TestSize(t *testing.T) {
         }
     }
 }
-
-
-/*
-
-**** very slow need to build all   ->   package swarmdb
-
-[yaron@www6002 swarmdb]$ go test size_test.go
---- FAIL: TestSize (0.00s)
-        size_test.go:32: #1: Size(987)=huge; want small
-FAIL
-FAIL    command-line-arguments  0.065s
-[yaron@www6002 swarmdb]$
-
-*/
-
-
-

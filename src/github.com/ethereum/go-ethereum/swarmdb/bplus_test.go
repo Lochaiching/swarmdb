@@ -18,24 +18,14 @@ package swarmdb_test
 import (
 	"bytes"
 	"fmt"
-	"github.com/cznic/mathutil"
-	"github.com/ethereum/go-ethereum/swarmdb"
-	"math"
 	"math/rand"
+	"swarmdb"
 	"testing"
 )
 
 const (
 	TEST_ENCRYPTED = 0
 )
-
-func rng() *mathutil.FC32 {
-	x, err := mathutil.NewFC32(math.MinInt32/4, math.MaxInt32/4, false)
-	if err != nil {
-		panic(err)
-	}
-	return x
-}
 
 func getSwarmDB(t *testing.T) (a swarmdb.SwarmDB) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
@@ -454,7 +444,7 @@ func TestDelete2(t *testing.T) {
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
 		r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 		a := make([]int, N)
-		rng := rng()
+		rng := swarmdb.Rng()
 		for i := range a {
 			a[i] = (rng.Next() ^ x) << 1
 		}
