@@ -16,10 +16,10 @@
 package swarmdb
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"fmt"
-	"github.com/ethereum/go-ethereum/log"
+	//"bytes"
+	//"crypto/sha256"
+	//"fmt"
+	//"github.com/ethereum/go-ethereum/log"
 	"sync"
 )
 
@@ -43,6 +43,7 @@ type KademliaDB struct {
 	maxReplication int
 }
 
+/*
 func NewKademliaDB(dbChunkstore *DBChunkstore) (*KademliaDB, error) {
 	kd := new(KademliaDB)
 	kd.dbChunkstore = dbChunkstore
@@ -89,7 +90,7 @@ func (self *KademliaDB) buildSdata(key []byte, value []byte) (mergedBodycontent 
 	mergedBodycontent = make([]byte, chunkSize)
 	copy(mergedBodycontent[:], metadataBody)
 	copy(mergedBodycontent[512:544], contentPrefix)
-	copy(mergedBodycontent[577:], value) // expected to be the encrypted body content
+	copy(mergedBodycontent[KNODE_START_ENCRYPTION:], value) // expected to be the encrypted body content
 
 	log.Debug("Merged Body Content: [%v]", mergedBodycontent)
 	return mergedBodycontent, err
@@ -142,7 +143,8 @@ func (self *KademliaDB) GenerateChunkKey(k []byte) []byte {
 	log.Debug(fmt.Sprintf("\nIn GenerateChunkKey prefix Owner: [%s] Table: [%s] ID: [%s] == [%v](%s)", owner, table, id, contentPrefix, contentPrefix))
 	return contentPrefix
 }
-
+*/
+/*
 func BuildSwarmdbPrefix(owner []byte, table []byte, id []byte) []byte {
 	// TODO: add checks for valid type / length for building
 	prepLen := len(owner) + len(table) + len(id)
@@ -157,22 +159,7 @@ func BuildSwarmdbPrefix(owner []byte, table []byte, id []byte) []byte {
 	log.Debug(fmt.Sprintf("\nIn BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]", prepBytes, prefix, []byte(prefix), len([]byte(prefix))))
 	return (prefix)
 }
-
-func (self *KademliaDB) Close() (bool, error) {
-	return true, nil
-}
-
-func (self *KademliaDB) FlushBuffer() (bool, error) {
-	return true, nil
-}
-
-func (self *KademliaDB) StartBuffer() (bool, error) {
-	return true, nil
-}
-
-func (self *KademliaDB) Print() {
-	return
-}
+*/
 
 // TODO: Implement Delete
 func (self *KademliaDB) Delete(k []byte) (succ bool, err error) {
