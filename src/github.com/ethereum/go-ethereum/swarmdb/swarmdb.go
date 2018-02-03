@@ -337,12 +337,16 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error)
 			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] convertJSONValueToKey - %s", err.Error()))
 		}
 		existingByteRow, err := table.Get(u, convertedKey)
-		if len(existingByteRow) > 0 || err == nil {
+		//log.Debug(fmt.Sprintf("Row already exists | [%s] | [%+v] | [%d]", existingByteRow, existingByteRow, len(existingByteRow)))
+		if len(existingByteRow) > 0 {
 			existingRow, errB := table.byteArrayToRow(existingByteRow)
 			if errB != nil {
 				return GenerateSWARMDBError(errB, fmt.Sprintf("[swarmdb:QueryInsert] byteArrayToRow - %s", errB.Error()))
 			}
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row key %s already exists: %+v", row[table.primaryColumnName], existingRow), ErrorCode: 434, ErrorMessage: fmt.Sprintf("Record with key [%s] already exists.  If you wish to modify, please use UPDATE SQL statement or PUT", convertedKey)}
+			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row key %s already exists: %+v | Error: %s", row[table.primaryColumnName], existingRow, err), ErrorCode: 434, ErrorMessage: fmt.Sprintf("Record with key [%s] already exists.  If you wish to modify, please use UPDATE SQL statement or PUT", convertedKey)}
+		}
+		if err != nil {
+			//return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Error: %s", err.Error()), ErrorCode: 434, ErrorMessage: fmt.Sprintf("Record with key [%s] already exists.  If you wish to modify, please use UPDATE SQL statement or PUT", convertedKey)}
 		}
 		// put the new Row in
 		err = table.Put(u, row)
