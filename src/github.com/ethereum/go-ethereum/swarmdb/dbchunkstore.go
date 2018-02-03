@@ -396,12 +396,11 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 		//return decVal, nil
 	}
 // TODO : the data what I have is latest or not?
-	val = nil
-	
         if val == nil{
 /////////////
 //              chunk, err := self.cloud.RetrieveDB(key)
-        var chunk *storage.Chunk
+        	var chunk *storage.Chunk
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.RetrieveKChunk vall CloudGet :%v", key))
                 chunk, err = self.CloudGet(key)
                 if chunk.SData != nil{
                         val = chunk.SData
@@ -504,6 +503,7 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 /////////////
 //        	chunk, err := self.cloud.RetrieveDB(key)
 		var chunk *storage.Chunk
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.RetrieveKChunk vall CloudGet :%v", key))
         	chunk, err = self.CloudGet(key)
 		if chunk.SData != nil{
 			val = chunk.SData
@@ -520,10 +520,11 @@ func (self *DBChunkstore) CloudGet(key []byte) (chunk *storage.Chunk, err error)
         timer := time.After(searchTimeout)
         select {
         case <-timer:
-                log.Trace(fmt.Sprintf("DPA.Get: %v request time out ", key))
+//TODO: it might need to close(Req.C) check memstore
+                log.Trace(fmt.Sprintf("[wolk-cloudstore]: %v request time out ", key))
                 err = fmt.Errorf("Not found")
         case <-chunk.Req.C:
-                log.Trace(fmt.Sprintf("DPA.Get: %v retrieved, %d bytes (%p)", key, len(chunk.SData), chunk))
+                log.Trace(fmt.Sprintf("[wolk-cloudstore]: %v retrieved, %d bytes (%p)", key, len(chunk.SData), chunk))
         }
         return chunk, err
 }
@@ -748,7 +749,7 @@ func (self *DBChunkstore) RetrieveDB(key []byte) (val []byte, option *storage.Cl
 			opt := new(storage.CloudOption)
 			opt.BirthDT = &bdt
 			opt.Encrypted = encrypted
-        log.Debug(fmt.Sprintf("[wolk-cloudstore] RetrieveDB :retreaved from swarmdb %v %v %v", val, opt, err))
+        		log.Debug(fmt.Sprintf("[wolk-cloudstore] RetrieveDB :retreaved from swarmdb %v %v %v", val, opt, err))
 			return val, opt, nil
 		}
 	}

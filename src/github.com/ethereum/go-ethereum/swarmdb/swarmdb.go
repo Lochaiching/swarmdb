@@ -508,9 +508,9 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			}
 		}
 	case "Get":
-        elog.Debug(fmt.Sprintf("swarmdb SelectHandler Get %v", ownerID))
+        	elog.Debug(fmt.Sprintf("[wolk-cloudstore] SelectHandler:Get ownerID = %v key = %v", ownerID, d.Key))
 		if len(d.Key) == 0 {
-        elog.Debug(fmt.Sprintf("swarmdb SelectHandler Get err no key %v", d.Key))
+        		elog.Debug(fmt.Sprintf("[wolk-cloudstore] SelectHandler:Get err no key"))
 			return resp, fmt.Errorf("Missing key in GET")
 		}
 		tbl, err := self.GetTable(ownerID, d.Table)
@@ -519,10 +519,10 @@ func (self *SwarmDB) SelectHandler(ownerID string, data string) (resp string, er
 			tbl.OpenTable()
 		}
 		if err != nil {
-        elog.Debug(fmt.Sprintf("swarmdb SelectHandler Get err GetTable %v", err))
+        		elog.Debug(fmt.Sprintf("[wolk-cloudstore] SelectHandler Get err GetTable %v", err))
 			return resp, err
 		}
-        elog.Debug(fmt.Sprintf("swarmdb SelectHandler Get call tbl Get %v %v", d.Key, tbl))
+        		elog.Debug(fmt.Sprintf("[wolk-cloudstore] SelectHandler Get call tbl Get %v %v", d.Key, tbl))
 		ret, err := tbl.Get(d.Key)
 		if err != nil {
 			return resp, err
