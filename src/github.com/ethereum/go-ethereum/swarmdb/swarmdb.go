@@ -293,7 +293,7 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 	if err != nil {
 		return rows, GenerateSWARMDBError(err, `[swarmdb:QuerySelect] Scan `+err.Error())
 	}
-	// fmt.Printf("\nColRows = [%+v]", colRows)
+	fmt.Printf("\nColRows = [%+v]", colRows)
 
 	//apply WHERE
 	whereRows, err := table.applyWhere(colRows, query.Where)
@@ -320,30 +320,27 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 
 // Insert is for adding new data to the table
 // example: 'INSERT INTO tablename (col1, col2) VALUES (val1, val2)
-func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error) {
+func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (affectedRows int, err error) {
 
 	table, err := self.GetTable(u, query.Owner, query.Database, query.Table)
 	if err != nil {
-		return GenerateSWARMDBError(err, `[swarmdb:QueryInsert] GetTable `+err.Error())
+		return 0, GenerateSWARMDBError(err, `[swarmdb:QueryInsert] GetTable `+err.Error())
 	}
+	affectedRows = 0
 	for _, row := range query.Inserts {
 		// check if primary column exists in Row
 		if _, ok := row[table.primaryColumnName]; !ok {
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row %+v needs primary column '%s' value", row, table.primaryColumnName), ErrorCode: 446, ErrorMessage: fmt.Sprintf("Insert Query Missing Primary Key [%]", table.primaryColumnName)}
+			return affectedRows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row %+v needs primary column '%s' value", row, table.primaryColumnName), ErrorCode: 446, ErrorMessage: fmt.Sprintf("Insert Query Missing Primary Key [%]", table.primaryColumnName)}
 		}
 		// check if Row already exists
 		convertedKey, err := convertJSONValueToKey(table.columns[table.primaryColumnName].columnType, row[table.primaryColumnName])
 		if err != nil {
-			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] convertJSONValueToKey - %s", err.Error()))
+			return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] convertJSONValueToKey - %s", err.Error()))
 		}
-		existingByteRow, err := table.Get(u, convertedKey)
+		_, ok, err := table.Get(u, convertedKey)
 		//log.Debug(fmt.Sprintf("Row already exists | [%s] | [%+v] | [%d]", existingByteRow, existingByteRow, len(existingByteRow)))
-		if len(existingByteRow) > 0 {
-			existingRow, errB := table.byteArrayToRow(existingByteRow)
-			if errB != nil {
-				return GenerateSWARMDBError(errB, fmt.Sprintf("[swarmdb:QueryInsert] byteArrayToRow - %s", errB.Error()))
-			}
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row key %s already exists: %+v | Error: %s", row[table.primaryColumnName], existingRow, err), ErrorCode: 434, ErrorMessage: fmt.Sprintf("Record with key [%s] already exists.  If you wish to modify, please use UPDATE SQL statement or PUT", convertedKey)}
+		if ok {
+			return affectedRows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row key %s already exists | Error: %s", row[table.primaryColumnName], err), ErrorCode: 434, ErrorMessage: fmt.Sprintf("Record with key [%s] already exists.  If you wish to modify, please use UPDATE SQL statement or PUT", convertedKey)}
 		}
 		if err != nil {
 			//return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Error: %s", err.Error()), ErrorCode: 434, ErrorMessage: fmt.Sprintf("Record with key [%s] already exists.  If you wish to modify, please use UPDATE SQL statement or PUT", convertedKey)}
@@ -351,37 +348,38 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (err error)
 		// put the new Row in
 		err = table.Put(u, row)
 		if err != nil {
-			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] Put %s", err.Error()))
+			return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] Put %s", err.Error()))
 		}
+		affectedRows = affectedRows + 1
 	}
-	return nil
+	return affectedRows, nil
 }
 
 // Update is for modifying existing data in the table (can use a Where clause)
 // example: 'UPDATE tablename SET col1=value1, col2=value2 WHERE col3 > 0'
-func (self *SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (err error) {
+func (self *SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (affectedRows int, err error) {
 	table, err := self.GetTable(u, query.Owner, query.Database, query.Table)
 	if err != nil {
-		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] GetTable %s", err.Error()))
+		return 0, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] GetTable %s", err.Error()))
 	}
 
 	// get all rows with Scan, using primary key column
 	rawRows, err := self.Scan(u, query.Owner, query.Database, query.Table, table.primaryColumnName, query.Ascending)
 	if err != nil {
-		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] Scan %s", err.Error()))
+		return 0, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] Scan %s", err.Error()))
 	}
 
 	// check to see if Update cols are in pulled set
 	for colname, _ := range query.Update {
 		if _, ok := table.columns[colname]; !ok {
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryUpdate] Update SET column name %s is not in table", colname), ErrorCode: 445, ErrorMessage: fmt.Sprintf("Attempting to update a column [%s] which is not in table [%s]", colname, table.tableName)}
+			return 0, &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryUpdate] Update SET column name %s is not in table", colname), ErrorCode: 445, ErrorMessage: fmt.Sprintf("Attempting to update a column [%s] which is not in table [%s]", colname, table.tableName)}
 		}
 	}
 
 	// apply WHERE clause
 	filteredRows, err := table.applyWhere(rawRows, query.Where)
 	if err != nil {
-		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] applyWhere %s", err.Error()))
+		return 0, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] applyWhere %s", err.Error()))
 	}
 
 	// set the appropriate columns in filtered set
@@ -397,83 +395,81 @@ func (self *SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (err error)
 	}
 
 	// put the changed rows back into the table
+	affectedRows = 0
 	for _, row := range filteredRows {
 		err := table.Put(u, row)
 		if err != nil {
-			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] Put %s", err.Error()))
+			return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] Put %s", err.Error()))
 		}
+		affectedRows = affectedRows + 1
 	}
-	return nil
+	return affectedRows, nil
 }
 
 //Delete is for deleting data rows (can use a Where clause, not just a key)
 //example: 'DELETE FROM tablename WHERE col1 = value1'
-func (self *SwarmDB) QueryDelete(u *SWARMDBUser, query *QueryOption) (err error) {
+func (self *SwarmDB) QueryDelete(u *SWARMDBUser, query *QueryOption) (affectedRows int, err error) {
 
 	table, err := self.GetTable(u, query.Owner, query.Database, query.Table)
 	if err != nil {
-		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryDelete] GetTable %s", err.Error()))
+		return 0, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryDelete] GetTable %s", err.Error()))
 	}
 
 	//get all rows with Scan, using Where's specified col
 	rawRows, err := self.Scan(u, query.Owner, query.Database, query.Table, query.Where.Left, query.Ascending)
 	if err != nil {
-		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryDelete] Scan %s", err.Error()))
+		return 0, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryDelete] Scan %s", err.Error()))
 	}
 
 	//apply WHERE clause
 	filteredRows, err := table.applyWhere(rawRows, query.Where)
 	if err != nil {
-		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryDelete] applyWhere %s", err.Error()))
+		return 0, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryDelete] applyWhere %s", err.Error()))
 	}
 
 	//delete the selected rows
 	for _, row := range filteredRows {
 		ok, err := table.Delete(u, row[table.primaryColumnName].(string))
 		if err != nil {
-			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryDelete] Delete %s", err.Error()))
+			return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryDelete] Delete %s", err.Error()))
 		}
 		if !ok {
 			// TODO: if !ok, what should happen? return appropriate response -- number of records affected
+		} else {
+			affectedRows = affectedRows + 1
 		}
 	}
-	return &SWARMDBError{message: "DELETE Quereies Not currently supported", ErrorCode: 401, ErrorMessage: "SQL Parsing error: [DELETE queries not currently supported]"}
-	//TODO:
+	return 0, &SWARMDBError{message: "DELETE Queries Not currently supported", ErrorCode: 401, ErrorMessage: "SQL Parsing error: [DELETE queries not currently supported]"}
 }
 
-func (self *SwarmDB) Query(u *SWARMDBUser, query *QueryOption) (rows []Row, err error) {
+func (self *SwarmDB) Query(u *SWARMDBUser, query *QueryOption) (rows []Row, affectedRows int, err error) {
 	switch query.Type {
 	case "Select":
-		rows, err := self.QuerySelect(u, query)
+		rows, err = self.QuerySelect(u, query)
 		if err != nil {
-			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QuerySelect %s", err.Error()))
+			return rows, len(rows), GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QuerySelect %s", err.Error()))
 		}
-		/* TODO: Not an Error to have nothing come back
-		if len(rows) == 0 {
-			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] select query came back empty"))
-		}
-		*/
-		return rows, nil
+		return rows, len(rows), nil
 	case "Insert":
-		err = self.QueryInsert(u, query)
+		affectedRows, err = self.QueryInsert(u, query)
 		if err != nil {
-			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QueryInsert %s", err.Error()))
+			return rows, affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QueryInsert %s", err.Error()))
 		}
-		return rows, nil
+		return rows, affectedRows, nil
 	case "Update":
-		err = self.QueryUpdate(u, query)
+		affectedRows, err = self.QueryUpdate(u, query)
 		if err != nil {
-			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QueryUpdate %s", err.Error()))
+			return rows, affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QueryUpdate %s", err.Error()))
 		}
-		return rows, nil
+		return rows, affectedRows, nil
 	case "Delete":
-		err = self.QueryDelete(u, query)
+		affectedRows, err = self.QueryDelete(u, query)
 		if err != nil {
-			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QueryDelete %s", err.Error()))
+			return rows, affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:Query] QueryDelete %s", err.Error()))
 		}
-		return rows, nil
+		return rows, affectedRows, nil
 	}
-	return rows, nil
+	return rows, 0, nil
 }
 
 func (self *SwarmDB) Scan(u *SWARMDBUser, owner string, database string, tableName string, columnName string, ascending int) (rows []Row, err error) {
@@ -687,16 +683,18 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] convertJSONValueToKey %s", err.Error()))
 		}
-		byteRow, err := tbl.Get(u, convertedKey)
+		byteRow, ok, err := tbl.Get(u, convertedKey)
 		if err != nil {
-			//fmt.Printf(fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error()))
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error()))
 		}
-		validRow, err2 := tbl.byteArrayToRow(byteRow)
-		if err2 != nil {
-			return resp, GenerateSWARMDBError(err2, fmt.Sprintf("[swarmdb:SelectHandler] byteArrayToRow %s", err2.Error()))
+
+		if ok {
+			validRow, err2 := tbl.byteArrayToRow(byteRow)
+			if err2 != nil {
+				return resp, GenerateSWARMDBError(err2, fmt.Sprintf("[swarmdb:SelectHandler] byteArrayToRow %s", err2.Error()))
+			}
+			resp.Data = append(resp.Data, validRow)
 		}
-		resp.Data = append(resp.Data, validRow)
 		return resp, nil
 
 	case RT_DELETE:
@@ -707,11 +705,14 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		if isNil(d.Key) {
 			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Delete is Missing Key"), ErrorCode: 448, ErrorMessage: "Delete Statement missing KEY"}
 		}
-		_, err = tbl.Delete(u, d.Key)
+		ok, err := tbl.Delete(u, d.Key)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Delete %s", err.Error()))
 		}
-		return SWARMDBResponse{AffectedRowCount: 1}, nil
+		if ok {
+			return SWARMDBResponse{AffectedRowCount: 1}, nil
+		} 
+		return SWARMDBResponse{AffectedRowCount: 0}, nil
 
 	case RT_START_BUFFER:
 		tbl, err := self.GetTable(u, d.Owner, d.Database, d.Table)
@@ -787,31 +788,31 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 					return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] convertJSONValueToKey %s", err.Error()))
 				}
 
-				byteRow, err := tbl.Get(u, convertedKey)
+				byteRow, ok, err := tbl.Get(u, convertedKey)
 				if err != nil {
 					return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Get %s", err.Error()))
 				}
-
-				row, err := tbl.byteArrayToRow(byteRow)
-				// fmt.Printf("Response row from Get: %s (%v)\n", row, row)
-				if err != nil {
-					return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] byteArrayToRow %s", err.Error()))
+				if ok {
+					row, err := tbl.byteArrayToRow(byteRow)
+					// fmt.Printf("Response row from Get: %s (%v)\n", row, row)
+					if err != nil {
+						return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] byteArrayToRow %s", err.Error()))
+					}
+					
+					filteredRow := filterRowByColumns(row, query.RequestColumns)
+					// fmt.Printf("\nResponse filteredrow from Get: %s (%v)", filteredRow, filteredRow)
+					resp.Data = append(resp.Data, filteredRow)
 				}
-
-				filteredRow := filterRowByColumns(row, query.RequestColumns)
-				// fmt.Printf("\nResponse filteredrow from Get: %s (%v)", filteredRow, filteredRow)
-				resp.Data = append(resp.Data, filteredRow)
 				return resp, nil
 			}
 		}
 
 		// process the query
-		qRows, err := self.Query(u, &query)
-		// fmt.Printf("\nQRows: [%+v]", qRows)
+		qRows, affectedRows, err := self.Query(u, &query)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Query [%+v] %s", query, err.Error()))
 		}
-		return SWARMDBResponse{AffectedRowCount: len(qRows), Data: qRows}, nil
+		return SWARMDBResponse{AffectedRowCount: affectedRows, Data: qRows}, nil
 
 	} //end switch
 

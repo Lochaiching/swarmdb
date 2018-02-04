@@ -357,8 +357,14 @@ func (self *HashDB) Get(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
 	stack := newStack()
 	ret, err := self.rootnode.Get(u, k, self.swarmdb, self.columnType, stack)
 	if err != nil {
-		log.Debug(fmt.Sprintf("ERROR retrieving key [%s]", k))
-		return nil, false, GenerateSWARMDBError(err, fmt.Sprintf("Error Retrieving key [%s]", k))
+		switch err.(type) {
+		case *KeyNotFoundError:
+			
+			return nil, false, nil
+		default:
+			log.Debug(fmt.Sprintf("***** ERROR retrieving key [%s] ****** [%s]\n", k, err))
+			return nil, false, GenerateSWARMDBError(err, fmt.Sprintf("Error Retrieving key [%s]", k))
+		}
 	}
 	value := bytes.Trim(convertToByte(ret), "\x00")
 	b := true
@@ -492,9 +498,16 @@ func (self *HashDB) Insert(u *SWARMDBUser, k []byte, v []byte) (bool, error) {
 }
 
 func (self *HashDB) Delete(u *SWARMDBUser, k []byte) (bool, error) {
-	//TODO: need error??
 	_, b, err := self.rootnode.Delete(u, k, self.swarmdb, self.columnType)
-	return b, err
+	if err != nil {
+		switch err.(type) {
+		case *KeyNotFoundError:
+			return false, nil
+		default:
+			return false, err
+		}
+	}
+	return b, nil
 }
 
 func (self *Node) Delete(u *SWARMDBUser, k []byte, swarmdb *SwarmDB, columntype ColumnType) (newnode *Node, found bool, err error) {
