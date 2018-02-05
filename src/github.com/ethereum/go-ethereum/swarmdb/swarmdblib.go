@@ -125,7 +125,7 @@ func (dbc *SWARMDBConnection) OpenDatabase(name string, encrypted int) (db *SWAR
 	}
 
 	if _, ok := dbc.Databases[db.Name]; ok {
-		//database already opened err, is this still ok?
+		//TODO: database already opened err, do we care if it's already open?
 		return db, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:OpenDatabase] db already open")}
 	}
 	dbc.Databases[db.Name] = db
@@ -139,7 +139,7 @@ func (db *SWARMDBDatabase) OpenTable(name string) (tbl *SWARMDBTable, err error)
 	tbl.Name = name
 	tbl.DBDatabase = db
 	if _, ok := db.Tables[tbl.Name]; ok {
-		//table already opened err, is this still ok?
+		//TODO: table already opened err, do we care if it's already open?
 		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:OpenTable] Table already open")}
 	}
 	db.Tables[tbl.Name] = tbl
