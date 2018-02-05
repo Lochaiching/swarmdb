@@ -752,10 +752,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
 
-		//TODO: Figure out why GetTableInformation doesn't work?
-		//tbl, tblInfo, err := self.GetTableInformation(u, d)
-		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
-		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
+		tbl, err := self.GetTable(u, d.Owner, d.Database, d.Table)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
 		}
