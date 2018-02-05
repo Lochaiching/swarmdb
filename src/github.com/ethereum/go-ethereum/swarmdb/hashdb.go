@@ -359,7 +359,7 @@ func (self *HashDB) Get(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
 	if err != nil {
 		switch err.(type) {
 		case *KeyNotFoundError:
-			
+
 			return nil, false, nil
 		default:
 			log.Debug(fmt.Sprintf("***** ERROR retrieving key [%s] ****** [%s]\n", k, err))
