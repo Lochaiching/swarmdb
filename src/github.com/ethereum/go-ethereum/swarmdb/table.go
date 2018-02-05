@@ -217,7 +217,7 @@ func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte) (mergedB
 	copy(metadataBody[221:286], sdataSig)
 	log.Debug(fmt.Sprintf("Metadata is [%+v]", metadataBody))
 
-	mergedBodycontent = make([]byte, chunkSize)
+	mergedBodycontent = make([]byte, CHUNK_SIZE)
 	copy(mergedBodycontent[:], metadataBody)
 	copy(mergedBodycontent[KNODE_START_ENCRYPTION:], value) // expected to be the encrypted body content
 

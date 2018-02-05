@@ -96,7 +96,6 @@ type SwarmDB struct {
 	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
-	//kaddb	     *KademliaDB
 }
 
 //for sql parsing
@@ -165,8 +164,7 @@ type Database interface {
 }
 
 type OrderedDatabase interface {
-	Database
-
+       Database
 	// Seek -- moves cursor to key k
 	// ok - returns true if key found, false if not found
 	// Possible errors: KeySizeError, NetworkError
@@ -211,6 +209,7 @@ const (
 	RT_GET    = "Get"
 	RT_DELETE = "Delete"
 	RT_QUERY  = "Query"
+	RT_SCAN   = "Scan"
 
 	DATABASE_NAME_LENGTH_MAX = 31
 	TABLE_NAME_LENGTH_MAX    = 32
@@ -244,14 +243,6 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 		sd.ens = ens
 	}
 
-	/*
-		kaddb, err := NewKademliaDB(dbchunkstore)
-		if err != nil {
-			return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewKademliaDB `+err.Error())
-		} else {
-			sd.kaddb = kaddb
-		}
-	*/
 	return sd, nil
 }
 
@@ -397,11 +388,14 @@ func (self *SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (affectedRo
 	// put the changed rows back into the table
 	affectedRows = 0
 	for _, row := range filteredRows {
-		err := table.Put(u, row)
-		if err != nil {
-			return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] Put %s", err.Error()))
+		if len(row) > 0 {
+			fmt.Printf("----> updating ROW %v\n", row)
+			err := table.Put(u, row)
+			if err != nil {
+				return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] Put %s", err.Error()))
+			}
+			affectedRows = affectedRows + 1
 		}
-		affectedRows = affectedRows + 1
 	}
 	return affectedRows, nil
 }
@@ -409,7 +403,7 @@ func (self *SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (affectedRo
 //Delete is for deleting data rows (can use a Where clause, not just a key)
 //example: 'DELETE FROM tablename WHERE col1 = value1'
 func (self *SwarmDB) QueryDelete(u *SWARMDBUser, query *QueryOption) (affectedRows int, err error) {
-
+	fmt.Printf("QUERY DELETE\n")
 	table, err := self.GetTable(u, query.Owner, query.Database, query.Table)
 	if err != nil {
 		return 0, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryDelete] GetTable %s", err.Error()))
@@ -429,17 +423,20 @@ func (self *SwarmDB) QueryDelete(u *SWARMDBUser, query *QueryOption) (affectedRo
 
 	//delete the selected rows
 	for _, row := range filteredRows {
-		ok, err := table.Delete(u, row[table.primaryColumnName].(string))
-		if err != nil {
-			return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryDelete] Delete %s", err.Error()))
-		}
-		if !ok {
-			// TODO: if !ok, what should happen? return appropriate response -- number of records affected
-		} else {
-			affectedRows = affectedRows + 1
+		fmt.Printf(" QUERY DELETE (%s) %v\n", table.primaryColumnName, row)
+		if p, okp := row[table.primaryColumnName]; okp {
+			ok, err := table.Delete(u, p)
+			if err != nil {
+				return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryDelete] Delete %s", err.Error()))
+			}
+			if !ok {
+				// TODO: if !ok, what should happen? return appropriate response -- number of records affected
+			} else {
+				affectedRows = affectedRows + 1
+			}
 		}
 	}
-	return 0, &SWARMDBError{message: "DELETE Queries Not currently supported", ErrorCode: 401, ErrorMessage: "SQL Parsing error: [DELETE queries not currently supported]"}
+	return affectedRows, nil
 }
 
 func (self *SwarmDB) Query(u *SWARMDBUser, query *QueryOption) (rows []Row, affectedRows int, err error) {
@@ -530,17 +527,13 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 	var tblKey string
 	var tbl *Table
 	// var tblInfo map[string]Column
-	if d.RequestType == RT_GET || d.RequestType == RT_PUT || d.RequestType == RT_DELETE {
+	if d.RequestType == RT_GET || d.RequestType == RT_PUT || d.RequestType == RT_DELETE || d.RequestType == RT_SCAN {
 		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
 		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
 		log.Debug(fmt.Sprintf("GetTable returned table: [%+v] for tablekey: [%s]\n", tbl, tblKey))
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error()))
 		}
-		// tblInfo, err = tbl.DescribeTable()
-		//if err != nil {
-		//	return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeTable %s", err.Error()))
-		//}
 	}
 
 	switch d.RequestType {
@@ -556,7 +549,6 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		ok, err := self.DropDatabase(u, d.Owner, d.Database)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DropDatabase %s", err.Error()))
-			//TODO: SWARMDBResponse{Error: GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DropDatabase %s", err.Error()))}
 		}
 		if ok {
 			return SWARMDBResponse{AffectedRowCount: 1}, nil
@@ -594,6 +586,19 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			return SWARMDBResponse{AffectedRowCount: 0}, nil
 		}
 
+	case RT_SCAN:
+		tbl, err := self.GetTable(u, d.Owner, d.Database, d.Table)
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
+		}
+		rawRows, err := self.Scan(u, d.Owner, d.Database, d.Table, tbl.primaryColumnName, 1)
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
+		}
+		resp.Data = rawRows
+		resp.AffectedRowCount = len(resp.Data)
+		return resp, nil
+
 	case RT_DESCRIBE_TABLE:
 		tblKey := self.GetTableKey(d.Owner, d.Database, d.Table)
 		tblcols, err := self.tables[tblKey].DescribeTable()
@@ -608,12 +613,6 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			r["ColumnType"] = colInfo.ColumnType
 			resp.Data = append(resp.Data, r)
 		}
-		/*
-		    tblinfo, err := json.Marshal(tblcols)
-		   		if err != nil {
-		   			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] Marshal %s", err.Error()))
-		   		}
-		*/
 		return resp, nil
 
 	case RT_LIST_TABLES:
@@ -762,6 +761,8 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
 
+		fmt.Printf("QUERY %v\n", query)
+
 		//TODO: Figure out why GetTableInformation doesn't work?
 		//tbl, tblInfo, err := self.GetTableInformation(u, d)
 		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
@@ -783,7 +784,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		}
 
 		//checking the Where clause
-		if len(query.Where.Left) > 0 {
+		if query.Type == "Select" && len(query.Where.Left) > 0 {
 			if _, ok := tblInfo[query.Where.Left]; !ok {
 				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Query col [%s] does not exist in table", query.Where.Left), ErrorCode: 432, ErrorMessage: fmt.Sprintf("WHERE Clause contains invalid column [%s]", query.Where.Left)}
 			}
@@ -814,6 +815,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 				return resp, nil
 			}
 		}
+
 
 		// process the query
 		qRows, affectedRows, err := self.Query(u, &query)

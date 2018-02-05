@@ -164,7 +164,7 @@ func TestCoreTables(t *testing.T) {
 	tabletest[0].sampleValue3 = "beta"
 	tabletest[0].sampleValue1str = fmt.Sprintf("%s", tabletest[0].sampleValue1)
 	tabletest[0].sampleValue2str = fmt.Sprintf("%s", tabletest[0].sampleValue2)
-	tabletest[0].sampleValue2str = fmt.Sprintf("%s", tabletest[0].sampleValue3)
+	tabletest[0].sampleValue3str = fmt.Sprintf("%s", tabletest[0].sampleValue3)
 
 	tabletest[1].tableName = make_name("teststrh")
 	tabletest[1].primaryColumnName = "sth"
@@ -175,7 +175,7 @@ func TestCoreTables(t *testing.T) {
 	tabletest[1].sampleValue3 = "beta"
 	tabletest[1].sampleValue1str = fmt.Sprintf("%s", tabletest[1].sampleValue1)
 	tabletest[1].sampleValue2str = fmt.Sprintf("%s", tabletest[1].sampleValue2)
-	tabletest[1].sampleValue2str = fmt.Sprintf("%s", tabletest[1].sampleValue3)
+	tabletest[1].sampleValue3str = fmt.Sprintf("%s", tabletest[1].sampleValue3)
 
 	tabletest[2].tableName = make_name("testintb")
 	tabletest[2].primaryColumnName = "inb"
@@ -186,7 +186,7 @@ func TestCoreTables(t *testing.T) {
 	tabletest[2].sampleValue3 = 2
 	tabletest[2].sampleValue1str = fmt.Sprintf("%d", tabletest[2].sampleValue1)
 	tabletest[2].sampleValue2str = fmt.Sprintf("%d", tabletest[2].sampleValue2)
-	tabletest[2].sampleValue2str = fmt.Sprintf("%d", tabletest[2].sampleValue3)
+	tabletest[2].sampleValue3str = fmt.Sprintf("%d", tabletest[2].sampleValue3)
 
 	tabletest[3].tableName = make_name("testinth")
 	tabletest[3].primaryColumnName = "inh"
@@ -197,7 +197,7 @@ func TestCoreTables(t *testing.T) {
 	tabletest[3].sampleValue3 = 2
 	tabletest[3].sampleValue1str = fmt.Sprintf("%d", tabletest[3].sampleValue1)
 	tabletest[3].sampleValue2str = fmt.Sprintf("%d", tabletest[3].sampleValue2)
-	tabletest[3].sampleValue2str = fmt.Sprintf("%d", tabletest[3].sampleValue3)
+	tabletest[3].sampleValue3str = fmt.Sprintf("%d", tabletest[3].sampleValue3)
 
 
 	tabletest[4].tableName = make_name("testfltb")
@@ -209,7 +209,7 @@ func TestCoreTables(t *testing.T) {
 	tabletest[4].sampleValue3 = 2.71
 	tabletest[4].sampleValue1str = fmt.Sprintf("%f", tabletest[4].sampleValue1)
 	tabletest[4].sampleValue2str = fmt.Sprintf("%f", tabletest[4].sampleValue2)
-	tabletest[4].sampleValue2str = fmt.Sprintf("%f", tabletest[4].sampleValue3)
+	tabletest[4].sampleValue3str = fmt.Sprintf("%f", tabletest[4].sampleValue3)
 
 	tabletest[5].tableName = make_name("testflth")
 	tabletest[5].primaryColumnName = "flh"
@@ -220,7 +220,7 @@ func TestCoreTables(t *testing.T) {
 	tabletest[5].sampleValue3 = 2.71
 	tabletest[5].sampleValue1str = fmt.Sprintf("%f", tabletest[5].sampleValue1)
 	tabletest[5].sampleValue2str = fmt.Sprintf("%f", tabletest[5].sampleValue2)
-	tabletest[5].sampleValue2str = fmt.Sprintf("%f", tabletest[5].sampleValue3)
+	tabletest[5].sampleValue3str = fmt.Sprintf("%f", tabletest[5].sampleValue3)
 
 	tableCountExpected := 0
 	for _, tbl := range tabletest {
@@ -250,7 +250,6 @@ func TestCoreTables(t *testing.T) {
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Columns = testColumn
-		
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
 		res, err = swdb.SelectHandler(u, string(mReq))
@@ -267,6 +266,23 @@ func TestCoreTables(t *testing.T) {
 		} else {
 			fmt.Printf("Output: %s\n\n", res)
 			t.Fatalf("[swarmdb_test:TestCoreTables] CreateTable2: %s", err)
+		}
+
+		// DESCRIBE TABLE
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_DESCRIBE_TABLE
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestCoreTables] DescribeTable: %s", err)
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		if len(res.Data) != 3 {
+			t.Fatalf("[swarmdb_test:TestCoreTables] DescribeTable: incorrect data %s")
 		}
 
 		// PUT(sampleValue1)
@@ -445,6 +461,25 @@ func TestCoreTables(t *testing.T) {
 			// t.Fatalf("[swarmdb_test:TestCoreTables] Select OR has incorrect # of rows in output %d (should be 1)", len(res.Data))
 		}
 
+		// SCAN ==> 2 Rows
+		if tbl.indexType == swarmdb.IT_BPLUSTREE {
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_SCAN
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Scan %s", err.Error())
+			}
+			if res.AffectedRowCount != 2 {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Scan should be returning 2 rows, got %d", res.AffectedRowCount)
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+		}
+
 		// SELECT(sampleValue3) ==> 0 rows
 		tReq = new(swarmdb.RequestOption)
 		querySelect = fmt.Sprintf("select %s, name, age from %s where %s = '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue3str)
@@ -463,6 +498,125 @@ func TestCoreTables(t *testing.T) {
 		if len(res.Data) > 0 {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Select(samplevalue3) has incorrect # of rows in output %d (should be 0)", len(res.Data))
 		}
+
+		if tbl.indexType == swarmdb.IT_BPLUSTREE {
+			// Update(sampleValue2) ==> 1 row affected
+			tReq = new(swarmdb.RequestOption)
+			queryUpdate := fmt.Sprintf("update %s set age = 38 where %s = '%s'", tableName, tbl.primaryColumnName, tbl.sampleValue2str)
+			tReq.RequestType = swarmdb.RT_QUERY
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			tReq.RawQuery = queryUpdate
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Update(samplevalue2) %s", err.Error())
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+			if res.AffectedRowCount != 1 {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Update(samplevalue2) has incorrect # of rows %d affected (should be 1)", res.AffectedRowCount)
+			}
+			
+			// GET(samplevalue2) should have age 38 
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_GET
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			tReq.Key = tbl.sampleValue2
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Get %s", err.Error())
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+			if len(res.Data) > 0 {
+				row := res.Data[0]
+				if row["age"] != 38 {
+					// TODO: [swarmdb_test:TestCoreTables] Get(samplevalue2) should be 38
+					// t.Fatalf("[swarmdb_test:TestCoreTables] Get(samplevalue2) should be 38")
+				}
+			} else {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Get(samplevalue2) should be returning data")
+			}
+			
+			// Delete(sampleValue2) ==> 1 row affected
+			tReq = new(swarmdb.RequestOption)
+			queryDelete := fmt.Sprintf("delete from %s where %s = '%s'", tableName, tbl.primaryColumnName, tbl.sampleValue2str)
+			tReq.RequestType = swarmdb.RT_QUERY
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			tReq.RawQuery = queryDelete
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Delete(samplevalue2)y %s", err.Error())
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+			if res.AffectedRowCount != 1 {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Delete(samplevalue2) has incorrect # of rows %d affected (should be 1)", res.AffectedRowCount)
+			}
+			
+			// GET(samplevalue2) should have no data
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_GET
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			tReq.Key = tbl.sampleValue2
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Get %s", err.Error())
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+			if len(res.Data) > 0 {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Get(samplevalue2) should be returning data")
+			}
+			
+			// DELETE(samplevalue1) => 1
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_DELETE
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			tReq.Key = tbl.sampleValue1
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Delete(samplevalue1) %s", err.Error())
+			}
+			if res.AffectedRowCount > 0 {
+			} else {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Delete has incorrect affectedRowCount %d", res.AffectedRowCount)
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+			
+			// SCAN ==> 0 Rows
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_SCAN
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Scan %s", err.Error())
+			}
+			if res.AffectedRowCount > 0 {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Scan should be returning 0 rows", res.AffectedRowCount)
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+		}
+
 		tableCountExpected = tableCountExpected + 1
 	}
 
@@ -568,25 +722,3 @@ func TestCoreTables(t *testing.T) {
 		t.Fatalf("[swarmdb_test:TestCoreTables] LIST DATABASES has incorrect affectedRowCount %d", res.AffectedRowCount)
 	}
 }
-
-func aTestPrimaryMedium(t *testing.T) {
-	t.SkipNow()
-
-	// TODO: insert 100 row inserts for {integer, string, float}
-	// SELECT a random row
-
-	// TODO: select the first 100 rows
-	// sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_FLOAT)
-	// check for 100 rows in output
-
-	// TODO: scan all
-
-	// repeat this 10 times
-
-	// TODO: now delete 100 rows
-}
-
-
-func bTestSecondaryMedium(t *testing.T) {
-}
-
