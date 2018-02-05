@@ -31,7 +31,6 @@ swarmdb.createTable(dbname, tablename, owner, columns, function (err, result) {
     console.log("\n");
 });
 
-
 // put
 console.time('put 1 took');
 swarmdb.put(dbname, tablename, owner, [ {"age":1,"email":"test001@wolk.com"}, {"age":2,"email":"test002@wolk.com"} ], function (err, result) {

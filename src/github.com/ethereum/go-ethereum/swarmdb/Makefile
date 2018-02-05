@@ -1,7 +1,6 @@
+.PHONY:	wolkdb wolk test enssimulation dbchunkstore server keymanager bplus client kademliadb hashdb
 
-.PHONY: wolkdb wolk test enssimulation dbchunkstore server keymanager bplus client kademliadb hashdb
-
-wolkdb: 
+wolkdb:	
 	@echo "compiling wolkdb server..."
 	go build -a -o ./server/wolkdb ./server/wolkdb.go
 

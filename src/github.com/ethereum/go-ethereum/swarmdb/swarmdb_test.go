@@ -719,3 +719,201 @@ func TestCoreTables(t *testing.T) {
 		t.Fatalf("[swarmdb_test:TestCoreTables] LIST DATABASES has incorrect affectedRowCount %d", res.AffectedRowCount)
 	}
 }
+
+func TestSmallOps(t *testing.T) {
+	u := getUser()
+	owner := make_name("owner")
+
+	database := make_name("db")
+
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := TEST_ENS_DIR
+	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+
+	// create database
+	var tReq *swarmdb.RequestOption
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_CREATE_DATABASE
+	tReq.Owner = owner
+	tReq.Database = database
+	mReq, _ := json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err := swdb.SelectHandler(u, string(mReq))
+	if err != nil {
+		t.Fatalf("[swarmdb_test:TestSmallOps] CREATE DATABASE: %s", err)
+	}
+	fmt.Printf("Output: %s\n\n", res.Stringify())
+
+	tabletest := make([]testTableConfig, 3)
+	tabletest[0].tableName = make_name("testintb")
+	tabletest[0].primaryColumnName = "inb"
+	tabletest[0].columnType = swarmdb.CT_INTEGER
+	tabletest[0].indexType = swarmdb.IT_BPLUSTREE
+	tabletest[0].sampleValue1str = "55"
+	tabletest[0].sampleValue2str = "50"
+	tabletest[0].sampleValue3str = "45"
+
+	tabletest[1].tableName = make_name("teststrb")
+	tabletest[1].primaryColumnName = "stb"
+	tabletest[1].columnType = swarmdb.CT_STRING
+	tabletest[1].indexType = swarmdb.IT_BPLUSTREE
+	tabletest[1].sampleValue1str = "key055"
+	tabletest[1].sampleValue2str = "key050"
+	tabletest[1].sampleValue3str = "key045"
+
+	tabletest[2].tableName = make_name("testfltb")
+	tabletest[2].primaryColumnName = "flb"
+	tabletest[2].columnType = swarmdb.CT_FLOAT
+	tabletest[2].indexType = swarmdb.IT_BPLUSTREE
+	tabletest[2].sampleValue1str = "55.1"
+	tabletest[2].sampleValue2str = "50.1"
+	tabletest[2].sampleValue3str = "45.1"
+
+	for _, tbl := range tabletest {
+		tableName := tbl.tableName
+
+		// CREATE TABLE
+		var testColumn []swarmdb.Column
+		testColumn = make([]swarmdb.Column, 3)
+		testColumn[0].ColumnName = tbl.primaryColumnName
+		testColumn[0].Primary = 1 // TODO: test when (a) more than one primary (b) no primary specified
+		testColumn[0].IndexType = tbl.indexType
+		testColumn[0].ColumnType = tbl.columnType
+		testColumn[1].ColumnName = "name"
+		testColumn[1].Primary = 0
+		testColumn[1].IndexType = swarmdb.IT_BPLUSTREE
+		testColumn[1].ColumnType = swarmdb.CT_STRING // TODO: test what happens when value of incorrect type supplied for column
+
+		testColumn[2].ColumnName = "age"
+		testColumn[2].Primary = 0
+		testColumn[2].IndexType = swarmdb.IT_BPLUSTREE
+		testColumn[2].ColumnType = swarmdb.CT_INTEGER
+
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_CREATE_TABLE
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		tReq.Columns = testColumn
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestSmallOps] CreateTable: %s", err)
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+
+		// PUT(sampleValue1)
+		for i := 0; i < 100; i++ {
+
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_PUT
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			rowObj := make(swarmdb.Row)
+			switch tbl.columnType {
+			case swarmdb.CT_INTEGER:
+				tReq.Key = i
+				rowObj[tbl.primaryColumnName] = i
+				rowObj["name"] = fmt.Sprintf("name%3d", i)
+				rowObj["age"] = 37 + i
+			case swarmdb.CT_FLOAT:
+				tReq.Key = float64(i) + .1
+				rowObj[tbl.primaryColumnName] = tReq.Key
+				rowObj["name"] = fmt.Sprintf("name%3d", i)
+				rowObj["age"] = 13 + i
+			case swarmdb.CT_STRING:
+				tReq.Key = fmt.Sprintf("key%03d", i)
+				rowObj[tbl.primaryColumnName] = tReq.Key
+				rowObj["name"] = fmt.Sprintf("name%03d", i)
+				rowObj["age"] = 40 + i
+			}
+
+			tReq.Rows = append(tReq.Rows, rowObj)
+			mReq, _ = json.Marshal(tReq)
+			res, err := swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestSmallOps] Put %s", err.Error())
+			}
+			if res.AffectedRowCount != 1 {
+				fmt.Printf("Input: %s\n", mReq)
+				fmt.Printf("Output: %s\n\n", res.Stringify())
+				t.Fatalf("Put affectedRowCount NOT OK")
+			} else {
+				fmt.Printf(".")
+			}
+		}
+		fmt.Printf("Put operations done\n")
+
+		// SCAN ==> 100 Rows
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_SCAN
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestSmallOps] Scan %s", err.Error())
+		}
+		if res.AffectedRowCount != 100 {
+			t.Fatalf("[swarmdb_test:TestSmallOps] Scan should be returning 100 rows, got %d", res.AffectedRowCount)
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+
+		var expectedRows map[swarmdb.ColumnType]int
+		expectedRows = make(map[swarmdb.ColumnType]int)
+		for j := 0; j < 5; j++ {
+			sql := ""
+			switch j {
+			case 0:
+				sql = fmt.Sprintf("select %s, name, age from %s where %s >= '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue1str)
+				expectedRows[swarmdb.CT_INTEGER] = 45
+				expectedRows[swarmdb.CT_FLOAT] = 45
+				expectedRows[swarmdb.CT_STRING] = 45
+
+			case 1:
+				sql = fmt.Sprintf("select %s, name, age from %s where %s > '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue1str)
+				expectedRows[swarmdb.CT_INTEGER] = 44
+				expectedRows[swarmdb.CT_FLOAT] = 44
+				expectedRows[swarmdb.CT_STRING] = 44
+			case 2:
+				sql = fmt.Sprintf("select %s, name, age from %s where %s = '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue2str)
+				expectedRows[swarmdb.CT_INTEGER] = 1
+				expectedRows[swarmdb.CT_FLOAT] = 1
+				expectedRows[swarmdb.CT_STRING] = 1
+			case 3:
+				sql = fmt.Sprintf("select %s, name, age from %s where %s < '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue3str)
+				expectedRows[swarmdb.CT_INTEGER] = 45
+				expectedRows[swarmdb.CT_FLOAT] = 45
+				expectedRows[swarmdb.CT_STRING] = 45
+			case 4:
+				sql = fmt.Sprintf("select %s, name, age from %s where %s <= '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue3str)
+				expectedRows[swarmdb.CT_INTEGER] = 46
+				expectedRows[swarmdb.CT_FLOAT] = 46
+				expectedRows[swarmdb.CT_STRING] = 46
+			}
+			expectedAffectedRows := expectedRows[tbl.columnType]
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_QUERY
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			tReq.RawQuery = sql
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestSmallOps] Select [%s] %s", sql, err.Error())
+			}
+			if expectedAffectedRows != len(res.Data) {
+				fmt.Printf("Output: %s\tEXPECTED %d\tGOT %d\nRows = %s\n\n", tableName, expectedAffectedRows, len(res.Data), res.Stringify())
+				t.Fatalf("[swarmdb_test:TestSmallOps] Select [%s] %s", sql, err.Error())
+			} else {
+				fmt.Printf("Output: %s\tEXPECTED %d\tGOT %d\n", tableName, expectedAffectedRows, len(res.Data))
+			}
+		}
+	}
+}

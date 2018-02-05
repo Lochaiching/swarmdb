@@ -164,7 +164,7 @@ type Database interface {
 }
 
 type OrderedDatabase interface {
-       Database
+	Database
 	// Seek -- moves cursor to key k
 	// ok - returns true if key found, false if not found
 	// Possible errors: KeySizeError, NetworkError
@@ -284,7 +284,7 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 	if err != nil {
 		return rows, GenerateSWARMDBError(err, `[swarmdb:QuerySelect] Scan `+err.Error())
 	}
-	fmt.Printf("\nColRows = [%+v]", colRows)
+	//fmt.Printf("\nColRows = [%+v]", colRows)
 
 	//apply WHERE
 	whereRows, err := table.applyWhere(colRows, query.Where)
@@ -403,7 +403,6 @@ func (self *SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (affectedRo
 //Delete is for deleting data rows (can use a Where clause, not just a key)
 //example: 'DELETE FROM tablename WHERE col1 = value1'
 func (self *SwarmDB) QueryDelete(u *SWARMDBUser, query *QueryOption) (affectedRows int, err error) {
-	fmt.Printf("QUERY DELETE\n")
 	table, err := self.GetTable(u, query.Owner, query.Database, query.Table)
 	if err != nil {
 		return 0, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryDelete] GetTable %s", err.Error()))
@@ -524,18 +523,6 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] parseData %s", err.Error()))
 	}
 
-	var tblKey string
-	var tbl *Table
-	// var tblInfo map[string]Column
-	if d.RequestType == RT_GET || d.RequestType == RT_PUT || d.RequestType == RT_DELETE || d.RequestType == RT_SCAN {
-		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
-		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
-		log.Debug(fmt.Sprintf("GetTable returned table: [%+v] for tablekey: [%s]\n", tbl, tblKey))
-		if err != nil {
-			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTable] OpenTable %s", err.Error()))
-		}
-	}
-
 	switch d.RequestType {
 	case RT_CREATE_DATABASE:
 		err = self.CreateDatabase(u, d.Owner, d.Database, d.Encrypted)
@@ -626,9 +613,13 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		}
 		return resp, nil
 	case RT_PUT:
-		tbl, tblInfo, err := self.GetTableInformation(u, d)
+		tbl, err := self.GetTable(u, d.Owner, d.Database, d.Table)
 		if err != nil {
-			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTableInformation %s", err.Error()))
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
+		}
+		tblInfo, err := tbl.DescribeTable()
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeTable %s", err.Error()))
 		}
 		d.Rows, err = tbl.assignRowColumnTypes(d.Rows)
 		if err != nil {
@@ -718,7 +709,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		}
 		if ok {
 			return SWARMDBResponse{AffectedRowCount: 1}, nil
-		} 
+		}
 		return SWARMDBResponse{AffectedRowCount: 0}, nil
 
 	case RT_START_BUFFER:
@@ -761,16 +752,13 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
 
-		fmt.Printf("QUERY %v\n", query)
-
 		//TODO: Figure out why GetTableInformation doesn't work?
 		//tbl, tblInfo, err := self.GetTableInformation(u, d)
 		tblKey = self.GetTableKey(d.Owner, d.Database, d.Table)
 		tbl, err = self.GetTable(u, d.Owner, d.Database, d.Table)
 		if err != nil {
-			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTableInformation %s", err.Error()))
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
 		}
-
 		tblInfo, err := tbl.DescribeTable()
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeTable %s", err.Error()))
@@ -807,7 +795,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 					if err != nil {
 						return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] byteArrayToRow %s", err.Error()))
 					}
-					
+
 					filteredRow := filterRowByColumns(row, query.RequestColumns)
 					// fmt.Printf("\nResponse filteredrow from Get: %s (%v)", filteredRow, filteredRow)
 					resp.Data = append(resp.Data, filteredRow)
@@ -815,7 +803,6 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 				return resp, nil
 			}
 		}
-
 
 		// process the query
 		qRows, affectedRows, err := self.Query(u, &query)
@@ -836,19 +823,6 @@ func parseData(data string) (*RequestOption, error) {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[swarmdb:parseData] Unmarshal %s", err.Error()), ErrorCode: 432, ErrorMessage: "Unable to Parse Request"}
 	}
 	return udata, nil
-}
-
-func (self *SwarmDB) GetTableInformation(u *SWARMDBUser, r *RequestOption) (table *Table, tableInfo map[string]Column, err error) {
-	table, err = self.GetTable(u, r.Owner, r.Database, r.Table)
-	log.Debug(fmt.Sprintf("[swarmdb:GetTableInformation] GetTable returned table: [%+v]", table))
-	if err != nil {
-		return table, tableInfo, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTableInformation] GetTable %s", err.Error()))
-	}
-	tableInfo, err = table.DescribeTable()
-	if err != nil {
-		return table, tableInfo, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetTableInformation] DescribeTable %s", err.Error()))
-	}
-	return table, tableInfo, nil
 }
 
 func (self *SwarmDB) NewTable(owner string, database string, tableName string) *Table {
@@ -1039,7 +1013,7 @@ func (self *SwarmDB) DropDatabase(u *SWARMDBUser, owner string, database string)
 			}
 		}
 	}
-	return false, nil  // &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] Database could not be found")}
+	return false, nil // &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] Database could not be found")}
 }
 
 func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, tableName string) (ok bool, err error) {

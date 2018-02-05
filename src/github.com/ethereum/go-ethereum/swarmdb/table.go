@@ -136,7 +136,7 @@ func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	}
 
 	row := NewRow()
-	
+
 	for colName, cell := range res {
 		colDef := t.columns[colName]
 		switch a := cell.(type) {
@@ -168,7 +168,7 @@ func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 			switch colDef.columnType {
 			case CT_INTEGER:
 				row[colName], err = strconv.Atoi(a)
-				
+
 			case CT_STRING:
 				row[colName] = a
 			case CT_FLOAT:
@@ -263,7 +263,7 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error)
 		log.Debug(fmt.Sprintf("[table:Get] dbaccess.Get %s", err.Error()))
 		return nil, false, GenerateSWARMDBError(err, fmt.Sprintf("[table:Get] dbaccess.Get %s", err.Error()))
 	}
-	if ! ok {
+	if !ok {
 		return out, false, nil
 	}
 	log.Debug("About to Generate Key")
@@ -414,7 +414,7 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 		} else {
 			records := 0
 			for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
-				fmt.Printf("\n *int*> %d: K: %s V: %v \n", records, KeyToString(column.columnType, k), v)
+				//fmt.Printf("\n *int*> %d: K: %s V: %v \n", records, KeyToString(column.columnType, k), v)
 				row, ok, errG := t.Get(u, k)
 				if errG != nil {
 					return rows, GenerateSWARMDBError(err, fmt.Sprintf("[table:Scan] Get %s", errG.Error()))
@@ -437,7 +437,9 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 		} else {
 			records := 0
 			for k, v, err := res.Prev(u); err == nil; k, v, err = res.Prev(u) {
-				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(CT_STRING, k), KeyToString(column.columnType, v))
+				if false {
+					fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(CT_STRING, k), KeyToString(column.columnType, v))
+				}
 				row, ok, errG := t.Get(u, k)
 				if errG != nil {
 					return rows, GenerateSWARMDBError(err, fmt.Sprintf("[table:Scan] Get %s", errG.Error()))
