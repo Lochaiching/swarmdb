@@ -1,22 +1,28 @@
 
-.PHONY: all enssimulation dbchunkstore server keymanager bplus client kademliadb hashdb
+.PHONY:	wolkdb wolk test enssimulation dbchunkstore server keymanager bplus client kademliadb hashdb
 
-all:
+wolkdb:	
+	@echo "compiling wolkdb server..."
+	go build -a -o ./server/wolkdb ./server/wolkdb.go
+
+wolk:  
+	@echo "compiling wolk cli..."
+	go build -a -o ./client/wolk/wolk ./client/wolk/wolk.go
+
+test:
 	@echo "test all."
+	@echo "test swarmdb."
+	-go test ./swarmdb_test.go
 	@echo "test enssimulation."
 	-go test ./enssimulation_test.go
 	@echo "test dbchunkstore."
 	-go test ./dbchunkstore_test.go
-	@echo "test server."
-	-go test ./server/server_test.go
 	@echo "test keymanager."
-	-go test ./keymanager/keymanager_test.go
+	-go test ./keymanager_test.go
 	@echo "test bplus."
 	-go test ./bplus_test.go
 	@echo "test query."
 	-go test ./query_test.go
-	@echo "test swarmdb."
-	-go test ./swarmdb_test.go
 	@echo "test client."
 	-go test ./client_test.go
 	@echo "test kademliadb."
@@ -34,13 +40,9 @@ dbchunkstore:
 	@echo "test dbchunkstore."
 	go test ./dbchunkstore_test.go
 
-server:
-	@echo "test server."
-	go test ../swarm/api/tcpip/server_test.go
-
 keymanager:
 	@echo "test keymanager."
-	go test ./keymanager/keymanager_test.go
+	go test ./keymanager_test.go
 
 bplus:
 	@echo "test bplus."
@@ -53,14 +55,6 @@ query:
 swarmdb:
 	@echo "test swarmdb."
 	go test ./swarmdb_test.go
-
-client:
-	@echo "test client."
-	go test client_test.go
-
-kademliadb:
-	@echo "test kademliadb."
-	go test kademliadb_test.go
 
 hashdb:
 	@echo "test hashdb."
