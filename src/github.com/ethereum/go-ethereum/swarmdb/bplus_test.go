@@ -18,20 +18,14 @@ package swarmdb_test
 import (
 	"bytes"
 	"fmt"
-	"github.com/cznic/mathutil"
-	"github.com/ethereum/go-ethereum/swarmdb"
-	"math"
 	"math/rand"
+	"swarmdb"
 	"testing"
 )
 
-func rng() *mathutil.FC32 {
-	x, err := mathutil.NewFC32(math.MinInt32/4, math.MaxInt32/4, false)
-	if err != nil {
-		panic(err)
-	}
-	return x
-}
+const (
+	TEST_ENCRYPTED = 0
+)
 
 func getSwarmDB(t *testing.T) (a swarmdb.SwarmDB) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
@@ -50,7 +44,7 @@ func TestPutInteger(t *testing.T) {
 
 	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
 	hashid := make([]byte, 32)
-	r, errB := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING)
+	r, errB := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 	if errB != nil {
 		t.Fatal("could not create BplusTree", errB)
 	}
@@ -75,7 +69,7 @@ func TestPutInteger(t *testing.T) {
 	}
 
 	hashid = r.GetRootHash()
-	s, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING)
+	s, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 
 	g, ok, err := s.Get(u, swarmdb.IntToByte(8))
 	if !ok || err != nil {
@@ -145,7 +139,7 @@ func TestPutString(t *testing.T) {
 	u := config.GetSWARMDBUser()
 
 	hashid := make([]byte, 32)
-	r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING)
+	r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 
 	r.StartBuffer(u)
 	vals := rand.Perm(20)
@@ -161,7 +155,7 @@ func TestPutString(t *testing.T) {
 	// r.Print()
 
 	hashid = r.GetRootHash()
-	s, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING)
+	s, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 	g, _, _ := s.Get(u, []byte("000008"))
 	fmt.Printf("Get(000008): %v\n", string(g))
 
@@ -186,7 +180,7 @@ func TestPutFloat(t *testing.T) {
 	u := config.GetSWARMDBUser()
 
 	hashid := make([]byte, 32)
-	r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_FLOAT, false, swarmdb.CT_STRING)
+	r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_FLOAT, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 
 	r.StartBuffer(u)
 	vals := rand.Perm(20)
@@ -202,7 +196,8 @@ func TestPutFloat(t *testing.T) {
 	// r.Print()
 
 	hashid = r.GetRootHash()
-	s, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_FLOAT, false, swarmdb.CT_STRING)
+	s, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_FLOAT, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
+
 	// ENUMERATOR
 	res, _, _ := s.Seek(u, swarmdb.FloatToByte(3.14159))
 	records := 0
@@ -218,7 +213,7 @@ func TestSetGetString(t *testing.T) {
 	u := config.GetSWARMDBUser()
 
 	hashid := make([]byte, 32)
-	r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING)
+	r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 
 	// put
 	key := []byte("42")
@@ -237,7 +232,7 @@ func TestSetGetString(t *testing.T) {
 	hashid = r.GetRootHash()
 
 	// r2 put
-	r2, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING)
+	r2, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 	val2 := swarmdb.SHA256("278")
 	r2.Put(u, key, val2)
 	//r2.Print()
@@ -253,7 +248,7 @@ func TestSetGetString(t *testing.T) {
 	hashid = r2.GetRootHash()
 
 	// r3 put
-	r3, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING)
+	r3, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_STRING, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 	key2 := []byte("420")
 	val3 := swarmdb.SHA256("bbb")
 	r3.Put(u, key2, val3)
@@ -279,7 +274,7 @@ func TestSetGetInt(t *testing.T) {
 	const N = 4
 	hashid := make([]byte, 32)
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING)
+		r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 
 		a := make([]int, N)
 		for i := range a {
@@ -344,7 +339,7 @@ func TestDelete0(t *testing.T) {
 	u := config.GetSWARMDBUser()
 
 	hashid := make([]byte, 32)
-	r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING)
+	r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 
 	key0 := swarmdb.IntToByte(0)
 	key1 := swarmdb.IntToByte(1)
@@ -417,7 +412,7 @@ func TestDelete1(t *testing.T) {
 	hashid := make([]byte, 32)
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING)
+		r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 		a := make([]int, N)
 		for i := range a {
 			a[i] = (i ^ x) << 1
@@ -447,9 +442,9 @@ func TestDelete2(t *testing.T) {
 	const N = 100
 	hashid := make([]byte, 32)
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING)
+		r, _ := swarmdb.NewBPlusTreeDB(u, getSwarmDB(t), hashid, swarmdb.CT_INTEGER, false, swarmdb.CT_STRING, TEST_ENCRYPTED)
 		a := make([]int, N)
-		rng := rng()
+		rng := swarmdb.Rng()
 		for i := range a {
 			a[i] = (rng.Next() ^ x) << 1
 		}

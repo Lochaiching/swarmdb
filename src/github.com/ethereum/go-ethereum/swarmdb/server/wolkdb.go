@@ -58,26 +58,32 @@ type HTTPServer struct {
 type SwarmDBReq struct {
 	protocol string
 	owner    string
+	database string
 	table    string
 	key      string
 }
 
-func buildErrorResp(err error) (resp string) {
+func buildErrorResp(err error) string {
 	var respObj swarmdb.SWARMDBResponse
-	var jstr []byte
-	var jErr error
-	if wolkErr, ok := err.(*swarmdb.SWARMDBError); ok {
+	wolkErr, ok := err.(*swarmdb.SWARMDBError)
+	if !ok {
+		return (`{ "errorcode":-1, "errormessage":"UNKNOWN ERROR"}`) //TODO: Make Default Error Handling
+	}
+	if wolkErr.ErrorCode == 0 { //FYI: default empty int is 0. maybe should be a pointer.  //TODO this is a hack with what errors are being returned right now
+		//fmt.Printf("wolkErr.ErrorCode doesn't exist\n")
+		respObj.ErrorCode = 888
+		respObj.ErrorMessage = err.Error()
+	} else {
 		respObj.ErrorCode = wolkErr.ErrorCode
 		respObj.ErrorMessage = wolkErr.ErrorMessage
-		jstr, jErr = json.Marshal(respObj)
-		if jErr != nil {
-			fmt.Printf("Error: [%s] [%+v]", jErr.Error(), respObj)
-			jstr = []byte(`{ "errorcode":-1, "error":"DEFAULT ERROR"}`) //TODO: Make Default Error Handling
-		}
-	} else {
-		jstr = []byte(`{ "errorcode":-1, "error":"UNKNOWN ERROR"}`) //TODO: Make Default Error Handling
 	}
-	return fmt.Sprintf("%s", jstr)
+	jbyte, jErr := json.Marshal(respObj)
+	if jErr != nil {
+		//fmt.Printf("Error: [%s] [%+v]", jErr.Error(), respObj)
+		return `{ "errorcode":-1, "errormessage":"DEFAULT ERROR"}` //TODO: Make Default Error Handling
+	}
+	jstr := string(jbyte)
+	return jstr
 }
 
 // Handles incoming TCPIP requests.
@@ -103,7 +109,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 	var swErr swarmdb.SWARMDBError
 	resp, err := reader.ReadString('\n')
 	if err != nil {
-		fmt.Printf("Problem reading RAW TCPIP input (%s).  ERROR:[%s]", resp, err.Error())
+		log.Error("Problem reading RAW TCPIP input (%s).  ERROR:[%s]", resp, err.Error())
 		swErr.SetError(fmt.Sprintf("Problem reading RAW TCPIP input (%s).  ERROR:[%s]", resp, err.Error()))
 		log.Error(swErr.Error())
 		//TODO: return a TCPIP error response
@@ -115,6 +121,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 		resp = strings.Trim(resp, "\r")
 		resp = strings.Trim(resp, "\n")
 	}
+	fmt.Printf("handleTcpipRequest response %v\n", resp)
 
 	// this should be the signed challenge, verify using valid_response
 	response_bytes, errDecoding := hex.DecodeString(resp)
@@ -130,6 +137,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 
 	u, err := svr.keymanager.VerifyMessage(challenge_bytes, response_bytes)
 	if err != nil {
+		log.Debug("\nERROR: %s", err.Error())
 		tcpJson := buildErrorResp(err)
 		writer.WriteString(tcpJson)
 		writer.Flush()
@@ -146,13 +154,24 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 				break
 			}
 			if true {
+				log.Debug("[main:handleTcpipRequest] sending [%s]", str)
 				if resp, err := svr.swarmdb.SelectHandler(u, string(str)); err != nil {
+					log.Debug(fmt.Sprintf("ERROR: %+v", err))
 					tcpJson := buildErrorResp(err)
-					writer.WriteString(tcpJson)
+					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, tcpJson)
+					_, err := writer.WriteString(tcpJson + "\n")
+					if err != nil {
+						fmt.Printf("writer err: %v\n", err)
+						//TODO handle if writestring has err
+					}
 					writer.Flush()
 				} else {
-					fmt.Printf("\nRead: [%s] Wrote: [%s]\n", str, resp)
-					writer.WriteString(resp + "\n")
+					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, resp)
+					_, err := writer.WriteString(resp.Stringify() + "\n")
+					if err != nil {
+						fmt.Printf("writer err: %v\n", err)
+						//TODO handle if writestring has err
+					}
 					writer.Flush()
 				}
 			} else {
@@ -219,33 +238,51 @@ func StartTcpipServer(sdb *swarmdb.SwarmDB, conf *swarmdb.SWARMDBConfig) (err er
 }
 
 func parsePath(path string) (swdbReq SwarmDBReq, err error) {
+	var swErr swarmdb.SWARMDBError
 	pathParts := strings.Split(path, "/")
 	if len(pathParts) < 2 {
-		swErr := swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Request URL invalid"}
+		swErr = swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Request URL invalid"}
 		swErr.SetError("Invalid Path in Request URL")
 		return swdbReq, &swErr
 	} else {
 		for k, v := range pathParts {
 			switch k {
 			case 1:
-				swdbReq.protocol = v
-
+				swdbReq.owner, swdbReq.database, err = parseOwnerDB(v)
+				if err != nil {
+					return swdbReq, swarmdb.GenerateSWARMDBError(err, fmt.Sprintf("Invalid Owner/ENS path passed in [%s]", v))
+				}
 			case 2:
-				swdbReq.owner = v
-
-			case 3:
 				swdbReq.table = v
-
-			case 4:
+			case 3:
 				swdbReq.key = v
+			default:
+				//TODO:
 			}
 		}
 	}
 	return swdbReq, nil
 }
 
+func parseOwnerDB(v string) (owner string, db string, err error) {
+	vParts := strings.Split(v, ".")
+	if len(vParts) < 3 {
+		return db, owner, &swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Owner portion of request invalid"}
+		//TODO: robust error!
+	}
+	owner = fmt.Sprintf("%s.%s", vParts[len(vParts)-2], vParts[len(vParts)-1])
+	var dbParts []string
+	for k, v := range vParts {
+		if k == len(vParts)-2 {
+			break
+		}
+		dbParts = append(dbParts, v)
+	}
+	db = strings.Join(dbParts, ".")
+	return owner, db, nil
+}
+
 func StartHttpServer(sdb *swarmdb.SwarmDB, config *swarmdb.SWARMDBConfig) {
-	fmt.Println("\nstarting http server")
 	httpSvr := new(HTTPServer)
 	httpSvr.swarmdb = sdb
 	km, errkm := swarmdb.NewKeyManager(config)
@@ -272,8 +309,7 @@ func StartHttpServer(sdb *swarmdb.SwarmDB, config *swarmdb.SWARMDBConfig) {
 	//sk, pk := GetKeys()
 	hdlr := c.Handler(httpSvr)
 
-	fmt.Printf("\nRunning ListenAndServe")
-	fmt.Printf("\nHTTP Listening on %s and port %d\n", config.ListenAddrHTTP, config.PortHTTP)
+	log.Debug(fmt.Sprintf("HTTP Listening on %s and port %d", config.ListenAddrHTTP, config.PortHTTP))
 	addr := net.JoinHostPort(config.ListenAddrHTTP, strconv.Itoa(config.PortHTTP))
 	//go http.ListenAndServe(config.Addr, hdlr)
 	logger.Fatal(http.ListenAndServe(addr, hdlr))
@@ -304,6 +340,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	reqJson := bodyContent
 	//fmt.Println("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
 	swReq, err := parsePath(r.URL.Path)
+	log.Debug(fmt.Sprintf("swReq [%+v]", swReq))
 	//TODO: parsePath Error
 	if err != nil {
 		retJson := buildErrorResp(err)
@@ -315,12 +352,12 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		us := []byte(`{ "requesttype":"Put", "row":{"email":"rodney@wolk.com", "name":"Rodney F. Witcher", "age":370} }`)
 		msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(us), us)
 		msg_hash := crypto.Keccak256([]byte(msg))
-		fmt.Printf("\nMessage Hash: [%s][%x]", msg_hash, msg_hash)
+		//fmt.Printf("\nMessage Hash: [%s][%x]", msg_hash, msg_hash)
 
 		pa, _ := s.keymanager.SignMessage(msg_hash)
 		//TODO: SignMessageError
 
-		fmt.Printf("\nUser: [%s], Msg Hash [%x], SignedMsg: [%x]\n", us, msg_hash, pa)
+		//fmt.Printf("\nUser: [%s], Msg Hash [%x], SignedMsg: [%x]\n", us, msg_hash, pa)
 		vUser, errVerified = s.keymanager.VerifyMessage(msg_hash, pa)
 		if errVerified != nil {
 			//TODO: Show Error to Client
@@ -363,45 +400,49 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	verifiedUser := vUser
-
 	var dataReq swarmdb.RequestOption
-	if swReq.protocol != "swarmdb:" {
-		//Invalid Protocol: Throw Error
-		//fmt.Fprintf(w, "The protocol sent in: %s is invalid | %+v\n", swReq.protocol, swReq)
-	} else {
-		var err error
-		if r.Method == "GET" {
-			//fmt.Fprintf(w, "Processing [%s] protocol request with Body of () \n", swReq.protocol)
-			dataReq.RequestType = "Get"
-			dataReq.TableOwner = swReq.owner
-			dataReq.Table = swReq.table
-			dataReq.Key = swReq.key
-			reqJson, err = json.Marshal(dataReq)
-			if err != nil {
-				//TODO: Return Error to Client
-				swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Error Marshaling request, %s", err.Error()))
-				log.Error(swErr.Error())
-				swErr.ErrorCode = 424
-				swErr.ErrorMessage = fmt.Sprintf("Error Reading Request", err.Error())
-				retJson := buildErrorResp(&swErr)
-				fmt.Fprint(w, retJson)
-			}
-		} else if r.Method == "POST" {
-			//fmt.Printf("\nBODY Json: %s", reqJson)
+	dataReq.Owner = swReq.owner
+	dataReq.Database = swReq.database
+	dataReq.Table = swReq.table
+	dataReq.Key = swReq.key
+	if r.Method == "GET" {
+		//fmt.Fprintf(w, "Processing [%s] protocol request with Body of () \n", swReq.protocol)
+		dataReq.RequestType = "Get"
+		reqJson, err = json.Marshal(dataReq)
+		if err != nil {
+			//TODO: Return Error to Client
+			swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Error Marshaling request, %s", err.Error()))
+			log.Error(swErr.Error())
+			swErr.ErrorCode = 424
+			swErr.ErrorMessage = fmt.Sprintf("Error Reading Request", err.Error())
+			retJson := buildErrorResp(&swErr)
+			fmt.Fprint(w, retJson)
+		}
+	} else if r.Method == "POST" {
+		//fmt.Printf("\nBODY Json: %s", reqJson)
 
-			var bodyMapInt interface{}
-			json.Unmarshal(bodyContent, &bodyMapInt)
-			//fmt.Println("\nProcessing [%s] protocol request with Body of (%s) \n", swReq.protocol, bodyMapInt)
-			bodyMap := bodyMapInt.(map[string]interface{})
+		var bodyMapInt interface{}
+		json.Unmarshal(bodyContent, &bodyMapInt)
+		log.Debug(fmt.Sprintf("Processing request with Body of (%s) \n", bodyMapInt))
+		if bodyMap, ok := bodyMapInt.(map[string]interface{}); ok {
 			if reqType, ok := bodyMap["requesttype"]; ok {
 				dataReq.RequestType = reqType.(string)
+				log.Debug(fmt.Sprintf("Table (%s) [%+v]", dataReq.Table, dataReq))
+				if dataReq.Table == "" {
+					log.Debug("Table not included in URL.  Checking RequestBody")
+					if tblBody, ok := bodyMap["table"]; ok {
+						dataReq.Table = tblBody.(string)
+					}
+				}
 				if dataReq.RequestType == "CreateTable" {
-					dataReq.TableOwner = verifiedUser.Address //bodyMap["tableowner"].(string);
+					bodyMap["owner"] = swReq.owner
+					bodyMap["database"] = swReq.database
 					//TODO: ValidateCreateTableRequest
+					reqJson, err = json.Marshal(bodyMap)
+					//TODO: error check
 				} else if dataReq.RequestType == "Query" {
-					dataReq.TableOwner = swReq.table
 					//Don't pass table for now (rely on Query parsing)
-					if rq, ok := bodyMap["rawquery"]; ok {
+					if rq, ok := bodyMap["query"]; ok {
 						dataReq.RawQuery = rq.(string)
 						reqJson, err = json.Marshal(dataReq)
 						if err != nil {
@@ -413,19 +454,18 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							fmt.Fprint(w, retJson)
 						}
 					} else {
-						//Invalid Query Request: rawquery missing
-						swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Invalid Query Request.  Missing RawQuery"))
+						//Invalid Query Request: query missing
+						swErr.SetError(fmt.Sprintf("[wolkdb:ServeHTTP] Invalid Query Request.  Missing Query"))
 						log.Error(swErr.Error())
 						swErr.ErrorCode = 425
-						swErr.ErrorMessage = fmt.Sprintf("Invalid Query Request. Missing Rawquery")
+						swErr.ErrorMessage = fmt.Sprintf("Invalid Query Request. Missing query")
 						retJson := buildErrorResp(&swErr)
 						fmt.Fprint(w, retJson)
 					}
 				} else if dataReq.RequestType == "Put" {
-					dataReq.Table = swReq.table
-					dataReq.TableOwner = swReq.owner
 					if row, ok := bodyMap["row"]; ok {
-						newRow := swarmdb.Row{Cells: row.(map[string]interface{})}
+						newRow := swarmdb.NewRow()
+						newRow = row.(map[string]interface{})
 						dataReq.Rows = append(dataReq.Rows, newRow)
 					}
 					reqJson, err = json.Marshal(dataReq)
@@ -438,19 +478,34 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						retJson := buildErrorResp(&swErr)
 						fmt.Fprintf(w, retJson)
 					}
+				} else {
+					bodyMap["owner"] = swReq.owner
+					bodyMap["database"] = swReq.database
+					reqJson, err = json.Marshal(bodyMap)
 				}
 			} else {
-				fmt.Fprintf(w, "\nPOST operations require a requestType, (%+v), (%s)", bodyMap, bodyMap["requesttype"])
+				swErr = swarmdb.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body -- Missing requesttype"}
+				swErr.SetError(fmt.Sprintf("POST operations require a requestType, (%+v), (%s)", bodyMap, bodyMap["requesttype"]))
+				retJson := buildErrorResp(&swErr)
+				fmt.Fprint(w, retJson)
 			}
+		} else {
+			swErr = swarmdb.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body"}
+			swErr.SetError(fmt.Sprintf("Input Data Invalid [%v]", bodyMapInt))
+			log.Debug(swErr.Error())
+			retJson := buildErrorResp(&swErr)
+			fmt.Fprint(w, retJson)
 		}
+	}
+	if swErr.ErrorMessage == "" {
 		//Redirect to SelectHandler after "building" GET RequestOption
-		//fmt.Printf("Sending this JSON to SelectHandler (%s) and Owner=[%s]", reqJson, keymanager.WOLKSWARMDB_ADDRESS)
+		log.Debug(fmt.Sprintf("JSON sent in request [%s]", reqJson))
 		response, errResp := s.swarmdb.SelectHandler(verifiedUser, string(reqJson))
 		if errResp != nil {
 			retJson := buildErrorResp(errResp)
 			fmt.Fprint(w, retJson)
 		} else {
-			fmt.Fprintf(w, response)
+			fmt.Fprintf(w, response.Stringify())
 		}
 	}
 }
@@ -458,15 +513,10 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func main() {
 	configFileLocation := flag.String("config", swarmdb.SWARMDBCONF_FILE, "Full path location to SWARMDB configuration file.")
 	//TODO: store this somewhere accessible to be used later
-	initFlag := flag.Bool("init", false, "Used to initialize a new SWARMDB")
+	logLevelFlag := flag.Int("loglevel", 3, "Log Level Verbosity 1-6 (4 for debug)")
 	flag.Parse()
-	fmt.Println("Launching HTTP server...")
 
-	// start swarm http proxy server
-	if *initFlag {
-		fmt.Printf("Initializing a new SWARMDB")
-	}
-	fmt.Printf("Starting SWARMDB using [%s]", *configFileLocation)
+	log.Debug("Starting SWARMDB using [%s] and loglevel [%s]", *configFileLocation, *logLevelFlag)
 
 	if _, err := os.Stat(*configFileLocation); os.IsNotExist(err) {
 		log.Debug("Default config file missing.  Building ..")
@@ -478,19 +528,19 @@ func main() {
 
 	config, err := swarmdb.LoadSWARMDBConfig(*configFileLocation)
 	if err != nil {
-		fmt.Printf("\n The config file location provided [%s] is invalid.  Exiting ...\n", *configFileLocation)
+		log.Debug("The config file location provided [%s] is invalid.  Exiting ...", *configFileLocation)
 		os.Exit(1)
 	}
 
-	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(4), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
+	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*logLevelFlag), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
 
 	swdb, err := swarmdb.NewSwarmDB(config.ChunkDBPath, config.ChunkDBPath)
 	if err != nil {
 		panic(fmt.Sprintf("Cannot start: %s", err.Error()))
 	}
+	log.Debug("Trying to start HttpServer")
 	go StartHttpServer(swdb, &config)
-	fmt.Println("\nHttpServer Started\n")
 
-	fmt.Println("Launching TCPIP server...\n")
+	log.Debug("Trying to start TCPIP server...\n")
 	StartTcpipServer(swdb, &config)
 }

@@ -44,7 +44,7 @@ https://www.docker.com/community-edition#/download
 | 2001:2001 | <http_system_port>:<http_container_port> |
 | 8501:8501 | <swarmDB_system_port>:<swarmDB_container_port> |
 
-# Running SwarmDB
+## Verify SwarmDB
 
 Deploying the image above will run SWARMDB in the Docker container. To verify if SWARMDB is running:
 
@@ -76,8 +76,8 @@ Deploying the image above will run SWARMDB in the Docker container. To verify if
       Usage of /usr/local/swarmdb/bin/wolkdb:
       -config string
     	      Full path location to SWARMDB configuration file. (default "/swarmdb/swarmdb.conf")
-      -init
-    	      Used to initialize a new SWARMDB
+      -loglevel int
+    	Log Level Verbosity 1-6 (4 for debug) (default 3)
 
 ### The default swarmDB configuration file
     

@@ -22,6 +22,11 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+type ENSSimulation struct {
+	filepath string
+	db       *sql.DB
+}
+
 func NewENSSimulation(path string) (ens ENSSimulation, err error) {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
@@ -49,32 +54,36 @@ func NewENSSimulation(path string) (ens ENSSimulation, err error) {
 }
 
 func (self *ENSSimulation) StoreRootHash(u *SWARMDBUser, indexName []byte, roothash []byte) (err error) {
-	log.Debug(fmt.Sprintf("[enssimulation:StoreRootHash] indexName: [%x] => roothash[%x]", indexName, roothash))
+	log.Debug(fmt.Sprintf("[enssimulation:StoreRootHash] indexName: (%s)[%x] => roothash[%x]", indexName, indexName, roothash))
 	sql_add := `INSERT OR REPLACE INTO ens ( indexName, roothash, storeDT ) values(?, ?, CURRENT_TIMESTAMP)`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
-		return (err)
+		log.Debug("Error storing RootHash")
+		return &SWARMDBError{message: fmt.Sprintf("[enssimulation:StoreRootHash] sql.db.Prepare [%s]", err.Error()), ErrorCode: 441, ErrorMessage: "Error Storing RootHash"}
 	}
 	defer stmt.Close()
 
 	_, err2 := stmt.Exec(indexName, roothash)
 	if err2 != nil {
-		return (err2)
+		log.Debug("Error storing RootHash")
+		return &SWARMDBError{message: fmt.Sprintf("[enssimulation:StoreRootHash] stmt.Exec [%s]", err2.Error()), ErrorCode: 441, ErrorMessage: "Error Storing RootHash"}
 	}
 	return nil
 }
 
 func (self *ENSSimulation) GetRootHash(u *SWARMDBUser, indexName []byte) (val []byte, err error) {
+	//TODO: why are we passing in 'u' but not using?
+	log.Debug(fmt.Sprintf("[enssimulation:GetRootHash] indexName: (%s)[%x] => roothash[%x]", indexName, indexName)) //, roothash))
 	sql := `SELECT roothash FROM ens WHERE indexName = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
-		return val, err
+		return val, &SWARMDBError{message: fmt.Sprintf("[enssimulation:GetRootHash] sql.db.Prepare [%s]", err.Error()), ErrorCode: 442, ErrorMessage: "Error Retrieving RootHash"}
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query(indexName)
 	if err != nil {
-		return nil, err
+		return nil, &SWARMDBError{message: fmt.Sprintf("[enssimulation:GetRootHash] sql.db.Prepare [%s]", err.Error()), ErrorCode: 442, ErrorMessage: "Error Retrieving RootHash"}
 	}
 	defer rows.Close()
 
@@ -83,7 +92,7 @@ func (self *ENSSimulation) GetRootHash(u *SWARMDBUser, indexName []byte) (val []
 		if err2 != nil {
 			return nil, err2
 		}
-		log.Debug(fmt.Sprintf("[enssimulation:GetRootHash] indexName: [%x] => roothash: [%x]", indexName, val))
+		log.Debug(fmt.Sprintf("[enssimulation:GetRootHash] Success Query indexName: [%x] => roothash: [%x]", indexName, val))
 		return val, nil
 	}
 	return val, nil

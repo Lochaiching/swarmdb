@@ -38,6 +38,7 @@ type HashDB struct {
 	rootnode   *Node
 	swarmdb    *SwarmDB
 	buffered   bool
+	encrypted  int
 	columnType ColumnType
 	mutex      sync.Mutex
 }
@@ -70,7 +71,7 @@ func (self *HashDB) GetRootHash() []byte {
 	return self.rootnode.NodeHash
 }
 
-func NewHashDB(u *SWARMDBUser, rootnode []byte, swarmdb SwarmDB, columntype ColumnType) (*HashDB, error) {
+func NewHashDB(u *SWARMDBUser, rootnode []byte, swarmdb SwarmDB, columntype ColumnType, encrypted int) (*HashDB, error) {
 	hd := new(HashDB)
 	n := NewNode(nil, nil)
 	n.Root = true
@@ -85,6 +86,7 @@ func NewHashDB(u *SWARMDBUser, rootnode []byte, swarmdb SwarmDB, columntype Colu
 	hd.rootnode = n
 	hd.swarmdb = &swarmdb
 	hd.buffered = false
+	hd.encrypted = encrypted
 	hd.columnType = columntype
 	return hd, nil
 }
@@ -166,7 +168,7 @@ func (self *HashDB) Open(owner, tablename, columnname []byte) (bool, error) {
 }
 
 func (self *HashDB) Put(u *SWARMDBUser, k []byte, v []byte) (bool, error) {
-	err := self.rootnode.Add(u, k, v, self.swarmdb, self.columnType)
+	err := self.rootnode.Add(u, k, v, self.swarmdb, self.columnType, self.encrypted)
 	if err != nil {
 		return false, err
 	}
@@ -177,16 +179,16 @@ func (self *HashDB) GetRootNode() []byte {
 	return self.rootnode.NodeHash
 }
 
-func (self *Node) Add(u *SWARMDBUser, k []byte, v Val, swarmdb *SwarmDB, columntype ColumnType) error {
+func (self *Node) Add(u *SWARMDBUser, k []byte, v Val, swarmdb *SwarmDB, columntype ColumnType, encrypted int) error {
 	log.Debug(fmt.Sprintf("HashDB Add ", self))
 	self.Version++
 	self.NodeKey = []byte("0")
 	self.columnType = columntype
-	_, err := self.add(u, NewNode(k, v), self.Version, self.NodeKey, swarmdb, columntype)
+	_, err := self.add(u, NewNode(k, v), self.Version, self.NodeKey, swarmdb, columntype, encrypted)
 	return err
 }
 
-func (self *Node) add(u *SWARMDBUser, addnode *Node, version int, nodekey []byte, swarmdb *SwarmDB, columntype ColumnType) (newnode *Node, err error) {
+func (self *Node) add(u *SWARMDBUser, addnode *Node, version int, nodekey []byte, swarmdb *SwarmDB, columntype ColumnType, encrypted int) (newnode *Node, err error) {
 	kh := keyhash(addnode.Key)
 	bin := hashbin(kh, self.Level)
 	self.NodeKey = nodekey
@@ -211,7 +213,7 @@ func (self *Node) add(u *SWARMDBUser, addnode *Node, version int, nodekey []byte
 					return nil, err
 				}
 			}
-			self.Bin[bin], err = self.Bin[bin].add(u, addnode, version, []byte(newnodekey), swarmdb, columntype)
+			self.Bin[bin], err = self.Bin[bin].add(u, addnode, version, []byte(newnodekey), swarmdb, columntype, encrypted)
 			if err != nil {
 				return nil, err
 			}
@@ -241,7 +243,7 @@ func (self *Node) add(u *SWARMDBUser, addnode *Node, version int, nodekey []byte
 			sdata := make([]byte, 4096)
 			copy(sdata[64:], convertToByte(addnode.Value))
 			copy(sdata[96:], addnode.Key)
-			dhash, err := swarmdb.StoreDBChunk(u, sdata, 1)
+			dhash, err := swarmdb.StoreDBChunk(u, sdata, encrypted)
 			if err != nil {
 				return self, &SWARMDBError{message: `[hashdb:add] StoreDBChunk ` + err.Error()}
 			}
@@ -268,8 +270,8 @@ func (self *Node) add(u *SWARMDBUser, addnode *Node, version int, nodekey []byte
 		cself := self
 		cself.Level = self.Level + 1
 		cself.Loaded = true
-		n.add(u, addnode, version, self.NodeKey, swarmdb, columntype)
-		n.add(u, cself, version, self.NodeKey, swarmdb, columntype)
+		n.add(u, addnode, version, self.NodeKey, swarmdb, columntype, encrypted)
+		n.add(u, cself, version, self.NodeKey, swarmdb, columntype, encrypted)
 		n.Loaded = true
 		return n, nil
 	}
@@ -325,7 +327,7 @@ func convertToByte(a Val) []byte {
 	return nil
 }
 
-func (self *Node) storeBinToNetwork(u *SWARMDBUser, swarmdb *SwarmDB) ([]byte, error) {
+func (self *Node) storeBinToNetwork(u *SWARMDBUser, swarmdb *SwarmDB, encrypted int) ([]byte, error) {
 	storedata := make([]byte, 66*64)
 
 	if self.Next || self.Root {
@@ -342,26 +344,37 @@ func (self *Node) storeBinToNetwork(u *SWARMDBUser, swarmdb *SwarmDB) ([]byte, e
 	}
 
 	//wg := &sync.WaitGroup{}
-	adhash, err := swarmdb.StoreDBChunk(u, storedata, 1)
+	adhash, err := swarmdb.StoreDBChunk(u, storedata, encrypted)
 	if err != nil {
-		return adhash, &SWARMDBError{message: `[hashdb:storeBinToNetwork] StoreDBChunk ` + err.Error()}
+		return adhash, GenerateSWARMDBError(err, fmt.Sprintf("[hashdb:storeBinToNetwork] StoreDBChunk ", err.Error()))
 	}
 	//wg.Wait()
 	return adhash, err
 }
 
 func (self *HashDB) Get(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
+	log.Debug("[hashdb:Get]")
 	stack := newStack()
 	ret, err := self.rootnode.Get(u, k, self.swarmdb, self.columnType, stack)
 	if err != nil {
-		return nil, false, err
+		switch err.(type) {
+		case *KeyNotFoundError:
+			
+			return nil, false, nil
+		default:
+			log.Debug(fmt.Sprintf("***** ERROR retrieving key [%s] ****** [%s]\n", k, err))
+			return nil, false, GenerateSWARMDBError(err, fmt.Sprintf("Error Retrieving key [%s]", k))
+		}
 	}
 	value := bytes.Trim(convertToByte(ret), "\x00")
 	b := true
 	if ret == nil {
-		var err KeyNotFoundError
-		return nil, false, &err
+		//var err KeyNotFoundError
+		//return nil, false, &err
+		log.Debug("KEY NOT FOUND")
+		return nil, false, nil
 	}
+	log.Debug(fmt.Sprintf("[hashdb:Get] Returning [%s]", value))
 	return value, b, nil
 }
 
@@ -485,9 +498,16 @@ func (self *HashDB) Insert(u *SWARMDBUser, k []byte, v []byte) (bool, error) {
 }
 
 func (self *HashDB) Delete(u *SWARMDBUser, k []byte) (bool, error) {
-	//TODO: need error??
 	_, b, err := self.rootnode.Delete(u, k, self.swarmdb, self.columnType)
-	return b, err
+	if err != nil {
+		switch err.(type) {
+		case *KeyNotFoundError:
+			return false, nil
+		default:
+			return false, err
+		}
+	}
+	return b, nil
 }
 
 func (self *Node) Delete(u *SWARMDBUser, k []byte, swarmdb *SwarmDB, columntype ColumnType) (newnode *Node, found bool, err error) {
@@ -595,7 +615,7 @@ func (self *HashDB) FlushBuffer(u *SWARMDBUser) (bool, error) {
 	if self.buffered == false {
 		// do nothing: FlushBuffer does not require a StartBuffer
 	}
-	_, err := self.rootnode.flushBuffer(u, self.swarmdb)
+	_, err := self.rootnode.flushBuffer(u, self.swarmdb, self.encrypted)
 	if err != nil {
 		return false, err
 	}
@@ -603,12 +623,12 @@ func (self *HashDB) FlushBuffer(u *SWARMDBUser) (bool, error) {
 	return true, err
 }
 
-func (self *Node) flushBuffer(u *SWARMDBUser, swarmdb *SwarmDB) ([]byte, error) {
+func (self *Node) flushBuffer(u *SWARMDBUser, swarmdb *SwarmDB, encrypted int) ([]byte, error) {
 	var err error
 	for _, bin := range self.Bin {
 		if bin != nil {
 			if bin.Next == true && bin.Stored == false {
-				_, err := bin.flushBuffer(u, swarmdb)
+				_, err := bin.flushBuffer(u, swarmdb, encrypted)
 				if err != nil {
 					return nil, err
 				}
@@ -616,7 +636,7 @@ func (self *Node) flushBuffer(u *SWARMDBUser, swarmdb *SwarmDB) ([]byte, error) 
 				sdata := make([]byte, 4096)
 				copy(sdata[64:], convertToByte(bin.Value))
 				copy(sdata[96:], bin.Key)
-				dhash, err := swarmdb.StoreDBChunk(u, sdata, 1)
+				dhash, err := swarmdb.StoreDBChunk(u, sdata, encrypted)
 				if err != nil {
 					return nil, &SWARMDBError{message: `[hashdb:flushBuffer] StoreDBChunk ` + err.Error()}
 				}
@@ -625,7 +645,7 @@ func (self *Node) flushBuffer(u *SWARMDBUser, swarmdb *SwarmDB) ([]byte, error) 
 			}
 		}
 	}
-	self.NodeHash, err = self.storeBinToNetwork(u, swarmdb)
+	self.NodeHash, err = self.storeBinToNetwork(u, swarmdb, encrypted)
 	self.Stored = true
 	return self.NodeHash, err
 }

@@ -18,7 +18,7 @@ package swarmdb_test
 import (
 	"bytes"
 	"fmt"
-	"github.com/ethereum/go-ethereum/swarmdb"
+	"swarmdb"
 	"testing"
 )
 

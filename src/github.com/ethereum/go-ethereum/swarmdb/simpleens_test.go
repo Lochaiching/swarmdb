@@ -17,8 +17,7 @@ package swarmdb_test
 import (
 	"bytes"
 	"fmt"
-	"github.com/ethereum/go-ethereum/swarmdb"
-	"os"
+	"swarmdb"
 	"testing"
 )
 
@@ -35,7 +34,7 @@ func TestENSSimple(t *testing.T) {
 	}
 
 	fmt.Printf("roothash [%x]\nrootchek [%x]\n", roothash, val)
-	os.Exit(0)
+
 	if bytes.Compare(val, roothash) != 0 {
 		t.Fatal("Err1", indexName, roothash, val)
 	} else {

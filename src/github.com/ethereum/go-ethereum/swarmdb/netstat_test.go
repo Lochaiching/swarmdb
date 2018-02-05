@@ -17,9 +17,8 @@ package swarmdb_test
 
 import (
 	"fmt"
-	//"bytes"
-	"github.com/ethereum/go-ethereum/swarmdb"
 	"math/rand"
+	"swarmdb"
 	"testing"
 )
 
@@ -28,7 +27,7 @@ var (
 	chunkTotal = 2000
 )
 
-func TestDBChunkStore(t *testing.T) {
+func TestNetstatsDBChunkStore(t *testing.T) {
 
 	//General Connection
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)

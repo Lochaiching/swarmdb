@@ -1,0 +1,159 @@
+
+https://blog.golang.org/cover
+
+===============================================================================================================================================
+
+A) for the test dir
+emacs /home/yaron/.bashrc
+export GOPATH=...:/var/www/vhosts/yaron/swarm.wolk.com/test/golangcover/
+
+
+===============================================================================================================================================
+
+B) for swarmdb
+
+------------------------
+.bashrc
+export GOPATH=...:/var/www/vhosts/sourabh/swarm.wolk.com/src/github.com/ethereum/go-ethereum/swarmdb
+------------------------
+
+[sourabh@www6001 src]$ pwd
+/var/www/vhosts/sourabh/swarm.wolk.com/src/github.com/ethereum/go-ethereum/swarmdb/src
+[sourabh@www6001 src]$ ln -s ../../swarmdb swarmdb
+[sourabh@www6001 src]$ ll
+total 0
+lrwxrwxrwx 1 sourabh engineering  13 Feb  2 17:08 swarmdb -> ../../swarmdb
+drwxr-xr-x 3 sourabh engineering 183 Feb  2 17:01 ydb
+[sourabh@www6001 src]$
+
+------------------------
+package swarmdb_test
+
+import (
+	//"github.com/ethereum/go-ethereum/swarmdb"
+	"swarmdb"
+	"testing"
+)
+------------------------
+
+go test -covermode=count -coverprofile=count.out swarmdb
+go tool cover -func=count.out
+go tool cover -html=count.out
+------------------------
+
+
+===============================================================================================================================================
+
+1)
+- 3/7=0.429
+[yaron@www6002 test1]$ go test -cover
+PASS
+coverage: 42.9% of statements
+ok      test1   0.002s
+ 
+- collected statistics save to file 
+[yaron@www6002 test1]$ go test -coverprofile=coverage.out
+PASS
+coverage: 42.9% of statements
+ok      test1   0.002s
+
+- coverage to be broken down by function  (we have only 1 fun)
+[yaron@www6002 test1]$ go tool cover -func=coverage.out
+test1/size.go:3:        Size            42.9%
+total:                  (statements)    42.9%
+
+[yaron@www6002 test1]$ go tool cover -html=coverage.out
+HTML output written to /tmp/cover813556959/coverage.html
+
+2)
+- test package fmt_test.go
+[yaron@www6002 test1]$ go test -covermode=count -coverprofile=count.out fmt
+ok      fmt     0.084s  coverage: 94.7% of statements
+
+[yaron@www6002 test1]$ go tool cover -func=count.out
+fmt/format.go:54:       clearflags      100.0%
+fmt/format.go:58:       init            100.0%
+fmt/format.go:64:       writePadding    86.7%
+
+[yaron@www6002 test1]$ go tool cover -html=count.out
+HTML output written to /tmp/cover574468869/coverage.html
+ 
+3)
+
+cd 
+[yaron@www6002 swarmdb]$  go test -cover keymanager_test.go
+ok      command-line-arguments  3.602s  coverage: 0.0% of statements
+[yaron@www6002 swarmdb]$ go test keymanager_test.go  -coverprofile=keymanageCoverage.out
+ 
+[yaron@www6002 swarmdb]$ go tool cover -html=count.out
+
+
+
+
+
+
+
+
+------------------------------------------ coverage.out  -file ------------------------------------------
+
+mode: set
+test1/size.go:3.25,4.12 1 1
+test1/size.go:16.5,16.22 1 0
+test1/size.go:5.16,6.26 1 1
+test1/size.go:7.17,8.22 1 0
+test1/size.go:9.17,10.23 1 1
+test1/size.go:11.18,12.21 1 0
+test1/size.go:13.19,14.22 1 0
+
+------------------------------------------------------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------------------------------------------------------
+[root@www6002 test1]# go test -cover size_test.go size.go
+ok      command-line-arguments  0.002s  coverage: 42.9% of statements
+
+
+[root@www6002 test1]# go test -cover
+PASS
+coverage: 42.9% of statements
+ok      _/var/www/vhosts/yaron/swarm.wolk.com/test/golangcover/test1    0.002s
+
+
+[root@www6002 test1]# go test -cover size_test.go size.go
+--- FAIL: TestSize (0.00s)
+        size_test.go:19: #1: Size(987)=huge; want small
+FAIL
+coverage: 42.9% of statements
+FAIL    command-line-arguments  0.010s
+
+
+[root@www6002 test1]# go test -cover
+--- FAIL: TestSize (0.00s)
+        size_test.go:19: #1: Size(987)=huge; want small
+FAIL
+coverage: 42.9% of statements
+exit status 1
+FAIL    _/var/www/vhosts/yaron/swarm.wolk.com/test/golangcover/test1    0.012s
+------------------------------------------------------------------------------------------------------------------------------
+ 
+(The -coverprofile flag automatically sets -cover to enable coverage analysis.)
+ 
+[yaron@www6002 test1]$ go test -coverprofile=coverage.out
+PASS
+coverage: 42.9% of statements
+ok      _/var/www/vhosts/yaron/swarm.wolk.com/test/golangcover/test1    0.002s
+ 
+ 
+ 
+[yaron@www6002 test1]$ go test size_test.go size.go -coverprofile=coverage.out
+ok      command-line-arguments  0.004s  coverage: 42.9% of statements
+
+[yaron@www6002 test1]$ go test -cover size_test.go size.go -coverprofile=coverage.out
+ok      command-line-arguments  0.002s  coverage: 42.9% of statements
+
+------------------------------------------------------------------------------------------------------------------------------
+
+ 
+
+------------------------------------------------------------------------------------------------------------------------------
+
+
