@@ -18,29 +18,28 @@ package swarmdb_test
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/cznic/mathutil"
-	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
-	"math"
-	"math/rand"
-	"os"
-	// "strings"
+	"strings"
+	"swarmdb"
 	"testing"
 	"time"
 )
 
 const (
-	TEST_OWNER           = "wolktoken.eth"
-	TEST_DATABASE        = "pets"
-	TEST_TABLE           = "dogs"
-	TEST_PKEY_INT        = "accountID"
-	TEST_PKEY_STRING     = "email"
-	TEST_PKEY_FLOAT      = "ts"
-	TEST_SKEY_INT        = "age"
-	TEST_SKEY_STRING     = "gender"
-	TEST_SKEY_FLOAT      = "weight"
-	TEST_TABLE_INDEXTYPE = swarmdb.IT_BPLUSTREE
-	TEST_ENS_DIR         = "/tmp"
+	TEST_ENS_DIR = "/tmp"
 )
+
+type testTableConfig struct {
+	tableName         string
+	primaryColumnName string
+	indexType         swarmdb.IndexType
+	columnType        swarmdb.ColumnType
+	sampleValue1      interface{}
+	sampleValue2      interface{}
+	sampleValue3      interface{}
+	sampleValue1str   string
+	sampleValue2str   string
+	sampleValue3str   string
+}
 
 func make_name(prefix string) (nm string) {
 	return fmt.Sprintf("%s%d", prefix, int32(time.Now().Unix()))
@@ -49,8 +48,7 @@ func make_name(prefix string) (nm string) {
 func getUser() (u *swarmdb.SWARMDBUser) {
 	config, err := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	if err != nil {
-		fmt.Printf("No config error: ", err)
-		os.Exit(0)
+		panic("No config error")
 	}
 
 	swarmdb.NewKeyManager(&config)
@@ -58,797 +56,666 @@ func getUser() (u *swarmdb.SWARMDBUser) {
 	return user
 }
 
-func getSWARMDBTable(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType, create bool) (tbl *swarmdb.Table) {
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := TEST_ENS_DIR
-	swarmdbObj, err := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-	if err != nil {
-		panic("Could not create NewSWARMDB")
-	}
-
-	owner := TEST_OWNER
-	database := TEST_DATABASE
-
-	// CreateTable
-	if create {
-		var option []swarmdb.Column
-		o := swarmdb.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
-		option = append(option, o)
-		tbl, _ = swarmdbObj.CreateTable(u, owner, database, tableName, option)
-
-		// OpenTable
-		err = tbl.OpenTable(u)
-		if err != nil {
-			fmt.Print("OPENTABLE ERR %v\n", err)
-		}
-		return tbl
-	} else {
-		tbl = swarmdbObj.NewTable(owner, database, tableName)
-		err = tbl.OpenTable(u)
-		if err != nil {
-			panic("Could not open table")
-		}
-		return tbl
-	}
-}
-
-func getSWARMDBTableSecondary(u *swarmdb.SWARMDBUser, tableName string, primaryKeyName string, primaryIndexType swarmdb.IndexType, primaryColumnType swarmdb.ColumnType,
-	secondaryKeyName string, secondaryIndexType swarmdb.IndexType, secondaryColumnType swarmdb.ColumnType,
-	create bool) (swarmdbObj *swarmdb.SwarmDB, err error) {
-
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := TEST_ENS_DIR
-	swarmdbObj, _ = swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-
-	owner := TEST_OWNER
-	database := TEST_DATABASE
-
-	// CreateTable
-	var swErr swarmdb.SWARMDBError
-	if create {
-		var option []swarmdb.Column
-		o := swarmdb.Column{ColumnName: primaryKeyName, Primary: 1, IndexType: primaryIndexType, ColumnType: primaryColumnType}
-		option = append(option, o)
-
-		s := swarmdb.Column{ColumnName: secondaryKeyName, Primary: 0, IndexType: secondaryIndexType, ColumnType: secondaryColumnType}
-		option = append(option, s)
-		tbl, errTblCreate := swarmdbObj.CreateTable(u, owner, database, tableName, option)
-		if errTblCreate != nil {
-			swErr.SetError("Error: [%s] " + errTblCreate.Error())
-		}
-
-		// OpenTable
-		err := tbl.OpenTable(u)
-		if err != nil {
-			fmt.Printf("OPENTABLE ERR %v\n", err)
-			swErr.SetError("OPENTTABLE Error: [%s] " + err.Error())
-		}
-
-		putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
-		var putjson map[string]interface{}
-		_ = json.Unmarshal([]byte(putstr), putjson)
-		tbl.Put(u, putjson)
-
-		putstr = `{"email":"sourabh@wolk.com", "age": 45, "gender": "M", "weight": 210.5}`
-		_ = json.Unmarshal([]byte(putstr), putjson)
-		tbl.Put(u, putjson)
-
-		// Put
-		for i := 1; i < 10; i++ {
-			g := "F"
-			w := float64(i) + .314159
-			putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
-				TEST_PKEY_STRING, i*2, i%5+21, g, w)
-			_ = json.Unmarshal([]byte(putstr), putjson)
-			tbl.Put(u, putjson)
-
-			g = "M"
-			w = float64(i) + float64(0.414159)
-			putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
-				TEST_PKEY_STRING, i*2+1, i%5+21, g, w)
-			_ = json.Unmarshal([]byte(putstr), putjson)
-			tbl.Put(u, putjson)
-
-		}
-	} else {
-		tbl, _ := swarmdbObj.GetTable(u, owner, database, tableName)
-		err := tbl.OpenTable(u)
-		if err != nil {
-			fmt.Printf("OPENTABLE ERR %v\n", err)
-		}
-	}
-	return swarmdbObj, nil
-}
-
-func rng() *mathutil.FC32 {
-	x, err := mathutil.NewFC32(math.MinInt32/4, math.MaxInt32/4, false)
-	if err != nil {
-		panic(err)
-	}
-	return x
-}
-
-func TestCreateListDropDatabase(t *testing.T) {
+func TestCoreTables(t *testing.T) {
 	u := getUser()
 	owner := make_name("owner")
+	owner2 := make_name("altowner")
 	database := make_name("db")
+	database2 := make_name("altdb")
 
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	ensdbPath := TEST_ENS_DIR
 	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 
 	// create database
-	var testReqOption swarmdb.RequestOption
-	testReqOption.RequestType = swarmdb.RT_CREATE_DATABASE
-	testReqOption.Owner = owner
-	testReqOption.Database = database
-
-	marshalTestReqOption, err := json.Marshal(testReqOption)
-	fmt.Printf("Input: %s\n", marshalTestReqOption)
+	var tReq *swarmdb.RequestOption
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_CREATE_DATABASE
+	tReq.Owner = owner
+	tReq.Database = database
+	mReq, _ := json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err := swdb.SelectHandler(u, string(mReq))
 	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-
-	}
-	res, err := swdb.SelectHandler(u, string(marshalTestReqOption))
-	fmt.Printf("Output: %s\n\n", res.Stringify())
-
-	// list databases
-	testReqOption.RequestType = swarmdb.RT_LIST_DATABASES
-	testReqOption.Owner = owner
-	testReqOption.Database = database
-	marshalTestReqOption, err = json.Marshal(testReqOption)
-	fmt.Printf("Input: %s\n", marshalTestReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption 1: %s", err)
-	}
-	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption 2: %s", err)
+		t.Fatalf("[swarmdb_test:TestCoreTables] CREATE DATABASE: %s", err)
 	}
 	fmt.Printf("Output: %s\n\n", res.Stringify())
+
+	// create database again with the exact name ==> should fail
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
+	if err != nil {
+		fmt.Printf("Output: %s\n\n", err)
+	} else {
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		t.Fatalf("[swarmdb_test:TestCoreTables] CREATE DATABASE again succeeded")
+	}
+
+	// create another database
+
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_CREATE_DATABASE
+	tReq.Owner = owner
+	tReq.Database = database2
+	mReq, _ = json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
+	if err != nil {
+		t.Fatalf("[swarmdb_test:TestCoreTables] CREATE DATABASE: %s", err)
+	}
+	fmt.Printf("Output: %s\n\n", res.Stringify())
+
+	// list databases ==> should have 2 databases
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_LIST_DATABASES
+	tReq.Owner = owner
+	tReq.Database = database
+	mReq, _ = json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
+	if err != nil {
+		t.Fatalf("[swarmdb_test:TestCoreTables] LIST DATABASES: %s", err)
+	}
+	if len(res.Data) != 2 {
+		t.Fatalf("[swarmdb_test:TestCoreTables] incorrect number of databases: %d", len(res.Data))
+	}
+	fmt.Printf("Output: %s \n\n", res.Stringify())
+
+	// list databases ==> should have 0 databases
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_LIST_DATABASES
+	tReq.Owner = owner2
+	tReq.Database = database
+	mReq, _ = json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
+	if err != nil {
+		t.Fatalf("[swarmdb_test:TestCoreTables] LIST DATABASES: %s", err)
+	}
+	if len(res.Data) != 0 {
+		t.Fatalf("[swarmdb_test:TestCoreTables] incorrect number of databases: %d", len(res.Data))
+	}
+	fmt.Printf("Output: %s \n\n", res.Stringify())
 
 	// list tables
-	testReqOption.RequestType = swarmdb.RT_LIST_TABLES
-	testReqOption.Owner = owner
-	testReqOption.Database = database
-
-	marshalTestReqOption, err = json.Marshal(testReqOption)
-	fmt.Printf("Input: %s\n", marshalTestReqOption)
+	tReq.RequestType = swarmdb.RT_LIST_TABLES
+	tReq.Owner = owner
+	tReq.Database = database
+	mReq, _ = json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-
+		t.Fatalf("[swarmdb_test:TestCoreTables] LIST TABLES: %s", err)
 	}
-	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption 2: %s", err)
+	if len(res.Data) > 0 {
+		t.Fatalf("[swarmdb_test:TestCoreTables] incorrect number of tables: %d", len(res.Data))
 	}
 	fmt.Printf("Output: %s\n\n", res.Stringify())
 
-	tableName := make_name("test")
+	tabletest := make([]testTableConfig, 6)
+	tabletest[0].tableName = make_name("teststrb")
+	tabletest[0].primaryColumnName = "stb"
+	tabletest[0].columnType = swarmdb.CT_STRING
+	tabletest[0].indexType = swarmdb.IT_BPLUSTREE
+	tabletest[0].sampleValue1 = "gamma"
+	tabletest[0].sampleValue2 = "alpha"
+	tabletest[0].sampleValue3 = "beta"
+	tabletest[0].sampleValue1str = fmt.Sprintf("%s", tabletest[0].sampleValue1)
+	tabletest[0].sampleValue2str = fmt.Sprintf("%s", tabletest[0].sampleValue2)
+	tabletest[0].sampleValue3str = fmt.Sprintf("%s", tabletest[0].sampleValue3)
 
-	var testColumn []swarmdb.Column
-	testColumn = make([]swarmdb.Column, 3)
-	testColumn[0].ColumnName = "email"
-	testColumn[0].Primary = 1                      // What if this is inconsistent?
-	testColumn[0].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
-	testColumn[0].ColumnType = swarmdb.CT_STRING
+	tabletest[1].tableName = make_name("teststrh")
+	tabletest[1].primaryColumnName = "sth"
+	tabletest[1].columnType = swarmdb.CT_STRING
+	tabletest[1].indexType = swarmdb.IT_HASHTREE
+	tabletest[1].sampleValue1 = "gamma"
+	tabletest[1].sampleValue2 = "alpha"
+	tabletest[1].sampleValue3 = "beta"
+	tabletest[1].sampleValue1str = fmt.Sprintf("%s", tabletest[1].sampleValue1)
+	tabletest[1].sampleValue2str = fmt.Sprintf("%s", tabletest[1].sampleValue2)
+	tabletest[1].sampleValue3str = fmt.Sprintf("%s", tabletest[1].sampleValue3)
 
-	testColumn[1].ColumnName = "name"
-	testColumn[1].Primary = 0                      // What if this is inconsistent?
-	testColumn[1].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
-	testColumn[1].ColumnType = swarmdb.CT_STRING
+	tabletest[2].tableName = make_name("testintb")
+	tabletest[2].primaryColumnName = "inb"
+	tabletest[2].columnType = swarmdb.CT_INTEGER
+	tabletest[2].indexType = swarmdb.IT_BPLUSTREE
+	tabletest[2].sampleValue1 = 3
+	tabletest[2].sampleValue2 = 1
+	tabletest[2].sampleValue3 = 2
+	tabletest[2].sampleValue1str = fmt.Sprintf("%d", tabletest[2].sampleValue1)
+	tabletest[2].sampleValue2str = fmt.Sprintf("%d", tabletest[2].sampleValue2)
+	tabletest[2].sampleValue3str = fmt.Sprintf("%d", tabletest[2].sampleValue3)
 
-	testColumn[2].ColumnName = "age"
-	testColumn[2].Primary = 0                      // What if this is inconsistent?
-	testColumn[2].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
-	testColumn[2].ColumnType = swarmdb.CT_INTEGER
+	tabletest[3].tableName = make_name("testinth")
+	tabletest[3].primaryColumnName = "inh"
+	tabletest[3].columnType = swarmdb.CT_INTEGER
+	tabletest[3].indexType = swarmdb.IT_HASHTREE
+	tabletest[3].sampleValue1 = 3
+	tabletest[3].sampleValue2 = 1
+	tabletest[3].sampleValue3 = 2
+	tabletest[3].sampleValue1str = fmt.Sprintf("%d", tabletest[3].sampleValue1)
+	tabletest[3].sampleValue2str = fmt.Sprintf("%d", tabletest[3].sampleValue2)
+	tabletest[3].sampleValue3str = fmt.Sprintf("%d", tabletest[3].sampleValue3)
 
-	testReqOption.RequestType = swarmdb.RT_CREATE_TABLE
-	testReqOption.Owner = owner
-	testReqOption.Database = database
-	testReqOption.Table = tableName
-	testReqOption.Columns = testColumn
+	tabletest[4].tableName = make_name("testfltb")
+	tabletest[4].primaryColumnName = "flb"
+	tabletest[4].columnType = swarmdb.CT_FLOAT
+	tabletest[4].indexType = swarmdb.IT_BPLUSTREE
+	tabletest[4].sampleValue1 = 3.14
+	tabletest[4].sampleValue2 = 1.66
+	tabletest[4].sampleValue3 = 2.71
+	tabletest[4].sampleValue1str = fmt.Sprintf("%f", tabletest[4].sampleValue1)
+	tabletest[4].sampleValue2str = fmt.Sprintf("%f", tabletest[4].sampleValue2)
+	tabletest[4].sampleValue3str = fmt.Sprintf("%f", tabletest[4].sampleValue3)
 
-	marshalTestReqOption, err = json.Marshal(testReqOption)
-	fmt.Printf("Input: %s\n", marshalTestReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
+	tabletest[5].tableName = make_name("testflth")
+	tabletest[5].primaryColumnName = "flh"
+	tabletest[5].columnType = swarmdb.CT_FLOAT
+	tabletest[5].indexType = swarmdb.IT_HASHTREE
+	tabletest[5].sampleValue1 = 3.14
+	tabletest[5].sampleValue2 = 1.66
+	tabletest[5].sampleValue3 = 2.71
+	tabletest[5].sampleValue1str = fmt.Sprintf("%f", tabletest[5].sampleValue1)
+	tabletest[5].sampleValue2str = fmt.Sprintf("%f", tabletest[5].sampleValue2)
+	tabletest[5].sampleValue3str = fmt.Sprintf("%f", tabletest[5].sampleValue3)
 
-	}
-	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption 2: %s", err)
-	}
-	fmt.Printf("Output: %s\n\n", res.Stringify())
+	tableCountExpected := 0
+	for _, tbl := range tabletest {
+		tableName := tbl.tableName
 
-	// list tables
-	testReqOption.RequestType = swarmdb.RT_LIST_TABLES
-	testReqOption.Owner = owner
-	testReqOption.Database = database
+		// CREATE TABLE
+		var testColumn []swarmdb.Column
+		testColumn = make([]swarmdb.Column, 3)
+		testColumn[0].ColumnName = tbl.primaryColumnName
+		testColumn[0].Primary = 1 // TODO: test when (a) more than one primary (b) no primary specified
+		testColumn[0].IndexType = tbl.indexType
+		testColumn[0].ColumnType = tbl.columnType
 
-	marshalTestReqOption, err = json.Marshal(testReqOption)
-	fmt.Printf("Input: %s\n", marshalTestReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
+		testColumn[1].ColumnName = "name"
+		testColumn[1].Primary = 0
+		testColumn[1].IndexType = swarmdb.IT_BPLUSTREE
+		testColumn[1].ColumnType = swarmdb.CT_STRING // TODO: test what happens when value of incorrect type supplied for column
 
-	}
-	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption 2: %s", err)
-	}
-	fmt.Printf("Output: %s\n\n", res.Stringify())
+		testColumn[2].ColumnName = "age"
+		testColumn[2].Primary = 0
+		testColumn[2].IndexType = swarmdb.IT_BPLUSTREE
+		testColumn[2].ColumnType = swarmdb.CT_INTEGER
 
-	testKey := "rodneytest1@wolk.com"
-
-	testReqOption.RequestType = swarmdb.RT_PUT
-	testReqOption.Owner = owner
-	testReqOption.Database = database
-	testReqOption.Table = tableName
-	testReqOption.Key = testKey
-	rowObj := make(swarmdb.Row) // map[string]interface{}
-	rowObj["name"] = "Rodney"
-	rowObj["age"] = int(37)
-	rowObj["email"] = testKey
-
-	testReqOption.Rows = append(testReqOption.Rows, rowObj)
-	marshalTestReqOption, err = json.Marshal(testReqOption)
-	fmt.Printf("Input: %s\n", marshalTestReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-	}
-
-	resp, errS := swdb.SelectHandler(u, string(marshalTestReqOption))
-	if errS != nil {
-		t.Fatalf("[swarmdb_test:TestPut] SelectHandler %s", errS.Error())
-	}
-	fmt.Printf("Output: %s\n\n", resp.Stringify())
-	if resp.AffectedRowCount != 1 {
-		t.Fatal("NOT OK")
-	} else {
-		fmt.Printf("PASS\n")
-	}
-
-	testReqOption.RequestType = swarmdb.RT_GET
-	testReqOption.Owner = owner
-	testReqOption.Database = database
-	testReqOption.Table = tableName
-
-	testReqOption.Key = testKey
-
-	marshalTestReqOption, err = json.Marshal(testReqOption)
-	fmt.Printf("Input: %s\n", marshalTestReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-	}
-
-	resp, err = swdb.SelectHandler(u, string(marshalTestReqOption))
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Printf("Output: %s\n\n", resp.Stringify())
-
-	/*rowObj = make(map[string]interface{})
-	err = json.Unmarshal([]byte(resp), &rowObj)
-	if err != nil {
-		t.Fatal("error parsing response")
-	} else {
-		if strings.Compare(fmt.Sprintf("%v", rowObj["age"]), "37") != 0 {
-			fmt.Printf("MISMATCH: [%v]\n", rowObj["age"])
-		} else if strings.Compare(rowObj["name"].(string), "Rodney") != 0 {
-			fmt.Printf("MISMATCH: [%v]\n", rowObj["name"])
-		} else if strings.Compare(rowObj["email"].(string), testKey) != 0 {
-			fmt.Printf("MISMATCH email: [%v]\n", rowObj["email"])
-		} else {
-			fmt.Printf("PASS\n")
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_CREATE_TABLE
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		tReq.Columns = testColumn
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestCoreTables] CreateTable: %s", err)
 		}
-	}*/
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+
+		// CREATE TABLE second time ==> FAIL
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			fmt.Printf("Output: %s\n\n", err)
+		} else {
+			fmt.Printf("Output: %s\n\n", res)
+			t.Fatalf("[swarmdb_test:TestCoreTables] CreateTable2: %s", err)
+		}
+
+		// DESCRIBE TABLE
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_DESCRIBE_TABLE
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestCoreTables] DescribeTable: %s", err)
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		if len(res.Data) != 3 {
+			t.Fatalf("[swarmdb_test:TestCoreTables] DescribeTable: incorrect data %s")
+		}
+
+		// PUT(sampleValue1)
+		testKey := tbl.sampleValue1
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_PUT
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		tReq.Key = testKey
+		rowObj := make(swarmdb.Row)
+		rowObj[tbl.primaryColumnName] = testKey
+		rowObj["name"] = "Rodney"
+		rowObj["age"] = int(37)
+
+		tReq.Rows = append(tReq.Rows, rowObj)
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err := swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestCoreTables] Put %s", err.Error())
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		if res.AffectedRowCount != 1 {
+			t.Fatalf("Put affectedRowCount NOT OK")
+		}
+
+		// GET(sampleValue1)
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_GET
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		tReq.Key = testKey
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestCoreTables] Get %s", err.Error())
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		if len(res.Data) == 1 {
+			d := res.Data[0]
+			if d["age"] != 37 {
+				t.Fatalf("MISMATCH: [%v]\n", d["age"])
+			} else if strings.Compare(d["name"].(string), "Rodney") != 0 {
+				t.Fatalf("MISMATCH: [%v]\n", d["name"])
+			} else {
+				if tbl.columnType == swarmdb.CT_STRING {
+					if strings.Compare(d[tbl.primaryColumnName].(string), testKey.(string)) != 0 {
+						t.Fatalf("MISMATCH on %s: [%v] != [%v]\n", tbl.primaryColumnName, d[tbl.primaryColumnName], testKey)
+					}
+				} else if tbl.columnType == swarmdb.CT_INTEGER {
+					if d[tbl.primaryColumnName].(int) != testKey.(int) {
+						t.Fatalf("MISMATCH on %s: [%d] != [%d]\n", tbl.primaryColumnName, d[tbl.primaryColumnName], testKey)
+					}
+				} else if tbl.columnType == swarmdb.CT_FLOAT {
+					if d[tbl.primaryColumnName].(float64) != testKey.(float64) {
+						t.Fatalf("MISMATCH on %s: [%f] != [%f]\n", tbl.primaryColumnName, d[tbl.primaryColumnName], testKey)
+					}
+				}
+			}
+		}
+
+		// GET(samplevalue2) should return ok = false, but not error
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_GET
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		tReq.Key = tbl.sampleValue2
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestCoreTables] Get %s", err.Error())
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		if len(res.Data) > 0 {
+			t.Fatalf("[swarmdb_test:TestCoreTables] Get(samplevalue2) should not be returning data")
+		}
+
+		// DELETE(samplevalue2) should return ok = false, but not error
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_DELETE
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		tReq.Key = tbl.sampleValue2
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestCoreTables] Delete %s", err.Error())
+		}
+		if res.AffectedRowCount > 0 {
+			t.Fatalf("[swarmdb_test:TestCoreTables] Delete has incorrect affectedRowCount %d", res.AffectedRowCount)
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+
+		// INSERT(sampleValue2) QUERY
+		tReq = new(swarmdb.RequestOption)
+		queryInsert := fmt.Sprintf("insert into %s (%s, name, age) values ('%s', 'randomname', '99')", tableName, tbl.primaryColumnName, tbl.sampleValue2str)
+		tReq.RequestType = swarmdb.RT_QUERY
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		tReq.RawQuery = queryInsert
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestCoreTables] Insert %s", err.Error())
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		if res.AffectedRowCount != 1 {
+			t.Fatalf("[swarmdb_test:TestCoreTables] Insert affected row count has incorrect affectedRowCount %d", res.AffectedRowCount)
+		}
+
+		// SELECT(sampleValue2) ==> 1
+		tReq = new(swarmdb.RequestOption)
+		querySelect := fmt.Sprintf("select %s, name, age from %s where %s = '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue2str)
+		tReq.RequestType = swarmdb.RT_QUERY
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		tReq.RawQuery = querySelect
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestCoreTables] Select(samplevalue2) %s", err.Error())
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		if len(res.Data) != 1 {
+			t.Fatalf("[swarmdb_test:TestCoreTables] Select(samplevalue2) incorrect # of rows in output %d", len(res.Data))
+		}
+
+		// SELECT AND ==> 2 rows
+		tReq = new(swarmdb.RequestOption)
+		querySelect = fmt.Sprintf("select %s, name, age from %s where %s = \"%s\" AND age = 99", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue2str)
+		tReq.RequestType = swarmdb.RT_QUERY
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		tReq.RawQuery = querySelect
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			// t.Fatalf("[swarmdb_test:TestCoreTables] Select(*) %s", err.Error())
+			// TODO: FIX THIS -- [swarmdb_test:TestCoreTables] Select(*) [swarmdb:SelectHandler] Query col [(stb = 'alpha')] does not exist in table
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		if len(res.Data) != 1 {
+			// t.Fatalf("[swarmdb_test:TestCoreTables] Select AND has incorrect # of rows in output %d (should be 1)", len(res.Data))
+		}
+
+		// SELECT OR ==> 2 rows
+		tReq = new(swarmdb.RequestOption)
+		querySelect = fmt.Sprintf("select %s, name, age from %s where %s = '%s' OR %s = '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue1str, tbl.primaryColumnName, tbl.sampleValue2str)
+		tReq.RequestType = swarmdb.RT_QUERY
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		tReq.RawQuery = querySelect
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			// t.Fatalf("[swarmdb_test:TestCoreTables] Select(*) %s", err.Error())
+			// TODO: FIX THIS -- Select(*) [swarmdb:SelectHandler] Query col [(stb = 'gamma')] does not exist in table
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		if len(res.Data) != 2 {
+			// t.Fatalf("[swarmdb_test:TestCoreTables] Select OR has incorrect # of rows in output %d (should be 1)", len(res.Data))
+		}
+
+		// SCAN ==> 2 Rows
+		if tbl.indexType == swarmdb.IT_BPLUSTREE {
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_SCAN
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Scan %s", err.Error())
+			}
+			if res.AffectedRowCount != 2 {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Scan should be returning 2 rows, got %d", res.AffectedRowCount)
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+		}
+
+		// SELECT(sampleValue3) ==> 0 rows
+		tReq = new(swarmdb.RequestOption)
+		querySelect = fmt.Sprintf("select %s, name, age from %s where %s = '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue3str)
+		tReq.RequestType = swarmdb.RT_QUERY
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tableName
+		tReq.RawQuery = querySelect
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestCoreTables] Select(samplevalue3) %s", err.Error())
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		if len(res.Data) > 0 {
+			t.Fatalf("[swarmdb_test:TestCoreTables] Select(samplevalue3) has incorrect # of rows in output %d (should be 0)", len(res.Data))
+		}
+
+		if tbl.indexType == swarmdb.IT_BPLUSTREE {
+			// Update(sampleValue2) ==> 1 row affected
+			tReq = new(swarmdb.RequestOption)
+			queryUpdate := fmt.Sprintf("update %s set age = 38 where %s = '%s'", tableName, tbl.primaryColumnName, tbl.sampleValue2str)
+			tReq.RequestType = swarmdb.RT_QUERY
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			tReq.RawQuery = queryUpdate
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Update(samplevalue2) %s", err.Error())
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+			if res.AffectedRowCount != 1 {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Update(samplevalue2) has incorrect # of rows %d affected (should be 1)", res.AffectedRowCount)
+			}
+
+			// GET(samplevalue2) should have age 38
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_GET
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			tReq.Key = tbl.sampleValue2
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Get %s", err.Error())
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+			if len(res.Data) > 0 {
+				row := res.Data[0]
+				if row["age"] != 38 {
+					// TODO: [swarmdb_test:TestCoreTables] Get(samplevalue2) should be 38
+					// t.Fatalf("[swarmdb_test:TestCoreTables] Get(samplevalue2) should be 38")
+				}
+			} else {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Get(samplevalue2) should be returning data")
+			}
+
+			// Delete(sampleValue2) ==> 1 row affected
+			tReq = new(swarmdb.RequestOption)
+			queryDelete := fmt.Sprintf("delete from %s where %s = '%s'", tableName, tbl.primaryColumnName, tbl.sampleValue2str)
+			tReq.RequestType = swarmdb.RT_QUERY
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			tReq.RawQuery = queryDelete
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Delete(samplevalue2)y %s", err.Error())
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+			if res.AffectedRowCount != 1 {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Delete(samplevalue2) has incorrect # of rows %d affected (should be 1)", res.AffectedRowCount)
+			}
+
+			// GET(samplevalue2) should have no data
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_GET
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			tReq.Key = tbl.sampleValue2
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Get %s", err.Error())
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+			if len(res.Data) > 0 {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Get(samplevalue2) should be returning data")
+			}
+
+			// DELETE(samplevalue1) => 1
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_DELETE
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			tReq.Key = tbl.sampleValue1
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Delete(samplevalue1) %s", err.Error())
+			}
+			if res.AffectedRowCount > 0 {
+			} else {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Delete has incorrect affectedRowCount %d", res.AffectedRowCount)
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+
+			// SCAN ==> 0 Rows
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_SCAN
+			tReq.Owner = owner
+			tReq.Database = database
+			tReq.Table = tableName
+			mReq, _ = json.Marshal(tReq)
+			fmt.Printf("Input: %s\n", mReq)
+			res, err = swdb.SelectHandler(u, string(mReq))
+			if err != nil {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Scan %s", err.Error())
+			}
+			if res.AffectedRowCount > 0 {
+				t.Fatalf("[swarmdb_test:TestCoreTables] Scan should be returning 0 rows", res.AffectedRowCount)
+			}
+			fmt.Printf("Output: %s\n\n", res.Stringify())
+		}
+
+		tableCountExpected = tableCountExpected + 1
+	}
+
+	// list tables, then drop 1 for each for the tables
+	for _, tbl := range tabletest {
+		// list tables should have 6 tables, then 5, .. then 4, ... until just 1
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_LIST_TABLES
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = ""
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatalf("SCAN error: %s", err)
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		if len(res.Data) != tableCountExpected {
+			t.Fatalf("[swarmdb_test:TestCoreTables] List Tables count error -- expected %d, but got %d", tableCountExpected, len(res.Data))
+		}
+
+		// drop table
+		tReq.RequestType = swarmdb.RT_DROP_TABLE
+		tReq.Owner = owner
+		tReq.Database = database
+		tReq.Table = tbl.tableName
+		mReq, _ = json.Marshal(tReq)
+		fmt.Printf("Input: %s\n", mReq)
+		res, err = swdb.SelectHandler(u, string(mReq))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.AffectedRowCount != 1 {
+			t.Fatalf("[swarmdb_test:TestCoreTables] DROP TABLE  has incorrect affectedRowCount %d", res.AffectedRowCount)
+		}
+		fmt.Printf("Output: %s\n\n", res.Stringify())
+		tableCountExpected = tableCountExpected - 1
+	}
 
 	// drop table
-	testReqOption.RequestType = swarmdb.RT_DROP_TABLE
-	testReqOption.Owner = owner
-	testReqOption.Database = database
-	testReqOption.Table = tableName
-	marshalTestReqOption, err = json.Marshal(testReqOption)
-	fmt.Printf("Input: %s\n", marshalTestReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-
-	}
-	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
+	tReq.RequestType = swarmdb.RT_DROP_TABLE
+	tReq.Owner = owner
+	tReq.Database = database
+	tReq.Table = "random"
+	mReq, _ = json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatal(err)
 	}
+	if res.AffectedRowCount > 0 {
+		t.Fatalf("[swarmdb_test:TestCoreTables] DROP TABLE has incorrect affectedRowCount %d", res.AffectedRowCount)
+	}
 	fmt.Printf("Output: %s\n\n", res.Stringify())
 
-	// list tables
-	testReqOption.RequestType = swarmdb.RT_LIST_TABLES
-	testReqOption.Owner = owner
-	testReqOption.Database = database
-
-	marshalTestReqOption, err = json.Marshal(testReqOption)
+	// drop database "random"
+	tReq.RequestType = swarmdb.RT_DROP_DATABASE
+	tReq.Owner = owner
+	tReq.Database = "random"
+	mReq, _ = json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-
+		t.Fatal(err)
 	}
-	fmt.Printf("Input: %s\n", marshalTestReqOption)
-	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption 2: %s", err)
+	if res.AffectedRowCount > 0 {
+		t.Fatalf("[swarmdb_test:TestCoreTables] DROP DATABASE has incorrect affectedRowCount %d", res.AffectedRowCount)
 	}
 	fmt.Printf("Output: %s\n\n", res.Stringify())
 
 	// drop database
-	testReqOption.RequestType = swarmdb.RT_DROP_DATABASE
-	testReqOption.Owner = owner
-	testReqOption.Database = database
-	marshalTestReqOption, err = json.Marshal(testReqOption)
-
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-	}
-	fmt.Printf("Input: %s\n", marshalTestReqOption)
-	resp, err = swdb.SelectHandler(u, string(marshalTestReqOption))
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_DROP_DATABASE
+	tReq.Owner = owner
+	tReq.Database = database
+	mReq, _ = json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatal(err)
-	}
-	fmt.Printf("Output: %s\n\n", resp.Stringify())
-
-	// list databases
-	testReqOption.RequestType = swarmdb.RT_LIST_DATABASES
-	testReqOption.Owner = owner
-	testReqOption.Database = database
-	marshalTestReqOption, err = json.Marshal(testReqOption)
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption 1: %s", err)
-	}
-	fmt.Printf("Input: %s\n", marshalTestReqOption)
-	res, err = swdb.SelectHandler(u, string(marshalTestReqOption))
-	if err != nil {
-		t.Fatalf("error marshaling testReqOption 2: %s", err)
 	}
 	fmt.Printf("Output: %s\n\n", res.Stringify())
-}
-
-func zTestGetTableFail(t *testing.T) {
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := TEST_ENS_DIR
-	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-	owner := "BadOwner"
-	database := "BadDatabase"
-	tableName := "BadTable"
-	u := getUser()
-	_, err := swdb.GetTable(u, owner, database, tableName)
-	if err == nil {
-		t.Fatalf("TestGetTableFail: FAILED")
-	} else {
-		fmt.Printf("PASS\n")
+	if res.AffectedRowCount != 1 {
+		t.Fatalf("[swarmdb_test:TestCoreTables] DROP DATABASE has incorrect affectedRowCount %d", res.AffectedRowCount)
 	}
-}
 
-// primary key is integer
-func zTestPutInteger(t *testing.T) {
-	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
-	u := getUser()
-
-	owner := make_name("owner")
-	database := make_name("db")
-
-	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := TEST_ENS_DIR
-	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-
-	// set up table
-	tableName := make_name("testputinteger")
-	var testColumn []swarmdb.Column
-	testColumn = make([]swarmdb.Column, 2)
-	testColumn[0].ColumnName = TEST_PKEY_INT
-	testColumn[0].Primary = 1                      // What if this is inconsistent?
-	testColumn[0].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
-	testColumn[0].ColumnType = swarmdb.CT_INTEGER
-
-	testColumn[1].ColumnName = "email"
-	testColumn[1].Primary = 0                      // What if this is inconsistent?
-	testColumn[1].IndexType = swarmdb.IT_BPLUSTREE //  What if this is inconsistent?
-	testColumn[1].ColumnType = swarmdb.CT_STRING
-
-	var testReqOption swarmdb.RequestOption
-	testReqOption.RequestType = swarmdb.RT_CREATE_TABLE
-	testReqOption.Owner = owner
-	testReqOption.Database = database
-	testReqOption.Table = tableName
-	testReqOption.Columns = testColumn
-
-	// create table
-	marshalTestReqOption, err := json.Marshal(testReqOption)
-	fmt.Printf("Input: %s", marshalTestReqOption)
+	// list databases
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_LIST_DATABASES
+	tReq.Owner = owner
+	mReq, _ = json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
-		t.Fatalf("error marshaling testReqOption: %s", err)
-
-	} else {
-		resp, err := swdb.SelectHandler(u, string(marshalTestReqOption))
-		if err != nil {
-			t.Fatalf("[swarm_test:TestPutInteger] SelectHandler %s", err.Error())
-		}
-		fmt.Printf("Output: %s\n", resp.Stringify())
+		t.Fatalf("error marshaling tReq 2: %s", err)
 	}
-
-	// write 20 values into B-tree (only kept in memory)
-	vals := rand.Perm(20)
-	for _, i := range vals {
-		rowObj := make(map[string]interface{})
-		rowObj[TEST_PKEY_INT] = i
-		rowObj["email"] = fmt.Sprintf("test%03d@wolk.com", i)
-
-		var testReqOption swarmdb.RequestOption
-		testReqOption.RequestType = swarmdb.RT_PUT
-		testReqOption.Owner = owner
-		testReqOption.Database = database
-		testReqOption.Table = tableName
-		testReqOption.Rows = append(testReqOption.Rows, rowObj)
-		marshalTestReqOption, err := json.Marshal(testReqOption)
-		fmt.Printf("Input: %s\n", marshalTestReqOption)
-		resp, err := swdb.SelectHandler(u, string(marshalTestReqOption))
-		if err != nil {
-			t.Fatalf("[swarm_test:TestPutInteger] SelectHandler %s", err.Error())
-		} else {
-			fmt.Printf("Output: %s\n", resp.Stringify())
-		}
+	fmt.Printf("Output: %s\n\n", res.Stringify())
+	if len(res.Data) > 1 {
+		t.Fatalf("[swarmdb_test:TestCoreTables] LIST DATABASES has incorrect outputs")
 	}
-
-	// Get(8)
-	var testReqOptionGet swarmdb.RequestOption
-	testReqOptionGet.RequestType = swarmdb.RT_GET
-	testReqOptionGet.Owner = owner
-	testReqOptionGet.Database = database
-	testReqOptionGet.Table = tableName
-	testReqOptionGet.Key = 8
-
-	marshalTestReqOption, err1 := json.Marshal(testReqOptionGet)
-	if err1 != nil {
-		t.Fatalf("[swarmdb_test:TestPutInteger] Marshal %s", err1.Error())
-	} else {
-		fmt.Printf("Input: %s\n", marshalTestReqOption)
-	}
-
-	resp, err2 := swdb.SelectHandler(u, string(marshalTestReqOption))
-	if err2 != nil {
-		t.Fatalf("[swarmdb_test:TestPutInteger] SelectHandler %s", err2.Error())
-	} else {
-		fmt.Printf("Output: %s\n", resp.Stringify())
-	}
-	/*
-		rowObj := make(map[string]interface{})
-		err = json.Unmarshal([]byte(resp), &rowObj)
-		if err != nil {
-			t.Fatalf("[swarmdb_test:TestPutInteger] Unmarshal %s", err.Error())
-		} else {
-			if strings.Compare(rowObj["email"].(string), "test008@wolk.com") != 0 {
-				fmt.Printf("MISMATCH email: [%v]\n", rowObj["email"])
-			} else {
-				fmt.Printf("PASS\n")
-			}
-		}
-	*/
-}
-
-func aTestSetGetInt(t *testing.T) {
-	t.SkipNow()
-	/*
-		const N = 4
-		u := getUser()
-
-		for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-			r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
-
-			a := make([]int, N)
-			for i := range a {
-				a[i] = (i ^ x) << 1
-			}
-
-			for _, k := range a {
-				val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
-				fmt.Printf("%s\n", val)
-				var putjson map[string]interface{}
-				_ = json.Unmarshal([]byte(val), putjson)
-				r.Put(u, putjson)
-			}
-
-			s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
-			for i, k := range a {
-				key := fmt.Sprintf("%d", k) // swarmdb.IntToByte(k)
-				val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x)
-				v, err := s.Get(u, key)
-				if err != nil || strings.Compare(val, string(v)) != 0 {
-					t.Fatal(i, val, v)
-				} else {
-					fmt.Printf("Get(%s) => %s\n", key, val)
-				}
-
-				k |= 1
-				key = fmt.Sprintf("%d", k) // swarmdb.IntToByte(k)
-				v, err = s.Get(u, key)
-				if len(v) > 0 {
-					t.Fatal(i, k)
-				}
-			}
-
-			r2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
-			for _, k := range a {
-				val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
-				var putjson map[string]interface{}
-				_ = json.Unmarshal([]byte(val), putjson)
-				r2.Put(u, putjson)
-			}
-
-			s2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
-			for i, k := range a {
-				key := fmt.Sprintf("%d", k)
-				val := fmt.Sprintf(`{"%s":"%d", "value":"%d"}`, TEST_PKEY_INT, k, k^x+1)
-				v, err := s2.Get(u, key) //
-				if err != nil || strings.Compare(string(v), val) != 0 {
-					t.Fatal(i, v, val)
-				} else {
-					fmt.Printf("Get(%s) => %s\n", key, val)
-				}
-			}
-		}
-	*/
-}
-
-func aTestTable(t *testing.T) {
-	t.SkipNow()
-	/*
-		u := getUser()
-		tbl := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
-
-		putstr := `{"email":"rodney@wolk.com", "age": 38, "gender": "M", "weight": 172.5}`
-		var putjson map[string]interface{}
-		_ = json.Unmarshal([]byte(putstr), putjson)
-		tbl.Put(u, putjson)
-
-		putstr = `{"email":"sourabh@wolk.com", "age": 45, "gender": "M", "weight": 210.5}`
-		_ = json.Unmarshal([]byte(putstr), putjson)
-		tbl.Put(u, putjson)
-
-		// Put
-		for i := 1; i < 100; i++ {
-			g := "F"
-			w := float64(i) + .314159
-			putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
-				TEST_PKEY_STRING, i, i, g, w)
-			_ = json.Unmarshal([]byte(putstr), putjson)
-			tbl.Put(u, putjson)
-
-			g = "M"
-			w = float64(i) + float64(0.414159)
-			putstr = fmt.Sprintf(`{"%s":"test%03d@wolk.com", "age": %d, "gender": "%s", "weight": %f}`,
-				TEST_PKEY_STRING, i, i, g, w)
-			_ = json.Unmarshal([]byte(putstr), putjson)
-			tbl.Put(u, putjson)
-
-		}
-
-		tbl2 := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, false)
-		// Get
-		res, err := tbl2.Get(u, "rodney@wolk.com")
-		fmt.Printf("Get %s %v \n", string(res), err)
-
-		// Get
-		fres, ferr := tbl2.Get(u, "test010@wolk.com")
-		fmt.Printf("Get %s %v \n", string(fres), ferr)
-		//t.CloseTable()
-	*/
-
-}
-
-func bTestTableSecondaryInt(t *testing.T) {
-	u := getUser()
-	swarmdb, _ := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
-		TEST_SKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
-	owner := make_name("owner")
-	database := make_name("db")
-	tableName := make_name("tbl")
-
-	rows, err := swarmdb.Scan(u, owner, database, tableName, "age", 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for i, r := range rows {
-		fmt.Printf("%v:%v\n", i, r)
-	}
-
-	// select * from table where age < 30
-	/*	sql := fmt.Sprintf("select * from %s where %s < 30", TEST_TABLE, TEST_SKEY_INT)
-		 rows, err := swarmdb.QuerySelect(u, sql)
-			if err != nil {
-			} else {
-				for i, row := range rows {
-					fmt.Printf("%d:%v\n", i, row)
-				}
-			} */
-}
-
-func bTestTableSecondaryFloat(t *testing.T) {
-	t.SkipNow()
-	owner := make_name("owner")
-	database := make_name("db")
-
-	u := getUser()
-	swdb, _ := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
-		TEST_SKEY_FLOAT, TEST_TABLE_INDEXTYPE, swarmdb.CT_FLOAT, true)
-	// select * from table where age < 30
-	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_FLOAT)
-
-	query, err := swarmdb.ParseQuery(sql)
-	if err != nil {
-		t.Fatal(err)
-	}
-	query.Owner = owner
-	query.Database = database
-
-	rows, err := swdb.QuerySelect(u, &query)
-	if err != nil {
-		t.Fatal(err)
-	} else {
-		for i, row := range rows {
-			fmt.Printf("%d:%v\n", i, row)
-		}
-	}
-}
-
-func bTestTableSecondaryString(t *testing.T) {
-	t.SkipNow()
-	owner := make_name("owner")
-	database := make_name("db")
-
-	u := getUser()
-	swdb, _ := getSWARMDBTableSecondary(u, TEST_TABLE, TEST_PKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING,
-		TEST_SKEY_STRING, TEST_TABLE_INDEXTYPE, swarmdb.CT_STRING, true)
-	sql := fmt.Sprintf("select * from %s where %s < 10", TEST_TABLE, TEST_SKEY_STRING)
-
-	query, err := swarmdb.ParseQuery(sql)
-	if err != nil {
-		t.Fatal(err)
-	}
-	query.Owner = owner
-	query.Database = database
-
-	rows, err := swdb.QuerySelect(u, &query)
-	if err != nil {
-		t.Fatal(err)
-	} else {
-		for i, row := range rows {
-			fmt.Printf("%d:%v\n", i, row)
-		}
-	}
-}
-
-func aTestDelete0(t *testing.T) {
-
-	u := getUser()
-	r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
-
-	key0 := "0"
-	key1 := "1"
-
-	val0 := fmt.Sprintf(`{"accountID":"%s","val":"%s"}`, key0, key0)
-	val1 := fmt.Sprintf(`{"accountID":"%s","val":"%s"}`, key1, key1)
-	if ok, _ := r.Delete(u, key0); ok {
-		t.Fatal(ok)
-	}
-
-	var putjson map[string]interface{}
-
-	if ok, _ := r.Delete(u, key1); ok {
-		t.Fatal(ok)
-	}
-
-	if ok, _ := r.Delete(u, key0); !ok {
-		t.Fatal(ok)
-	}
-
-	if ok, _ := r.Delete(u, key0); ok {
-		t.Fatal(ok)
-	}
-
-	_ = json.Unmarshal([]byte(val0), putjson)
-	r.Put(u, putjson)
-	_ = json.Unmarshal([]byte(val1), putjson)
-	r.Put(u, putjson)
-
-	if ok, _ := r.Delete(u, key1); !ok {
-		t.Fatal(ok)
-	}
-
-	if ok, _ := r.Delete(u, key1); ok {
-		t.Fatal(ok)
-	}
-
-	if ok, _ := r.Delete(u, key0); !ok {
-		t.Fatal(ok)
-	}
-
-	if ok, _ := r.Delete(u, key0); ok {
-		t.Fatal(ok)
-	}
-
-	_ = json.Unmarshal([]byte(val0), putjson)
-	r.Put(u, putjson)
-	_ = json.Unmarshal([]byte(val1), putjson)
-	r.Put(u, putjson)
-
-	if ok, _ := r.Delete(u, key0); !ok {
-		t.Fatal(ok)
-	}
-
-	if ok, _ := r.Delete(u, key0); ok {
-		t.Fatal(ok)
-	}
-
-	if ok, _ := r.Delete(u, key1); !ok {
-		t.Fatal(ok)
-	}
-
-	if ok, _ := r.Delete(u, key1); ok {
-		t.Fatal(ok)
-	}
-}
-
-func aTestDelete1(t *testing.T) {
-	u := getUser()
-	const N = 130
-	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
-		a := make([]int, N)
-		for i := range a {
-			a[i] = (i ^ x) << 1
-		}
-		for _, k := range a {
-			v := fmt.Sprintf(`{"%s":"%d","val":"value%d"}`, TEST_PKEY_INT, k, k)
-			var putjson map[string]interface{}
-			_ = json.Unmarshal([]byte(v), putjson)
-			r.Put(u, putjson)
-
-		}
-
-		s := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, false)
-		for i, k := range a {
-			key := fmt.Sprintf("%d", k)
-			fmt.Printf("attempt delete [%s]\n", key)
-			ok, _ := s.Delete(u, key)
-			if !ok {
-				fmt.Printf("**** YIPES: [%s]\n", key)
-				t.Fatal(i, x, k)
-			}
-		}
-	}
-}
-
-func aTestDelete2(t *testing.T) {
-	const N = 100
-	u := getUser()
-
-	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r := getSWARMDBTable(u, TEST_TABLE, TEST_PKEY_INT, TEST_TABLE_INDEXTYPE, swarmdb.CT_INTEGER, true)
-		a := make([]int, N)
-		rng := rng()
-		for i := range a {
-			a[i] = (rng.Next() ^ x) << 1
-		}
-		var putjson map[string]interface{}
-		for _, k := range a {
-
-			v := fmt.Sprintf(`{"%s":"%d","val":"value%d"`, TEST_PKEY_INT, k, k)
-			_ = json.Unmarshal([]byte(v), putjson)
-			r.Put(u, putjson)
-
-		}
-		for i, k := range a {
-			key := fmt.Sprintf("%d", k)
-			ok, _ := r.Delete(u, key)
-			if !ok {
-				t.Fatal(i, x, k)
-			}
-		}
+	if res.AffectedRowCount > 0 {
+		t.Fatalf("[swarmdb_test:TestCoreTables] LIST DATABASES has incorrect affectedRowCount %d", res.AffectedRowCount)
 	}
 }

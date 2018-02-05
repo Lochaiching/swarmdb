@@ -18,7 +18,7 @@ package swarmdb_test
 import (
 	"bytes"
 	"fmt"
-	"github.com/ethereum/go-ethereum/swarmdb"
+	"swarmdb"
 	"testing"
 )
 
@@ -63,38 +63,4 @@ func TestDBChunkStore(t *testing.T) {
 		fmt.Printf("SUCCESS in RetrieveChunk:  %x => %v\n", string(k), string(v))
 	}
 
-	// StoreKChunk
-	/*
-			Need to simulate building sdata for KChunk to test appropriately
-		kdb := swarmdb.NewKademliaDB(store)
-		kChunk := kdb.BuildSData(v)
-		fmt.Printf("StoreKChunk storing [%s]", v)
-		err2 := store.StoreKChunk(k, v, encrypted)
-		if err2 != nil {
-			t.Fatal("Failure to StoreKChunk ->", k, v, encrypted)
-		} else {
-			fmt.Printf("SUCCESS in StoreKChunk:  %x => %v\n", string(k), string(v))
-		}
-
-		// RetrieveKChunk
-		//	fmt.Printf("\nBEFORE RetrieveKChunk:  %x => %v\n", string(k), string(v))
-		valK, errK := store.RetrieveKChunk(k)
-		//	fmt.Printf("\nAFTER RetrieveKChunk:  %x => %v\n", string(k), string(v))
-		if errK != nil {
-			t.Fatal("Failure to RetrieveChunk: Failure to retrieve", k, v, valK)
-		}
-		if bytes.Compare(valK, v) != 0 {
-			fmt.Printf("Failure to RetrieveChunk: Incorrect match k[%s] v[%s], valK[%s]", k, v, valK)
-			t.Fatal("Failure to RetrieveChunk: Incorrect match", k, v, valK)
-		} else {
-			fmt.Printf("SUCCESS in RetrieveChunk:  %x => %v\n", string(k), string(v))
-		}
-
-		err3 := store.StoreKChunk(k, r, encrypted)
-		if err3 == nil {
-			t.Fatal("Failure to generate StoreKChunk Err", k, r)
-		} else {
-			fmt.Printf("SUCCESS in StoreKChunk Err (input only has %d bytes)\n", len(r))
-		}
-	*/
 }

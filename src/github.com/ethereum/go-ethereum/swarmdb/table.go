@@ -127,12 +127,55 @@ func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
 }
 
 func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
-	row := NewRow()
+	res := NewRow()
 	if len(byteData) == 0 {
-		return row, nil
+		return res, nil
 	}
-	if err := json.Unmarshal(byteData, &row); err != nil {
-		return row, &SWARMDBError{message: fmt.Sprintf("[table:byteArrayToRow] Unmarshal %s for [%s]", err.Error(), byteData), ErrorCode: 436, ErrorMessage: "Unable to converty byte array to Row Object"}
+	if err := json.Unmarshal(byteData, &res); err != nil {
+		return res, &SWARMDBError{message: fmt.Sprintf("[table:byteArrayToRow] Unmarshal %s for [%s]", err.Error(), byteData), ErrorCode: 436, ErrorMessage: "Unable to converty byte array to Row Object"}
+	}
+
+	row := NewRow()
+	
+	for colName, cell := range res {
+		colDef := t.columns[colName]
+		switch a := cell.(type) {
+		case int, int8, int16, int32, int64, uint8, uint16, uint32, uint64:
+			switch colDef.columnType {
+			case CT_STRING:
+				row[colName] = fmt.Sprintf("%d", a)
+				break
+			case CT_INTEGER:
+				row[colName] = a
+				break
+			case CT_FLOAT:
+				row[colName] = float64(a.(int))
+			}
+			break
+		case float64:
+			switch colDef.columnType {
+			case CT_STRING:
+				row[colName] = fmt.Sprintf("%f", cell)
+				break
+			case CT_INTEGER:
+				row[colName] = int(a)
+				break
+			case CT_FLOAT:
+				row[colName] = a
+			}
+			break
+		case string:
+			switch colDef.columnType {
+			case CT_INTEGER:
+				row[colName], err = strconv.Atoi(a)
+				
+			case CT_STRING:
+				row[colName] = a
+			case CT_FLOAT:
+				row[colName], err = strconv.ParseFloat(a, 64)
+			}
+			break
+		}
 	}
 	return row, nil
 }
@@ -174,7 +217,7 @@ func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte) (mergedB
 	copy(metadataBody[221:286], sdataSig)
 	log.Debug(fmt.Sprintf("Metadata is [%+v]", metadataBody))
 
-	mergedBodycontent = make([]byte, chunkSize)
+	mergedBodycontent = make([]byte, CHUNK_SIZE)
 	copy(mergedBodycontent[:], metadataBody)
 	copy(mergedBodycontent[KNODE_START_ENCRYPTION:], value) // expected to be the encrypted body content
 
@@ -206,33 +249,23 @@ func BuildSwarmdbPrefix(owner []byte, database []byte, table []byte, id []byte) 
 	return (prefix)
 }
 
-func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, err error) {
+func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error) {
 	primaryColumnName := t.primaryColumnName
 	if t.columns[primaryColumnName] == nil {
-		return nil, &NoColumnError{tableName: t.tableName, tableOwner: t.Owner}
+		return nil, false, &NoColumnError{tableName: t.tableName, tableOwner: t.Owner}
 	}
 	//t.swarmdb.kaddb.Open([]byte(t.Owner), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
 	// fmt.Printf("\n GET key: (%s)%v\n", key, key)
 
 	log.Debug("About to Get from DB")
-	_, _, err = t.columns[primaryColumnName].dbaccess.Get(u, key)
+	_, ok, err = t.columns[primaryColumnName].dbaccess.Get(u, key)
 	if err != nil {
 		log.Debug(fmt.Sprintf("[table:Get] dbaccess.Get %s", err.Error()))
-		return nil, GenerateSWARMDBError(err, fmt.Sprintf("[table:Get] dbaccess.Get %s", err.Error()))
+		return nil, false, GenerateSWARMDBError(err, fmt.Sprintf("[table:Get] dbaccess.Get %s", err.Error()))
 	}
-	/* TODO: DONT NEED TO CHECK OK?
-	log.Debug("About to Check OK")
-	if !ok {
-		log.Debug(fmt.Sprintf("[table:Get] column.dbaccess.Get %+v failed %s", t.columns, primaryColumnName))
-		return out, nil
+	if ! ok {
+		return out, false, nil
 	}
-	// get value from kdb
-		kres, err := t.swarmdb.kaddb.GetByKey(u, key)
-
-		if err != nil {
-			return out, GenerateSWARMDBError(err, fmt.Sprintf("[table:Get] kaddb.GetByKey %s", err.Error()))
-		}
-	*/
 	log.Debug("About to Generate Key")
 
 	chunkKey := t.GenerateKChunkKey(key)
@@ -240,14 +273,14 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, err error) {
 	contentReader, err := t.swarmdb.dbchunkstore.RetrieveKChunk(u, chunkKey)
 	if bytes.Trim(contentReader, "\x00") == nil {
 		log.Debug(fmt.Sprintf("RETURNING NIL CHUNK [%s]", out))
-		return out, nil
+		return out, false, nil
 	}
 	if err != nil {
-		return nil, GenerateSWARMDBError(err, fmt.Sprintf("[table:Get] RetrieveKChunk - Cannot Retrieve Chunk (%s): %s", contentReader, err.Error()))
+		return nil, false, GenerateSWARMDBError(err, fmt.Sprintf("[table:Get] RetrieveKChunk - Cannot Retrieve Chunk (%s): %s", contentReader, err.Error()))
 	}
 	log.Debug("[dbchunkstore:Get] returning [%s]", contentReader)
 	fres := bytes.Trim(contentReader, "\x00")
-	return fres, nil
+	return fres, true, nil
 }
 
 func (t *Table) Delete(u *SWARMDBUser, key interface{}) (ok bool, err error) {
@@ -382,17 +415,19 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 			records := 0
 			for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
 				fmt.Printf("\n *int*> %d: K: %s V: %v \n", records, KeyToString(column.columnType, k), v)
-				row, errG := t.Get(u, k)
+				row, ok, errG := t.Get(u, k)
 				if errG != nil {
 					return rows, GenerateSWARMDBError(err, fmt.Sprintf("[table:Scan] Get %s", errG.Error()))
 				}
-				rowObj, errR := t.byteArrayToRow(row)
-				if errR != nil {
-					return rows, GenerateSWARMDBError(err, fmt.Sprintf("[table:Scan] byteArrayToRow [%s] bytearray to row: [%s]", v, errR.Error()))
+				if ok {
+					rowObj, errR := t.byteArrayToRow(row)
+					if errR != nil {
+						return rows, GenerateSWARMDBError(err, fmt.Sprintf("[table:Scan] byteArrayToRow [%s] bytearray to row: [%s]", v, errR.Error()))
+					}
+					// fmt.Printf("table Scan, row set: %+v\n", row)
+					rows = append(rows, rowObj)
+					records++
 				}
-				// fmt.Printf("table Scan, row set: %+v\n", row)
-				rows = append(rows, rowObj)
-				records++
 			}
 		}
 	} else {
@@ -403,13 +438,18 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 			records := 0
 			for k, v, err := res.Prev(u); err == nil; k, v, err = res.Prev(u) {
 				fmt.Printf(" *int*> %d: K: %s V: %v\n", records, KeyToString(CT_STRING, k), KeyToString(column.columnType, v))
-				row, err := t.byteArrayToRow(v)
-				if err != nil {
-					return rows, GenerateSWARMDBError(err, fmt.Sprintf("[table:Scan] byteArrayToRow %s", err.Error()))
+				row, ok, errG := t.Get(u, k)
+				if errG != nil {
+					return rows, GenerateSWARMDBError(err, fmt.Sprintf("[table:Scan] Get %s", errG.Error()))
 				}
-				fmt.Printf("table Scan, row set: %+v\n", row)
-				rows = append(rows, row)
-				records++
+				if ok {
+					rowObj, errR := t.byteArrayToRow(row)
+					if errR != nil {
+						return rows, GenerateSWARMDBError(err, fmt.Sprintf("[table:Scan] byteArrayToRow %s", err.Error()))
+					}
+					rows = append(rows, rowObj)
+					records++
+				}
 			}
 		}
 	}
