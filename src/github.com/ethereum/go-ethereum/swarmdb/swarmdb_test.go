@@ -25,16 +25,6 @@ import (
 )
 
 const (
-	TEST_OWNER           = "wolktoken.eth"
-	TEST_DATABASE        = "pets"
-	TEST_TABLE           = "dogs"
-	TEST_PKEY_INT        = "accountID"
-	TEST_PKEY_STRING     = "email"
-	TEST_PKEY_FLOAT      = "ts"
-	TEST_SKEY_INT        = "age"
-	TEST_SKEY_STRING     = "gender"
-	TEST_SKEY_FLOAT      = "weight"
-	TEST_TABLE_INDEXTYPE = swarmdb.IT_BPLUSTREE
 	TEST_ENS_DIR         = "/tmp"
 )
 
@@ -70,7 +60,9 @@ func getUser() (u *swarmdb.SWARMDBUser) {
 func TestCoreTables(t *testing.T) {
 	u := getUser()
 	owner := make_name("owner")
+	owner2 := make_name("altowner")
 	database := make_name("db")
+	database2 := make_name("altdb")
 
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
 	ensdbPath := TEST_ENS_DIR
@@ -82,7 +74,6 @@ func TestCoreTables(t *testing.T) {
 	tReq.RequestType = swarmdb.RT_CREATE_DATABASE
 	tReq.Owner = owner
 	tReq.Database = database
-
 	mReq, _ := json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
 	res, err := swdb.SelectHandler(u, string(mReq))
@@ -101,7 +92,23 @@ func TestCoreTables(t *testing.T) {
 		t.Fatalf("[swarmdb_test:TestCoreTables] CREATE DATABASE again succeeded")
 	}
 
-	// list databases
+	// create another database
+	
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_CREATE_DATABASE
+	tReq.Owner = owner
+	tReq.Database = database2
+	mReq, _ = json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
+	if err != nil {
+		t.Fatalf("[swarmdb_test:TestCoreTables] CREATE DATABASE: %s", err)
+	}
+	fmt.Printf("Output: %s\n\n", res.Stringify())
+
+
+	// list databases ==> should have 2 databases
+	tReq = new(swarmdb.RequestOption)
 	tReq.RequestType = swarmdb.RT_LIST_DATABASES
 	tReq.Owner = owner
 	tReq.Database = database
@@ -111,7 +118,23 @@ func TestCoreTables(t *testing.T) {
 	if err != nil {
 		t.Fatalf("[swarmdb_test:TestCoreTables] LIST DATABASES: %s", err)
 	}
-	if len(res.Data) != 1 {
+	if len(res.Data) != 2 {
+		t.Fatalf("[swarmdb_test:TestCoreTables] incorrect number of databases: %d", len(res.Data))
+	}
+	fmt.Printf("Output: %s \n\n", res.Stringify())
+
+	// list databases ==> should have 0 databases
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_LIST_DATABASES
+	tReq.Owner = owner2
+	tReq.Database = database
+	mReq, _ = json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
+	if err != nil {
+		t.Fatalf("[swarmdb_test:TestCoreTables] LIST DATABASES: %s", err)
+	}
+	if len(res.Data) != 0 {
 		t.Fatalf("[swarmdb_test:TestCoreTables] incorrect number of databases: %d", len(res.Data))
 	}
 	fmt.Printf("Output: %s \n\n", res.Stringify())
@@ -443,7 +466,7 @@ func TestCoreTables(t *testing.T) {
 		tableCountExpected = tableCountExpected + 1
 	}
 
-	// TODO: list tables, then drop 1 for each for the tables
+	// list tables, then drop 1 for each for the tables
 	for _, tbl := range tabletest {
 		// list tables should have 6 tables, then 5, .. then 4, ... until just 1
 		tReq = new(swarmdb.RequestOption)
@@ -474,12 +497,43 @@ func TestCoreTables(t *testing.T) {
 			t.Fatal(err)
 		}
 		if res.AffectedRowCount != 1 {
-			t.Fatalf("[swarmdb_test:TestCoreTables] Insert affected row count has incorrect affectedRowCount %d", res.AffectedRowCount)
+			t.Fatalf("[swarmdb_test:TestCoreTables] DROP TABLE  has incorrect affectedRowCount %d", res.AffectedRowCount)
 		}
 		fmt.Printf("Output: %s\n\n", res.Stringify())
 		tableCountExpected = tableCountExpected - 1
 	}
 
+	// drop table
+	tReq.RequestType = swarmdb.RT_DROP_TABLE
+	tReq.Owner = owner
+	tReq.Database = database
+	tReq.Table = "random"
+	mReq, _ = json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.AffectedRowCount > 0 {
+		t.Fatalf("[swarmdb_test:TestCoreTables] DROP TABLE has incorrect affectedRowCount %d", res.AffectedRowCount)
+	}
+	fmt.Printf("Output: %s\n\n", res.Stringify())
+
+	// drop database "random"
+	tReq.RequestType = swarmdb.RT_DROP_DATABASE
+	tReq.Owner = owner
+	tReq.Database = "random"
+	mReq, _ = json.Marshal(tReq)
+	fmt.Printf("Input: %s\n", mReq)
+	res, err = swdb.SelectHandler(u, string(mReq))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.AffectedRowCount > 0 {
+		t.Fatalf("[swarmdb_test:TestCoreTables] DROP DATABASE has incorrect affectedRowCount %d", res.AffectedRowCount)
+	}
+	fmt.Printf("Output: %s\n\n", res.Stringify())
+	
 	// drop database
 	tReq = new(swarmdb.RequestOption)
 	tReq.RequestType = swarmdb.RT_DROP_DATABASE
@@ -507,7 +561,7 @@ func TestCoreTables(t *testing.T) {
 		t.Fatalf("error marshaling tReq 2: %s", err)
 	}
 	fmt.Printf("Output: %s\n\n", res.Stringify())
-	if len(res.Data) > 0 {	
+	if len(res.Data) > 1 {	
 		t.Fatalf("[swarmdb_test:TestCoreTables] LIST DATABASES has incorrect outputs")
 	}
 	if res.AffectedRowCount > 0 {
@@ -515,30 +569,9 @@ func TestCoreTables(t *testing.T) {
 	}
 }
 
-func zTestGetTableFail(t *testing.T) {
-	/*config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := TEST_ENS_DIR
-	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
-	owner := "BadOwner"
-	database := "BadDatabase"
-	tableName := "BadTable"
-	u := getUser()
-*/
-	// TODO: test what happens when there is:
-	// (1) a bad owner with LIST DATABASES
-	// (2) a valid owner, but bad database with LIST TABLES
-	// (3) a valid owner and database, but invalid tableName with DESCRIBE TABLE
-
-	// TODO: test what happens when there is a valid owner/database/tableName encrypted, and someone else does 
-	// (1) a LIST DATABASES of the owner
-	// (2) a LIST TABLES of the database
-	// (3) 
-}
-
 func aTestPrimaryMedium(t *testing.T) {
 	t.SkipNow()
 
-	
 	// TODO: insert 100 row inserts for {integer, string, float}
 	// SELECT a random row
 
