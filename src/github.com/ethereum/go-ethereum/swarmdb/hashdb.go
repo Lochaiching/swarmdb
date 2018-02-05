@@ -352,6 +352,7 @@ func (self *Node) storeBinToNetwork(u *SWARMDBUser, swarmdb *SwarmDB, encrypted 
 	return adhash, err
 }
 
+//RODNEY: Test
 func (self *HashDB) Get(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
 	log.Debug("[hashdb:Get]")
 	stack := newStack()
