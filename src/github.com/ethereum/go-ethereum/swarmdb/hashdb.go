@@ -352,6 +352,7 @@ func (self *Node) storeBinToNetwork(u *SWARMDBUser, swarmdb *SwarmDB, encrypted 
 	return adhash, err
 }
 
+//RODNEY: Test
 func (self *HashDB) Get(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
 	log.Debug("[hashdb:Get]")
 	stack := newStack()
@@ -359,7 +360,7 @@ func (self *HashDB) Get(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
 	if err != nil {
 		switch err.(type) {
 		case *KeyNotFoundError:
-			
+
 			return nil, false, nil
 		default:
 			log.Debug(fmt.Sprintf("***** ERROR retrieving key [%s] ****** [%s]\n", k, err))
