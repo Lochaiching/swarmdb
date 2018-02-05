@@ -38,7 +38,7 @@ func TestConfigGeneration(t *testing.T) {
 }
 
 // Test SignMessage and VerifyMessage
-func aTestSignVerifyMessage(t *testing.T) {
+func TestSignVerifyMessage(t *testing.T) {
 	// signatures are 65 bytes, 130 chars [this one is a bogus signature]
 	sig_bytes, e1 := hex.DecodeString("1f7b169c846f218ab552fa82fbf86758bf5c97d2d2a313e4f95957818a7b3edca492f2b8a67697c4f91d9b9332e8234783de17bd7a25e0a9f6813976eadf26deb5")
 	if e1 != nil {
@@ -71,26 +71,6 @@ func aTestSignVerifyMessage(t *testing.T) {
 		t.Fatal("Failure to Reject0: %s", err2)
 	}
 
-	// Test if a valid signture is correctly accepted
-	sig_bytes, e1 = hex.DecodeString("e90b1fe2bde828b08d86d1e399dc74117e9651fcf31c7fc5f63a109c9bde39863c8023c365da027bfc3e5c958e49633d102364fa26007ad285e691071e5cf7bb01")
-	if e1 != nil {
-		t.Fatal(e1)
-	}
-
-	challenge_bytes, e2 = hex.DecodeString("27bd4896d883198198dc2a6213957bc64352ea35a4398e2f47bb67bffa5a1669")
-	if e2 != nil {
-		t.Fatal(e2)
-	}
-
-	verified1, err3 := km.VerifyMessage(challenge_bytes, sig_bytes)
-	if err3 != nil {
-		t.Fatal(err3)
-	} else if verified1 != nil {
-		fmt.Printf("Correct Accept1\n")
-	} else {
-		t.Fatal("Failure to Accept1: %s", err2)
-	}
-
 	// take a variable length message, hash it into "msg_hash", sign it with SignMessage, and see if it is verified
 	msg := "swarmdb"
 	h256 := sha256.New()
@@ -111,7 +91,7 @@ func aTestSignVerifyMessage(t *testing.T) {
 }
 
 // Test the KeyManager EncryptData and DecryptData
-func bTestEncryptDecrypt(t *testing.T) {
+func TestEncryptDecrypt(t *testing.T) {
 
 	// need a config file with a specific user
 	config, errConfig := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
