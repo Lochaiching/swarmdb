@@ -517,18 +517,18 @@ func zTestPutInteger(t *testing.T) {
 		fmt.Printf("Output: %s\n", resp.Stringify())
 	}
 	/*
-	rowObj := make(map[string]interface{})
-	err = json.Unmarshal([]byte(resp), &rowObj)
-	if err != nil {
-		t.Fatalf("[swarmdb_test:TestPutInteger] Unmarshal %s", err.Error())
-	} else {
-		if strings.Compare(rowObj["email"].(string), "test008@wolk.com") != 0 {
-			fmt.Printf("MISMATCH email: [%v]\n", rowObj["email"])
+		rowObj := make(map[string]interface{})
+		err = json.Unmarshal([]byte(resp), &rowObj)
+		if err != nil {
+			t.Fatalf("[swarmdb_test:TestPutInteger] Unmarshal %s", err.Error())
 		} else {
-			fmt.Printf("PASS\n")
+			if strings.Compare(rowObj["email"].(string), "test008@wolk.com") != 0 {
+				fmt.Printf("MISMATCH email: [%v]\n", rowObj["email"])
+			} else {
+				fmt.Printf("PASS\n")
+			}
 		}
-	}
-	 */
+	*/
 }
 
 func aTestSetGetInt(t *testing.T) {

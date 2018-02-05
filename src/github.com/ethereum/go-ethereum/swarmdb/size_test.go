@@ -13,24 +13,23 @@ import (
 */
 
 type Test struct {
-    in  int
-    out string
+	in  int
+	out string
 }
 
 var tests = []Test{
-    {-1, "negative"},
-    {5, "small"},
+	{-1, "negative"},
+	{5, "small"},
 }
 
 func TestSize(t *testing.T) {
-    for i, test := range tests {
-        size := swarmdb.Size(test.in)
-        if size != test.out {
-            t.Errorf("#%d: Size(%d)=%s; want %s", i, test.in, size, test.out)
-        }
-    }
+	for i, test := range tests {
+		size := swarmdb.Size(test.in)
+		if size != test.out {
+			t.Errorf("#%d: Size(%d)=%s; want %s", i, test.in, size, test.out)
+		}
+	}
 }
-
 
 /*
 
@@ -44,6 +43,3 @@ FAIL    command-line-arguments  0.065s
 [yaron@www6002 swarmdb]$
 
 */
-
-
-

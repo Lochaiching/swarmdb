@@ -18,8 +18,8 @@ import (
 	"bytes"
 	"fmt"
 	//"github.com/ethereum/go-ethereum/swarmdb"
-	"swarmdb"
 	"os"
+	"swarmdb"
 	"testing"
 )
 
