@@ -1,4 +1,4 @@
-.PHONY:	wolkdb wolk test enssimulation dbchunkstore server keymanager bplus client kademliadb hashdb
+.PHONY:	wolkdb wolk test enssimulation dbchunkstore server keymanager bplus client hashdb
 
 wolkdb:	
 	@echo "compiling wolkdb server..."
@@ -26,6 +26,9 @@ test:
 	-go test ./hashdb_test.go
 	@echo "test netstat."
 	-go test ./netstat_test.go
+	@echo "test swarmdblib"
+	go run ./server/wolkdb.go
+	go test ./swarmdblib_test.go
 
 enssimulation:
 	@echo "test enssimulation."
@@ -58,3 +61,8 @@ hashdb:
 netstat:
 	@echo "test netstat."
 	go test ./netstat_test.go
+
+swarmdblib:
+	@echo "test swarmdblib"
+	go run ./server/wolkdb.go
+	go test ./swarmdblib_test.go
