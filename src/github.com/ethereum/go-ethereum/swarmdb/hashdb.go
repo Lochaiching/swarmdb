@@ -352,7 +352,6 @@ func (self *Node) storeBinToNetwork(u *SWARMDBUser, swarmdb *SwarmDB, encrypted 
 	return adhash, err
 }
 
-//RODNEY: Test
 func (self *HashDB) Get(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
 	log.Debug("[hashdb:Get]")
 	stack := newStack()
@@ -360,7 +359,7 @@ func (self *HashDB) Get(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
 	if err != nil {
 		switch err.(type) {
 		case *KeyNotFoundError:
-
+			
 			return nil, false, nil
 		default:
 			log.Debug(fmt.Sprintf("***** ERROR retrieving key [%s] ****** [%s]\n", k, err))
@@ -673,7 +672,7 @@ func (self *Node) print(u *SWARMDBUser, swarmdb *SwarmDB, columnType ColumnType)
 	}
 }
 
-func (self *HashDB) Seek(u *SWARMDBUser, k []byte) (*HashdbCursor, bool, error) {
+func (self *HashDB) Seek(u *SWARMDBUser, k []byte) (OrderedDatabaseCursor, bool, error) {
 	ret, stack, err := self.getStack(u, k)
 	if err != nil {
 		return nil, false, err
@@ -696,7 +695,7 @@ func (self *HashDB) Seek(u *SWARMDBUser, k []byte) (*HashdbCursor, bool, error) 
 	return cursor, true, nil
 }
 
-func (self *HashDB) SeekFirst(u *SWARMDBUser) (*HashdbCursor, error) {
+func (self *HashDB) SeekFirst(u *SWARMDBUser) (OrderedDatabaseCursor, error) {
 	cursor, err := newHashdbCursor(self)
 	if err != nil {
 		return nil, err
@@ -708,7 +707,7 @@ func (self *HashDB) SeekFirst(u *SWARMDBUser) (*HashdbCursor, error) {
 	return cursor, nil
 }
 
-func (self *HashDB) SeekLast(u *SWARMDBUser) (*HashdbCursor, error) {
+func (self *HashDB) SeekLast(u *SWARMDBUser) (OrderedDatabaseCursor, error) {
 	cursor, err := newHashdbCursor(self)
 	if err != nil {
 		return nil, err
