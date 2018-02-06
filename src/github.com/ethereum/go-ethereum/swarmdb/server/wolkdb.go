@@ -516,8 +516,6 @@ func main() {
 	logLevelFlag := flag.Int("loglevel", 3, "Log Level Verbosity 1-6 (4 for debug)")
 	flag.Parse()
 
-	log.Debug("Starting SWARMDB using [%s] and loglevel [%s]", *configFileLocation, *logLevelFlag)
-
 	if _, err := os.Stat(*configFileLocation); os.IsNotExist(err) {
 		log.Debug("Default config file missing.  Building ..")
 		_, err := swarmdb.NewKeyManagerWithoutConfig(*configFileLocation, swarmdb.SWARMDBCONF_DEFAULT_PASSPHRASE)
@@ -533,6 +531,7 @@ func main() {
 	}
 
 	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*logLevelFlag), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
+	log.Debug(fmt.Sprintf("Starting SWARMDB (Version: %s)using [%s] and loglevel [%s]", swarmdb.CURRENT_SERVER_VERSION, *configFileLocation, *logLevelFlag))
 
 	swdb, err := swarmdb.NewSwarmDB(config.ChunkDBPath, config.ChunkDBPath)
 	if err != nil {

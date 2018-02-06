@@ -278,7 +278,7 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error)
 	if err != nil {
 		return nil, false, GenerateSWARMDBError(err, fmt.Sprintf("[table:Get] RetrieveKChunk - Cannot Retrieve Chunk (%s): %s", contentReader, err.Error()))
 	}
-	log.Debug("[dbchunkstore:Get] returning [%s]", contentReader)
+	log.Debug(fmt.Sprintf("[dbchunkstore:Get] returning [%s]", contentReader))
 	fres := bytes.Trim(contentReader, "\x00")
 	return fres, true, nil
 }
@@ -604,7 +604,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (outRows []Row, err error
 		if err != nil {
 			return outRows, GenerateSWARMDBError(err, fmt.Sprintf("[table:applyWhere] stringToColumnType %s", err.Error()))
 		}
-		log.Debug(fmt.Sprintf("ColType [%s] and Right [%s]", colType, right))
+		log.Debug(fmt.Sprintf("ColType [%d] and Right [%s]", colType, right))
 		fRow := NewRow()
 		switch where.Operator {
 		case "=":

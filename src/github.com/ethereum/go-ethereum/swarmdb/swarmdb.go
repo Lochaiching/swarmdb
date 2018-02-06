@@ -27,6 +27,7 @@ import (
 
 const (
 	OK_RESPONSE = "ok"
+	CURRENT_SERVER_VERSION = "0.09.0.0"
 )
 
 //for passing request data from client to server if the request needs Table data
@@ -279,7 +280,7 @@ func (self *SwarmDB) QuerySelect(u *SWARMDBUser, query *QueryOption) (rows []Row
 	}
 
 	//var rawRows []Row
-	log.Debug("QueryOwner is: [%s]\n", query.Owner)
+	log.Debug(fmt.Sprintf("QueryOwner is: [%s]\n", query.Owner))
 	colRows, err := self.Scan(u, query.Owner, query.Database, query.Table, table.primaryColumnName, query.Ascending)
 	if err != nil {
 		return rows, GenerateSWARMDBError(err, `[swarmdb:QuerySelect] Scan `+err.Error())
@@ -628,7 +629,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 
 		//error checking for primary column, and valid columns
 		for _, row := range d.Rows {
-			log.Debug("checking row %v\n", row)
+			log.Debug(fmt.Sprintf("checking row %v\n", row))
 			if _, ok := row[tbl.primaryColumnName]; !ok {
 				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Put row %+v needs primary column '%s' value", row, tbl.primaryColumnName), ErrorCode: 428, ErrorMessage: "Row missing primary key"}
 			}
