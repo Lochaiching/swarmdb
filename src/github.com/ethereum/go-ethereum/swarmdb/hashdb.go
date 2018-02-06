@@ -64,6 +64,8 @@ type HashdbCursor struct {
 	level  int
 	bin    *stack_t
 	node   *Node
+	atlast	bool
+	atfirst bool
 }
 
 // TODO: guarantee that this function will always work
@@ -725,11 +727,17 @@ func newHashdbCursor(hashdb *HashDB) (*HashdbCursor, error) {
 		level:  0,
 		bin:    newStack(),
 		node:   hashdb.rootnode,
+		atlast:	false,
+		atfirst:false,
 	}
 	return cursor, nil
 }
 
 func (self *HashdbCursor) Next(u *SWARMDBUser) ([]byte, []byte, error) {
+	if self.atlast {
+		return nil, nil, io.EOF
+	}
+	self.atfirst = false
 	pos := self.bin.GetLast()
 	k := convertToByte(self.node.Bin[pos].Key)
 	v := bytes.Trim(convertToByte(self.node.Bin[pos].Value), "\x00")
@@ -743,24 +751,44 @@ func (self *HashdbCursor) Next(u *SWARMDBUser) ([]byte, []byte, error) {
 
 	err = self.seeknext(u)
 	if err != nil {
+		if err == io.EOF{
+			self.atlast = true
+			err = nil
+		}
 		return k, v, err
 	}
 	if len(bytes.Trim(convertToByte(self.node.Bin[self.bin.GetLast()].Value), "\x00")) == 0 {
 		err = self.seeknext(u)
+		if err == io.EOF{
+			self.atlast = true
+			err = nil
+		}
 	}
 	return k, v, err
 }
 
 func (self *HashdbCursor) Prev(u *SWARMDBUser) ([]byte, []byte, error) {
+	if self.atfirst {
+		return nil, nil, io.EOF
+	}
+	self.atlast = false
 	pos := self.bin.GetLast()
 	k := convertToByte(self.node.Bin[pos].Key)
 	v := convertToByte(self.node.Bin[pos].Value)
 	err := self.seekprev(u)
 	if err != nil {
+		if err == io.EOF{
+			self.atfirst = true
+			err = nil
+		}
 		return k, v, err
 	}
 	if len(bytes.Trim(convertToByte(self.node.Bin[self.bin.GetLast()].Value), "\x00")) == 0 {
 		err = self.seekprev(u)
+		if err == io.EOF{
+			self.atfirst = true
+			err = nil
+		}
 	}
 	return k, v, err
 }

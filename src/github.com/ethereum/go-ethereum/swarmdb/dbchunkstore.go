@@ -278,6 +278,7 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 		return nil, GenerateSWARMDBError(errKM, fmt.Sprintf("[dbchunkstore:NewDBChunkStore] NewKeyManager %s", errKM.Error()))
 	}
 
+
 	userWallet := config.Address
 	nodeid := config.GetNodeID()
 	walletAddr := common.HexToAddress(userWallet)
@@ -299,12 +300,14 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 		filepath: path,
 		statpath: "netstat.json",
 	}
+
 	return self, nil
 }
 
 func (self *DBChunkstore) GetKeyManager() (km *KeyManager) {
 	return self.km
 }
+
 
 func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 	var data []byte
@@ -479,6 +482,79 @@ func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) 
 	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
 	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
+	return key, nil
+}
+
+func (self *DBChunkstore) StoreChunkSimple(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
+	
+	if len(val) < minChunkSize {
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Chunk too small (< %s)| %x", minChunkSize, val), ErrorCode: 439, ErrorMessage: "Unable to Store Chunk"}
+	}
+
+	h := sha256.New()
+	h.Write([]byte(val))
+	key = h.Sum(nil)
+
+	var chunkVal []byte
+	if encrypted == 1 {
+		chunkVal = self.km.EncryptData(u, val)
+	} else {
+		chunkVal = val
+	}
+
+
+	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal ) values(?, ?)`
+	insertChunkStatement, _ := self.db.Prepare(sql_add)
+	_, err2 := insertChunkStatement.Exec(key, chunkVal)
+	if err2 != nil {
+		fmt.Printf("\nError Inserting into Table: [%s]", err2.Error())
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Exec %s | data:%s | encrypted:%s", err2.Error(), chunkVal, encrypted), ErrorCode: 439, ErrorMessage: "Unable to Store Chunk"}
+	}
+
+	return key, nil
+}
+
+func (self *DBChunkstore) StoreChunkDummy(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
+
+	if len(val) < minChunkSize {
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Chunk too small (< %s)| %x", minChunkSize, val), ErrorCode: 439, ErrorMessage: "Unable to Store Chunk"}
+	}
+	log.Debug(fmt.Sprintf("StoreChunk: Encrypted bit when saving was: %d", encrypted))
+	inp := make([]byte, minChunkSize)
+	copy(inp, val[0:minChunkSize])
+	h := sha256.New()
+	h.Write([]byte(inp))
+	key = h.Sum(nil)
+
+	var chunkVal []byte
+	chunkVal = val
+	if encrypted == 1 {
+		chunkVal = self.km.EncryptData(u, val)
+		if len(chunkVal) > 0 {
+			encrypted = 1
+		}
+	}
+	
+	return key, nil
+}
+func (self *DBChunkstore) StoreChunkFile(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
+
+	if len(val) < minChunkSize {
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Chunk too small (< %s)| %x", minChunkSize, val), ErrorCode: 439, ErrorMessage: "Unable to Store Chunk"}
+	}
+	log.Debug(fmt.Sprintf("StoreChunk: Encrypted bit when saving was: %d", encrypted))
+	inp := make([]byte, minChunkSize)
+	copy(inp, val[0:minChunkSize])
+	h := sha256.New()
+	h.Write([]byte(inp))
+	key = h.Sum(nil)
+
+	var chunkVal []byte
+	chunkVal = val
+	if encrypted == 1 {
+		chunkVal = self.km.EncryptData(u, val)
+	}
+	ioutil.WriteFile(fmt.Sprintf("/tmp/%x", key), chunkVal, 0644)
 	return key, nil
 }
 

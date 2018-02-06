@@ -18,9 +18,264 @@ package swarmdb_test
 import (
 	"bytes"
 	"fmt"
+	"crypto/sha256"
+	"github.com/syndtr/goleveldb/leveldb"
 	"swarmdb"
 	"testing"
 )
+
+
+// chunk storage in SQLite3 with encryption
+func BenchmarkStoreSQLiteSimple1(b *testing.B) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
+	store, err := swarmdb.NewDBChunkStore("chunks.db")
+	if err != nil {
+		b.Fatal("Failure to open NewDBChunkStore")
+	}
+
+	v := make([]byte, 4096)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := []byte(fmt.Sprintf("%d", i))
+		copy(v, r)
+		_, err := store.StoreChunkSimple(u, v, 1)
+		if err != nil {
+		} else {
+			// fmt.Printf("%d %x\n", i, k)
+		}
+	}
+}
+
+// chunk storage in SQLite3 without encryption
+func BenchmarkStoreSQLiteSimple0(b *testing.B) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
+	store, err := swarmdb.NewDBChunkStore("chunks.db")
+	if err != nil {
+		b.Fatal("Failure to open NewDBChunkStore")
+	}
+
+	v := make([]byte, 4096)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := []byte(fmt.Sprintf("%d", i))
+		copy(v, r)
+		_, err := store.StoreChunkSimple(u, v, 0)
+		if err != nil {
+		} else {
+			// fmt.Printf("%d %x\n", i, k)
+		}
+	}
+}
+
+
+// chunk storage in SQLite3 with encryption
+func BenchmarkStoreSQLite1(b *testing.B) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
+	store, err := swarmdb.NewDBChunkStore("chunks.db")
+	if err != nil {
+		b.Fatal("Failure to open NewDBChunkStore")
+	}
+
+	v := make([]byte, 4096)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := []byte(fmt.Sprintf("%d", i))
+		copy(v, r)
+		_, err := store.StoreChunk(u, v, 1)
+		if err != nil {
+		} else {
+			// fmt.Printf("%d %x\n", i, k)
+		}
+	}
+}
+
+// chunk storage in SQLite3 without encryption
+func BenchmarkStoreSQLite0(b *testing.B) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
+	store, err := swarmdb.NewDBChunkStore("chunks.db")
+	if err != nil {
+		b.Fatal("Failure to open NewDBChunkStore")
+	}
+
+	v := make([]byte, 4096)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := []byte(fmt.Sprintf("%d", i))
+		copy(v, r)
+		_, err := store.StoreChunk(u, v, 0)
+		if err != nil {
+		} else {
+			// fmt.Printf("%d %x\n", i, k)
+		}
+	}
+}
+
+// chunk storage in leveldb with encryption
+func BenchmarkStoreLevelDB1(b *testing.B) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
+	store, err := swarmdb.NewDBChunkStore("chunks.db")
+	if err != nil {
+		b.Fatal("Failure to open NewDBChunkStore")
+	}
+
+
+	db, err := leveldb.OpenFile("/tmp", nil)
+	defer db.Close()
+
+	v := make([]byte, 4096)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := []byte(fmt.Sprintf("%d", i))
+		copy(v, r)
+		h := sha256.New()
+		h.Write([]byte(v))
+		chunkVal := store.GetKeyManager().EncryptData(u, v)
+		key := h.Sum(nil)
+		err = db.Put(key, chunkVal, nil)
+		if err != nil {
+		} else {
+			// fmt.Printf("%d %x\n", i, k)
+		}
+	}
+}
+
+// chunk storage in leveldb without encryption
+func BenchmarkStoreLevelDB0(b *testing.B) {
+	db, err := leveldb.OpenFile("/tmp", nil)
+	defer db.Close()
+
+	v := make([]byte, 4096)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := []byte(fmt.Sprintf("%d", i))
+		copy(v, r)
+		h := sha256.New()
+		h.Write([]byte(v))
+		key := h.Sum(nil)
+		err = db.Put(key, v, nil)
+		if err != nil {
+		} else {
+			// fmt.Printf("%d %x\n", i, k)
+		}
+	}
+}
+
+// chunk storage in files with encryption
+func BenchmarkStoreFile1(b *testing.B) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
+	store, err := swarmdb.NewDBChunkStore("chunks.db")
+	if err != nil {
+		b.Fatal("Failure to open NewDBChunkStore")
+	}
+
+	v := make([]byte, 4096)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := []byte(fmt.Sprintf("%d", i))
+		copy(v, r)
+		_, err := store.StoreChunkFile(u, v, 1)
+		if err != nil {
+		} else {
+			// fmt.Printf("%d %x\n", i, k)
+		}
+	}
+}
+
+// chunk storage in files without encryption
+func BenchmarkStoreFile0(b *testing.B) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
+	store, err := swarmdb.NewDBChunkStore("chunks.db")
+	if err != nil {
+		b.Fatal("Failure to open NewDBChunkStore")
+	}
+
+	v := make([]byte, 4096)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := []byte(fmt.Sprintf("%d", i))
+		copy(v, r)
+		_, err := store.StoreChunkFile(u, v, 0)
+		if err != nil {
+		} else {
+			// fmt.Printf("%d %x\n", i, k)
+		}
+	}
+}
+
+// chunk computation with encryption
+func BenchmarkStoreDummy1(b *testing.B) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
+	store, err := swarmdb.NewDBChunkStore("chunks.db")
+	if err != nil {
+		b.Fatal("Failure to open NewDBChunkStore")
+	}
+
+	v := make([]byte, 4096)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := []byte(fmt.Sprintf("%d", i))
+		copy(v, r)
+		_, err := store.StoreChunkDummy(u, v, 1)
+		if err != nil {
+		} else {
+			// fmt.Printf("%d %x\n", i, k)
+		}
+	}
+}
+
+// chunk computation without encryption (just hashing)
+func BenchmarkStoreDummy0(b *testing.B) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
+	u := config.GetSWARMDBUser()
+
+	store, err := swarmdb.NewDBChunkStore("chunks.db")
+	if err != nil {
+		b.Fatal("Failure to open NewDBChunkStore")
+	}
+
+	v := make([]byte, 4096)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := []byte(fmt.Sprintf("%d", i))
+		copy(v, r)
+		_, err := store.StoreChunkDummy(u, v, 0)
+		if err != nil {
+		} else {
+			// fmt.Printf("%d %x\n", i, k)
+		}
+	}
+}
 
 func TestDBChunkStore(t *testing.T) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
@@ -35,8 +290,6 @@ func TestDBChunkStore(t *testing.T) {
 	r := []byte("randombytes23412341")
 	v := make([]byte, 4096)
 	copy(v, r)
-
-	// encrypted := int(1)
 
 	// StoreChunk
 	k, err := store.StoreChunk(u, r, 1)

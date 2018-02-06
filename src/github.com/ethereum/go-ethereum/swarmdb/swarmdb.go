@@ -332,10 +332,11 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (affectedRo
 		_, ok, err := table.Get(u, convertedKey)
 		//log.Debug(fmt.Sprintf("Row already exists | [%s] | [%+v] | [%d]", existingByteRow, existingByteRow, len(existingByteRow)))
 		if ok {
-			return affectedRows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row key %s already exists | Error: %s", row[table.primaryColumnName], err), ErrorCode: 434, ErrorMessage: fmt.Sprintf("Record with key [%s] already exists.  If you wish to modify, please use UPDATE SQL statement or PUT", convertedKey)}
+			return affectedRows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row key %s already exists | Error: %s", row[table.primaryColumnName], err), ErrorCode: 434, ErrorMessage: fmt.Sprintf("Record with key [%s] already exists.  If you wish to modify, please use UPDATE SQL statement or PUT", bytes.Trim(convertedKey, "\x00"))}
 		}
 		if err != nil {
-			//return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Error: %s", err.Error()), ErrorCode: 434, ErrorMessage: fmt.Sprintf("Record with key [%s] already exists.  If you wish to modify, please use UPDATE SQL statement or PUT", convertedKey)}
+			//TODO: why is this uncommented?
+			//return &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Error: %s", err.Error()), ErrorCode: 434, ErrorMessage: fmt.Sprintf("Record with key [%s] already exists.  If you wish to modify, please use UPDATE SQL statement or PUT", bytes.Trim(convertedKey, "\x00")}
 		}
 		// put the new Row in
 		err = table.Put(u, row)
@@ -390,7 +391,6 @@ func (self *SwarmDB) QueryUpdate(u *SWARMDBUser, query *QueryOption) (affectedRo
 	affectedRows = 0
 	for _, row := range filteredRows {
 		if len(row) > 0 {
-			fmt.Printf("----> updating ROW %v\n", row)
 			err := table.Put(u, row)
 			if err != nil {
 				return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryUpdate] Put %s", err.Error()))
@@ -423,7 +423,6 @@ func (self *SwarmDB) QueryDelete(u *SWARMDBUser, query *QueryOption) (affectedRo
 
 	//delete the selected rows
 	for _, row := range filteredRows {
-		fmt.Printf(" QUERY DELETE (%s) %v\n", table.primaryColumnName, row)
 		if p, okp := row[table.primaryColumnName]; okp {
 			ok, err := table.Delete(u, p)
 			if err != nil {
@@ -752,7 +751,6 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			//TODO: check if empty even after query.Table check
 			d.Table = query.Table //since table is specified in the query we do not have get it as a separate input
 		}
-
 		tbl, err := self.GetTable(u, d.Owner, d.Database, d.Table)
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"io"
 	"strconv"
 )
 
@@ -409,7 +410,9 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 
 	if ascending == 1 {
 		res, err := c.SeekFirst(u)
-		if err != nil {
+		if err == io.EOF {
+			return rows, nil
+		} else if err != nil {
 			return rows, GenerateSWARMDBError(err, fmt.Sprintf("[table:Scan] SeekFirst %s ", err.Error()))
 		} else {
 			records := 0
@@ -552,6 +555,12 @@ func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
 					case float64:
 						row[name] = int(value.(float64))
 						log.Debug(fmt.Sprintf("Converting value[%s] from float64 to int => [%d][%s]\n", value, row[name]))
+					case string:
+						f, err := strconv.ParseFloat(value.(string), 64)
+						if err != nil {
+							return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: fmt.Sprintf("The value passed in for [%s] cannot be converted to integer type", name)}
+						}
+						row[name] = int(f)
 					default:
 						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: fmt.Sprintf("The value passed in for [%s] is of an unsupported type", name)}
 					}
@@ -574,6 +583,12 @@ func (t *Table) assignRowColumnTypes(rows []Row) ([]Row, error) {
 						row[name] = value.(float64)
 					case int:
 						row[name] = float64(value.(int))
+					case string:
+						f, err := strconv.ParseFloat(value.(string), 64)
+						if err != nil {
+							return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: fmt.Sprintf("The value passed in for [%s] is of an unsupported type", name)}
+						}
+						row[name] = f
 					default:
 						return rows, &SWARMDBError{message: fmt.Sprintf("[table:assignRowColumnTypes] TypeConversion Error: value [%v] does not match column type [%v]", value, t.columns[name].columnType), ErrorCode: 427, ErrorMessage: fmt.Sprintf("The value passed in for [%s] is of an unsupported type", name)}
 					}
