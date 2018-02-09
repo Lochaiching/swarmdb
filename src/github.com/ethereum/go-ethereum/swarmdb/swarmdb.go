@@ -587,11 +587,11 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		return resp, nil
 
 	case RT_DESCRIBE_TABLE:
-		tblKey := self.GetTableKey(d.Owner, d.Database, d.Table)
-		if _, ok := self.tables[tblKey]; !ok {
-			return resp, &SWARMDBError{message: fmt.Sprintf("Table with table key [%s] Not in tables array", tblKey), ErrorCode: 403, ErrorMessage: fmt.Sprintf("Table Does Not Exist - Table: [%s] Database: [%s] Owner: [%s]", d.Table, d.Database, d.Owner)}
+		tbl, err := self.GetTable(u, d.Owner, d.Database, d.Table)
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] GetTable %s", err.Error()))
 		}
-		tblcols, err := self.tables[tblKey].DescribeTable()
+		tblcols, err := tbl.DescribeTable()
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeTable %s", err.Error()))
 		}

@@ -90,7 +90,7 @@ func TestHashDBPutInteger(t *testing.T) {
 	if true {
 		res, _ := s.SeekLast(u)
 		records := 0
-		for k, v, err := res.Prev(u); ; k, v, err = res.Prev(u) {
+		for k, v, err := res.Prev(u); err == nil; k, v, err = res.Prev(u) {
 			fmt.Printf(" *int*> %d: K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_INTEGER, k), string(v))
 			records++
 			if err != nil {
