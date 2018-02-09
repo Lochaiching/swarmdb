@@ -1,4 +1,4 @@
-.PHONY:	wolkdb wolk test enssimulation dbchunkstore server keymanager bplus client kademliadb hashdb
+.PHONY:	wolkdb wolk test enssimulation dbchunkstore server keymanager bplus hashdb
 
 wolkdb:	
 	@echo "compiling wolkdb server..."

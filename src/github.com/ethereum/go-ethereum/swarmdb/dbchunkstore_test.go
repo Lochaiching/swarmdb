@@ -17,9 +17,9 @@ package swarmdb_test
 
 import (
 	"bytes"
-	"crypto/sha256"
+	//"crypto/sha256"
 	"fmt"
-	"github.com/syndtr/goleveldb/leveldb"
+	//"github.com/syndtr/goleveldb/leveldb"
 	"swarmdb"
 	"testing"
 )
@@ -120,6 +120,7 @@ func BenchmarkStoreSQLite0(b *testing.B) {
 	}
 }
 
+/*
 // chunk storage in leveldb with encryption
 func BenchmarkStoreLevelDB1(b *testing.B) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
@@ -173,7 +174,7 @@ func BenchmarkStoreLevelDB0(b *testing.B) {
 		}
 	}
 }
-
+*/
 // chunk storage in files with encryption
 func BenchmarkStoreFile1(b *testing.B) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
