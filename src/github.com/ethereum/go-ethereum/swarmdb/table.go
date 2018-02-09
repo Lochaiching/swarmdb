@@ -78,14 +78,14 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 		columninfo := new(ColumnInfo)
 		columninfo.columnName = string(bytes.Trim(buf[:25], "\x00"))
 		columninfo.primary = uint8(buf[26])
-		columninfo.columnType = ColumnType(buf[28]) //:29
-		columninfo.indexType = IndexType(buf[30])
+		columninfo.columnType, _ = ByteToColumnType(buf[28]) //:29
+		columninfo.indexType = ByteToIndexType(buf[30])
 		columninfo.roothash = buf[32:]
 		secondary := false
 		if columninfo.primary == 0 {
 			secondary = true
 		} else {
-			primaryColumnType = columninfo.columnType // TODO: what if primary is stored *after* the secondary?  would break this..
+			primaryColumnType = (columninfo.columnType) // TODO: what if primary is stored *after* the secondary?  would break this..
 		}
 		// fmt.Printf("\n columnName: %s (%d) roothash: %x (secondary: %v) columnType: %d", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary, columninfo.columnType)
 		switch columninfo.indexType {
@@ -348,10 +348,12 @@ func (t *Table) updateTableInfo(u *SWARMDBUser) (err error) {
 		b[0] = byte(c.primary)
 		copy(buf[2048+i*64+26:], b)
 
-		b[0] = byte(c.columnType)
+		ctInt, _ := ColumnTypeToInt(c.columnType)
+		b[0] = byte(ctInt)
 		copy(buf[2048+i*64+28:], b)
 
-		b[0] = byte(c.indexType)
+		itInt := IndexTypeToInt(c.indexType)
+		b[0] = byte(itInt)
 		copy(buf[2048+i*64+30:], b)
 
 		copy(buf[2048+i*64+32:], c.roothash)

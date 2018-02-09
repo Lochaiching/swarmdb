@@ -11,7 +11,7 @@ import (
 )
 
 type Content struct {
-	S string
+	//S string
 	B []byte
 }
 
@@ -182,15 +182,6 @@ func (m *MerkleTree) RebuildTreeWith(cs []Content) error {
 	return nil
 }
 
-//VerifyTree verify tree validates the hashes at each level of the tree and returns true if the
-//resulting hash at the root of the tree matches the resulting root hash; returns false otherwise.
-func (m *MerkleTree) VerifyTree() bool {
-	calculatedMerkleRoot := m.Root.verifyNode()
-	if bytes.Compare(m.merkleRoot, calculatedMerkleRoot) == 0 {
-		return true
-	}
-	return false
-}
 
 func bsplit(rawhash []byte) string {
 	var segments [][]byte
@@ -203,66 +194,11 @@ func bsplit(rawhash []byte) string {
 	return s
 }
 
-//VerifyContent indicates whether a given content is in the tree and the hashes are valid for that content.
-//Returns true if the expected Merkle Root is equivalent to the Merkle root calculated on the critical path
-//for a given content. Returns true if valid and false otherwise.
-func (m *MerkleTree) VerifyContent(expectedMerkleRoot []byte, content Content) (res bool, proof []byte) {
-	fmt.Printf("Verifying: %s\n", content)
+
+func (m *MerkleTree) GetProof(content []byte) (ok bool, mkroot []byte, proof []byte, index int8) {
 	var mkproof []byte
-	for _, l := range m.Leafs {
-		if l.C.Equals(content) {
-			currentSelf := l
-			currentSister := l.Hash
-			currentParent := l.Parent
-			for currentParent != nil {
-
-				if bytes.Compare(currentSelf.Hash, currentParent.Left.Hash) == 0 {
-					currentSister = currentParent.Right.Hash
-				} else {
-					currentSister = currentParent.Left.Hash
-				}
-				mkproof = append(mkproof, currentSister...)
-				fmt.Printf("Self:%x | Sister:%x | Parent: %x\n", currentSelf.Hash, currentSister, currentParent.Hash)
-
-				if currentParent.Left.leaf && currentParent.Right.leaf {
-					currentParentLR := append(currentParent.Left.calculateNodeHash(), currentParent.Right.calculateNodeHash()...)
-					currentParentHash := Computehash(currentParentLR)
-					if bytes.Compare(currentParentHash, currentParent.Hash) != 0 {
-						fmt.Printf("[Mismatch0] [ParentLRHash:%v] => CurrentParent Hash: %v\n", currentParentHash, currentParent.Hash)
-						return false, nil
-					} else {
-						fmt.Printf("[Match0] [currentParentLR:%s] => CurrentParent Hash: %x\n", bsplit(currentParentLR), currentParentHash)
-					}
-
-					currentSelf = currentParent
-					currentParent = currentParent.Parent
-					fmt.Printf("New Parent:%x\n", currentParent.Hash)
-				} else {
-					currentParentLR := append(currentParent.Left.calculateNodeHash(), currentParent.Right.calculateNodeHash()...)
-					currentParentHash := Computehash(currentParentLR)
-					if bytes.Compare(currentParentHash, currentParent.Hash) != 0 {
-						fmt.Printf("[Mismatch1] [ParentLRHash:%v] => CurrentParent Hash: %v\n", currentParentHash, currentParent.Hash)
-						return false, nil
-					} else {
-						fmt.Printf("[Match1] [currentParentLR:%s] => CurrentParent Hash: %x\n", bsplit(currentParentLR), currentParentHash)
-					}
-					currentSelf = currentParent
-					currentParent = currentParent.Parent
-				}
-			}
-			fmt.Printf("Proof:%x\n", mkproof)
-			return true, mkproof
-		}
-	}
-	return false, nil
-}
-
-func (m *MerkleTree) GetProof(expectedMerkleRoot []byte, content Content) bool {
-	fmt.Printf("Proof: %s\n", content)
-	var mkproof []byte
-
-	for _, l := range m.Leafs {
-		if l.C.Equals(content) {
+	for j, l := range m.Leafs {
+		if bytes.Compare(l.C.B, content) == 0 {
 			currentSelf := l
 			currentSister := l.Hash
 			currentParent := l.Parent
@@ -273,63 +209,61 @@ func (m *MerkleTree) GetProof(expectedMerkleRoot []byte, content Content) bool {
 					currentSister = currentParent.Left.Hash
 				}
 				mkproof = append(mkproof, currentSister...)
-
-				fmt.Printf("Self:%x | Sister:%x | Parent: %x\n", currentSelf.Hash, currentSister, currentParent.Hash)
+				//fmt.Printf("Self:%x | Sister:%x | Parent: %x\n", currentSelf.Hash, currentSister, currentParent.Hash)
 				currentSelf = currentParent
 				currentParent = currentParent.Parent
 			}
-			fmt.Printf("Proof:%x\n", mkproof)
-			return true
+			fmt.Printf("Content %s | Proof: %s\n", content, bsplit(mkproof))
+			return true, m.merkleRoot, mkproof, int8(j)
 		}
 	}
-	return false
+	return false, nil, nil, index
 }
 
-func CheckProof(expectedMerkleRoot []byte, content []byte, mkproof []byte) bool {
+func CheckProof(expectedMerkleRoot []byte, content []byte, mkproof []byte, index int8) (isValid bool, err error) {
+	if len(mkproof)%32 != 0 {
+		return false, errors.New("Invalid mkproof length")
+	}
+
+	/*
+	   fmt.Printf("\n\n\nIndex is %v\n",index)
+	   fmt.Printf("Proof is %s\n",bsplit(mkproof))
+	*/
+	totaldepth := len(mkproof) / 32
 	merkleroot := append(content[:0], content...)
 	merklepath := merkleroot
+
 	depth := 0
-	for depth < len(mkproof)/32 {
+	for depth < totaldepth {
 		start := depth * 32
 		end := start + 32
-		merkleroot = Computehash(append(merkleroot, mkproof[start:end]...))
+
+		if index%2 == 0 {
+			c := make([]byte, 32)
+			copy(c, mkproof[start:end])
+			merkleroot = Computehash(append(merkleroot, c...))
+			index = (index + 1) / 2
+		} else {
+			c := make([]byte, 32)
+			copy(c, mkproof[start:end])
+			merkleroot = Computehash(append(c, merkleroot...))
+			index = index / 2
+		}
 		merklepath = append(merklepath, merkleroot...)
 		depth++
 	}
+
 	if bytes.Compare(expectedMerkleRoot, merkleroot) != 0 {
 		fmt.Printf("[CheckProof][FALSE] Expected: [%x] | Actual: [%x] | MRPath: {%v} | Proof {%v}\n", expectedMerkleRoot, merkleroot, bsplit(merklepath), bsplit(mkproof))
-		return false
+		return false, nil
 	} else {
 		fmt.Printf("[CheckProof][TRUE] MRPath: {%v} | Proof {%v}\n", bsplit(merklepath), bsplit(mkproof))
-		return true
+		return true, nil
 	}
 }
 
-func (n *Node) getString() string {
-	x := ""
-	var lnode []byte
-	var rnode []byte
 
-	if n.Parent == nil {
-		x = fmt.Sprintf("Merkle Root: %x | Self: %x | Left:%x | Right: %x | leaf: %t | dup: %t | Content: %v\n", n.Hash, &n, &n.Left, &n.Right, n.leaf, n.dup, n.C)
-	} else if !n.leaf {
-		x = fmt.Sprintf("Intermediate Node: %x| Left:%x | Right: %x | leaf: %t | dup: %t | Content: %v\n", n.Hash, &n.Left, &n.Right, n.leaf, n.dup, n.C)
-	} else {
-		x = fmt.Sprintf("Leaf Node: %x | Self:%x | Left:%x | Right: %x | leaf: %t | dup: %t | Content: %v\n", n.Hash, &n, lnode, rnode, n.leaf, n.dup, n.C)
-	}
-	return x
-}
-
-func (m *MerkleTree) String() string {
-	s := ""
-	s += m.Root.getString()
-	for _, l := range m.Leafs {
-		x := fmt.Sprintf("Parent:%v | Sister: %v| Left:%v | Right: %v | leaf: %t | dup: %t | Hash: %x | Content: %v\n", &l.Parent, &l.Sister, l.Left, l.Right, l.leaf, l.dup, l.Hash, l.C)
-		s += x
-	}
-	return s
-}
-
+//Simple chunk split. Pad a chunk into 128 piece of 32 bytes
 func chunksplit(chunk []byte) (segments [][]byte) {
 	curr := 0
 	for curr < 4096 {
@@ -344,19 +278,19 @@ func chunksplit(chunk []byte) (segments [][]byte) {
 	return segments
 }
 
-//Compute segment index j
-func getIndex(seedsecret string) (index uint8) {
-	seedhash := Computehash([]byte(seedsecret))
+//Compute segment index j given a secret
+func getIndex(secret []byte) (index uint8) {
+	seedhash := Computehash(secret)
 	_ = binary.Read(bytes.NewReader(seedhash[31:]), binary.BigEndian, &index)
-    index  = index % 128
-	fmt.Printf("%v | Index: %s\n", seedhash, index)
+	index = index % 128
+	fmt.Printf("SeedHash: %v | Index: %d\n", seedhash, index)
 	return index
 }
 
 //Replace jth segment with h(content+seed)
-func PrepareSegment(chunk []byte, seed string) (segments [][]byte) {
-	j := getIndex(seed)
+func PrepareSegment(chunk []byte, secret []byte) (segments [][]byte) {
+	j := getIndex(secret)
 	segments = chunksplit(chunk)
-	segments[j] = Computehash(append(segments[j], []byte(seed)...))
+	segments[j] = Computehash(append(segments[j], []byte(secret)...))
 	return segments
 }

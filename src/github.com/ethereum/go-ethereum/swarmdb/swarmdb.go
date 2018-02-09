@@ -27,7 +27,6 @@ import (
 
 const (
 	OK_RESPONSE = "ok"
-	CURRENT_SERVER_VERSION = "0.09.0.0"
 )
 
 //for passing request data from client to server if the request needs Table data
@@ -179,20 +178,20 @@ type OrderedDatabaseCursor interface {
 	Prev(*SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err error)
 }
 
-type ColumnType uint8
-type IndexType uint8
+type ColumnType string
+type IndexType string
 type RequestType string
 
 const (
-	CT_INTEGER = 1
-	CT_STRING  = 2
-	CT_FLOAT   = 3
-	CT_BLOB    = 4
+	CT_INTEGER = "INTEGER"
+	CT_STRING  = "STRING"
+	CT_FLOAT   = "FLOAT"
+	CT_BLOB    = "BLOB"
 
-	IT_NONE      = 0
-	IT_HASHTREE  = 1
-	IT_BPLUSTREE = 2
-	IT_FULLTEXT  = 3
+	IT_NONE      = "NONE"
+	IT_HASHTREE  = "HASH"
+	IT_BPLUSTREE = "BPLUS"
+	IT_FULLTEXT  = "FULLTEXT"
 
 	RT_CREATE_DATABASE = "CreateDatabase"
 	RT_LIST_DATABASES  = "ListDatabases"
@@ -545,10 +544,11 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 
 	case RT_LIST_DATABASES:
 		databases, err := self.ListDatabases(u, d.Owner)
-		resp.Data = databases
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] ListDatabases %s", err.Error()))
 		}
+		resp.Data = databases
+		resp.MatchedRowCount = len(databases)
 		return resp, nil
 
 	case RT_CREATE_TABLE:
@@ -588,6 +588,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 
 	case RT_DESCRIBE_TABLE:
 		tblKey := self.GetTableKey(d.Owner, d.Database, d.Table)
+		if _, ok := self.tables[tblKey]; !ok {
+			return resp, &SWARMDBError{message: fmt.Sprintf("Table with table key [%s] Not in tables array", tblKey), ErrorCode: 403, ErrorMessage: fmt.Sprintf("Table Does Not Exist - Table: [%s] Database: [%s] Owner: [%s]", d.Table, d.Database, d.Owner)}
+		}
 		tblcols, err := self.tables[tblKey].DescribeTable()
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeTable %s", err.Error()))
@@ -605,12 +608,11 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 	case RT_LIST_TABLES:
 		tableNames, err := self.ListTables(u, d.Owner, d.Database)
 		if err != nil {
-			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeDatabase %s", err.Error()))
-		}
-		resp.Data = tableNames
-		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] ListDatabases %s", err.Error()))
 		}
+		resp.Data = tableNames
+		resp.MatchedRowCount = len(tableNames)
+		log.Debug(fmt.Sprintf("returning resp %+v tablenames %+v Mrc %+v", resp, tableNames, len(tableNames)))
 		return resp, nil
 	case RT_PUT:
 		tbl, err := self.GetTable(u, d.Owner, d.Database, d.Table)
@@ -692,6 +694,7 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 				return resp, GenerateSWARMDBError(err2, fmt.Sprintf("[swarmdb:SelectHandler] byteArrayToRow %s", err2.Error()))
 			}
 			resp.Data = append(resp.Data, validRow)
+			resp.MatchedRowCount = 1
 		}
 		return resp, nil
 
@@ -1110,7 +1113,7 @@ func (self *SwarmDB) ListTables(u *SWARMDBUser, owner string, database string) (
 
 	buf := make([]byte, CHUNK_SIZE)
 	if EmptyBytes(ownerDatabaseChunkID) {
-		return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] No owner found %s", err)}
+		return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] Requested owner [%s] not found", owner), ErrorCode: 477, ErrorMessage: fmt.Sprintf("Requested owner [%s] not found", owner)}
 	} else {
 		buf, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
 		if err != nil {
@@ -1140,7 +1143,7 @@ func (self *SwarmDB) ListTables(u *SWARMDBUser, owner string, database string) (
 					if EmptyBytes(bufDB[j:(j + TABLE_NAME_LENGTH_MAX)]) {
 					} else {
 						r := NewRow()
-						r["database"] = string(bytes.Trim(bufDB[j:(j+TABLE_NAME_LENGTH_MAX)], "\x00"))
+						r["table"] = string(bytes.Trim(bufDB[j:(j+TABLE_NAME_LENGTH_MAX)], "\x00"))
 						tableNames = append(tableNames, r)
 					}
 				}
@@ -1148,7 +1151,7 @@ func (self *SwarmDB) ListTables(u *SWARMDBUser, owner string, database string) (
 			}
 		}
 	}
-	return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] Did not find database %s", database)}
+	return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] Did not find database %s", database), ErrorCode: 476, ErrorMessage: fmt.Sprintf("Database [%s] Not Found", database)}
 }
 
 // TODO: Review adding owner string, database string input parameters where the goal is to get database.owner/table/key type HTTP urls like:
@@ -1173,7 +1176,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 	for _, columninfo := range columns {
 		if columninfo.Primary > 0 {
 			if len(primaryColumnName) > 0 {
-				return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateTable] More than one primary column"), ErrorCode: 406, ErrorMessage: "Multiple Primary keys specified in Create Table"}
+				return tbl, &SWARMDBError{message: "[swarmdb:CreateTable] More than one primary column", ErrorCode: 406, ErrorMessage: "Multiple Primary keys specified in Create Table"}
 			}
 			primaryColumnName = columninfo.ColumnName
 		}
@@ -1300,10 +1303,13 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 		b[0] = byte(columninfo.Primary)
 		copy(buf[2048+i*64+26:], b)
 
-		b[0] = byte(columninfo.ColumnType)
+		intColumnInfo, _ := ColumnTypeToInt(columninfo.ColumnType)
+		//TODO: check this
+		b[0] = byte(intColumnInfo)
 		copy(buf[2048+i*64+28:], b)
 
-		b[0] = byte(columninfo.IndexType)
+		intIndexType := IndexTypeToInt(columninfo.IndexType)
+		b[0] = byte(intIndexType)
 		copy(buf[2048+i*64+30:], b) // columninfo.IndexType
 		// fmt.Printf(" column: %v\n", columninfo)
 	}

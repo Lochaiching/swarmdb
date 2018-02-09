@@ -63,6 +63,21 @@ type SwarmDBReq struct {
 	key      string
 }
 
+type ChallengeVersionPair struct {
+	Challenge string `json:"challenge,omitempty"`
+	ServerVersion string `json:"serverversion,omitempty"`
+}
+
+type ResponseVersionPair struct {
+	Response string `json:"response,omitempty"`
+	ClientVersion string `json:"clientversion,omitempty"`
+	ClientName string `json:"clientname,omitempty"`
+}
+
+func (rvp *ChallengeVersionPair) validClientVersion( cvp ResponseVersionPair ) (ok bool) {
+	return true
+}
+
 func buildErrorResp(err error) string {
 	var respObj swarmdb.SWARMDBResponse
 	wolkErr, ok := err.(*swarmdb.SWARMDBError)
@@ -80,7 +95,7 @@ func buildErrorResp(err error) string {
 	jbyte, jErr := json.Marshal(respObj)
 	if jErr != nil {
 		//fmt.Printf("Error: [%s] [%+v]", jErr.Error(), respObj)
-		return `{ "errorcode":-1, "errormessage":"DEFAULT ERROR"}` //TODO: Make Default Error Handling
+		return `{ "errorcode":-1, "errormessage":"UNKNOWN ERROR"}` //TODO: Make Default Error Handling
 	}
 	jstr := string(jbyte)
 	return jstr
@@ -89,7 +104,10 @@ func buildErrorResp(err error) string {
 // Handles incoming TCPIP requests.
 func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 	// generate a random 50 char challenge (64 hex chars)
-	challenge := RandStringRunes(50)
+	var cvp ChallengeVersionPair
+	cvp.Challenge = RandStringRunes(50)
+	cvp.ServerVersion = swarmdb.SWARMDBVersion 
+
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
 
@@ -99,40 +117,70 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 		writer: writer,
 		svr:    svr,
 	}
-
+	challenge, errCh := json.Marshal( cvp )
+	if errCh != nil {
+		log.Debug(fmt.Sprintf("ERROR marshalling? %s", errCh.Error()))
+		//Todo: error
+	}
+	log.Debug(fmt.Sprintf("SENDING BACK %s from %+v",challenge, cvp))
 	fmt.Fprintf(writer, "%s\n", challenge)
 	writer.Flush()
 
-	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(challenge), challenge)
+	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(cvp.Challenge), cvp.Challenge)
 	challenge_bytes := crypto.Keccak256([]byte(msg))
 
 	var swErr swarmdb.SWARMDBError
-	resp, err := reader.ReadString('\n')
+	rvp, err := reader.ReadString('\n')
 	if err != nil {
-		log.Error("Problem reading RAW TCPIP input (%s).  ERROR:[%s]", resp, err.Error())
-		swErr.SetError(fmt.Sprintf("Problem reading RAW TCPIP input (%s).  ERROR:[%s]", resp, err.Error()))
+		swErr.SetError(fmt.Sprintf("Problem reading RAW TCPIP input (%s).  ERROR:[%s]", rvp, err.Error()))
+		swErr.ErrorCode = 478 
+		swErr.ErrorMessage = "Unable to Parse Response to Challenge" 
 		log.Error(swErr.Error())
-		//TODO: return a TCPIP error response
-		tcpJson := buildErrorResp(err)
+		tcpJson := buildErrorResp(&swErr)
 		writer.WriteString(tcpJson)
 		writer.Flush()
+		return
+	} 
 
-	} else {
-		resp = strings.Trim(resp, "\r")
-		resp = strings.Trim(resp, "\n")
+	var resp ResponseVersionPair
+	errRvpUnmarshal := json.Unmarshal( []byte(rvp), &resp )
+	if errRvpUnmarshal != nil {
+		swErr.SetError(fmt.Sprintf("Unable to parse Response Value Pair sent to server: %s", errRvpUnmarshal.Error()))
+		swErr.ErrorCode = 478 
+		swErr.ErrorMessage = "Unable to Parse RAW TCP Input" 
+		log.Error(swErr.Error())
+		tcpJson := buildErrorResp(&swErr)
+		writer.WriteString(tcpJson)
+		writer.Flush()
+		return
 	}
-	fmt.Printf("handleTcpipRequest response %v\n", resp)
+	resp.Response = strings.Trim(resp.Response, "\r")
+	resp.Response = strings.Trim(resp.Response, "\n")
+	log.Debug(fmt.Sprintf("handleTcpipRequest response %v\n", resp))
 
 	// this should be the signed challenge, verify using valid_response
-	response_bytes, errDecoding := hex.DecodeString(resp)
+	response_bytes, errDecoding := hex.DecodeString(resp.Response)
 	if errDecoding != nil {
 		swErr.SetError(fmt.Sprintf("Problem decoding TCPIP input.  ERROR:[%s]", errDecoding.Error()))
 		log.Error(swErr.Error())
 		swErr.ErrorCode = 422
-		swErr.ErrorMessage = fmt.Sprintf("Unable to Decode Response sent [%s]", resp)
+		swErr.ErrorMessage = fmt.Sprintf("Unable to Decode Response sent [%s]", resp.Response)
 		tcpJson := buildErrorResp(&swErr)
 		writer.WriteString(tcpJson)
 		writer.Flush()
+	}
+
+	log.Debug(fmt.Sprintf("[wolkdb:handleTcpipRequest] Valid Response from [%s] [%s]", resp.ClientName, resp.ClientVersion))
+	
+	if !cvp.validClientVersion( resp ) {
+		swErr.SetError(fmt.Sprintf("Client Version [%s] of %s is incompatible with SWARMDB Server version [%s]", resp.ClientVersion, resp.ClientName, cvp.ServerVersion))
+		swErr.ErrorCode = 478 
+		swErr.ErrorMessage = "Unable to Parse RAW TCP Input" 
+		log.Error(swErr.Error())
+		tcpJson := buildErrorResp(&swErr)
+		writer.WriteString(tcpJson)
+		writer.Flush()
+		return
 	}
 
 	u, err := svr.keymanager.VerifyMessage(challenge_bytes, response_bytes)
@@ -143,7 +191,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 		writer.Flush()
 		conn.Close()
 	} else {
-		log.Debug("%s Server Challenge [%s]-ethsign->[%x] Client %d byte Response:[%s] \n", resp, challenge, challenge_bytes, len(response_bytes), resp)
+		log.Debug("%s Server Challenge [%s]-ethsign->[%x] Client %d byte Response:[%s] \n", resp, challenge, challenge_bytes, len(response_bytes), resp.Response)
 		writer.Flush()
 		for {
 			str, err := client.reader.ReadString('\n')
@@ -155,10 +203,10 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 			}
 			if true {
 				log.Debug("[main:handleTcpipRequest] sending [%s]", str)
-				if resp, err := svr.swarmdb.SelectHandler(u, string(str)); err != nil {
+				if slResp, err := svr.swarmdb.SelectHandler(u, string(str)); err != nil {
 					log.Debug(fmt.Sprintf("ERROR: %+v", err))
 					tcpJson := buildErrorResp(err)
-					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, tcpJson)
+					log.Debug(fmt.Sprintf("Read: [%s] Wrote: [%s]\n", str, tcpJson))
 					_, err := writer.WriteString(tcpJson + "\n")
 					if err != nil {
 						fmt.Printf("writer err: %v\n", err)
@@ -166,8 +214,8 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 					}
 					writer.Flush()
 				} else {
-					fmt.Printf("Read: [%s] Wrote: [%s]\n", str, resp)
-					_, err := writer.WriteString(resp.Stringify() + "\n")
+					log.Debug(fmt.Sprintf("Read: [%s] Wrote: [%s]\n", str, slResp.Stringify()))
+					_, err := writer.WriteString(slResp.Stringify() + "\n")
 					if err != nil {
 						fmt.Printf("writer err: %v\n", err)
 						//TODO handle if writestring has err
@@ -481,6 +529,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				} else {
 					bodyMap["owner"] = swReq.owner
 					bodyMap["database"] = swReq.database
+					bodyMap["table"] = swReq.table
 					reqJson, err = json.Marshal(bodyMap)
 				}
 			} else {
@@ -531,7 +580,7 @@ func main() {
 	}
 
 	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*logLevelFlag), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
-	log.Debug(fmt.Sprintf("Starting SWARMDB (Version: %s)using [%s] and loglevel [%s]", swarmdb.CURRENT_SERVER_VERSION, *configFileLocation, *logLevelFlag))
+	log.Debug(fmt.Sprintf("Starting SWARMDB (Version: %s) using [%s] and loglevel [%d]", swarmdb.SWARMDBVersion, *configFileLocation, *logLevelFlag))
 
 	swdb, err := swarmdb.NewSwarmDB(config.ChunkDBPath, config.ChunkDBPath)
 	if err != nil {

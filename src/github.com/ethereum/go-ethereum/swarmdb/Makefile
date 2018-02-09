@@ -22,10 +22,6 @@ test:
 	-go test ./bplus_test.go
 	@echo "test query."
 	-go test ./query_test.go
-	@echo "test client."
-	-go test ./client_test.go
-	@echo "test kademliadb."
-	-go test ./kademliadb_test.go
 	@echo "test hashdb."
 	-go test ./hashdb_test.go
 	@echo "test netstat."

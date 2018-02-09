@@ -28,7 +28,19 @@ import (
 
 const (
 	CHUNK_SIZE = 4096
+	VERSION_MAJOR = 0
+	VERSION_MINOR = 0
+	VERSION_PATCH = 9 
+	VERSION_META = "poc"
 )
+
+var SWARMDBVersion = func() string {
+	v := fmt.Sprintf("%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH)
+	if VERSION_META != "" {
+		v += "-" + VERSION_META
+	}
+	return v
+}()
 
 //for comparing rows in two different sets of data
 //only 1 cell in the row has to be different in order for the rows to be different
@@ -149,7 +161,6 @@ func CheckIndexType(it IndexType) bool {
 }
 
 func StringToKey(columnType ColumnType, key string) (k []byte) {
-
 	k = make([]byte, 32)
 	switch columnType {
 	case CT_INTEGER:
@@ -217,6 +228,68 @@ func IsHash(hashid []byte) (valid bool) {
 		return false
 	} else {
 		return true
+	}
+}
+
+func ByteToColumnType(b byte) (ct ColumnType, err error) {
+	switch b {
+	case 1:
+		return CT_INTEGER, err
+	case 2:
+		return CT_STRING, err
+	case 3:
+		return CT_FLOAT, err
+	case 4:
+		return CT_BLOB, err
+	default:
+		return CT_INTEGER, &SWARMDBError{message: "Invalid Column Type", ErrorCode: 407, ErrorMessage: "Invalid Column Type"}
+	}
+}
+
+func ByteToIndexType(b byte) (it IndexType) {
+	switch b {
+	case 1:
+		return IT_HASHTREE
+	case 2:
+		return IT_BPLUSTREE
+	case 3:
+		return IT_FULLTEXT
+	default:
+		return IT_NONE
+	}
+}
+
+func ColumnTypeToInt(ct ColumnType) (v int, err error) {
+	switch ct {
+	case CT_INTEGER:
+		return 1, err
+	case CT_STRING:
+		return 2, err
+	case CT_FLOAT:
+		return 3, err
+	case CT_BLOB:
+		return 4, err
+	default:
+		return -1, &SWARMDBError{message: "[types|ColumnTypeToInt] columnType not found", ErrorCode: 434, ErrorMessage: fmt.Sprintf("ColumnType [%s] not SUPPORTED. Value [%s] rejected", ct, v)}
+	}
+}
+
+func IndexTypeToInt(it IndexType) (v int) {
+	switch it {
+	case IT_HASHTREE:
+		return 1
+	case IT_BPLUSTREE:
+		return 2
+	case IT_FULLTEXT:
+		return 3
+	/*
+		case "FRACTAL":
+			//return IT_FRACTALTREE
+	*/
+	case IT_NONE:
+		return 0
+	default:
+		return 0
 	}
 }
 

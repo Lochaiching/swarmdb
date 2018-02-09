@@ -17,13 +17,12 @@ package swarmdb_test
 
 import (
 	"bytes"
-	"fmt"
 	"crypto/sha256"
+	"fmt"
 	"github.com/syndtr/goleveldb/leveldb"
 	"swarmdb"
 	"testing"
 )
-
 
 // chunk storage in SQLite3 with encryption
 func BenchmarkStoreSQLiteSimple1(b *testing.B) {
@@ -72,7 +71,6 @@ func BenchmarkStoreSQLiteSimple0(b *testing.B) {
 		}
 	}
 }
-
 
 // chunk storage in SQLite3 with encryption
 func BenchmarkStoreSQLite1(b *testing.B) {
@@ -132,7 +130,6 @@ func BenchmarkStoreLevelDB1(b *testing.B) {
 	if err != nil {
 		b.Fatal("Failure to open NewDBChunkStore")
 	}
-
 
 	db, err := leveldb.OpenFile("/tmp", nil)
 	defer db.Close()

@@ -116,18 +116,23 @@ func NewSWARMDBConnection(ip string, port int) (dbc SWARMDBConnection, err error
 
 func (dbc *SWARMDBConnection) OpenDatabase(name string, encrypted int) (db *SWARMDBDatabase, err error) {
 
+	if _, ok := dbc.Databases[name]; ok {
+		return dbc.Databases[name], nil //database already exists, open it
+	}
+
+	databases, err := dbc.ListDatabases()
+	if err != nil {
+		return db, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:OpenDatabase] ListDatabases %s", err.Error())}
+	}
+	if !findName(databases, name) {
+		return db, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:OpenDatabase] Database does not exist")}
+	}
+
 	db = new(SWARMDBDatabase)
 	db.DBConnection = dbc
 	db.Name = name
 	db.Encrypted = encrypted
-	if len(db.Tables) == 0 {
-		db.Tables = make(map[string]*SWARMDBTable)
-	}
-
-	if _, ok := dbc.Databases[db.Name]; ok {
-		//TODO: database already opened err, do we care if it's already open?
-		return db, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:OpenDatabase] db already open")}
-	}
+	db.Tables = make(map[string]*SWARMDBTable)
 	dbc.Databases[db.Name] = db
 
 	return db, nil
@@ -135,23 +140,31 @@ func (dbc *SWARMDBConnection) OpenDatabase(name string, encrypted int) (db *SWAR
 
 func (db *SWARMDBDatabase) OpenTable(name string) (tbl *SWARMDBTable, err error) {
 
+	if _, ok := db.Tables[name]; ok {
+		return db.Tables[name], nil //table already exists, open it
+	}
+
+	tables, err := db.ListTables()
+	if err != nil {
+		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:OpenTable] ListTables %s", err.Error())}
+	}
+	if !findName(tables, name) {
+		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:OpenTable] Table does not exist")}
+	}
+
 	tbl = new(SWARMDBTable)
 	tbl.Name = name
 	tbl.DBDatabase = db
-	if _, ok := db.Tables[tbl.Name]; ok {
-		//TODO: table already opened err, do we care if it's already open?
-		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:OpenTable] Table already open")}
-	}
 	db.Tables[tbl.Name] = tbl
+
 	return tbl, nil
 }
 
 func (dbc *SWARMDBConnection) CreateDatabase(name string, encrypted int) (db *SWARMDBDatabase, err error) {
 
-	//open database
-	db, err = dbc.OpenDatabase(name, encrypted)
-	if err != nil {
-		return db, err
+	//check to see if we have opened it before
+	if _, ok := dbc.Databases[name]; ok {
+		return dbc.Databases[name], &SWARMDBError{message: fmt.Sprintf("[swarmdblib:CreateDatabase] Database exists")}
 	}
 
 	//create request
@@ -165,16 +178,37 @@ func (dbc *SWARMDBConnection) CreateDatabase(name string, encrypted int) (db *SW
 		return db, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:CreateDatabase] ProcessRequestResponseCommand %s", err.Error())}
 	}
 
+	//add to databases
+	db = new(SWARMDBDatabase)
+	db.DBConnection = dbc
+	db.Name = name
+	db.Encrypted = encrypted
+	db.Tables = make(map[string]*SWARMDBTable)
+	dbc.Databases[db.Name] = db
+
 	return db, nil
 }
 
-//note: can CreateTable without Opening first.
+func (dbc *SWARMDBConnection) DropDatabase(name string) (err error) {
+	var req RequestOption
+	req.RequestType = RT_DROP_DATABASE
+	req.Owner = dbc.Owner
+	req.Database = name
+	_, err = dbc.ProcessRequestResponseCommand(req)
+	if err != nil {
+		return &SWARMDBError{message: fmt.Sprintf("[swarmdblib:DropDatabase] ProcessRequestResponseCommand %s", err.Error())}
+	}
+
+	delete(dbc.Databases, name)
+
+	return nil
+}
+
 func (db *SWARMDBDatabase) CreateTable(name string, columns []Column) (tbl *SWARMDBTable, err error) {
 
-	//open the table
-	tbl, err = db.OpenTable(name)
-	if err != nil {
-		return tbl, err
+	//check to see if we have opened it before
+	if _, ok := db.Tables[name]; ok {
+		return db.Tables[name], &SWARMDBError{message: fmt.Sprintf("[swarmdblib:CreateTable] Table exists")}
 	}
 
 	// create request
@@ -189,17 +223,46 @@ func (db *SWARMDBDatabase) CreateTable(name string, columns []Column) (tbl *SWAR
 		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:CreateTable] ProcessRequestResponseCommand %s", err.Error())}
 	}
 
+	//add the new table
+	tbl = new(SWARMDBTable)
+	tbl.Name = name
+	tbl.DBDatabase = db
+	db.Tables[tbl.Name] = tbl
+
 	return tbl, nil
 }
 
+func (db *SWARMDBDatabase) DropTable(name string) (err error) {
+	var req RequestOption
+	req.RequestType = RT_DROP_TABLE
+	req.Owner = db.DBConnection.Owner
+	req.Database = db.Name
+	req.Table = name
+	_, err = db.DBConnection.ProcessRequestResponseCommand(req) //send it to the server
+	if err != nil {
+		return &SWARMDBError{message: fmt.Sprintf("[swarmdblib:DropTable] ProcessRequestResponseCommand %s", err.Error())}
+	}
+
+	delete(db.Tables, name)
+
+	return nil
+}
+
 func (dbc *SWARMDBConnection) ListDatabases() (databases []Row, err error) {
+	//fmt.Printf("got into ListDatabases\n")
 	var req RequestOption
 	req.RequestType = RT_LIST_DATABASES
 	req.Owner = dbc.Owner
+	//fmt.Printf("sending this req: %+v\n", req)
 	databases, err = dbc.ProcessRequestResponseCommand(req)
+	//if err == nil {
+	//	fmt.Printf("what's the err? %+v\n", err)
+	//}
 	if err != nil {
+		//fmt.Printf("why get caught in this error? %+v\n", err)
 		return databases, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ListDatabases] ProcessRequestResponseCommand %s", err.Error())}
 	}
+	//fmt.Printf("got back from Process into List and that's good\n")
 
 	return databases, nil
 }
@@ -262,12 +325,22 @@ func (dbc *SWARMDBConnection) ProcessRequestResponseCommand(request RequestOptio
 	dbc.writer.WriteString(str)
 	dbc.writer.Flush()
 	connResponse, err := dbc.reader.ReadString('\n')
+	//fmt.Printf("connResponse is ... %s\n", connResponse)
 	if err != nil {
+		//fmt.Printf("err is not nil\n")
 		return response, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:ProcessRequestResponseCommand] ReadString %s", err.Error())}
 	}
+	//fmt.Printf("making swarmdb response\n")
 	var sResponse SWARMDBResponse
 	if err = json.Unmarshal([]byte(connResponse), &sResponse); err != nil {
+		//fmt.Printf("some unmarshal err\n")
 		return response, &SWARMDBError{ErrorCode: 400, ErrorMessage: `[swarmdblib:ProcessRequestResponseCommand] Bad JSON Supplied: [` + connResponse + `]`}
+	}
+	//fmt.Printf("got to the end of Process\n")
+	//fmt.Printf("data: %+v\n, err: %+v\n", sResponse.Data, sResponse.Error)
+	if sResponse.Error == nil {
+		//fmt.Printf("yes! it's nil!!\n")
+		return sResponse.Data, nil
 	}
 	return sResponse.Data, sResponse.Error
 }
@@ -298,7 +371,7 @@ func (tbl *SWARMDBTable) Delete(key string) error {
 	return err
 }
 
-func (t *SWARMDBTable) Scan(rowfunc func(r Row) bool) (err error) {
+func (t *SWARMDBTable) Scan(columnName string) (err error) {
 	// TODO: Implement this!
 	return nil
 }
@@ -314,6 +387,22 @@ func (tbl *SWARMDBTable) Query(query string) (response []Row, err error) {
 	r.RawQuery = query
 	rows, err := tbl.DBDatabase.DBConnection.ProcessRequestResponseCommand(r)
 	return rows, err
+}
+
+func findName(data []Row, nameToFind string) bool {
+	found := false
+	for _, row := range data {
+		for _, name := range row {
+			if name == nameToFind {
+				found = true
+				break
+			}
+		}
+		if found == true {
+			break
+		}
+	}
+	return found
 }
 
 func (t *SWARMDBTable) Close() {
