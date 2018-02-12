@@ -54,7 +54,9 @@ Deploying the image above will run SWARMDB in the Docker container. To verify if
 
 ### To start swarmDB with the default config, run this on the command line:
 
-      $ /usr/local/swarmdb/bin/wolkdb
+      $ /usr/local/swarmdb/bin/wolkdb 
+ 
+(Please note: Docker will automatically start wolkdb. So no need to run the above command unless you stopped it for development purposes.)
 
 ### To start swarmDB `IN THE BACKGROUND` with the default config, run this on the command line:
 
