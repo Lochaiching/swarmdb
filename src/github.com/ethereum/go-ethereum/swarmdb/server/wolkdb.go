@@ -567,8 +567,8 @@ func main() {
 	flag.Parse()
 
 	if *version {
-		log.Debug(fmt.Sprintf("Working on version %s of SWARMDB Sever", swarmdb.SWARMDBVersion))
-		fmt.Printf("Working on version %s of SWARMDB Sever", swarmdb.SWARMDBVersion)
+		log.Debug(fmt.Sprintf("Working on version %s of SWARMDB Sever\n", swarmdb.SWARMDBVersion))
+		fmt.Printf("Working on version %s of SWARMDB Sever\n", swarmdb.SWARMDBVersion)
 		os.Exit(0)
 	}
 	if _, err := os.Stat(*configFileLocation); os.IsNotExist(err) {
