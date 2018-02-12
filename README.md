@@ -82,7 +82,7 @@ Deploying the image above will run SWARMDB in the Docker container. To verify if
 ### The default swarmDB configuration file
     
       {
-          "address": "wxyz....abcd", //For Example: "db4db066584dea75f4838c08ddfadc195225dd80"
+          "address": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0", //For Example: "db4db066584dea75f4838c08ddfadc195225dd80"
           "authentication": 1,
           "chunkDBPath": "/usr/local/swarmdb/data",
           "currency": "WLK",
