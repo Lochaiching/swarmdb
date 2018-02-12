@@ -64,17 +64,17 @@ type SwarmDBReq struct {
 }
 
 type ChallengeVersionPair struct {
-	Challenge string `json:"challenge,omitempty"`
+	Challenge     string `json:"challenge,omitempty"`
 	ServerVersion string `json:"serverversion,omitempty"`
 }
 
 type ResponseVersionPair struct {
-	Response string `json:"response,omitempty"`
+	Response      string `json:"response,omitempty"`
 	ClientVersion string `json:"clientversion,omitempty"`
-	ClientName string `json:"clientname,omitempty"`
+	ClientName    string `json:"clientname,omitempty"`
 }
 
-func (rvp *ChallengeVersionPair) validClientVersion( cvp ResponseVersionPair ) (ok bool) {
+func (rvp *ChallengeVersionPair) validClientVersion(cvp ResponseVersionPair) (ok bool) {
 	return true
 }
 
@@ -106,7 +106,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 	// generate a random 50 char challenge (64 hex chars)
 	var cvp ChallengeVersionPair
 	cvp.Challenge = RandStringRunes(50)
-	cvp.ServerVersion = swarmdb.SWARMDBVersion 
+	cvp.ServerVersion = swarmdb.SWARMDBVersion
 
 	reader := bufio.NewReader(conn)
 	writer := bufio.NewWriter(conn)
@@ -117,12 +117,12 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 		writer: writer,
 		svr:    svr,
 	}
-	challenge, errCh := json.Marshal( cvp )
+	challenge, errCh := json.Marshal(cvp)
 	if errCh != nil {
 		log.Debug(fmt.Sprintf("ERROR marshalling? %s", errCh.Error()))
 		//Todo: error
 	}
-	log.Debug(fmt.Sprintf("SENDING BACK %s from %+v",challenge, cvp))
+	log.Debug(fmt.Sprintf("SENDING BACK %s from %+v", challenge, cvp))
 	fmt.Fprintf(writer, "%s\n", challenge)
 	writer.Flush()
 
@@ -133,21 +133,21 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 	rvp, err := reader.ReadString('\n')
 	if err != nil {
 		swErr.SetError(fmt.Sprintf("Problem reading RAW TCPIP input (%s).  ERROR:[%s]", rvp, err.Error()))
-		swErr.ErrorCode = 478 
-		swErr.ErrorMessage = "Unable to Parse Response to Challenge" 
+		swErr.ErrorCode = 478
+		swErr.ErrorMessage = "Unable to Parse Response to Challenge"
 		log.Error(swErr.Error())
 		tcpJson := buildErrorResp(&swErr)
 		writer.WriteString(tcpJson)
 		writer.Flush()
 		return
-	} 
+	}
 
 	var resp ResponseVersionPair
-	errRvpUnmarshal := json.Unmarshal( []byte(rvp), &resp )
+	errRvpUnmarshal := json.Unmarshal([]byte(rvp), &resp)
 	if errRvpUnmarshal != nil {
 		swErr.SetError(fmt.Sprintf("Unable to parse Response Value Pair sent to server: %s", errRvpUnmarshal.Error()))
-		swErr.ErrorCode = 478 
-		swErr.ErrorMessage = "Unable to Parse RAW TCP Input" 
+		swErr.ErrorCode = 478
+		swErr.ErrorMessage = "Unable to Parse RAW TCP Input"
 		log.Error(swErr.Error())
 		tcpJson := buildErrorResp(&swErr)
 		writer.WriteString(tcpJson)
@@ -171,11 +171,11 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 	}
 
 	log.Debug(fmt.Sprintf("[wolkdb:handleTcpipRequest] Valid Response from [%s] [%s]", resp.ClientName, resp.ClientVersion))
-	
-	if !cvp.validClientVersion( resp ) {
+
+	if !cvp.validClientVersion(resp) {
 		swErr.SetError(fmt.Sprintf("Client Version [%s] of %s is incompatible with SWARMDB Server version [%s]", resp.ClientVersion, resp.ClientName, cvp.ServerVersion))
-		swErr.ErrorCode = 478 
-		swErr.ErrorMessage = "Unable to Parse RAW TCP Input" 
+		swErr.ErrorCode = 478
+		swErr.ErrorMessage = "Unable to Parse RAW TCP Input"
 		log.Error(swErr.Error())
 		tcpJson := buildErrorResp(&swErr)
 		writer.WriteString(tcpJson)
@@ -563,8 +563,14 @@ func main() {
 	configFileLocation := flag.String("config", swarmdb.SWARMDBCONF_FILE, "Full path location to SWARMDB configuration file.")
 	//TODO: store this somewhere accessible to be used later
 	logLevelFlag := flag.Int("loglevel", 3, "Log Level Verbosity 1-6 (4 for debug)")
+	version := flag.Bool("v", false, "Prints current SWARMDB version")
 	flag.Parse()
 
+	if *version {
+		log.Debug(fmt.Sprintf("Working on version %s of SWARMDB Sever", swarmdb.SWARMDBVersion))
+		fmt.Printf("Working on version %s of SWARMDB Sever", swarmdb.SWARMDBVersion)
+		os.Exit(0)
+	}
 	if _, err := os.Stat(*configFileLocation); os.IsNotExist(err) {
 		log.Debug("Default config file missing.  Building ..")
 		_, err := swarmdb.NewKeyManagerWithoutConfig(*configFileLocation, swarmdb.SWARMDBCONF_DEFAULT_PASSPHRASE)
