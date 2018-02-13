@@ -1,7 +1,7 @@
 package swarmdb
 
 import (
-	//"bytes"
+	"bytes"
 	"crypto/sha256"
 	"database/sql"
 	//"encoding/binary"
@@ -298,7 +298,6 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err er
 	if len(v) < minChunkSize {
 		return fmt.Errorf("chunk too small") // should be improved
 	}
-
 	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, Encrypted, chunkBirthDT, chunkStoreDT ) values(?, ?, ?, COALESCE((SELECT chunkBirthDT FROM chunk WHERE chunkKey=?),CURRENT_TIMESTAMP), COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=? ), CURRENT_TIMESTAMP))`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
@@ -323,10 +322,21 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err er
 	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
 	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
-//// TODO: getting chunkBirthDT and the other options from database
-/*
-        rows, err := self.db.Query("SELECT chunkBirthDT FROM chunk where chunkkey = k")
+        sql := `SELECT chunkBirthDT FROM chunk WHERE chunkKey = $1`
+        stmt, err = self.db.Prepare(sql)
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return err
+        }
+        defer stmt.Close()
+
+        rows, err := stmt.Query(k[:32])
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return err
+        }
         defer rows.Close()
+
         var bts time.Time
         for rows.Next() {
                 err = rows.Scan(&bts)
@@ -334,12 +344,7 @@ func (self *DBChunkstore) StoreKChunk(k []byte, v []byte, encrypted int) (err er
                         fmt.Printf("\nError Get birthDT: [%s]", err)
                 }
         }
-*/
-	bts := ts
         log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.StoreKChunk  : put %v to swarmdb", k))
-////////// TODO
-////////// BirthDB will be from SQL
-////////// version will be from SQL
 	opt := &storage.CloudOption{
 		BirthDT: &bts,
 		Version:	1,
@@ -383,14 +388,13 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 		if err2 != nil {
 			return nil, err2
 		}
-/*
 		//fmt.Printf("\nQuery Key: [%x], [%s], [%s], [%s] with VAL: [%+v]", kV, bdt, sdt, enc, val)
 		jsonRecord := val[577:]
 		trimmedJson := bytes.TrimRight(jsonRecord, "\x00")
 		decVal := self.km.DecryptData(trimmedJson)
 		decVal = bytes.TrimRight(decVal, "\x00")
-*/
 		//decVal := val
+		val = decVal
 		self.netstat.LReadDT = &ts
 		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
 		//return decVal, nil
@@ -438,23 +442,31 @@ func (self *DBChunkstore) StoreChunk(v []byte, encrypted int) (k []byte, err err
 	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
 	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
-	bts := ts
-//// TODO: getting chunkBirthDT and the other options from database
-/*
-	rows, err := self.db.Query("SELECT chunkBirthDT FROM chunk where chunkkey = k")
-	defer rows.Close()
-	var bts time.Time
-	for rows.Next() {
-		err = rows.Scan(&bts)
-		if err != nil {
-			fmt.Printf("\nError Get birthDT: [%s]", err)
-		}
-	}
-*/
+	//bts := ts
+        sql := `SELECT chunkBirthDT FROM chunk WHERE chunkKey = $1`
+        stmt, err = self.db.Prepare(sql)
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return k, err
+        }
+        defer stmt.Close()
+
+        rows, err := stmt.Query(k)
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return k, err
+        }
+        defer rows.Close()
+
+        var bts time.Time
+        for rows.Next() {
+                err = rows.Scan(&bts)
+                if err != nil {
+                        fmt.Printf("\nError Get birthDT: [%s]", err)
+                }
+        }
+
         log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.StoreKChunk  : put %v to swarmdb", k))
-////////// TODO
-////////// BirthDB will be from SQL
-////////// version will be from SQL
 	opt := &storage.CloudOption{
 		BirthDT: &bts,
 		Version:	1,
@@ -758,13 +770,13 @@ func (self *DBChunkstore) RetrieveDB(key []byte) (val []byte, option *storage.Cl
 
 func (self *DBChunkstore) StoreDB(key []byte, val []byte, option *storage.CloudOption) (err error){
 	log.Debug(fmt.Sprintf("[wolk-cloudstore] StoreDB : storing to swarmdb %v", key)) 
-        sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, chunkBirthDT, chunkStoreDT ) values(?, ?, ?, CURRENT_TIMESTAMP))`
+        sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, Encrypted,  chunkBirthDT, chunkStoreDT ) values(?, ?, ?, CURRENT_TIMESTAMP))`
         stmt, err := self.db.Prepare(sql_add)
         if err != nil {
                 return err
         }
         defer stmt.Close()
-        _, err = stmt.Exec(key, val, option.BirthDT)
+        _, err = stmt.Exec(key, val, option.Encrypted, option.BirthDT)
         if err != nil {
                 return err
         }

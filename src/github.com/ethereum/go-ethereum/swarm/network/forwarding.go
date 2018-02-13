@@ -17,14 +17,12 @@
 package network
 
 import (
-        "encoding/json"
 	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-	//"github.com/ethereum/go-ethereum/swarmdb"
 )
 
 const requesterCount = 3
@@ -149,29 +147,23 @@ func (self *forwarder) Store(chunk *storage.Chunk) {
 }
 
 //TODO: will be separated from forwarder. 
-func (self *forwarder) StoreDB(key, value []byte, option []byte) {
-        log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.StoreDB :request peers to store swarmdb :%v", key))
+func (self *forwarder) StoreDB(chunk *storage.Chunk) {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.StoreDB :request peers to store swarmdb :%v", chunk.Key))
         var n int
-	var copt storage.CloudOption
-        err := json.Unmarshal(option, &copt)
-	if err != nil{
-        	log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.StoreDB :err %v = %v", option, err))
-	}
-
         msg := &sDBStoreRequestMsgData{
-                Key:   storage.Key(key),
-                SData: value,
+                Key:   chunk.Key,
+                SData: chunk.SData,
 		rtype : 2,
-		option : string(option),
+		option : string(chunk.Options),
         }
 
         var source *peer
-        if copt.Source != nil{
-               source = copt.Source.(*peer)
+        if chunk.Source != nil{
+               source = chunk.Source.(*peer)
         }
 
-        for _, p := range self.hive.getPeers(storage.Key(key), 0) {
-                log.Debug(fmt.Sprintf("forwarder.StoreDB: %v %v", p, key))
+        for _, p := range self.hive.getPeers(chunk.Key, 0) {
+                log.Debug(fmt.Sprintf("forwarder.StoreDB: %v %v", p, chunk))
 
                 if p.syncer != nil && (source == nil || p.Addr() != source.Addr()) {
                 log.Debug(fmt.Sprintf("forwarder.StoreDB source check: %v %v", p, source))
@@ -179,7 +171,7 @@ func (self *forwarder) StoreDB(key, value []byte, option []byte) {
                         Deliver(p, msg, StoreDBReq)
                 }
         }
-        log.Debug(fmt.Sprintf("forwarder.StoreDB: sent to %v peers (key = %v)", n, key))
+        log.Debug(fmt.Sprintf("forwarder.StoreDB: sent to %v peers (key = %v)", n, chunk.Key))
 }
 
 
