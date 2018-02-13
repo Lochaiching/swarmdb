@@ -52,7 +52,7 @@ type NetStore struct {
 // bzz/network/forwarder. forwarder or IPFS or IPΞS
 type CloudStore interface {
 	Store(*Chunk)
-	StoreDB([]byte, []byte, []byte)
+	StoreDB(*Chunk)
 	Deliver(*Chunk)
 	Retrieve(*Chunk)
 	RetrieveDB(*Chunk)

@@ -104,38 +104,33 @@ var (
 func (self *SdbStore) Put(entry *Chunk) {
 	log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Put: entry %v %v", entry, entry.Key))
 	chunk, _ := self.localStore.memStore.Get(entry.Key)
-	log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Put: memstore %v %v", entry.Key, chunk))
+	log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] SdbStore.Put: memstore %v %v %v", entry.Key, chunk, &chunk))
 	
-	if chunk != nil && chunk.Req != nil{
-		log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Put: closing Req.C"))
+	if chunk != nil && chunk.Req != nil && chunk.SData == nil{
+//TODO: need to check version information to store the latest version  
+//	if chunk != nil && chunk.Req != nil {
+		chunk.SData = entry.SData
+		chunk.Options = entry.Options
+		chunk.Req = nil
+		self.localStore.memStore.Put(chunk)
+//TODO :if version check here, don't need this line or add some process for finding result.
 		close(chunk.Req.C)
+		log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] SdbStore.Put in if statement: memstore %v %v %v", entry.Key, chunk, &chunk))
+		log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Put: closing Req.C", chunk.Req.C))
+		
 	}
-//TODO: add delivery methods
-	self.cloud.StoreDB(entry.Key, entry.SData, entry.Options)
+//TODO: add delivery method. need to modify it once it gets the version info.
+	self.cloud.StoreDB(entry)
 }
-
 
 // called by dbchunkstore only
 func (self *SdbStore) Get(key Key) (*Chunk, error) {
-/*
-	var err error
-	val, opt, err := self.swarmdb.RetrieveDB(key)
-	options, err := json.Marshal(opt)
-	if err == nil {
-		chunk := &storage.Chunk{
-			Key: key,
-			SData: val,
-			Options: options,
-		}
-		return chunk, err
-	}
-*/
 	// no data and no request status
 	log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Get: key %v", key))
 	chunk := NewChunk(key, newRequestStatus(key))
 	self.localStore.memStore.Put(chunk)
 	go self.cloud.RetrieveDB(chunk)
-	log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Get: key %v val %d", key, len(chunk.SData)))
+	log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] SdbStore.Get: key %v val %d address %v %v", key, len(chunk.SData), chunk, &chunk))
 	return chunk, nil
 }
 
