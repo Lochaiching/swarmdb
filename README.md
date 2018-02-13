@@ -122,5 +122,5 @@ You can add new items in the `users` array and make sure to restart swarmDB afte
       
 
 #  Interfaces
-See our [Wiki](https://github.com/wolktoken/swarm.wolk.com/wiki) & [DOCS](https://docs.wolk.com/) for [Node.js](https://github.com/wolktoken/swarm.wolk.com/wiki/2.-Node.js-Interface), [Go](https://github.com/wolktoken/swarm.wolk.com/wiki/3.-Go-Interface), [Http](https://github.com/wolktoken/swarm.wolk.com/wiki/5.-HTTP-Interface), and [Command Line Interface](https://github.com/wolktoken/swarm.wolk.com/wiki/4.-CLI),
+See our [Wiki](https://github.com/wolktoken/swarm.wolk.com/wiki) & [DOCS](https://docs.wolk.com/) for [Node.js](https://docs.wolk.com/?javascript#), [Go](https://docs.wolk.com/?go#), [Http](https://docs.wolk.com/?plaintext#), and [Command Line Interface](https://docs.wolk.com/?javascript#),
 
