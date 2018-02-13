@@ -24,7 +24,7 @@ https://www.docker.com/community-edition#/download
 |Debian|Stretch, Jessie 8.0, Wheezy 7.7 (64-bit)|
 |Fedora|Fedora 25, Fedora 24 (64-bit)|
 |Ubuntu|Zesty 17.04 (LTS),Yakkety 16.10, Xenial 16.04 (LTS),Trusty 14.04 (LTS)|
-|OSX|Yosemite 10.10.3 or above|
+|OSX|Yosemite 10.11 or above|
 |MS|Windows 10 Professional or Enterprise (64-bit)|
 
 # Getting SwarmDB Docker
