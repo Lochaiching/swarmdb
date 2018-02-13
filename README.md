@@ -93,7 +93,7 @@ Deploying the image above will run SWARMDB in the Docker container. To verify if
           "listenAddrTCP": "0.0.0.0",
           "portHTTP": 8501,
           "portTCP": 2001
-          "privateKey": "ABCD....WXYZ", //For Example: "98b5321e784dde6357896fd20f13ac6731e9b1ea0058c8529d55dde276e45624"
+          "privateKey": "a1b2c3....d4e5f", //For Example: "98b5321e784dde6357896fd20f13ac6731e9b1ea0058c8529d55dde276e45624"
           "targetCostBandwidth": 3.14159,
           "targetCostStorage": 2.71828,
           "users": [
