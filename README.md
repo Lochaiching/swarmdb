@@ -44,9 +44,23 @@ https://www.docker.com/community-edition#/download
 | 2001:2001 | <http_system_port>:<http_container_port> |
 | 8501:8501 | <swarmDB_system_port>:<swarmDB_container_port> |
 
+### Detach/re-attach Docker container
+
+#### In order to exit the Docker Container shell without killing the container, hit the following keys:
+      $ ctrl + p + q
+
+#### In order to re-attach to the swarmDB container
+      $ docker attach $(docker ps | grep swarmdb | awk '{print$1}')
+
+### To exit the container, type the following and press ENTER while you're in the container shell
+      $ exit 13
+
+### To clean the images (make sure you've exited the container using the above command. If not, the following command will throw error and will NOT be able to delete the images)
+      $ docker rmi `docker images | grep swarmdb | awk '{print$3}'`
+
 ## Verify SwarmDB
 
-Deploying the image above will run SWARMDB in the Docker container. To verify if SWARMDB is running:
+Once the Docker IMAGE is deployed following above instructions, it will start the swarmDB process/service in the Docker container. To verify if swarmDB is running:
 
     $ ps aux | grep wolkdb | grep -vE 'wolkdb-start|grep'
 
@@ -56,7 +70,7 @@ Deploying the image above will run SWARMDB in the Docker container. To verify if
 
       $ /usr/local/swarmdb/bin/wolkdb 
  
-(Please note: Docker will automatically start wolkdb. So no need to run the above command unless you stopped it for development purposes.)
+(Please note: Docker will automatically start the swarmdb/wolkdb. So no need to run the above command unless you stopped it for development purpose.)
 
 ### To start swarmDB `IN THE BACKGROUND` with the default config, run this on the command line:
 
