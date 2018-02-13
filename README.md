@@ -33,7 +33,7 @@ https://www.docker.com/community-edition#/download
 
       $ sudo docker pull wolkinc/swarmdb
 
-### Deploy the docker image:
+### Deploy the docker container:
 
       $ sudo docker run --name=swarmdb --rm -it -p 2001:2001 -p 8501:8501 wolkinc/swarmdb
 
