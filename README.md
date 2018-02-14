@@ -124,7 +124,7 @@ Once the Docker IMAGE is deployed following above instructions, it will start th
       }
       
 ### swarmDB logging
-        `$ tail -f /usr/local/swarmdb/log/wolkdb.log`
+        $ tail -f /usr/local/swarmdb/log/wolkdb.log
 
 #### Modifying the SwarmDB configuration:
 You can add new items in the `users` array and make sure to restart swarmDB after modifying the configuration file.
