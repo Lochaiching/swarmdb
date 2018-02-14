@@ -1,10 +1,25 @@
+// Copyright (c) 2018 Wolk Inc.  All rights reserved.
+
+// The SWARMDB library is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Lesser General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// The SWARMDB library is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Lesser General Public License for more details.
+//
+// You should have received a copy of the GNU Lesser General Public License
+// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 package swarmdb_test
 
 import (
 	"fmt"
-	"github.com/ethereum/go-ethereum/swarmdb"
 	"reflect"
 	"strings"
+	"swarmdb"
 	"testing"
 )
 
@@ -71,11 +86,9 @@ func TestParseQuery(t *testing.T) {
 		Table: "contacts",
 		Inserts: []swarmdb.Row{
 			swarmdb.Row{
-				Cells: map[string]interface{}{
-					"name":  "Bertie Basset",
-					"age":   float64(7),
-					"email": "bertie@gmail.com"},
-			},
+				"name":  "Bertie Basset",
+				"age":   float64(7),
+				"email": "bertie@gmail.com"},
 		},
 		Ascending: 1,
 	}
@@ -109,6 +122,7 @@ func TestParseQuery(t *testing.T) {
 			fmt.Printf("expected: %+v\n\n", expected[testid])
 			fail = append(fail, testid)
 		}
+
 	}
 	if len(fail) > 0 {
 		t.Fatal(fmt.Errorf("tests [%s] failed", strings.Join(fail, ",")))
