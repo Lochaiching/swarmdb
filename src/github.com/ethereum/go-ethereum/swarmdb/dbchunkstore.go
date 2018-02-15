@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
@@ -28,6 +29,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"os"
+	"swarmdb/ash"
 	"time"
 )
 
@@ -89,6 +91,43 @@ type ChunkStats struct {
 	ChunkRead   int64 `json:"ChunkRead"`
 	ChunkWrite  int64 `json:"ChunkWrite"`
 	ChunkStored int64 `json:"ChunkStored"`
+}
+
+type AshChallenge struct {
+	ProofRequired bool `json: "proofrequired"`
+	Index         int8 `json: index`
+}
+
+type AchRequest struct {
+	ChunkID   []byte `json:"chunkID"`
+	Seed      []byte `json: seed`
+	Challenge *AshChallenge
+}
+
+type AshResponse struct {
+	mash  []byte `json: "-"`
+	Mask  string `json: "mask"`
+	Proof *MerkleProof
+}
+
+type MerkleProof struct {
+	Root  []byte `json: "root"`
+	Path  []byte `json: "path"`
+	Index int8   `json: "index"`
+}
+
+func (u *MerkleProof) MarshalJSON() ([]byte, error) {
+	return json.Marshal(
+		&struct {
+			Root  string `json: "root"`
+			Path  string `json: "path"`
+			Index int8   `json: "index"`
+		}{
+			//Mash:  hex.EncodeToString(u.Mash),
+			Root:  hex.EncodeToString(u.Root),
+			Path:  hex.EncodeToString(u.Path),
+			Index: u.Index,
+		})
 }
 
 func (self *DBChunkstore) MarshalJSON() (data []byte, err error) {
@@ -721,17 +760,6 @@ func (self *DBChunkstore) GenerateFarmerLog() (err error) {
 	return nil
 }
 
-//TODO: Finish implementation/document -- Seems there's no error case. Are we not yet checking appropriately?  Or is it not needed?
-func (self *DBChunkstore) ClaimAll() (err error) {
-	fmt.Printf("netCounter: %v\n", netCounter)
-	fmt.Printf("self: %v\n", self)
-
-	ticket := "9f2018c7dc1e31fb6708fd6bd0f8975bf704e5a0e8465fbef2b5e7e5fc37c4d8"
-	reward := 121
-	self.netstat.Claim[ticket] = new(big.Int).SetInt64(int64(reward))
-	return nil
-}
-
 func (self *DBChunkstore) GetChunkStored() (err error) {
 	sql_chunkTally := `SELECT count(*) FROM chunk`
 	rows, err := self.db.Query(sql_chunkTally)
@@ -782,5 +810,53 @@ func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GetChunkStat] Marshal %s", err.Error()), ErrorCode: 470, ErrorMessage: "Error Getting ChunkStat"}
 	} else {
 		return string(output), nil
+	}
+}
+
+func (self *DBChunkstore) RetrieveAsh(key []byte, secret []byte, proofRequired bool, auditIndex int8) (res AshResponse, err error) {
+	request := AchRequest{ChunkID: key, Seed: secret}
+	challenge := AshChallenge{ProofRequired: proofRequired, Index: auditIndex}
+	chunkval := make([]byte, 8192)
+	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
+	stmt, err := self.db.Prepare(sql)
+	if err != nil {
+		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] Prepare %s | %s", sql, err.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
+	}
+	defer stmt.Close()
+
+	rows, err := stmt.Query(request.ChunkID)
+	if err != nil {
+		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] Query %s | %s", sql, err.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		err2 := rows.Scan(&chunkval)
+		if err2 != nil {
+			return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] %s", err2.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
+		}
+	}
+	rows.Close()
+
+	segments := ash.PrepareSegment(chunkval, request.Seed)
+	tree, err := ash.NewTree(segments)
+	if err != nil {
+		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] %s", err.Error()), ErrorCode: 470, ErrorMessage: "ASH Retrieval Error"}
+	}
+
+	if !challenge.ProofRequired {
+		res.mash = tree.Roothash
+		res.Mask = fmt.Sprintf("%x", res.mash)
+		return res, nil
+	} else {
+		ok, merkleroot, mkproof, jth := tree.GetProof(segments[challenge.Index].B)
+		if !ok {
+			return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GetProof]"), ErrorCode: 471, ErrorMessage: "ASH Proof Error"}
+		}
+		proof := MerkleProof{Root: merkleroot, Path: mkproof, Index: jth}
+		res.mash = tree.Roothash
+		res.Mask = fmt.Sprintf("%x", res.mash)
+		res.Proof = &proof
+		return res, nil
 	}
 }
