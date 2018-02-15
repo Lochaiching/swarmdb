@@ -85,6 +85,41 @@ OUT:
 	}
 }
 
+// TODO: will be saparated from forwarder
+func (self *forwarder) RetrieveDB(chunk *storage.Chunk) {
+        log.Trace(fmt.Sprintf("[wolk-cloudstore] forwarder.RetrieveDB: hive %s ", self.hive.String()))
+        peers := self.hive.getPeers(chunk.Key, 0)
+        log.Trace(fmt.Sprintf("forwarder.RetrieveDB: %v - received %d peers from KΛÐΞMLIΛ... %v", chunk.Key.Log(), len(peers), peers))
+OUT:
+        for _, p := range peers {
+                log.Trace(fmt.Sprintf("forwarder.Retrieve DB: sending retrieveRequest %v to peer [%v] %v", chunk.Key.Log(), p, chunk.Key))
+                for _, recipients := range chunk.Req.Requesters {
+                        for _, recipient := range recipients {
+                                req := recipient.(*sDBRetrieveRequestMsgData)
+                                if req.from.Addr() == p.Addr() {
+                                        continue OUT
+                                }
+                        }
+                }
+                req := &sDBRetrieveRequestMsgData{
+                        Key: chunk.Key,
+                        Id:  generateId(),
+                }
+                var err error
+/*
+SWARMDB payment
+                if p.swapdb != nil {
+                        err = p.swapdb.Add(-1)
+                }
+*/
+                if err == nil {
+                        p.sDBRetrieve(req)
+                        break OUT
+                }
+                log.Warn(fmt.Sprintf("forwarder.RetrieveDB: unable to send retrieveRequest to peer [%v]: %v", chunk.Key.Log(), err))
+        }
+}
+
 // requests to specific peers given by the kademlia hive
 // except for peers that the store request came from (if any)
 // delivery queueing taken care of by syncer
@@ -93,9 +128,9 @@ func (self *forwarder) Store(chunk *storage.Chunk) {
 	msg := &storeRequestMsgData{
 		Key:   chunk.Key,
 		SData: chunk.SData,
+		stype:	0,
 	}
 	
-	log.Trace(fmt.Sprintf("forwarder.Store: chunk = %v msg = %v",  chunk, msg))
 	var source *peer
 	if chunk.Source != nil {
 		source = chunk.Source.(*peer)
@@ -110,6 +145,39 @@ func (self *forwarder) Store(chunk *storage.Chunk) {
 	}
 	log.Trace(fmt.Sprintf("forwarder.Store: sent to %v peers (chunk = %v)", n, chunk))
 }
+
+//TODO: will be separated from forwarder. 
+func (self *forwarder) StoreDB(chunk *storage.Chunk) {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.StoreDB :request peers to store swarmdb :%v", chunk.Key))
+        var n int
+        msg := &sDBStoreRequestMsgData{
+                Key:   chunk.Key,
+                SData: chunk.SData,
+		rtype : 2,
+		option : string(chunk.Options),
+        }
+
+        var source *peer
+        if chunk.Source != nil{
+               source = chunk.Source.(*peer)
+        }
+
+        for _, p := range self.hive.getPeers(chunk.Key, 0) {
+                log.Debug(fmt.Sprintf("forwarder.StoreDB: %v %v", p, chunk))
+
+                if p.syncer != nil && (source == nil || p.Addr() != source.Addr()) {
+                log.Debug(fmt.Sprintf("forwarder.StoreDB source check: %v %v", p, source))
+                        n++
+                        Deliver(p, msg, StoreDBReq)
+                }
+        }
+        log.Debug(fmt.Sprintf("forwarder.StoreDB: sent to %v peers (key = %v)", n, chunk.Key))
+}
+
+
+func (self *forwarder) DeliverDB(){
+}
+
 
 func (self *forwarder) StoreTest(chunk *storage.Chunk) {
     var n int
@@ -141,6 +209,7 @@ func (self *forwarder) Deliver(chunk *storage.Chunk) {
 		msg := &storeRequestMsgData{
 			Key:   chunk.Key,
 			SData: chunk.SData,
+			stype: 0, 
 		}
 		log.Trace(fmt.Sprintf("forwarder.Deliver: msg %v %v  %v", chunk.Key, chunk.SData, counter))
 		var n int
@@ -167,10 +236,12 @@ func (self *forwarder) Deliver(chunk *storage.Chunk) {
 // depending on syncer mode and priority settings and sync request type
 // this either goes via confirmation roundtrip or queued or pushed directly
 func Deliver(p *peer, req interface{}, ty int) {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.Deliver :request peer %v to store (%T) :%d", p, req, ty))
 	p.syncer.addRequest(req, ty)
 }
 
 // push chunk over to peer
 func Push(p *peer, key storage.Key, priority uint) {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.Push :request peer %v to deliver (%T) :%d", p, key, priority))
 	p.syncer.doDelivery(key, priority, p.syncer.quit)
 }

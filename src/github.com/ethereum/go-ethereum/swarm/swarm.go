@@ -20,8 +20,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	//"flag"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -40,11 +42,12 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/fuse"
 	"github.com/ethereum/go-ethereum/swarm/network"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
-	//tcpapi "github.com/ethereum/go-ethereum/swarmdb/server"
+	"github.com/ethereum/go-ethereum/swarmdb"
+	swarmdbserver "github.com/ethereum/go-ethereum/swarmdb/server"
+	//"github.com/ethereum/go-ethereum/swarmdb/server/tcpip"
 
 	//"github.com/syndtr/goleveldb/leveldb"
-	"reflect"
+	//"reflect"
 )
 
 // the swarm stack
@@ -66,6 +69,7 @@ type Swarm struct {
 	sfs         *fuse.SwarmFS       // need this to cleanup all the active mounts on node exit
 	ldb         *storage.LDBDatabase
 	swarmdb     *swarmdb.SwarmDB
+	sdbstorage  storage.ChunkStore
 }
 
 type SwarmAPI struct {
@@ -110,8 +114,6 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	// setup local store
 	log.Debug(fmt.Sprintf("Set up local storage"))
 
-	self.dbAccess = network.NewDbAccess(self.lstore)
-	log.Debug(fmt.Sprintf("Set up local db access (iterator/counter)"))
 
 	// set up the kademlia hive
 	self.hive = network.NewHive(
@@ -124,16 +126,38 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 
 	// setup cloud storage backend
 	cloud := network.NewForwarder(self.hive)
+	//self.cloud = cloud
 	log.Debug(fmt.Sprintf("-> set swarm forwarder as cloud storage backend"))
 	// setup cloud storage internal access layer
 
 	self.storage = storage.NewNetStore(hash, self.lstore, cloud, config.StoreParams)
+	self.sdbstorage = storage.NewSdbStore(self.lstore, cloud)
 	log.Debug(fmt.Sprintf("-> swarm net store shared access layer to Swarm Chunk Store"))
 
+	// setup swarmdb
+/*
+	sdbconfigFileLocation := flag.String("config", swarmdb.SWARMDBCONF_FILE, "Full path location to SWARMDB configuration file.")
+	logLevelFlag := flag.Int("loglevel", 3, "Log Level Verbosity 1-6 (4 for debug)")
+	flag.Parse()
+*/
+	if _, err := os.Stat(swarmdb.SWARMDBCONF_FILE); os.IsNotExist(err) {
+		log.Debug("Default config file missing.  Building ..")
+		_, err := swarmdb.NewKeyManagerWithoutConfig(swarmdb.SWARMDBCONF_FILE, swarmdb.SWARMDBCONF_DEFAULT_PASSPHRASE)
+		if err != nil {
+			//TODO
+		}
+	}	
+	sdbconfig, err := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	log.Debug(fmt.Sprintf("Starting SWARMDB (Version: %s) using [%s]", swarmdb.SWARMDBVersion, swarmdb.SWARMDBCONF_FILE))
+	log.Debug(fmt.Sprintf("swarmdb config %v", sdbconfig))
+	self.swarmdb, err = swarmdb.NewSwarmDB(&sdbconfig, self.sdbstorage)
+	log.Debug(fmt.Sprintf("start SwarmDB err = %v", err))
+	//self.swarmdb = swarmdb.NewSwarmDB(self.sdbstorage)
 	// set up Depo (storage handler = cloud storage access layer for incoming remote requests)
-	self.depo = network.NewDepo(hash, self.lstore, self.storage)
+	self.dbAccess = network.NewDbAccess(self.lstore, self.swarmdb)
+	log.Debug(fmt.Sprintf("Set up local db access (iterator/counter)"))
+	self.depo = network.NewDepo(hash, self.lstore, self.storage, self.sdbstorage, self.swarmdb)
 	self.ldb, _ = storage.NewLDBDatabase(filepath.Join(self.config.Path, "ldb"))
-	//self.depo = network.NewDepoTest(hash, self.lstore, self.storage, self.ldb)
 	log.Debug(fmt.Sprintf("-> REmote Access to CHunks"))
 
 	// set up DPA, the cloud storage local access layer
@@ -155,19 +179,9 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 			return nil, err
 		}
 	}
-	enstest, enserr := ens.NewENS(transactOpts, config.EnsRoot, ensClient)
-	log.Debug(fmt.Sprintf("type of dns = %s", reflect.TypeOf(self.dns)))
-	log.Debug(fmt.Sprintf("type of ens = %s %v", reflect.TypeOf(enstest), enserr))
-	log.Debug(fmt.Sprintf("-> Swarm Domain Name Registrar @ address %v", config.EnsRoot.Hex()))
-
-	//self.api = api.NewApi(self.dpa, self.dns, self.lstore.DbStore.getMHash())
 	self.api = api.NewApiTest(self.dpa, self.dns, self.ldb)
-	//Rodney commented at 17:08 PDT on 2017/12/08 to use just api -- self.swarmdb = swarmdb.NewSwarmDB(self.api, self.ldb)
-	//self.swarmdb = swarmdb.NewSwarmDB(self.api)
-	self.swarmdb = swarmdb.NewSwarmDB()
 	// Manifests for Smart Hosting
 	log.Debug(fmt.Sprintf("-> Web3 virtual server API"))
-
 	self.sfs = fuse.NewSwarmFS(self.api)
 	log.Debug("-> Initializing Fuse file system")
 
@@ -230,67 +244,10 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 			log.Debug(fmt.Sprintf("Swarm http proxy started with corsdomain: %v", self.corsString))
 		}
 	}
-	if true {
-	/*
-		tcpaddr := net.JoinHostPort("127.0.0.1", "8503")
-		go tcpapi.StartTCPIPServer(self.swarmdb, &tcpapi.ServerConfig{
-			Addr: tcpaddr,
-			Port: "23456",
-		})
-	*/
-	}
-	/* start of mayumi tcp/ip server call */
-	//tcpip.StartTCPServer(self)
+/// swarmdb tcpip, http
+	go swarmdbserver.StartHttpServer(self.swarmdb, self.swarmdb.Config)
+	go swarmdbserver.StartTcpipServer(self.swarmdb, self.swarmdb.Config)
 
-	/* start of tcp/ip server code */
-	/*
-		type HandleFunc func(map[string]interface{})
-
-		var handlerArray map[string]HandleFunc
-		handlerArray = make(map[string]HandleFunc)
-		handlerArray["TcpipDispatch"] = TcpipDispatch
-
-		type funcCall struct {
-			FuncName string
-			Args     map[string]interface{}
-		}
-
-		psock, err := net.Listen("tcp", ":5000")
-		if err != nil {
-			return nil
-		}
-
-		conn, err := psock.Accept()
-		if err != nil {
-			log.Debug(fmt.Sprintf("TCPIP: Error connecting"))
-			return nil
-		}
-		for {
-			tcpipReader := bufio.NewReader(conn)
-			message, _ := tcpipReader.ReadString('\n')
-			// output message received
-			conn.Write([]byte("GOB received\n"))
-			log.Debug("[TCPIP] Message Received: [%s]", string(message))
-			log.Debug("[TCPIP] READER: [%+v]", tcpipReader)
-			var data funcCall
-			dec := gob.NewDecoder(tcpipReader)
-			log.Debug(fmt.Sprintf("[TCPIP] GOB Decoder: [%v]", dec))
-			err = dec.Decode(&data)
-			log.Debug(fmt.Sprintf("[TCPIP] GOB Data: [%v]", data))
-			if err != nil {
-				log.Debug(fmt.Sprintf("[TCPIP] Error decoding GOB data:", err))
-				return nil
-			}
-			log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.FuncName))
-			log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.Args))
-			handlerArray[data.FuncName](data.Args)
-			conn.Write([]byte("Request processed successfully\n"))
-			//return nil
-		//		channel := make(chan string)
-		//		go request_handler(conn, channel)
-		//		go send_data(conn, channel)
-		}
-	*/
 	return nil
 }
 

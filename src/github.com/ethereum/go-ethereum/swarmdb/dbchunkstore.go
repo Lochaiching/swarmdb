@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	ethcommon "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/swarm/storage"
 	"github.com/ethereum/go-ethereum/log"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
@@ -784,3 +785,52 @@ func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 		return string(output), nil
 	}
 }
+
+func (self *DBChunkstore) RetrieveDB(key []byte) (val []byte, option *storage.CloudOption, err error){
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] RetrieveDB :retreaving from swarmdb %v", key))
+        sql := `SELECT chunkKey, chunkVal, chunkBirthDT, Encrypted FROM chunk WHERE chunkKey = $1`
+        stmt, err := self.db.Prepare(sql)
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return nil, nil, err
+        }
+        defer stmt.Close()
+
+        rows, err := stmt.Query(key)
+        if err != nil {
+                return nil, nil, err
+        }
+        defer rows.Close()
+
+        for rows.Next() {
+                var kV []byte
+                var bdt time.Time
+                var encrypted int
+
+                err = rows.Scan(&kV, &val, &bdt, &encrypted)
+                if kV != nil {
+                        opt := new(storage.CloudOption)
+                        opt.BirthDT = &bdt
+                        opt.Encrypted = encrypted
+                        log.Debug(fmt.Sprintf("[wolk-cloudstore] RetrieveDB :retreaved from swarmdb %v %v %v", val, opt, err))
+                        return val, opt, nil
+                }
+        }
+        return nil, nil, err
+}
+
+func (self *DBChunkstore) StoreDB(key []byte, val []byte, option *storage.CloudOption) (err error){
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] StoreDB : storing to swarmdb %v", key))
+        sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, Encrypted,  chunkBirthDT, chunkStoreDT ) values(?, ?, ?, CURRENT_TIMESTAMP))`
+        stmt, err := self.db.Prepare(sql_add)
+        if err != nil {
+                return err
+        }
+        defer stmt.Close()
+        _, err = stmt.Exec(key, val, option.Encrypted, option.BirthDT)
+        if err != nil {
+                return err
+        }
+        return err
+}
+

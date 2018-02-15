@@ -23,7 +23,7 @@ bzz protocol handler is registered on the p2p server.
 
 The bzz protocol component speaks the bzz protocol
 * handle the protocol handshake
-* register peers in the KΛÐΞMLIΛ table via the hive logistic manager
+* register peers in the KÎ›Ã�ÎžMLIÎ› table via the hive logistic manager
 * dispatch to hive for handling the DHT logic
 * encode and decode requests for storage and retrieval
 * handle sync protocol messages via the syncer
@@ -44,11 +44,12 @@ import (
 	bzzswap "github.com/ethereum/go-ethereum/swarm/services/swap"
 	"github.com/ethereum/go-ethereum/swarm/services/swap/swap"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+	"github.com/ethereum/go-ethereum/swarmdb"
 )
 
 const (
 	Version            = 0
-	ProtocolLength     = uint64(8)
+	ProtocolLength     = uint64(16)
 	ProtocolMaxMsgSize = 10 * 1024 * 1024
 	NetworkId          = 3
 )
@@ -76,6 +77,7 @@ type bzz struct {
 	syncer      *syncer             // syncer instance for the peer connection
 	syncParams  *SyncParams         // syncer params
 	syncState   *syncState          // outgoing syncronisation state (contains reference to remote peers db counter)
+	swapDB      *swarmdb.SwapDB
 }
 
 // interface type for handler of storage/retrieval related requests coming
@@ -86,6 +88,8 @@ type StorageHandler interface {
 	HandleDeliveryRequestMsg(req *deliveryRequestMsgData, p *peer) error
 	HandleStoreRequestMsg(req *storeRequestMsgData, p *peer)
 	HandleRetrieveRequestMsg(req *retrieveRequestMsgData, p *peer)
+	HandleSdbStoreRequestMsg(req *sDBStoreRequestMsgData, p *peer)
+	HandleSdbRetrieveRequestMsg(req *retrieveRequestMsgData, p *peer)
 }
 
 /*
@@ -257,12 +261,14 @@ func (self *bzz) handle() error {
 		if err := msg.Decode(&req); err != nil {
 			return fmt.Errorf("<- %v: %v", msg, err)
 		}
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got syncRequestMsg %v", req))
 		log.Debug(fmt.Sprintf("<- sync request: %v", req))
 		self.lastActive = time.Now()
 		self.sync(req.SyncState)
 
 	case unsyncedKeysMsg:
 		// coming from parent node offering
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got unsyncedKeysMsg %v", msg))
 		var req unsyncedKeysMsgData
 		if err := msg.Decode(&req); err != nil {
 			return fmt.Errorf("<- %v: %v", msg, err)
@@ -275,6 +281,7 @@ func (self *bzz) handle() error {
 		}
 
 	case deliveryRequestMsg:
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got deliveryRequestMsg %v", msg))
 		// response to syncKeysMsg hashes filtered not existing in db
 		// also relays the last synced state to the source
 		var req deliveryRequestMsgData
@@ -298,6 +305,54 @@ func (self *bzz) handle() error {
 			log.Debug(fmt.Sprintf("<- payment: %s", req.String()))
 			self.swap.Receive(int(req.Units), req.Promise)
 		}
+
+	case sDBStoreRequestMsg:
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got sDBStoreRequestMsg %v", msg))
+                // store requests are dispatched to netStore
+		var req sDBStoreRequestMsgData
+                if err := msg.Decode(&req); err != nil {
+                        return fmt.Errorf("<- %v: %v", msg, err)
+                }
+                log.Trace(fmt.Sprintf("decode sDBStoreRequestMsg: %v", req))
+                // last Active time is set only when receiving chunks
+                self.lastActive = time.Now()
+                log.Trace(fmt.Sprintf("incoming store request: %s", req.String()))
+                // swap accounting is done within forwarding
+                self.storage.HandleSdbStoreRequestMsg(&req, &peer{bzz: self})
+        case sDBRetrieveRequestMsg:
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got sDBRetrieveRequestMsg %v", msg))
+                // retrieve Requests are dispatched to netStore
+                var req retrieveRequestMsgData
+                if err := msg.Decode(&req); err != nil {
+                        return fmt.Errorf("<- %v: %v", msg, err)
+                }
+                req.from = &peer{bzz: self}
+                // if request is lookup and not to be delivered
+                if req.isLookup() {
+                        log.Trace(fmt.Sprintf("self lookup for %v: responding with peers only...", req.from))
+                } else if req.Key == nil {
+                        return fmt.Errorf("protocol handler: req.Key == nil || req.Timeout == nil")
+                } else {
+                        // swap accounting is done within netStore
+                        self.storage.HandleSdbRetrieveRequestMsg(&req, &peer{bzz: self})
+                }
+                // direct response with peers, TODO: sort this out
+                self.hive.peers(&req)
+        case sDBPaymentMsg:
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got sDBPaymentMsg %v", msg))
+/*
+SwarmDBSwap: receiving payment request from a peer
+
+		// TODO: swapdb 
+		if swarmdb.swapEnable {
+			var req sDBPaymentMsgData
+			if err := msg.Decode(&req); err != nil {
+				return fmt.Errorf("<- %v: %v", msg, err)
+			}
+			log.Debug(fmt.Sprintf("<- payment: %s", req.String()))
+			self.swapdb.Receive()		
+		}
+*/
 
 	default:
 		// no other message is allowed
@@ -361,6 +416,12 @@ func (self *bzz) handleStatus() (err error) {
 		if err != nil {
 			return err
 		}
+		self.swapDB, err = swarmdb.NewSwapDB("/tmp/swap.db", self)
+		if err != nil {
+			log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.handleStatus swarmdb.NewSwapDB err: %v ", err))
+			return err
+		}
+		log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.handleStatus swarmdb.NewSwapDB OK"))
 	}
 
 	log.Info(fmt.Sprintf("Peer %08x is capable (%d/%d)", self.remoteAddr.Addr[:4], status.Version, status.NetworkId))
@@ -405,7 +466,7 @@ func (self *bzz) sync(state *syncState) error {
 		self.requestDb,
 		storage.Key(remoteaddr[:]),
 		self.dbAccess,
-		self.unsyncedKeys, self.store,
+		self.unsyncedKeys, self.store, self.sDBstore,
 		self.syncParams, state, func() bool { return self.syncEnabled },
 	)
 	if err != nil {
@@ -450,8 +511,16 @@ func (self *bzz) retrieve(req *retrieveRequestMsgData) error {
 	return self.send(retrieveRequestMsg, req)
 }
 
+func (self *bzz) sDBRetrieve(req *sDBRetrieveRequestMsgData) error {
+	return self.send(sDBRetrieveRequestMsg, req)
+}
+
 // send storeRequestMsg
 func (self *bzz) store(req *storeRequestMsgData) error {
+	if req.stype == 2{
+	log.Debug(fmt.Sprintf("protocol store %got stype = 2 v req  %v %d", self, req, req.stype))
+		//return self.sDBstore(req)
+	}
 	return self.send(storeRequestMsg, req)
 }
 
@@ -500,13 +569,29 @@ func (self *bzz) peers(req *peersMsgData) error {
 	return self.send(peersMsg, req)
 }
 
+func (self *bzz) sDBstore(req *sDBStoreRequestMsgData) error {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.sDBstore :sending %v", req.Key))
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.sDBstore :sending %v", req))
+		
+	return self.send(sDBStoreRequestMsg, req)
+}
+
+//SwarmDBSwap: sending payment request to the peer
+func (self *bzz) SDBPay(units int, promise swarmdb.Promise){
+	req := &sDBPaymentMsgData{uint(units), promise.(*swarmdb.SwapCheck)}
+	self.send(sDBPaymentMsg, req)
+}
+
 func (self *bzz) send(msg uint64, data interface{}) error {
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.send :sending %v: %v", msg, data))
+
 	if self.hive.blockWrite {
 		return fmt.Errorf("network write blocked")
 	}
 	log.Trace(fmt.Sprintf("-> %v: %v (%T) to %v", msg, data, data, self))
 	err := p2p.Send(self.rw, msg, data)
 	if err != nil {
+	log.Debug(fmt.Sprintf("protocol.send error (%T) to %v",  data, err))
 		self.Drop()
 	}
 	return err

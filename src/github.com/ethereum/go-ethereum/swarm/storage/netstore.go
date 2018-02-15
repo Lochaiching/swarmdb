@@ -26,6 +26,7 @@ import (
 
 	//"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	//"github.com/ethereum/go-ethereum/swarmdb"
 )
 
 /*
@@ -51,8 +52,10 @@ type NetStore struct {
 // bzz/network/forwarder. forwarder or IPFS or IPΞS
 type CloudStore interface {
 	Store(*Chunk)
+	StoreDB(*Chunk)
 	Deliver(*Chunk)
 	Retrieve(*Chunk)
+	RetrieveDB(*Chunk)
 }
 
 type StoreParams struct {

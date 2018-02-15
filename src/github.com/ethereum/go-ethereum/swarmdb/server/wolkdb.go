@@ -1,11 +1,10 @@
-package main
+package server
 
 import (
 	"bufio"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -103,6 +102,7 @@ func buildErrorResp(err error) string {
 
 // Handles incoming TCPIP requests.
 func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
+
 	// generate a random 50 char challenge (64 hex chars)
 	var cvp ChallengeVersionPair
 	cvp.Challenge = RandStringRunes(50)
@@ -231,6 +231,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 }
 
 func StartTcpipServer(sdb *swarmdb.SwarmDB, conf *swarmdb.SWARMDBConfig) (err error) {
+        log.Debug(fmt.Sprintf("swarmdb config = %v", conf))
 	sv := new(TCPIPServer)
 	sv.swarmdb = sdb
 	km, errkm := swarmdb.NewKeyManager(conf)
@@ -333,6 +334,8 @@ func parseOwnerDB(v string) (owner string, db string, err error) {
 func StartHttpServer(sdb *swarmdb.SwarmDB, config *swarmdb.SWARMDBConfig) {
 	httpSvr := new(HTTPServer)
 	httpSvr.swarmdb = sdb
+
+	log.Debug(fmt.Sprintf("swarmdb config = %v", config))
 	km, errkm := swarmdb.NewKeyManager(config)
 	if errkm != nil {
 		//return errkm
@@ -356,7 +359,6 @@ func StartHttpServer(sdb *swarmdb.SwarmDB, config *swarmdb.SWARMDBConfig) {
 	})
 	//sk, pk := GetKeys()
 	hdlr := c.Handler(httpSvr)
-
 	log.Debug(fmt.Sprintf("HTTP Listening on %s and port %d", config.ListenAddrHTTP, config.PortHTTP))
 	addr := net.JoinHostPort(config.ListenAddrHTTP, strconv.Itoa(config.PortHTTP))
 	//go http.ListenAndServe(config.Addr, hdlr)
@@ -559,6 +561,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+/*
 func main() {
 	configFileLocation := flag.String("config", swarmdb.SWARMDBCONF_FILE, "Full path location to SWARMDB configuration file.")
 	//TODO: store this somewhere accessible to be used later
@@ -598,3 +601,4 @@ func main() {
 	log.Debug("Trying to start TCPIP server...\n")
 	StartTcpipServer(swdb, &config)
 }
+*/

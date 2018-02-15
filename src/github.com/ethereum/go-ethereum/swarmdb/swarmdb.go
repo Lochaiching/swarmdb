@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/swarm/storage"
 	"path/filepath"
 	"strings"
 )
@@ -96,6 +97,9 @@ type SwarmDB struct {
 	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
+	//ens          ENSSimple
+	Config       *SWARMDBConfig
+	SwarmStore   storage.ChunkStore
 }
 
 //for sql parsing
@@ -221,11 +225,14 @@ const (
 	KNODE_END_CHUNKKEY     = 128
 )
 
-func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
+func NewSwarmDB(config *SWARMDBConfig, cloud storage.ChunkStore) (swdb *SwarmDB, err error) {
 	sd := new(SwarmDB)
+	log.Debug(fmt.Sprintf("NewSwarmDB config = %v", config))
+	sd.Config = config
 	sd.tables = make(map[string]*Table)
+	sd.SwarmStore = cloud
 	chunkdbFileName := "chunk.db"
-	dbChunkStoreFullPath := filepath.Join(chunkDBPath, chunkdbFileName)
+	dbChunkStoreFullPath := filepath.Join(config.ChunkDBPath, chunkdbFileName)
 	dbchunkstore, err := NewDBChunkStore(dbChunkStoreFullPath)
 	if err != nil {
 		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewDBChunkStore `+err.Error())
@@ -235,10 +242,12 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 
 	//default /tmp/ens.db
 	ensdbFileName := "ens.db"
-	ensdbFullPath := filepath.Join(ensPath, ensdbFileName)
-	ens, errENS := NewENSSimulation(ensdbFullPath)
-	if errENS != nil {
-		return swdb, GenerateSWARMDBError(errENS, `[swarmdb:NewSwarmDB] NewENSSimulation `+errENS.Error())
+	//ensdbFullPath := filepath.Join(ensPath, ensdbFileName)
+	ensdbFullPath := filepath.Join(config.ChunkDBPath, ensdbFileName)
+	ens, err := NewENSSimulation(ensdbFullPath)
+	//ens, err := NewENSSimple(ensdbFullPath)
+	if err != nil {
+		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewENSSimulation `+err.Error())
 	} else {
 		sd.ens = ens
 	}
@@ -256,9 +265,23 @@ func (self *SwarmDB) RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, er
 	return val, err
 }
 
+func (self *SwarmDB) StoreDB(key []byte, val []byte, options *storage.CloudOption) (err error){
+	return self.dbchunkstore.StoreDB(key, val, options)
+}
+
 func (self *SwarmDB) StoreDBChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
 	key, err = self.dbchunkstore.StoreChunk(u, val, encrypted)
 	return key, err
+}
+
+/*
+func (self *SwarmDB) StoreKDBChunk(key []byte, val []byte) (err error) {
+	return self.dbchunkstore.StoreKChunk(u, key, val, 0)
+}
+*/
+
+func (self *SwarmDB) RetrieveDB(key []byte) (val []byte, options *storage.CloudOption, err error){
+	return self.dbchunkstore.RetrieveDB(key)
 }
 
 // ENSSimulation  API
