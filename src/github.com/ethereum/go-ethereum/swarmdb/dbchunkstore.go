@@ -248,7 +248,9 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
     maxReplication INTEGER DEFAULT 1,
     version INTEGER DEFAULT 0,
     chunkBirthDT DATETIME,
-    chunkStoreDT DATETIME
+    chunkStoreDT DATETIME,
+    seed BLOB,
+    merkleRoot BLOB
     );
     `
 	netstat_table := `
@@ -259,15 +261,36 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
     scnt INTEGER DEFAULT 0
     );
     `
+
+	//Local Chunk table
+	swap_table := `
+    CREATE TABLE IF NOT EXISTS swap (
+    swapID TEXT NOT NULL PRIMARY KEY,
+    sender TEXT,
+    beneficiary TEXT,
+    amount INTEGER DEFAULT 1,
+    sig    TEXT,
+    checkBirthDT DATETIME
+    );
+    `
+	_, err = db.Exec(sql_table)
+	if err != nil {
+		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDB] Exec - SQLite Chunk Table Creation %s", err.Error())}
+	}
+
 	_, err = db.Exec(sql_table)
 	//TODO: confirm _ doesn't need handling/checking
 	if err != nil {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:NewDBChunkStore] Exec - SQLite Chunk Table Creation %s", err.Error()), ErrorCode: 464, ErrorMessage: "Unable to Create New Chunk DB"}
 	}
 	_, err = db.Exec(netstat_table)
-	//TODO: confirm _ doesn't need handling/checking
 	if err != nil {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:NewDBChunkStore] Exec - SQLite Stat Table Creation %s", err.Error()), ErrorCode: 465, ErrorMessage: "Unable to Create New NetStats Table"}
+	}
+
+	_, err = db.Exec(swap_table)
+	if err != nil {
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:NewDBChunkStore] Exec - SQLite Swap Table Creation %s", err.Error()), ErrorCode: 465, ErrorMessage: "Unable to Create New swap Table"}
 	}
 	config, errConfig := LoadSWARMDBConfig(SWARMDBCONF_FILE)
 	if errConfig != nil {
@@ -366,7 +389,11 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreKChunk] Chunk too small (< %s)| %x", minChunkSize, val), ErrorCode: 439, ErrorMessage: "Failure storing K node Chunk"}
 	}
 
-	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, encrypted, chunkBirthDT, chunkStoreDT, renewal, minReplication, maxReplication, payer, version) values(?, ?, ?, COALESCE((SELECT chunkBirthDT FROM chunk WHERE chunkKey=?),CURRENT_TIMESTAMP), COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=? ), CURRENT_TIMESTAMP), ?, ?, ?, ?, COALESCE((SELECT version+1 FROM chunk where chunkKey=?),0))`
+	// TODO: generate seed and merkleRoot
+	seed := []byte("stub")
+	merkleRoot := []byte("merkleRoot")
+
+	sql_add := `INSERT OR REPLACE INTO chunk ( chunkKey, chunkVal, encrypted, chunkBirthDT, chunkStoreDT, renewal, minReplication, maxReplication, payer, version, seed, merkleRoot ) values(?, ?, ?, COALESCE((SELECT chunkBirthDT FROM chunk WHERE chunkKey=?),CURRENT_TIMESTAMP), COALESCE((SELECT chunkStoreDT FROM chunk WHERE chunkKey=? ), CURRENT_TIMESTAMP), ?, ?, ?, ?, COALESCE((SELECT version+1 FROM chunk where chunkKey=?),0, ?))`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreKChunk] Prepare %s", err.Error())}
@@ -388,7 +415,7 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 	copy(finalSdata[KNODE_START_ENCRYPTION:4096], recordData)
 	//log.Debug(fmt.Sprintf("Key: [%x][%v] After copy recordData sData is : %s [%v]", key, key, finalSdata[KNODE_START_ENCRYPTION:4096], finalSdata[KNODE_START_ENCRYPTION:4096]))
 	//log.Debug(fmt.Sprintf("finalSdata (encrypted=%d) being stored is: %+v", encrypted, finalSdata))
-	_, err2 := stmt.Exec(key[:32], finalSdata[0:], encrypted, key[:32], key[:32], u.AutoRenew, u.MinReplication, u.MaxReplication, u.Address, key[:32])
+	_, err2 := stmt.Exec(key[:32], finalSdata[0:], encrypted, key[:32], key[:32], u.AutoRenew, u.MinReplication, u.MaxReplication, u.Address, key[:32], seed, merkleRoot)
 	if err2 != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreKChunk] Exec - Insert%s | data:%x | Encrypted: %s ", err2.Error(), finalSdata, encrypted), ErrorCode: 439, ErrorMessage: "Failure storing K node Chunk"}
 	}
@@ -682,16 +709,75 @@ func (self *DBChunkstore) ScanAll() (err error) {
 	return nil
 }
 
-func (self *DBChunkstore) GenerateFarmerLog() (err error) {
 
+// TODO:  Add dispatch mechanisms where:
+//  /swaplog/startts/endts   => calls dbchunkstore.GenerateSwapLog(startts, endts)
+//  /buyerlog/startts/endts  => calls dbchunkstore.GenerateBuyerLog(startts, endts)
+//  /farmerlog/startts/endts => calls dbchunkstore.GenerateFarmerLog(startts, endts)
+//  /ashrequest/chunkID/seed/index/proofRequired => calls dbchunkstore.GenerateAshResponse(chunkID, seed, index, proofRequired)
+func (self *SwapDB) GenerateSwapLog(startTS int64, endTS int64) (err error) {
+	sql_readall := fmt.Sprintf("SELECT swapID, sender, beneficiary, amount, sig FROM swap where checkBirthDT >= %s and checkBirthDT < %s", time.Unix(startTS, 0).Format(time.RFC3339), time.Unix(endTS, 0).Format(time.RFC3339))
+	rows, err := self.db.Query(sql_readall)
+	if err != nil {
+		return &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Query %s", err.Error())}
+	}
+	defer rows.Close()
+
+	var result []SwapLog
+	for rows.Next() {
+		c := SwapLog{}
+		err = rows.Scan(&c.SwapID, &c.Sender, &c.Beneficiary, &c.Amount, &c.Sig)
+		if err != nil {
+			return &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Scan %s", err.Error())}
+		}
+
+		l, err2 := json.Marshal(c)
+		if err != nil {
+			return &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Marshal %s", err2.Error())}
+		}
+		fmt.Printf("%s\n", l)
+		result = append(result, c)
+	}
+	rows.Close()
+	return nil
+}
+
+func (self *DBChunkstore) GenerateBuyerLog(startTS int64, endTS int64) (err error) {
 	farmerAddr := self.farmer.Hex()
+	sql_readall := fmt.Sprintf("SELECT chunkKey,strftime('%s',chunkBirthDT) as chunkBirthTS, strftime('%s',chunkStoreDT) as chunkStoreTS, maxReplication, renewal FROM chunk where chunkBD >= %d and chunkBD < %d", time.Unix(startTS, 0).Format(time.RFC3339), time.Unix(endTS, 0).Format(time.RFC3339))
+	rows, err := self.db.Query(sql_readall)
+	if err != nil {
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GenerateFarmerLog] Query %s", err.Error()), ErrorCode: 468, ErrorMessage: "Error Generating Farmer Log"}
+	}
+	defer rows.Close()
 
-	/*
-	   currentTS:= time.Now().Unix()
-	   contractInterval := 3600*7 //Test renewal interval
-	*/
+	var result []ChunkLog
+	for rows.Next() {
+		c := ChunkLog{}
+		c.Farmer = farmerAddr
 
-	sql_readall := `SELECT chunkKey,strftime('%s',chunkBirthDT) as chunkBirthTS, strftime('%s',chunkStoreDT) as chunkStoreTS, maxReplication, renewal FROM chunk where maxReplication > 0 ORDER BY chunkStoreTS DESC`
+		err2 := rows.Scan(&c.ChunkHash, &c.ChunkBD, &c.ChunkSD, &c.ReplicationLevel, &c.Renewable)
+		if err2 != nil {
+			return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GenerateFarmerLog] Scan %s", err2.Error()), ErrorCode: 468, ErrorMessage: "Error Generating Farmer Log"}
+		}
+		c.ChunkID = fmt.Sprintf("%x", c.ChunkHash)
+		chunklog, err := json.Marshal(c)
+		if err != nil {
+			return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GenerateFarmerLog] Marshal %s", err.Error()), ErrorCode: 468, ErrorMessage: "Error Generating Farmer Log"}
+		}
+		if false {
+			fmt.Printf("%s\n", chunklog)
+		}
+		result = append(result, c)
+	}
+	rows.Close()
+	return nil
+
+}
+
+func (self *DBChunkstore) GenerateFarmerLog(startTS int64, endTS int64) (err error) {
+	farmerAddr := self.farmer.Hex()
+	sql_readall := fmt.Sprintf("SELECT chunkKey FROM chunk where chunkBD >= %s and chunkBD < %s", time.Unix(startTS, 0).Format(time.RFC3339), time.Unix(endTS, 0).Format(time.RFC3339))
 	rows, err := self.db.Query(sql_readall)
 	if err != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GenerateFarmerLog] Query %s", err.Error()), ErrorCode: 468, ErrorMessage: "Error Generating Farmer Log"}
