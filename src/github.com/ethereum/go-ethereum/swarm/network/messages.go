@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/network/kademlia"
 	"github.com/ethereum/go-ethereum/swarm/services/swap"
 	"github.com/ethereum/go-ethereum/swarm/storage"
+	"github.com/ethereum/go-ethereum/swarmdb"
 )
 
 /*
@@ -34,15 +35,18 @@ BZZ protocol Message Types and Message Data Types
 
 // bzz protocol message codes
 const (
-	statusMsg          = iota // 0x01
-	storeRequestMsg           // 0x02
-	retrieveRequestMsg        // 0x03
-	peersMsg                  // 0x04
-	syncRequestMsg            // 0x05
-	deliveryRequestMsg        // 0x06
-	unsyncedKeysMsg           // 0x07
-	paymentMsg                // 0x08
-	manifestRequestMsg        // 0x09
+	statusMsg          = iota // 0x00
+	storeRequestMsg           // 0x01
+	retrieveRequestMsg        // 0x02
+	peersMsg                  // 0x03
+	syncRequestMsg            // 0x04
+	deliveryRequestMsg        // 0x05
+	unsyncedKeysMsg           // 0x06
+	paymentMsg                // 0x07
+	sDBStoreRequestMsg        // 0x08
+	sDBRetrieveRequestMsg     // 0x09
+	sDBDeliveryRequestMsg     // 0x0A
+	sDBPaymentMsg		  // 0x0B
 )
 
 /*
@@ -85,6 +89,8 @@ type storeRequestMsgData struct {
 	requestTimeout *time.Time // expiry for forwarding - [not serialised][not currently used]
 	storageTimeout *time.Time // expiry of content - [not serialised][not currently used]
 	from           *peer      // [not serialised] protocol registers the requester
+	birthTime      *time.Time
+	stype           uint
 }
 
 func (self storeRequestMsgData) String() string {
@@ -98,35 +104,8 @@ func (self storeRequestMsgData) String() string {
 	if len(self.SData) > 10 {
 		end = 10
 	}
-	return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end])
+	return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x, stype %d", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end], self.stype)
 }
-
-type storeRequestDBMsgData struct {
-    Key   storage.Key // hash of datasize | data
-    SData []byte      // the actual chunk Data
-    IndexData []byte      // index
-    SHash []byte      // Swarm Hash
-    // optional
-    Id             uint64     // request ID. if delivery, the ID is retrieve request ID
-    requestTimeout *time.Time // expiry for forwarding - [not serialised][not currently used]
-    storageTimeout *time.Time // expiry of content - [not serialised][not currently used]
-    from           *peer      // [not serialised] protocol registers the requester
-}
-
-func (self storeRequestDBMsgData) String() string {
-    var from string
-    if self.from == nil {
-        from = "self"
-    } else {
-        from = self.from.Addr().String()
-    }
-    end := len(self.SData)
-    if len(self.SData) > 10 {
-        end = 10
-    }
-    return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end])
-}
-
 
 /*
 Retrieve request
@@ -343,3 +322,89 @@ type paymentMsgData struct {
 func (self *paymentMsgData) String() string {
 	return fmt.Sprintf("payment for %d units: %v", self.Units, self.Promise)
 }
+
+type sDBStoreRequestMsgData struct{
+        Key   storage.Key // hash of datasize | data
+        SData []byte      // the actual chunk Data
+        Id             uint64     // request ID. if delivery, the ID is retrieve request ID
+        requestTimeout *time.Time // expiry for forwarding - [not serialised][not currently used]
+        storageTimeout *time.Time // expiry of content - [not serialised][not currently used]
+        from           *peer      // [not serialised] protocol registers the requester
+        rtype          int
+	//BirthDT		int
+        //option         *storage.CloudOption
+        option         string
+	version		int
+}
+
+func (self sDBStoreRequestMsgData) String() string {
+        var from string
+        if self.from == nil {
+                from = "self"
+        } else {
+                from = self.from.Addr().String()
+        }
+        end := len(self.SData)
+        if len(self.SData) > 10 {
+                end = 10
+        }
+        return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x, rtype %d option %v", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end], self.rtype, self.option)
+}
+
+/*
+type sDBStoreRequestMsgDataTest struct{
+        Key   storage.Key // hash of datasize | data
+        SData []byte      // the actual chunk Data
+        Id             uint64     // request ID. if delivery, the ID is retrieve request ID
+        requestTimeout *time.Time // expiry for forwarding - [not serialised][not currently used]
+        storageTimeout *time.Time // expiry of content - [not serialised][not currently used]
+        from           *peer      // [not serialised] protocol registers the requester
+        rtype          int
+        //option         *storage.CloudOption
+	option		string
+}
+
+func (self sDBStoreRequestMsgDataTest) String() string {
+        var from string
+        if self.from == nil {
+                from = "self"
+        } else {
+                from = self.from.Addr().String()
+        }
+        end := len(self.SData)
+        if len(self.SData) > 10 {
+                end = 10
+        }
+	var t int
+        return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x, rtype %d option test %d", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end], self.option)
+}
+*/
+
+type sDBRetrieveRequestMsgData struct{
+        Key      storage.Key // target Key address of chunk to be retrieved
+        Id       uint64      // request id, request is a lookup if missing or zero
+        MaxSize  uint64      // maximum size of delivery accepted
+        MaxPeers uint64      // maximum number of peers returned
+        Timeout  uint64      // the longest time we are expecting a response
+        timeout  *time.Time  // [not serialied]
+        from     *peer       //
+}
+
+/*
+
+type sDBDeliveryRequestMsg struct{
+}
+
+*/
+
+///
+/// SwarmDBSwap: payment msg type
+type sDBPaymentMsgData struct{
+	Units uint
+	Promise *swarmdb.SwapCheck
+}
+
+func (self *sDBPaymentMsgData) String() string{
+	return fmt.Sprintf("sDBPayment for %d units: %v", self.Units, self.Promise)
+}
+	

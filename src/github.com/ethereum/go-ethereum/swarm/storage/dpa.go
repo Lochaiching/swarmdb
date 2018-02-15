@@ -241,9 +241,6 @@ func (self *dpaChunkStore) Put(entry *Chunk) {
 		chunk.Size = entry.Size
 	} else {
 		log.Trace(fmt.Sprintf("DPA.Put: %v chunk already known", entry.Key.Log()))
-		if !entry.swarmdb {
-			return
-		}
 	}
 	// from this point on the storage logic is the same with network storage requests
 	log.Debug(fmt.Sprintf("DPA.Put %v: %v", self.n, chunk.Key.Log()))

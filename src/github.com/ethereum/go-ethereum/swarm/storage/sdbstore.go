@@ -17,10 +17,11 @@
 package storage
 
 import (
+	//"encoding/json"
 	"fmt"
-	"path/filepath"
+	//"path/filepath"
 	"sync"
-	"time"
+	//"time"
 	//"bytes"
 	//"strings"
 
@@ -30,29 +31,30 @@ import (
 )
 
 /*
-NetStore is a cloud storage access abstaction layer for swarm
+SdbStore is a cloud storage access abstaction layer for swarm
 it contains the shared logic of network served chunk store/retrieval requests
 both local (coming from DPA api) and remote (coming from peers via bzz protocol)
 it implements the ChunkStore interface and embeds LocalStore
 
 It is called by the bzz protocol instances via Depo (the store/retrieve request handler)
 a protocol instance is running on each peer, so this is heavily parallelised.
-NetStore falls back to a backend (CloudStorage interface)
+SdbStore falls back to a backend (CloudStorage interface)
 implemented by bzz/network/forwarder. forwarder or IPFS or IPΞS
 */
-type NetStore struct {
-	hashfunc   Hasher
+type SdbStore struct {
 	localStore *LocalStore
 	cloud      CloudStore
+	//swarmdb	   *swarmdb.SwarmDB
 	lock       sync.Mutex
 }
 
 // backend engine for cloud store
 // It can be aggregate dispatching to several parallel implementations:
 // bzz/network/forwarder. forwarder or IPFS or IPΞS
+/*
 type CloudStore interface {
 	Store(*Chunk)
-	StoreDB(*Chunk)
+	StoreDB([]byte, []byte, *CloudOption)
 	Deliver(*Chunk)
 	Retrieve(*Chunk)
 	RetrieveDB(*Chunk)
@@ -73,18 +75,21 @@ func NewStoreParams(path string) (self *StoreParams) {
 		Radius:        defaultRadius,
 	}
 }
+*/
 
 // netstore contructor, takes path argument that is used to initialise dbStore,
 // the persistent (disk) storage component of LocalStore
 // the second argument is the hive, the connection/logistics manager for the node
-func NewNetStore(hash Hasher, lstore *LocalStore, cloud CloudStore, params *StoreParams) *NetStore {
-	return &NetStore{
-		hashfunc:   hash,
+//func NewSdbStore(lstore *LocalStore, cloud CloudStore, swarmdb *swarmdb.SwarmDB) *SdbStore {
+func NewSdbStore(lstore *LocalStore, cloud CloudStore) *SdbStore {
+	return &SdbStore{
 		localStore: lstore,
 		cloud:      cloud,
+		//swarmdb:    swarmdb,
 	}
 }
 
+/*
 const (
 	// maximum number of peers that a retrieved message is delivered to
 	requesterCount = 3
@@ -94,53 +99,41 @@ var (
 	// timeout interval before retrieval is timed out
 	searchTimeout = 3 * time.Second
 )
+*/
 
-// store logic common to local and network chunk store requests
-// ~ unsafe put in localdb no check if exists no extra copy no hash validation
-// the chunk is forced to propagate (Cloud.Store) even if locally found!
-// caller needs to make sure if that is wanted
-func (self *NetStore) Put(entry *Chunk) {
-	self.localStore.Put(entry)
-	log.Trace(fmt.Sprintf("NetStore.Put: entry %v %v %s", entry, entry.Key, string(entry.SData)))
-	// handle deliveries
-	if entry.Req != nil {
-		log.Trace(fmt.Sprintf("NetStore.Put: localStore.Put %v hit existing request...delivering", entry.Key.Log()))
-		// closing C signals to other routines (local requests)
-		// that the chunk is has been retrieved
-		close(entry.Req.C)
-		// deliver the chunk to requesters upstream
-		go self.cloud.Deliver(entry)
-	} else {
-		log.Trace(fmt.Sprintf("NetStore.Put: localStore.Put %v stored locally", entry.Key.Log()))
-		// handle propagating store requests
-		// go self.cloud.Store(entry)
-		go self.cloud.Store(entry)
+func (self *SdbStore) Put(entry *Chunk) {
+	log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Put: entry %v %v", entry, entry.Key))
+	chunk, _ := self.localStore.memStore.Get(entry.Key)
+	log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] SdbStore.Put: memstore %v %v %v", entry.Key, chunk, &chunk))
+	
+	if chunk != nil && chunk.Req != nil && chunk.SData == nil{
+//TODO: need to check version information to store the latest version  
+//	if chunk != nil && chunk.Req != nil {
+		chunk.SData = entry.SData
+		chunk.Options = entry.Options
+		chunk.Req = nil
+		self.localStore.memStore.Put(chunk)
+//TODO :if version check here, don't need this line or add some process for finding result.
+		close(chunk.Req.C)
+		log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] SdbStore.Put in if statement: memstore %v %v %v", entry.Key, chunk, &chunk))
+		log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Put: closing Req.C", chunk.Req.C))
 	}
+//TODO: add delivery method. need to modify it once it gets the version info.
+	self.cloud.StoreDB(entry)
 }
 
-// retrieve logic common for local and network chunk retrieval requests
-func (self *NetStore) Get(key Key) (*Chunk, error) {
-	var err error
-	chunk, err := self.localStore.Get(key)
-	if err == nil {
-		if chunk.Req == nil {
-			log.Trace(fmt.Sprintf("NetStore.Get: %v found locally", key))
-		} else {
-			log.Trace(fmt.Sprintf("NetStore.Get: %v hit on an existing request", key))
-			// no need to launch again
-		}
-		return chunk, err
-	}
+// called by dbchunkstore only
+func (self *SdbStore) Get(key Key) (*Chunk, error) {
 	// no data and no request status
-	log.Trace(fmt.Sprintf("NetStore.Get: %v not found locally. open new request", key))
-	chunk = NewChunk(key, newRequestStatus(key))
+	log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Get: key %v", key))
+	chunk := NewChunk(key, newRequestStatus(key))
 	self.localStore.memStore.Put(chunk)
-	go self.cloud.Retrieve(chunk)
-	log.Trace(fmt.Sprintf("NetStore.Get From Net: %v %v", key, string(chunk.SData)))
+	go self.cloud.RetrieveDB(chunk)
+	log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] SdbStore.Get: key %v val %d address %v %v", key, len(chunk.SData), chunk, &chunk))
 	return chunk, nil
 }
 
 // Close netstore
-func (self *NetStore) Close() {
+func (self *SdbStore) Close() {
 	return
 }

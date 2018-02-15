@@ -17,14 +17,18 @@ package swarmdb
 
 import (
 	// "database/sql"
+	"encoding/json"
 	"fmt"
+    	"io/ioutil"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
+	"path/filepath"
 	"strings"
 	// "encoding/hex"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
+	elog "github.com/ethereum/go-ethereum/log"
 )
 
 type ENSSimple struct {
@@ -32,21 +36,50 @@ type ENSSimple struct {
 	sens *Simplestens
 }
 
-func NewENSSimple(path string) (ens ENSSimple, err error) {
-	// Create an IPC based RPC connection to a remote node
-	//y	conn, err := ethclient.Dial("/home/karalabe/.ethereum/testnet/geth.ipc")
+type ENSSimpleConfig struct{
+	Ipaddress	string	`json:"ipaddress,omitempty"`
+}
 
-	//conn, err := ethclient.Dial("/var/www/vhosts/data/geth.ipc")      // this is working OK
-	//conn, err := ethclient.Dial("http://127.0.0.1:8545")              // this is working OK	   //  JSON-RPC Endpoint   https://github.com/ethereum/wiki/wiki/JSON-RPC
-	//conn, err := ethclient.Dial("http://35.224.194.195:8545")
-	conn, err := ethclient.Dial("http://ens.wolk.com:8545")
+func NewENSSimple(path string) (ens ENSSimple, err error) {
+// TODO: using temporary config file
+	confdir, err := ioutil.ReadDir("/var/www/vhosts/data/swarmdb")
+	var ipaddress string
+	ipaddress = "/var/www/vhosts/data/geth.ipc"
+	if err == nil{
+		var conffilename string
+		for _, cf := range confdir{
+        		if strings.HasPrefix(cf.Name(), "ens") {
+                		conffilename =  cf.Name()
+        		}
+		}
+		fullconf := filepath.Join("/var/www/vhosts/data/swarmdb", conffilename)
+		dat, _ := ioutil.ReadFile(fullconf)
+		var conf ENSSimpleConfig
+		err = json.Unmarshal(dat, &conf)
+		ipaddress = conf.Ipaddress
+	}
+	elog.Debug(fmt.Sprintf("SimpleENS ipaddress = %s", ipaddress))
+	
+	// Create an IPC based RPC connection to a remote node
+	conn, err := ethclient.Dial(ipaddress)
 
 	if err != nil {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
 	}
 
-	var key = `{"address":"90fb0de606507e989247797c6a30952cae4d5cbe","crypto":{"cipher":"aes-128-ctr","ciphertext":"54396d6ed0335e4b4874cd4440d24eabeca895fcbafb15d310c25c6b1e4bb306","cipherparams":{"iv":"e3a2457cf8420d3072e5adf118d31df8"},"kdf":"scrypt","kdfparams":{"dklen":32,"n":262144,"p":1,"r":8,"salt":"d25987f2f2429e53f51d87eb6474e3f12a67c63603fd860b558657cee19a6ea9"},"mac":"023fc8a29a6e323db43e0c7795d2d59d0c1f295a62cbb9bc625951fca9c385dd"},"id":"dc849ada-c6be-4f12-bfa2-5200ec560c2e","version":3}`
-	auth, err := bind.NewTransactor(strings.NewReader(key), "mdotm")
+// TODO: need to get the dir (or filename) from config
+    	files, err := ioutil.ReadDir("/var/www/vhosts/data/keystore")
+	var filename string
+        for _, file := range files {
+        	if strings.HasPrefix(file.Name(), "UTC") {
+                	filename =  file.Name()
+        	}
+	}
+        fullpath := filepath.Join("/var/www/vhosts/data/keystore", filename)
+	k, err := ioutil.ReadFile(fullpath)
+	key := fmt.Sprintf("%s", k)
+	
+	auth, err := bind.NewTransactor(strings.NewReader(string(key)), "mdotm")
 	if err != nil {
 		log.Fatalf("Failed to create authorized transactor: %v", err)
 	} else {
@@ -54,10 +87,12 @@ func NewENSSimple(path string) (ens ENSSimple, err error) {
 	}
 
 	// Instantiate the contract and display its name
-	sens, err := NewSimplestens(common.HexToAddress("0x6120c3f1fdcd20c384b82eb20d93eef7838e0363"), conn)
+	sens, err := NewSimplestens(common.HexToAddress("0x7e29ab7c40aaf6ca52270643b57c46c7766ca31d"), conn)
 	if err != nil {
+		elog.Debug(fmt.Sprintf("NewSimplestens failed %v", err))
 		log.Fatalf("Failed to instantiate a Simplestens contract: %v", err)
 	} else {
+		elog.Debug(fmt.Sprintf("NewSimplestens success %v", sens))
 		ens.sens = sens
 	}
 
@@ -94,8 +129,11 @@ func (self *ENSSimple) StoreRootHash(indexName []byte, roothash []byte) (err err
 	var r32 [32]byte
 	copy(i32[0:], indexName)
 	copy(r32[0:], roothash)
+	elog.Debug(fmt.Sprintf("ENSSimple StoreRootHash %x roothash %x", indexName, roothash))
+	fmt.Printf("ENSSimple StoreRootHash %x roothash %x\n", indexName, roothash)
 
 	tx, err2 := self.sens.SetContent(self.auth, i32, r32)
+	fmt.Printf("return store %x %v\n", tx, err2)
 	if err2 != nil {
 		return err // log.Fatalf("Failed to set Content: %v", err2)
 	}
@@ -114,10 +152,13 @@ func (self *ENSSimple) StoreRootHash(indexName []byte, roothash []byte) (err err
 			return (err2)
 		}
 	*/
+	elog.Debug(fmt.Sprintf("ENSSimple StoreRootHash %x roothash %x", indexName, roothash))
 	return nil
 }
 
 func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
+	elog.Debug(fmt.Sprintf("ENSSimple GotRootHash %v", indexName))
+	
 	/*
 		sql := `SELECT roothash FROM ens WHERE indexName = $1`
 		stmt, err := self.db.Prepare(sql)
@@ -149,6 +190,7 @@ func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
 	//s, err := sens.Content(b)
 	s, err := self.sens.Content(nil, b2)
 	if err != nil {
+		elog.Debug(fmt.Sprintf("ENSSimple GotRootHash err %v %v", indexName, err))
 		fmt.Printf("GetContent failed:  %v", err)
 		return val, err
 	}
@@ -161,5 +203,6 @@ func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
 	}
 	//copy(val[0:], s[0:32])
 	fmt.Printf("indexName: [%x] => s: [%x] val: [%x]\n", indexName, s, val)
+	elog.Debug(fmt.Sprintf("ENSSimple GotRootHash %x s %x val %x", indexName, s, val))
 	return val, nil
 }
