@@ -35,7 +35,8 @@ const (
 	SWARMDBCONF_CURRENCY              = "WLK"
 	SWARMDBCONF_TARGET_COST_STORAGE   = 2.71828
 	SWARMDBCONF_TARGET_COST_BANDWIDTH = 3.14159
-	SWARMDBCONF_ENS_KEYSTORE	  = "/var/www/vhosts/data"
+	SWARMDBCONF_ENS_KEYSTORE	  = "/var/www/vhosts/data/keystore"
+	SWARMDBCONF_ENS_IP		  = "/var/www/vhosts/data/geth.ipc"
 )
 
 type SWARMDBUser struct {
@@ -69,6 +70,7 @@ type SWARMDBConfig struct {
 	TargetCostStorage   float64 `json:"targetCostStorage,omitempty"`   //
 	TargetCostBandwidth float64 `json:"targetCostBandwidth,omitempty"` //
 	EnsKeyPath	    string  `json:"ensKeyPath,omitempty"`
+	EnsIP		    string  `json:"ensIP,omitempty"`
 }
 
 func (self *SWARMDBConfig) GetNodeID() (out string) {

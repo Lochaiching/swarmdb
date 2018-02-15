@@ -96,8 +96,8 @@ func (resp *SWARMDBResponse) Stringify() string {
 type SwarmDB struct {
 	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
-	ens          ENSSimulation
-	//ens          ENSSimple
+	//ens          ENSSimulation
+	ens          ENSSimple
 	Config       *SWARMDBConfig
 	SwarmStore   storage.ChunkStore
 }
@@ -244,8 +244,8 @@ func NewSwarmDB(config *SWARMDBConfig, cloud storage.ChunkStore) (swdb *SwarmDB,
 	ensdbFileName := "ens.db"
 	//ensdbFullPath := filepath.Join(ensPath, ensdbFileName)
 	ensdbFullPath := filepath.Join(config.ChunkDBPath, ensdbFileName)
-	ens, err := NewENSSimulation(ensdbFullPath)
-	//ens, err := NewENSSimple(ensdbFullPath)
+	//ens, err := NewENSSimulation(ensdbFullPath)
+	ens, err := NewENSSimple(ensdbFullPath, config)
 	if err != nil {
 		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewENSSimulation `+err.Error())
 	} else {
@@ -287,11 +287,11 @@ func (self *SwarmDB) RetrieveDB(key []byte) (val []byte, options *storage.CloudO
 // ENSSimulation  API
 func (self *SwarmDB) GetRootHash(u *SWARMDBUser, tblKey []byte /* GetTableKeyValue */) (roothash []byte, err error) {
 	log.Debug(fmt.Sprintf("[GetRootHash] Getting Root Hash for (%s)[%x] ", tblKey, tblKey))
-	return self.ens.GetRootHash(u, tblKey)
+	return self.ens.GetRootHash(tblKey)
 }
 
 func (self *SwarmDB) StoreRootHash(u *SWARMDBUser, fullTableName []byte /* GetTableKey Value */, roothash []byte) (err error) {
-	return self.ens.StoreRootHash(u, fullTableName, roothash)
+	return self.ens.StoreRootHash(fullTableName, roothash)
 }
 
 // parse sql and return rows in bulk (order by, group by, etc.)
@@ -878,7 +878,7 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 	copy(newDBName[0:], database)
 
 	// look up what databases the owner has already
-	ownerDatabaseChunkID, err := self.ens.GetRootHash(u, ownerHash)
+	ownerDatabaseChunkID, err := self.ens.GetRootHash(ownerHash)
 	if err != nil {
 		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateDatabase] GetRootHash %s", err))
 	}
@@ -951,7 +951,7 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 func (self *SwarmDB) ListDatabases(u *SWARMDBUser, owner string) (ret []Row, err error) {
 	ownerHash := crypto.Keccak256([]byte(owner))
 	// look up what databases the owner has
-	ownerDatabaseChunkID, err := self.ens.GetRootHash(u, ownerHash)
+	ownerDatabaseChunkID, err := self.ens.GetRootHash(ownerHash)
 	if err != nil {
 		return ret, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:ListDatabases] GetRootHash %s", err))
 	}
@@ -999,7 +999,7 @@ func (self *SwarmDB) DropDatabase(u *SWARMDBUser, owner string, database string)
 	copy(dropDBName[0:], database)
 
 	// look up what databases the owner has already
-	ownerDatabaseChunkID, err := self.ens.GetRootHash(u, ownerHash)
+	ownerDatabaseChunkID, err := self.ens.GetRootHash(ownerHash)
 	if err != nil {
 		return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] GetRootHash %s", err)}
 	}
@@ -1052,7 +1052,7 @@ func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, ta
 	copy(dropTableName[0:], tableName)
 
 	// look up what databases the owner has already
-	ownerDatabaseChunkID, err := self.ens.GetRootHash(u, ownerHash)
+	ownerDatabaseChunkID, err := self.ens.GetRootHash(ownerHash)
 	if err != nil {
 		return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] GetRootHash %s", err)}
 	}
@@ -1129,7 +1129,7 @@ func (self *SwarmDB) ListTables(u *SWARMDBUser, owner string, database string) (
 	copy(dbName[0:], database)
 
 	// look up what databases the owner has already
-	ownerDatabaseChunkID, err := self.ens.GetRootHash(u, ownerHash)
+	ownerDatabaseChunkID, err := self.ens.GetRootHash(ownerHash)
 	if err != nil {
 		return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] GetRootHash %s", err)}
 	}
@@ -1223,7 +1223,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 	copy(databaseName[0:], database)
 
 	// look up what databases the owner has already
-	ownerDatabaseChunkID, err := self.ens.GetRootHash(u, ownerHash)
+	ownerDatabaseChunkID, err := self.ens.GetRootHash(ownerHash)
 	if err != nil {
 		return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetDatabase] GetRootHash %s", err))
 	}

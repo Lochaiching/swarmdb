@@ -17,18 +17,18 @@ package swarmdb
 
 import (
 	// "database/sql"
-	"encoding/json"
 	"fmt"
     	"io/ioutil"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
-	"path/filepath"
 	"strings"
-	// "encoding/hex"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	elog "github.com/ethereum/go-ethereum/log"
+	"path/filepath"
+	"encoding/json"
+
 )
 
 type ENSSimple struct {
@@ -40,8 +40,11 @@ type ENSSimpleConfig struct{
 	Ipaddress	string	`json:"ipaddress,omitempty"`
 }
 
-func NewENSSimple(path string) (ens ENSSimple, err error) {
+func NewENSSimple(path string, config *SWARMDBConfig) (ens ENSSimple, err error) {
 // TODO: using temporary config file
+	elog.Debug(fmt.Sprintf("SimpleENS config %v", config))
+	//ipaddress := config.EnsIP
+//////debug
 	confdir, err := ioutil.ReadDir("/var/www/vhosts/data/swarmdb")
 	var ipaddress string
 	ipaddress = "/var/www/vhosts/data/geth.ipc"
@@ -58,7 +61,16 @@ func NewENSSimple(path string) (ens ENSSimple, err error) {
 		err = json.Unmarshal(dat, &conf)
 		ipaddress = conf.Ipaddress
 	}
-	elog.Debug(fmt.Sprintf("SimpleENS ipaddress = %s", ipaddress))
+	elog.Debug(fmt.Sprintf("SimpleENS ipaddress = %s", ipaddress))	
+
+
+
+
+
+
+
+
+
 	
 	// Create an IPC based RPC connection to a remote node
 	conn, err := ethclient.Dial(ipaddress)
@@ -68,6 +80,8 @@ func NewENSSimple(path string) (ens ENSSimple, err error) {
 	}
 
 // TODO: need to get the dir (or filename) from config
+//	k, err := ioutil.ReadFile(config.EnsKeyPath)
+//debug
     	files, err := ioutil.ReadDir("/var/www/vhosts/data/keystore")
 	var filename string
         for _, file := range files {
