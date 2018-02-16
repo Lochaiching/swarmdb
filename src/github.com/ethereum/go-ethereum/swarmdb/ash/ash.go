@@ -273,11 +273,13 @@ func ComputeAsh(request AshRequest, rawchunk []byte) (response AshResponse, err 
 
 //Verify AshResponse
 func VerifyAsh(response AshResponse, expectedMash []byte) (isValid bool, givenRoot []byte, err error) {
-/*
 	if response.Proof != nil {
 		merkleproof := response.Proof
 		ok, merkleroot, err := CheckProof(merkleproof.Root, merkleproof.Path, merkleproof.Index)
-		if !ok || (merkleroot != response.root) {
+        if err != nil {
+            return false, givenRoot, err
+        }
+		if !ok || bytes.Compare(response.root, merkleroot) != 0 {
 			return false, merkleroot, nil
 		}
 	}
@@ -285,6 +287,5 @@ func VerifyAsh(response AshResponse, expectedMash []byte) (isValid bool, givenRo
 	if bytes.Compare(mash, expectedMash) != 0 {
 		return false, response.root, nil
 	}
-*/
 	return true, response.root, nil
 }
