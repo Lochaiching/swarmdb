@@ -1,5 +1,0 @@
-
-{"id":"0xd80a4004350027f618107fe3240937d54e46c21b","remote":"0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","b":1234,"receipt":"r1"}
-{"id":"0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","remote":"0xd80a4004350027f618107fe3240937d54e46c21b","b":-1234,"receipt":"r2"}
-{"id":"0xd80a4004350027f618107fe3240937d54e46c21b","remote":"0xaeec6f5aca72f3a005af1b3420ab8c8c7009bac8","b":56,"receipt":"r3"}
-{"id":"0xaeec6f5aca72f3a005af1b3420ab8c8c7009bac8","remote":"0xd80a4004350027f618107fe3240937d54e46c21b","b":-56,"receipt":"r4"}

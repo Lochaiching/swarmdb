@@ -315,7 +315,7 @@ func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 func parseOwnerDB(v string) (owner string, db string, err error) {
 	vParts := strings.Split(v, ".")
 	if len(vParts) < 3 {
-		return db, owner, &swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Owner portion of request invalid"}
+		//return db, owner, &swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Owner portion of request invalid"}
 		//TODO: robust error!
 	}
 	owner = fmt.Sprintf("%s.%s", vParts[len(vParts)-2], vParts[len(vParts)-1])
@@ -567,7 +567,7 @@ func main() {
 	flag.Parse()
 
 	if *version {
-		log.Debug(fmt.Sprintf("Working on version %s of SWARMDB Sever\n", swarmdb.SWARMDBVersion))
+		log.Debug(fmt.Sprintf("Working on version %s of SWARMDB Server\n", swarmdb.SWARMDBVersion))
 		fmt.Printf("Working on version %s of SWARMDB Sever\n", swarmdb.SWARMDBVersion)
 		os.Exit(0)
 	}
