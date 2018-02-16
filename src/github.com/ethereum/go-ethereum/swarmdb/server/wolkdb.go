@@ -168,6 +168,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 		tcpJson := buildErrorResp(&swErr)
 		writer.WriteString(tcpJson)
 		writer.Flush()
+		return
 	}
 
 	log.Debug(fmt.Sprintf("[wolkdb:handleTcpipRequest] Valid Response from [%s] [%s]", resp.ClientName, resp.ClientVersion))

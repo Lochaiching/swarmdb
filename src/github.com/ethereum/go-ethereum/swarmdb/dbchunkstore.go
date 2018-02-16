@@ -23,11 +23,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
-	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	_ "github.com/mattn/go-sqlite3"
 	"io/ioutil"
 	"math/big"
+	"math/rand"
 	"os"
 	"swarmdb/ash"
 	"time"
@@ -59,7 +59,7 @@ type NetstatFile struct {
 type DBChunkstore struct {
 	db       *sql.DB
 	km       *KeyManager
-	farmer   ethcommon.Address
+	farmer   common.Address
 	netstat  *NetstatFile
 	filepath string
 	statpath string
@@ -896,50 +896,49 @@ func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 	}
 }
 
-func (self *DBChunkstore) RetrieveAsh(key []byte, secret []byte, proofRequired bool, auditIndex int8) (res AshResponse, err error) {
-	request := AchRequest{ChunkID: key, Seed: secret}
-	challenge := AshChallenge{ProofRequired: proofRequired, Index: auditIndex}
-	chunkval := make([]byte, 8192)
+func (self *DBChunkstore) RetrieveRawChunk(key []byte) (chunkval []byte, err error) {
+	rawchunk := make([]byte, 8192)
 	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
-		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] Prepare %s | %s", sql, err.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
+		return chunkval, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveRawChunk] Prepare %s | %s", sql, err.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
 	}
 	defer stmt.Close()
 
-	rows, err := stmt.Query(request.ChunkID)
+	rows, err := stmt.Query(key)
 	if err != nil {
-		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] Query %s | %s", sql, err.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
+		return chunkval, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveRawChunk] Query %s | %s", sql, err.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		err2 := rows.Scan(&chunkval)
+		err2 := rows.Scan(&rawchunk)
 		if err2 != nil {
-			return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] %s", err2.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
+			return chunkval, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveRawChunk] %s", err2.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
 		}
 	}
 	rows.Close()
+	return rawchunk, nil
+}
 
-	segments := ash.PrepareSegment(chunkval, request.Seed)
-	tree, err := ash.NewTree(segments)
-	if err != nil {
-		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] %s", err.Error()), ErrorCode: 470, ErrorMessage: "ASH Retrieval Error"}
-	}
-
-	if !challenge.ProofRequired {
-		res.mash = tree.Roothash
-		res.Mask = fmt.Sprintf("%x", res.mash)
-		return res, nil
+func (self *DBChunkstore) RetrieveAsh(key []byte, secret []byte, proofRequired bool, auditIndex int8) (res ash.AshResponse, err error) {
+	debug := true
+	request := ash.AshRequest{ChunkID: key, Seed: secret}
+	request.Challenge = &ash.AshChallenge{ProofRequired: proofRequired, Index: auditIndex}
+	chunkval := make([]byte, 8192)
+	if debug {
+		simulatedChunk := make([]byte, 4096)
+		rand.Read(simulatedChunk)
+		chunkval = simulatedChunk
 	} else {
-		ok, merkleroot, mkproof, jth := tree.GetProof(segments[challenge.Index].B)
-		if !ok {
-			return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GetProof]"), ErrorCode: 471, ErrorMessage: "ASH Proof Error"}
-		}
-		proof := MerkleProof{Root: merkleroot, Path: mkproof, Index: jth}
-		res.mash = tree.Roothash
-		res.Mask = fmt.Sprintf("%x", res.mash)
-		res.Proof = &proof
-		return res, nil
+		chunkval, err = self.RetrieveRawChunk(request.ChunkID)
 	}
+	if err != nil {
+		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] %s", err.Error()), ErrorCode: 470, ErrorMessage: "RawChunk Retrieval Error"}
+	}
+	res, err = ash.ComputeAsh(request, chunkval)
+	if err != nil {
+		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] %s", err.Error()), ErrorCode: 471, ErrorMessage: "RetrieveAsh Error"}
+	}
+	return res, nil
 }

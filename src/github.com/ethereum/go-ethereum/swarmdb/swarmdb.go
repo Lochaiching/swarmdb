@@ -16,6 +16,8 @@
 package swarmdb
 
 import (
+	"swarmdb/ash"
+	//"github.com/ethereum/go-ethereum/swarmdb/ash"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -284,12 +286,13 @@ func (self *SwarmDB) GenerateFarmerLog(startts int64, endts int64) (err error) {
 	return err
 }
 
-func (self *SwarmDB) GenerateAshResponse(chunkId []byte, seed []byte, proofRequired bool, index int8) (ashResponse AshResponse, err error) {
-	ashResponse, err = self.dbchunkstore.RetrieveAsh(chunkId, seed, proofRequired, index)
+
+func (self *SwarmDB) GenerateAshResponse(chunkId []byte, seed []byte, proofRequired bool, index int8) (resp ash.AshResponse, err error) {
+	resp, err = self.dbchunkstore.RetrieveAsh(chunkId, seed, proofRequired, index)
 	if err != nil {
-		return ashResponse, GenerateSWARMDBError(err, "Unable to Retrieve Ash")
+		return resp, GenerateSWARMDBError(err, "Unable to Retrieve Ash")
 	}
-	return ashResponse, err
+	return resp, err
 }
 
 func (self *SwarmDB) RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
