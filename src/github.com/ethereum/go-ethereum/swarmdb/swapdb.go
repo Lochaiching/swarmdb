@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	_ "github.com/mattn/go-sqlite3"
+	"path/filepath"
 	// "io/ioutil"
 	// "math/big"
 	// "os"
@@ -53,8 +54,11 @@ type SwapDB struct {
 
 // path = "swap.db"
 func NewSwapDB(path string) (self *SwapDB, err error) {
+	swapdbFileName := "swap.db"
+	//TODO: store this in constants?
+	swapdbFullPath := filepath.Join(path, swapdbFileName)
 	// ts := time.Now()
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open("sqlite3", swapdbFullPath)
 	if err != nil || db == nil {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDB] Open %s", err.Error())}
 	}
@@ -142,4 +146,3 @@ func (self *SwapDB) Issue(km *KeyManager, u *SWARMDBUser, beneficiary common.Add
 		return ch, nil
 	}
 }
-

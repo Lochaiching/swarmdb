@@ -340,7 +340,6 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 		return nil, GenerateSWARMDBError(errKM, fmt.Sprintf("[dbchunkstore:NewDBChunkStore] NewKeyManager %s", errKM.Error()))
 	}
 
-
 	userWallet := config.Address
 	nodeid := config.GetNodeID()
 	walletAddr := common.HexToAddress(userWallet)
@@ -369,7 +368,6 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 func (self *DBChunkstore) GetKeyManager() (km *KeyManager) {
 	return self.km
 }
-
 
 func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 	var data []byte
@@ -748,12 +746,11 @@ func (self *DBChunkstore) ScanAll() (err error) {
 	return nil
 }
 
-
 // TODO:  Add dispatch mechanisms where:
 //  /swaplog/startts/endts   => calls dbchunkstore.GenerateSwapLog(startts, endts)
 //  /buyerlog/startts/endts  => calls dbchunkstore.GenerateBuyerLog(startts, endts)
 //  /farmerlog/startts/endts => calls dbchunkstore.GenerateFarmerLog(startts, endts)
-//  /ashrequest/chunkID/seed/index/proofRequired => calls dbchunkstore.GenerateAshResponse(chunkID, seed, index, proofRequired)
+//  /ashrequest/chunkID/seed/index/proofRequired => calls dbchunkstore.RetrieveAsh(chunkID, seed, proofRequired, index)
 func (self *SwapDB) GenerateSwapLog(startTS int64, endTS int64) (err error) {
 	sql_readall := fmt.Sprintf("SELECT swapID, sender, beneficiary, amount, sig FROM swap where checkBirthDT >= %s and checkBirthDT < %s", time.Unix(startTS, 0).Format(time.RFC3339), time.Unix(endTS, 0).Format(time.RFC3339))
 	rows, err := self.db.Query(sql_readall)

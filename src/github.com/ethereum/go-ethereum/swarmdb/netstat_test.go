@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"math/rand"
 	"swarmdb"
+	"swarmdb/ash"
 	"testing"
     "swarmdb/ash"
 )
@@ -192,15 +193,14 @@ func TestLoadDBChunkStore(t *testing.T) {
 			if err != nil {
 				t.Fatal("[FAILURE] Generating record [%x] %s\n", simh, err.Error())
 			} else if j%50 == 0 {
-
-                if proofRequired {
-                    ok, mr, err := ash.CheckProof(response.Proof.Root, response.Proof.Path, response.Proof.Index)
-                    if  err == nil {
-                        fmt.Printf("Proof Verified: %t | Root: %x\n", ok, mr)
-                    }else{
-                        t.Fatal(err.Error())
-                    }
-                }
+				if proofRequired {
+					ok, mr, err := ash.CheckProof(response.Proof.Root, response.Proof.Path, response.Proof.Index)
+					if err == nil {
+						fmt.Printf("Proof Verified: %t | Root: %x\n", ok, mr)
+					} else {
+						t.Fatal(err.Error())
+					}
+				}
 				output, _ := json.Marshal(response)
 				fmt.Printf("ProofRequired: %T | Index: %d | Seed: [%x]\n", proofRequired, auditIndex, secret)
 				fmt.Printf("Generating record [%x]\n %v\n\n", simh, string(output))

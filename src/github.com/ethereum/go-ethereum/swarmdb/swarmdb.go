@@ -96,6 +96,7 @@ type SwarmDB struct {
 	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
+	swapdb       *SwapDB
 }
 
 //for sql parsing
@@ -233,6 +234,14 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 		sd.dbchunkstore = dbchunkstore
 	}
 
+	swapDBFileName := "swap.db"
+	swapDBFullPath := filepath.Join(chunkDBPath, swapDBFileName)
+	swapdbObj, errSwapDB := NewSwapDB(swapDBFullPath)
+	if errSwapDB != nil {
+		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewSwapDB `+err.Error())
+	}
+	sd.swapdb = swapdbObj
+
 	//default /tmp/ens.db
 	ensdbFileName := "ens.db"
 	ensdbFullPath := filepath.Join(ensPath, ensdbFileName)
@@ -251,13 +260,47 @@ func (self *SwarmDB) PrintDBChunk(columnType ColumnType, hashid []byte, c []byte
 	self.dbchunkstore.PrintDBChunk(columnType, hashid, c)
 }
 
+func (self *SwarmDB) GenerateSwapLog(startts int64, endts int64) (err error) {
+	err = self.swapdb.GenerateSwapLog(startts, endts)
+	if err != nil {
+		GenerateSWARMDBError(err, "Unable to GenerateSwapLog")
+	}
+	return err
+}
+
+func (self *SwarmDB) GenerateBuyerLog(startts int64, endts int64) (err error) {
+	err = self.dbchunkstore.GenerateBuyerLog(startts, endts)
+	if err != nil {
+		GenerateSWARMDBError(err, "Unable to GenerateBuyerLog")
+	}
+	return err
+}
+
+func (self *SwarmDB) GenerateFarmerLog(startts int64, endts int64) (err error) {
+	err = self.dbchunkstore.GenerateFarmerLog(startts, endts)
+	if err != nil {
+		GenerateSWARMDBError(err, "Unable to GenerateFarmerLog")
+	}
+	return err
+}
+
+func (self *SwarmDB) GenerateAshResponse(chunkId []byte, seed []byte, proofRequired bool, index int8) (ashResponse AshResponse, err error) {
+	ashResponse, err = self.dbchunkstore.RetrieveAsh(chunkId, seed, proofRequired, index)
+	if err != nil {
+		return ashResponse, GenerateSWARMDBError(err, "Unable to Retrieve Ash")
+	}
+	return ashResponse, err
+}
+
 func (self *SwarmDB) RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	val, err = self.dbchunkstore.RetrieveChunk(u, key)
+	//TODO: SWARMDBError
 	return val, err
 }
 
 func (self *SwarmDB) StoreDBChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
 	key, err = self.dbchunkstore.StoreChunk(u, val, encrypted)
+	//TODO: SWARMDBError
 	return key, err
 }
 
