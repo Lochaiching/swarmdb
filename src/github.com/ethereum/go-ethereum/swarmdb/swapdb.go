@@ -146,31 +146,3 @@ func (self *SwapDB) Issue(km *KeyManager, u *SWARMDBUser, beneficiary common.Add
 		return ch, nil
 	}
 }
-
-func (self *SwapDB) GenerateSwapLog(u *SWARMDBUser) (err error) {
-
-        sql_readall := `SELECT swapID, sender, beneficiary, amount, sig FROM swap`
-        rows, err := self.db.Query(sql_readall)
-        if err != nil {
-                return &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Query %s", err.Error())}
-        }
-        defer rows.Close()
-
-        var result []SwapLog
-        for rows.Next() {
-                c := SwapLog{}
-                err = rows.Scan(&c.SwapID, &c.Sender, &c.Beneficiary, &c.Amount, &c.Sig)
-                if err != nil {
-                        return &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Scan %s", err.Error())}
-                }
-
-                l, err2 := json.Marshal(c)
-                if err != nil {
-                        return &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Marshal %s", err2.Error())}
-                }
-                fmt.Printf("%s\n", l)
-                result = append(result, c)
-        }
-        rows.Close()
-        return nil
-}
