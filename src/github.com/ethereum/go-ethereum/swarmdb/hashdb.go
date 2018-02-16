@@ -60,11 +60,11 @@ type Node struct {
 }
 
 type HashdbCursor struct {
-	hashdb *HashDB
-	level  int
-	bin    *stack_t
-	node   *Node
-	atlast	bool
+	hashdb  *HashDB
+	level   int
+	bin     *stack_t
+	node    *Node
+	atlast  bool
 	atfirst bool
 }
 
@@ -723,12 +723,12 @@ func (self *HashDB) SeekLast(u *SWARMDBUser) (OrderedDatabaseCursor, error) {
 
 func newHashdbCursor(hashdb *HashDB) (*HashdbCursor, error) {
 	cursor := &HashdbCursor{
-		hashdb: hashdb,
-		level:  0,
-		bin:    newStack(),
-		node:   hashdb.rootnode,
-		atlast:	false,
-		atfirst:false,
+		hashdb:  hashdb,
+		level:   0,
+		bin:     newStack(),
+		node:    hashdb.rootnode,
+		atlast:  false,
+		atfirst: false,
 	}
 	return cursor, nil
 }
@@ -751,7 +751,7 @@ func (self *HashdbCursor) Next(u *SWARMDBUser) ([]byte, []byte, error) {
 
 	err = self.seeknext(u)
 	if err != nil {
-		if err == io.EOF{
+		if err == io.EOF {
 			self.atlast = true
 			err = nil
 		}
@@ -759,7 +759,7 @@ func (self *HashdbCursor) Next(u *SWARMDBUser) ([]byte, []byte, error) {
 	}
 	if len(bytes.Trim(convertToByte(self.node.Bin[self.bin.GetLast()].Value), "\x00")) == 0 {
 		err = self.seeknext(u)
-		if err == io.EOF{
+		if err == io.EOF {
 			self.atlast = true
 			err = nil
 		}
@@ -777,7 +777,7 @@ func (self *HashdbCursor) Prev(u *SWARMDBUser) ([]byte, []byte, error) {
 	v := convertToByte(self.node.Bin[pos].Value)
 	err := self.seekprev(u)
 	if err != nil {
-		if err == io.EOF{
+		if err == io.EOF {
 			self.atfirst = true
 			err = nil
 		}
@@ -785,7 +785,7 @@ func (self *HashdbCursor) Prev(u *SWARMDBUser) ([]byte, []byte, error) {
 	}
 	if len(bytes.Trim(convertToByte(self.node.Bin[self.bin.GetLast()].Value), "\x00")) == 0 {
 		err = self.seekprev(u)
-		if err == io.EOF{
+		if err == io.EOF {
 			self.atfirst = true
 			err = nil
 		}

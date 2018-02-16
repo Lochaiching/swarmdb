@@ -20,10 +20,10 @@ import (
 	"database/sql"
 	"github.com/ethereum/go-ethereum/crypto"
 	//"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	_ "github.com/mattn/go-sqlite3"
+	"path/filepath"
 	// "io/ioutil"
 	// "math/big"
 	// "os"
@@ -54,8 +54,11 @@ type SwapDB struct {
 
 // path = "swap.db"
 func NewSwapDB(path string) (self *SwapDB, err error) {
+	swapdbFileName := "swap.db"
+	//TODO: store this in constants?
+	swapdbFullPath := filepath.Join(path, swapdbFileName)
 	// ts := time.Now()
-	db, err := sql.Open("sqlite3", path)
+	db, err := sql.Open("sqlite3", swapdbFullPath)
 	if err != nil || db == nil {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDB] Open %s", err.Error())}
 	}
@@ -142,32 +145,4 @@ func (self *SwapDB) Issue(km *KeyManager, u *SWARMDBUser, beneficiary common.Add
 		}
 		return ch, nil
 	}
-}
-
-func (self *SwapDB) GenerateSwapLog(u *SWARMDBUser) (err error) {
-
-	sql_readall := `SELECT swapID, sender, beneficiary, amount, sig FROM swap`
-	rows, err := self.db.Query(sql_readall)
-	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Query %s", err.Error())}
-	}
-	defer rows.Close()
-
-	var result []SwapLog
-	for rows.Next() {
-		c := SwapLog{}
-		err = rows.Scan(&c.SwapID, &c.Sender, &c.Beneficiary, &c.Amount, &c.Sig)
-		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Scan %s", err.Error())}
-		}
-
-		l, err2 := json.Marshal(c)
-		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Marshal %s", err2.Error())}
-		}
-		fmt.Printf("%s\n", l)
-		result = append(result, c)
-	}
-	rows.Close()
-	return nil
 }

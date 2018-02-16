@@ -16,9 +16,11 @@
 package swarmdb_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"swarmdb"
+	"swarmdb/ash"
 	"testing"
 )
 
@@ -131,7 +133,9 @@ func TestLoadDBChunkStore(t *testing.T) {
 		_ = store.Flush()
 	})
 
+    /*
 	t.Run("EFarmLog=1", func(t *testing.T) {
+        //TODO
 		err := store.GenerateFarmerLog()
 		if err != nil {
 			t.Fatal("[FAILURE] Farmer log Error\n")
@@ -140,6 +144,7 @@ func TestLoadDBChunkStore(t *testing.T) {
 		}
 		_ = store.Flush()
 	})
+    */
 
 	t.Run("EStat=1", func(t *testing.T) {
 		res, err := store.GetChunkStat()
@@ -148,16 +153,6 @@ func TestLoadDBChunkStore(t *testing.T) {
 		} else {
 			fmt.Printf("[SUCCESS] netStat optput: %s\n", res)
 		}
-	})
-
-	t.Run("EClaim=1", func(t *testing.T) {
-		err := store.ClaimAll()
-		if err != nil {
-			t.Fatal("[FAILURE] netStat Retrieval Error\n")
-		} else {
-			fmt.Printf("[SUCCESS] netStat optput\n")
-		}
-		_ = store.Flush()
 	})
 
 	t.Run("ESave", func(t *testing.T) {
@@ -175,5 +170,45 @@ func TestLoadDBChunkStore(t *testing.T) {
 	} else {
 		fmt.Printf("[SUCCESS] persist netstat to local\n")
 	}
+
+	t.Run("EASH=1", func(t *testing.T) {
+		//Simulate chunk writes w/ n chunkTotal
+		for j := 0; j < chunkTotal; j++ {
+			simdata := make([]byte, 4096)
+			tmp := fmt.Sprintf("%s%d", "randombytes", j)
+			copy(simdata, tmp)
+			enc := rand.Intn(2)
+			simh, err := store.StoreChunk(u, simdata, enc)
+			if err != nil {
+				t.Fatal("[FAILURE] writting record #%v [%x] => %v %s\n", j, simh, string(simdata[:]), err)
+			} else if j%50 == 0 {
+				fmt.Printf("Generating record [%x] => %v ... ", simh, string(simdata[:]))
+				fmt.Printf("[SUCCESS] writing #%v chunk | Encryption: %v\n", j, enc)
+			}
+
+			secret := make([]byte, 32)
+			rand.Read(secret)
+			proofRequired := rand.Intn(2) != 0
+			auditIndex := rand.Intn(128)
+
+			response, err := store.RetrieveAsh(simh, secret, proofRequired, int8(auditIndex))
+			if err != nil {
+				t.Fatal("[FAILURE] Generating record [%x] %s\n", simh, err.Error())
+			} else if j%50 == 0 {
+				if proofRequired {
+					ok, mr, err := ash.CheckProof(response.Proof.Root, response.Proof.Path, response.Proof.Index)
+					if err == nil {
+						fmt.Printf("Proof Verified: %t | Root: %x\n", ok, mr)
+					} else {
+						t.Fatal(err.Error())
+					}
+				}
+				output, _ := json.Marshal(response)
+				fmt.Printf("ProofRequired: %T | Index: %d | Seed: [%x]\n", proofRequired, auditIndex, secret)
+				fmt.Printf("Generating record [%x]\n %v\n\n", simh, string(output))
+			}
+		}
+		_ = store.Flush()
+	})
 
 }

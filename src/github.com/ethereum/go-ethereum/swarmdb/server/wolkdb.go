@@ -168,6 +168,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 		tcpJson := buildErrorResp(&swErr)
 		writer.WriteString(tcpJson)
 		writer.Flush()
+		return
 	}
 
 	log.Debug(fmt.Sprintf("[wolkdb:handleTcpipRequest] Valid Response from [%s] [%s]", resp.ClientName, resp.ClientVersion))
@@ -315,7 +316,7 @@ func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 func parseOwnerDB(v string) (owner string, db string, err error) {
 	vParts := strings.Split(v, ".")
 	if len(vParts) < 3 {
-		return db, owner, &swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Owner portion of request invalid"}
+		//return db, owner, &swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Owner portion of request invalid"}
 		//TODO: robust error!
 	}
 	owner = fmt.Sprintf("%s.%s", vParts[len(vParts)-2], vParts[len(vParts)-1])
@@ -386,14 +387,66 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprint(w, retJson)
 	}
 	reqJson := bodyContent
-	//fmt.Println("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
+
+	//  /swaplog/startts/endts   => calls dbchunkstore.GenerateSwapLog(startts, endts)
+	//  /buyerlog/startts/endts  => calls dbchunkstore.GenerateBuyerLog(startts, endts)
+	//  /farmerlog/startts/endts => calls dbchunkstore.GenerateFarmerLog(startts, endts)
+	//  /ashrequest/chunkID/seed/index/proofRequired => calls dbchunkstore.RetrieveAsh(chunkID, seed, index, proofRequired)
+
+	pathParts := strings.Split(r.URL.Path, "/")
+	switch pathParts[1] {
+	case "swaplog":
+		startts, err := strconv.Atoi(pathParts[2])
+		if err != nil {
+			//TODO: Error Handling
+		}
+		endts, err := strconv.Atoi(pathParts[3])
+		if err != nil {
+			//TODO: Error Handling
+		}
+		s.swarmdb.GenerateSwapLog(int64(startts), int64(endts))
+		return
+	case "buyerlog":
+		startts, err := strconv.Atoi(pathParts[2])
+		if err != nil {
+			//TODO: Error Handling
+		}
+		endts, err := strconv.Atoi(pathParts[3])
+		if err != nil {
+			//TODO: Error Handling
+		}
+		s.swarmdb.GenerateBuyerLog(int64(startts), int64(endts))
+		return
+	case "farmerlog":
+		startts, err := strconv.Atoi(pathParts[2])
+		if err != nil {
+			//TODO: Error Handling
+		}
+		endts, err := strconv.Atoi(pathParts[3])
+		if err != nil {
+			//TODO: Error Handling
+		}
+		s.swarmdb.GenerateFarmerLog(int64(startts), int64(endts))
+		return
+	case "ashrequest":
+		auditIndex, err := strconv.Atoi(pathParts[5])
+		if err != nil {
+			//TODO: Error Handling
+		}
+		proofRequired := false
+		if pathParts[4] == "true" || pathParts[4] == "1" {
+			proofRequired = true
+		}
+		s.swarmdb.GenerateAshResponse([]byte(pathParts[2]), []byte(pathParts[3]), proofRequired, int8(auditIndex))
+		return
+	default:
+	}
 	swReq, err := parsePath(r.URL.Path)
-	log.Debug(fmt.Sprintf("swReq [%+v]", swReq))
-	//TODO: parsePath Error
 	if err != nil {
 		retJson := buildErrorResp(err)
 		fmt.Fprint(w, retJson)
 	}
+	log.Debug(fmt.Sprintf("swReq [%+v]", swReq))
 
 	if len(encAuthString) == 0 {
 		//TODO: remove "backdoor"
@@ -567,7 +620,7 @@ func main() {
 	flag.Parse()
 
 	if *version {
-		log.Debug(fmt.Sprintf("Working on version %s of SWARMDB Sever\n", swarmdb.SWARMDBVersion))
+		log.Debug(fmt.Sprintf("Working on version %s of SWARMDB Server\n", swarmdb.SWARMDBVersion))
 		fmt.Printf("Working on version %s of SWARMDB Sever\n", swarmdb.SWARMDBVersion)
 		os.Exit(0)
 	}
@@ -588,13 +641,14 @@ func main() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*logLevelFlag), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
 	log.Debug(fmt.Sprintf("Starting SWARMDB (Version: %s) using [%s] and loglevel [%d]", swarmdb.SWARMDBVersion, *configFileLocation, *logLevelFlag))
 
-	swdb, err := swarmdb.NewSwarmDB(config.ChunkDBPath, config.ChunkDBPath)
+	swarmdbObj, err := swarmdb.NewSwarmDB(config.ChunkDBPath, config.ChunkDBPath)
+
 	if err != nil {
 		panic(fmt.Sprintf("Cannot start: %s", err.Error()))
 	}
 	log.Debug("Trying to start HttpServer")
-	go StartHttpServer(swdb, &config)
+	go StartHttpServer(swarmdbObj, &config)
 
 	log.Debug("Trying to start TCPIP server...\n")
-	StartTcpipServer(swdb, &config)
+	StartTcpipServer(swarmdbObj, &config)
 }
