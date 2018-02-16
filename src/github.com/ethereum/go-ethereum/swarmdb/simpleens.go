@@ -17,12 +17,14 @@ package swarmdb
 
 import (
 	// "database/sql"
+
 	"encoding/json"
 	"fmt"
     	"io/ioutil"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
 	"path/filepath"
+
 	"strings"
 	// "encoding/hex"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -35,6 +37,7 @@ type ENSSimple struct {
 	auth *bind.TransactOpts
 	sens *Simplestens
 }
+
 
 type ENSSimpleConfig struct{
 	Ipaddress	string	`json:"ipaddress,omitempty"`
@@ -63,9 +66,11 @@ func NewENSSimple(path string) (ens ENSSimple, err error) {
 	// Create an IPC based RPC connection to a remote node
 	conn, err := ethclient.Dial(ipaddress)
 
+
 	if err != nil {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
 	}
+
 
 // TODO: need to get the dir (or filename) from config
     	files, err := ioutil.ReadDir("/var/www/vhosts/data/keystore")
@@ -80,6 +85,7 @@ func NewENSSimple(path string) (ens ENSSimple, err error) {
 	key := fmt.Sprintf("%s", k)
 	
 	auth, err := bind.NewTransactor(strings.NewReader(string(key)), "mdotm")
+
 	if err != nil {
 		log.Fatalf("Failed to create authorized transactor: %v", err)
 	} else {
@@ -87,7 +93,9 @@ func NewENSSimple(path string) (ens ENSSimple, err error) {
 	}
 
 	// Instantiate the contract and display its name
+
 	sens, err := NewSimplestens(common.HexToAddress("0x7e29ab7c40aaf6ca52270643b57c46c7766ca31d"), conn)
+
 	if err != nil {
 		elog.Debug(fmt.Sprintf("NewSimplestens failed %v", err))
 		log.Fatalf("Failed to instantiate a Simplestens contract: %v", err)

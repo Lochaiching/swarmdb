@@ -400,7 +400,7 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
 		//return decVal, nil
 	}
 // TODO : the data what I have is latest or not?
-        if val == nil{
+//        if val == nil{
 /////////////
 //              chunk, err := self.cloud.RetrieveDB(key)
         	var chunk *storage.Chunk
@@ -409,7 +409,7 @@ func (self *DBChunkstore) RetrieveKChunk(key []byte) (val []byte, err error) {
                 if chunk.SData != nil{
                         val = chunk.SData
                 }
-        }
+//        }
 	return val, nil
 }
 
@@ -511,7 +511,7 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 		//return decVal, nil
 	}
 // TODO : the data what I have is latest or not?
-	if val == nil{
+//	if val == nil{
 /////////////
 //        	chunk, err := self.cloud.RetrieveDB(key)
 		var chunk *storage.Chunk
@@ -520,7 +520,7 @@ func (self *DBChunkstore) RetrieveChunk(key []byte) (val []byte, err error) {
 		if chunk.SData != nil{
 			val = chunk.SData
 		}
-	}
+//	}
 	return val, err
 }
 

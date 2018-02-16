@@ -340,19 +340,21 @@ func (self *bzz) handle() error {
                 self.hive.peers(&req)
         case sDBPaymentMsg:
         	log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol :got sDBPaymentMsg %v", msg))
-/*
-SwarmDBSwap: receiving payment request from a peer
+ 
+//SwarmDBSwap: receiving payment request from a peer
 
 		// TODO: swapdb 
-		if swarmdb.swapEnable {
+		//if swarmdb.swapEnabled {
+		if self.swapEnabled {	
 			var req sDBPaymentMsgData
 			if err := msg.Decode(&req); err != nil {
 				return fmt.Errorf("<- %v: %v", msg, err)
 			}
 			log.Debug(fmt.Sprintf("<- payment: %s", req.String()))
-			self.swapdb.Receive()		
+			log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.sDBPaymentMsg Units: %v  Promise %v", req.Units, req.Promise))
+			self.swapDB.Receive(int(req.Units), req.Promise)
 		}
-*/
+ 
 
 	default:
 		// no other message is allowed
@@ -410,18 +412,18 @@ func (self *bzz) handleStatus() (err error) {
 	self.remoteAddr = self.peerAddr(status.Addr)
 	log.Trace(fmt.Sprintf("self: advertised IP: %v, peer advertised: %v, local address: %v\npeer: advertised IP: %v, remote address: %v\n", self.selfAddr(), self.remoteAddr, self.peer.LocalAddr(), status.Addr.IP, self.peer.RemoteAddr()))
 
-	if self.swapEnabled {
+	if self.swapEnabled {                                          // remote peer PayAt       // local Address                        // remote peer Address
+		self.swapDB, err = swarmdb.NewSwapDB("/tmp/swap.db", self, status.Swap.Profile.PayAt, self.swapParams.PayProfile.Beneficiary, status.Swap.PayProfile.Beneficiary)
+		if err != nil {
+			log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.handleStatus swarmdb.NewSwapDB err: %v ", err))
+			return err
+		}
+		
 		// set remote profile for accounting
 		self.swap, err = bzzswap.NewSwap(self.swapParams, status.Swap, self.backend, self)
 		if err != nil {
 			return err
 		}
-		self.swapDB, err = swarmdb.NewSwapDB("/tmp/swap.db", self)
-		if err != nil {
-			log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.handleStatus swarmdb.NewSwapDB err: %v ", err))
-			return err
-		}
-		log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.handleStatus swarmdb.NewSwapDB OK"))
 	}
 
 	log.Info(fmt.Sprintf("Peer %08x is capable (%d/%d)", self.remoteAddr.Addr[:4], status.Version, status.NetworkId))

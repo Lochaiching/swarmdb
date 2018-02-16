@@ -17,10 +17,10 @@
 package network
 
 import (
+  "encoding/json"
 	"fmt"
 	"math/rand"
 	"time"
-
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 )
@@ -105,13 +105,16 @@ OUT:
                         Key: chunk.Key,
                         Id:  generateId(),
                 }
-                var err error
-/*
-SWARMDB payment
-                if p.swapdb != nil {
-                        err = p.swapdb.Add(-1)
-                }
-*/
+
+			//SWARMDB payment
+			var err error
+			if p.swapDB != nil {
+				err = p.swapDB.Add(-1)
+			}
+			if err != nil {
+				log.Warn(fmt.Sprintf("forwarder.RetrieveDB: - cannot process request p.swapDB.Add(-1): %v", err))
+			}
+
                 if err == nil {
                         p.sDBRetrieve(req)
                         break OUT
