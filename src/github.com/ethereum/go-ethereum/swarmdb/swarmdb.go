@@ -236,23 +236,22 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 		sd.dbchunkstore = dbchunkstore
 	}
 
-	swapDBFileName := "swap.db"
-	swapDBFullPath := filepath.Join(chunkDBPath, swapDBFileName)
-	swapdbObj, errSwapDB := NewSwapDB(swapDBFullPath)
-	if errSwapDB != nil {
-		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewSwapDB `+err.Error())
-	}
-	sd.swapdb = swapdbObj
-
 	//default /tmp/ens.db
 	ensdbFileName := "ens.db"
 	ensdbFullPath := filepath.Join(ensPath, ensdbFileName)
 	ens, errENS := NewENSSimulation(ensdbFullPath)
 	if errENS != nil {
 		return swdb, GenerateSWARMDBError(errENS, `[swarmdb:NewSwarmDB] NewENSSimulation `+errENS.Error())
-	} else {
-		sd.ens = ens
 	}
+	sd.ens = ens
+
+	swapDBFileName := "swap.db"
+	swapDBFullPath := filepath.Join(chunkDBPath, swapDBFileName)
+	swapdbObj, errSwapDB := NewSwapDB(swapDBFullPath)
+	if errSwapDB != nil {
+		return swdb, GenerateSWARMDBError(errSwapDB, `[swarmdb:NewSwarmDB] NewSwapDB ` + swapDBFullPath + `|`+errSwapDB.Error())
+	}
+	sd.swapdb = swapdbObj
 
 	return sd, nil
 }
