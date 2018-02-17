@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	_ "github.com/mattn/go-sqlite3"
-	"path/filepath"
+	"github.com/ethereum/go-ethereum/log"
 	// "io/ioutil"
 	// "math/big"
 	// "os"
@@ -54,16 +54,13 @@ type SwapDB struct {
 
 // path = "swap.db"
 func NewSwapDB(path string) (self *SwapDB, err error) {
-	swapdbFileName := "swap.db"
-	//TODO: store this in constants?
-	swapdbFullPath := filepath.Join(path, swapdbFileName)
-	// ts := time.Now()
-	db, err := sql.Open("sqlite3", swapdbFullPath)
+	log.Debug("[swapdb|NewSwapDB] Creating New swapdb")
+	db, err := sql.Open("sqlite3", path)
 	if err != nil || db == nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDB] Open %s", err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDB] Open %s", err.Error()), ErrorCode: -1, ErrorMessage:""}
 	}
 
-	//Local Chunk table
+	//Local Swap table
 	sql_table := `
     CREATE TABLE IF NOT EXISTS swap (
     swapID TEXT NOT NULL PRIMARY KEY,
