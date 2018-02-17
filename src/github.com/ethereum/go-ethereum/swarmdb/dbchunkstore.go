@@ -264,6 +264,7 @@ func (self *DBChunkstore) Flush() (err error) {
 }
 
 func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
+	log.Debug("[dbchunkstore|NewDBChunkStore] Creating New dbchunkstore")
 	ts := time.Now()
 	claim := make(map[string]*big.Int)
 	chunkstat := map[string]*big.Int{"ChunkR": big.NewInt(0), "ChunkW": big.NewInt(0), "ChunkS": big.NewInt(0), "ChunkRL": big.NewInt(0), "ChunkWL": big.NewInt(0), "ChunkSL": big.NewInt(0)}
@@ -300,7 +301,6 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
     scnt INTEGER DEFAULT 0
     );
     `
-
 	//Local Chunk table
 	swap_table := `
     CREATE TABLE IF NOT EXISTS swap (
@@ -314,7 +314,7 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
     `
 	_, err = db.Exec(sql_table)
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDB] Exec - SQLite Chunk Table Creation %s", err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:NewDBChunkstore] Exec - SQLite Chunk Table Creation %s", err.Error()), ErrorCode: 464, ErrorMessage: "Unable to Create New Chunk DB"}
 	}
 
 	_, err = db.Exec(sql_table)
