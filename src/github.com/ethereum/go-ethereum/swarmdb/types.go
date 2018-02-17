@@ -31,7 +31,7 @@ const (
 	VERSION_MAJOR = 0
 	VERSION_MINOR = 1
 	VERSION_PATCH = 1
-	VERSION_META = "poc"
+	VERSION_META  = "poc"
 )
 
 var SWARMDBVersion = func() string {

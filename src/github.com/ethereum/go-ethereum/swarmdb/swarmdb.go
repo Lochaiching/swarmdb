@@ -249,7 +249,7 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 	swapDBFullPath := filepath.Join(chunkDBPath, swapDBFileName)
 	swapdbObj, errSwapDB := NewSwapDB(swapDBFullPath)
 	if errSwapDB != nil {
-		return swdb, GenerateSWARMDBError(errSwapDB, `[swarmdb:NewSwarmDB] NewSwapDB ` + swapDBFullPath + `|`+errSwapDB.Error())
+		return swdb, GenerateSWARMDBError(errSwapDB, `[swarmdb:NewSwarmDB] NewSwapDB `+swapDBFullPath+`|`+errSwapDB.Error())
 	}
 	sd.swapdb = swapdbObj
 
@@ -284,7 +284,6 @@ func (self *SwarmDB) GenerateFarmerLog(startts int64, endts int64) (err error) {
 	}
 	return err
 }
-
 
 func (self *SwarmDB) GenerateAshResponse(chunkId []byte, seed []byte, proofRequired bool, index int8) (resp ash.AshResponse, err error) {
 	resp, err = self.dbchunkstore.RetrieveAsh(chunkId, seed, proofRequired, index)
