@@ -391,7 +391,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//  /swaplog/startts/endts   => calls dbchunkstore.GenerateSwapLog(startts, endts)
 	//  /buyerlog/startts/endts  => calls dbchunkstore.GenerateBuyerLog(startts, endts)
 	//  /farmerlog/startts/endts => calls dbchunkstore.GenerateFarmerLog(startts, endts)
-	//  /ashrequest/chunkID/seed/index/proofRequired => calls dbchunkstore.RetrieveAsh(chunkID, seed, index, proofRequired)
+	//  /ashrequest/chunkID/seed/index/proofRequired => calls dbchunkstore.RetrieveAsh(chunkID, seed, proofRequired, index)
 
 	pathParts := strings.Split(r.URL.Path, "/")
 	switch pathParts[1] {
@@ -429,15 +429,22 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.swarmdb.GenerateFarmerLog(int64(startts), int64(endts))
 		return
 	case "ashrequest":
-		auditIndex, err := strconv.Atoi(pathParts[5])
+
+        chunkkID,_ := hex.DecodeString(pathParts[2])
+        seed,_ := hex.DecodeString(pathParts[3])
+		auditIndex, err := strconv.Atoi(pathParts[4])
 		if err != nil {
 			//TODO: Error Handling
 		}
 		proofRequired := false
-		if pathParts[4] == "true" || pathParts[4] == "1" {
-			proofRequired = true
+		if len(pathParts) > 4 {
+            if pathParts[5] == "true" || pathParts[5] == "1" {
+			    proofRequired = true
+            }
 		}
-		s.swarmdb.GenerateAshResponse([]byte(pathParts[2]), []byte(pathParts[3]), proofRequired, int8(auditIndex))
+
+        fmt.Printf("ChunkID:%x | seed:%x | ProofRequired:%t | Index: %d\n",chunkkID, seed, proofRequired, int8(auditIndex))
+		s.swarmdb.GenerateAshResponse(chunkkID, seed, proofRequired, int8(auditIndex))
 		return
 	default:
 	}

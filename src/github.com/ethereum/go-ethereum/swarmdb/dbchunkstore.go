@@ -922,7 +922,7 @@ func (self *DBChunkstore) RetrieveRawChunk(key []byte) (chunkval []byte, err err
 }
 
 func (self *DBChunkstore) RetrieveAsh(key []byte, secret []byte, proofRequired bool, auditIndex int8) (res ash.AshResponse, err error) {
-	debug := true
+	debug := false
 	request := ash.AshRequest{ChunkID: key, Seed: secret}
 	request.Challenge = &ash.AshChallenge{ProofRequired: proofRequired, Index: auditIndex}
 	chunkval := make([]byte, 8192)
@@ -940,5 +940,7 @@ func (self *DBChunkstore) RetrieveAsh(key []byte, secret []byte, proofRequired b
 	if err != nil {
 		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] %s", err.Error()), ErrorCode: 471, ErrorMessage: "RetrieveAsh Error"}
 	}
+    output, _ := json.Marshal(res)
+    fmt.Printf("%s\n",string(output))
 	return res, nil
 }

@@ -203,9 +203,11 @@ func TestLoadDBChunkStore(t *testing.T) {
 						t.Fatal(err.Error())
 					}
 				}
-				output, _ := json.Marshal(response)
-				fmt.Printf("ProofRequired: %T | Index: %d | Seed: [%x]\n", proofRequired, auditIndex, secret)
-				fmt.Printf("Generating record [%x]\n %v\n\n", simh, string(output))
+                if j%50 == 0 {
+				    output, _ := json.Marshal(response)
+				    fmt.Printf("ProofRequired: %t | Index: %d | Seed: [%x]\n", proofRequired, auditIndex, secret)
+				    fmt.Printf("Generating record [%x]\n %v\n\n", simh, string(output))
+                }
 			}
 		}
 		_ = store.Flush()
