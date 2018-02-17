@@ -22,8 +22,8 @@ import (
 	//"encoding/binary"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
-	_ "github.com/mattn/go-sqlite3"
 	"github.com/ethereum/go-ethereum/log"
+	_ "github.com/mattn/go-sqlite3"
 	// "io/ioutil"
 	// "math/big"
 	// "os"
@@ -57,7 +57,7 @@ func NewSwapDB(path string) (self *SwapDB, err error) {
 	log.Debug("[swapdb|NewSwapDB] Creating New swapdb")
 	db, err := sql.Open("sqlite3", path)
 	if err != nil || db == nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDB] Open %s", err.Error()), ErrorCode: -1, ErrorMessage:""}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDB] Open %s", err.Error()), ErrorCode: -1, ErrorMessage: ""}
 	}
 
 	//Local Swap table

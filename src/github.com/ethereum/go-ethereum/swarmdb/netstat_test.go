@@ -22,7 +22,6 @@ import (
 	"swarmdb"
 	"swarmdb/ash"
 	"testing"
-    "swarmdb/ash"
 )
 
 var (
@@ -134,18 +133,18 @@ func TestLoadDBChunkStore(t *testing.T) {
 		_ = store.Flush()
 	})
 
-    /*
-	t.Run("EFarmLog=1", func(t *testing.T) {
-        //TODO
-		err := store.GenerateFarmerLog()
-		if err != nil {
-			t.Fatal("[FAILURE] Farmer log Error\n")
-		} else {
-			fmt.Printf("[SUCCESS] Farmer Operation completed\n")
-		}
-		_ = store.Flush()
-	})
-    */
+	/*
+		t.Run("EFarmLog=1", func(t *testing.T) {
+	        //TODO
+			err := store.GenerateFarmerLog()
+			if err != nil {
+				t.Fatal("[FAILURE] Farmer log Error\n")
+			} else {
+				fmt.Printf("[SUCCESS] Farmer Operation completed\n")
+			}
+			_ = store.Flush()
+		})
+	*/
 
 	t.Run("EStat=1", func(t *testing.T) {
 		res, err := store.GetChunkStat()
