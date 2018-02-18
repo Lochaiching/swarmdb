@@ -53,7 +53,7 @@ func getUser() (u *swarmdb.SWARMDBUser) {
 		panic("No config error")
 	}
 
-	swarmdb.NewKeyManager(&config)
+	swarmdb.NewKeyManager(config)
 	user := config.GetSWARMDBUser()
 	return user
 }
@@ -67,8 +67,8 @@ func TestCoreTables(t *testing.T) {
 	database2 := make_name("altdb")
 
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := TEST_ENS_DIR
-	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+
+	swdb, _ := swarmdb.NewSwarmDB(config)
 
 	// create database
 	var tReq *swarmdb.RequestOption
@@ -754,8 +754,8 @@ func TestTypeCoercion(t *testing.T) {
 	database := make_name("db")
 
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := TEST_ENS_DIR
-	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+
+	swdb, _ := swarmdb.NewSwarmDB(config)
 
 	// create database
 	var tReq *swarmdb.RequestOption
@@ -1078,8 +1078,8 @@ func TestSmallOps(t *testing.T) {
 	database := make_name("db")
 
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	ensdbPath := TEST_ENS_DIR
-	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+
+	swdb, _ := swarmdb.NewSwarmDB(config)
 
 	// create database
 	var tReq *swarmdb.RequestOption

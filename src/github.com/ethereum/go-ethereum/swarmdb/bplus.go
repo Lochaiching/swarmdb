@@ -99,7 +99,7 @@ type Tree struct {
 	r          interface{}
 	ver        int64
 
-	swarmdb           DBChunkstorage
+	swarmdb           *SwarmDB
 	buffered          bool
 	columnType        ColumnType
 	columnTypePrimary ColumnType
@@ -308,7 +308,7 @@ func (l *d) mvR(r *d, c int) {
 // that holds the public/private keys for writing chunks
 // To manage ordering a "cmp" is instantiated with a suitable columnType (blob/float/string/integer/...)
 //TODO: No error ever returned -- are we checking everything correctly?
-func NewBPlusTreeDB(u *SWARMDBUser, swarmdb SwarmDB, hashid []byte, columnType ColumnType, secondary bool, columnTypePrimary ColumnType, encrypted int) (t *Tree, err error) {
+func NewBPlusTreeDB(u *SWARMDBUser, swarmdb *SwarmDB, hashid []byte, columnType ColumnType, secondary bool, columnTypePrimary ColumnType, encrypted int) (t *Tree, err error) {
 	// set up the comparator
 	cmpPrimary := cmpBytes
 	if secondary == true {
@@ -339,7 +339,7 @@ func NewBPlusTreeDB(u *SWARMDBUser, swarmdb SwarmDB, hashid []byte, columnType C
 	t.hashid = hashid
 
 	// used to SWARMGET
-	t.swarmdb = &swarmdb
+	t.swarmdb = swarmdb
 	t.secondary = secondary
 	t.encrypted = encrypted
 

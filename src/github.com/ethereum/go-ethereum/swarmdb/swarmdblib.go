@@ -62,7 +62,7 @@ func NewSWARMDBConnection(ip string, port int) (dbc SWARMDBConnection, err error
 	if err != nil {
 		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] LoadSWARMDBConfig %s", err.Error())}
 	}
-	dbc.keymanager, err = NewKeyManager(&config)
+	dbc.keymanager, err = NewKeyManager(config)
 	if err != nil {
 		return dbc, &SWARMDBError{message: fmt.Sprintf("[swarmdblib:NewSWARMDBConnection] NewKeyManager %s", err.Error())}
 	}

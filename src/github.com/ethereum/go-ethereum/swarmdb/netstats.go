@@ -1,31 +1,34 @@
 package swarmdb
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"math/big"
 	"os"
 	"time"
-	"encoding/json"
-	"math/big"
-	"io/ioutil"
 )
 
 type Netstats struct {
 	NodeID        string
 	WalletAddress string
 
-	Stat          map[string]string
-	CStat         map[string]*big.Int `json:"-"`
+	Stat  map[string]string
+	CStat map[string]*big.Int `json:"-"`
 
-	LaunchDT      *time.Time
-	LReadDT       *time.Time
-	LWriteDT      *time.Time
-	LogDT         *time.Time
+	LaunchDT *time.Time
+	LReadDT  *time.Time
+	LWriteDT *time.Time
+	LogDT    *time.Time
 }
 
-func NewNetstats(nodeID string, walletAddress string) (self *Netstats) {
+func NewNetstats(config *SWARMDBConfig) (self *Netstats) {
+	nodeID := fmt.Sprintf("%s:%d", config.ListenAddrTCP, config.PortTCP)
 	var ns = &Netstats{
-		Stat:     make(map[string]string),
-		CStat:     make(map[string]*big.Int),
+		NodeID:        nodeID,
+		WalletAddress: config.Address,
+		Stat:          make(map[string]string),
+		CStat:         make(map[string]*big.Int),
 	}
 	return ns
 }
@@ -62,7 +65,7 @@ func (self *Netstats) MarshalJSON() (data []byte, err error) {
 
 func (self *Netstats) UnmarshalJSON(data []byte) (err error) {
 	var ns Netstats
-	ns.CStat =  make(map[string]*big.Int)
+	ns.CStat = make(map[string]*big.Int)
 	err = json.Unmarshal(data, &ns)
 	if err != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[netstats:UnmarshalJSON]%s", err.Error()), ErrorCode: 460, ErrorMessage: fmt.Sprintf("Unable to unmarshal [%s]", data)}
@@ -126,7 +129,5 @@ func (self *Netstats) Flush() (err error) {
 	defer netstatlog.Close()
 	fmt.Fprintf(netstatlog, "%s\n", data)
 	return nil
-//	chunkstat := map[string]*big.Int{"ChunkR": big.NewInt(0), "ChunkW": big.NewInt(0), "ChunkS": big.NewInt(0), "ChunkRL": big.NewInt(0), "ChunkWL": big.NewInt(0), "ChunkSL": big.NewInt(0)}
+	//	chunkstat := map[string]*big.Int{"ChunkR": big.NewInt(0), "ChunkW": big.NewInt(0), "ChunkS": big.NewInt(0), "ChunkRL": big.NewInt(0), "ChunkWL": big.NewInt(0), "ChunkSL": big.NewInt(0)}
 }
-
-

@@ -90,13 +90,13 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 		// fmt.Printf("\n columnName: %s (%d) roothash: %x (secondary: %v) columnType: %d", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary, columninfo.columnType)
 		switch columninfo.indexType {
 		case IT_BPLUSTREE:
-			bplustree, err := NewBPlusTreeDB(u, *t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType), t.encrypted)
+			bplustree, err := NewBPlusTreeDB(u, t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType), t.encrypted)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:OpenTable] NewBPlusTreeDB %s", err.Error()))
 			}
 			columninfo.dbaccess = bplustree
 		case IT_HASHTREE:
-			columninfo.dbaccess, err = NewHashDB(u, columninfo.roothash, *t.swarmdb, ColumnType(columninfo.columnType), t.encrypted)
+			columninfo.dbaccess, err = NewHashDB(u, columninfo.roothash, t.swarmdb, ColumnType(columninfo.columnType), t.encrypted)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:OpenTable] NewHashDB %s", err.Error()))
 			}

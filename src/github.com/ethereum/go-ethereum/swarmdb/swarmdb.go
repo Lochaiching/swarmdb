@@ -96,6 +96,7 @@ type SwarmDB struct {
 	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
+	netstats     *Netstats
 }
 
 //for sql parsing
@@ -220,12 +221,14 @@ const (
 	KNODE_END_CHUNKKEY     = 128
 )
 
-func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
+func NewSwarmDB(config *SWARMDBConfig) (swdb *SwarmDB, err error) {
 	sd := new(SwarmDB)
 	sd.tables = make(map[string]*Table)
-	chunkdbFileName := "chunk.db"
-	dbChunkStoreFullPath := filepath.Join(chunkDBPath, chunkdbFileName)
-	dbchunkstore, err := NewDBChunkStore(dbChunkStoreFullPath)
+
+	netstats := NewNetstats(config)
+	sd.netstats = netstats
+
+	dbchunkstore, err := NewDBChunkStore(config, netstats)
 	if err != nil {
 		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewDBChunkStore `+err.Error())
 	} else {
@@ -234,7 +237,7 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 
 	//default /tmp/ens.db
 	ensdbFileName := "ens.db"
-	ensdbFullPath := filepath.Join(ensPath, ensdbFileName)
+	ensdbFullPath := filepath.Join(config.ChunkDBPath, ensdbFileName)
 	ens, errENS := NewENSSimulation(ensdbFullPath)
 	if errENS != nil {
 		return swdb, GenerateSWARMDBError(errENS, `[swarmdb:NewSwarmDB] NewENSSimulation `+errENS.Error())

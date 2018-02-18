@@ -588,7 +588,7 @@ func main() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*logLevelFlag), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
 	log.Debug(fmt.Sprintf("Starting SWARMDB (Version: %s) using [%s] and loglevel [%d]", swarmdb.SWARMDBVersion, *configFileLocation, *logLevelFlag))
 
-	swdb, err := swarmdb.NewSwarmDB(config.ChunkDBPath, config.ChunkDBPath)
+	swdb, err := swarmdb.NewSwarmDB(config)
 	if err != nil {
 		panic(fmt.Sprintf("Cannot start: %s", err.Error()))
 	}

@@ -25,10 +25,10 @@ import (
 
 func BenchmarkStoreChunk(b *testing.B) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	swarmdb.NewKeyManager(&config)
+	swarmdb.NewKeyManager(config)
 	u := config.GetSWARMDBUser()
 
-	store, err := swarmdb.NewDBChunkStore("/tmp/swarmdb")
+	store, err := swarmdb.NewDBChunkStore(config, swarmdb.NewNetstats(config))
 	if err != nil {
 		fmt.Printf("%s\n", err)
 		b.Fatal("Failure to open NewDBChunkStore")
@@ -50,10 +50,10 @@ func BenchmarkStoreChunk(b *testing.B) {
 
 func TestDBChunkStore(t *testing.T) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	swarmdb.NewKeyManager(&config)
+	swarmdb.NewKeyManager(config)
 	u := config.GetSWARMDBUser()
 
-	store, err := swarmdb.NewDBChunkStore("/tmp/swarmdb")
+	store, err := swarmdb.NewDBChunkStore(config, swarmdb.NewNetstats(config))
 	if err != nil {
 		t.Fatal("Failure to open NewDBChunkStore")
 	}

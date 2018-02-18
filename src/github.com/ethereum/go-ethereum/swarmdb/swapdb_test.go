@@ -24,7 +24,7 @@ import (
 
 func TestSwapDB(t *testing.T) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	km, _ := swarmdb.NewKeyManager(&config)
+	km, _ := swarmdb.NewKeyManager(config)
 	u := config.GetSWARMDBUser()
 
 	swapdb, err := swarmdb.NewSwapDB("swap.db")
