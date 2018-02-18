@@ -122,7 +122,6 @@ type Where struct {
 type DBChunkstorage interface {
 	RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error)
 	StoreDBChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error)
-	PrintDBChunk(columnType ColumnType, hashid []byte, c []byte)
 }
 
 type Database interface {
@@ -247,10 +246,6 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 }
 
 // DBChunkStore  API
-func (self *SwarmDB) PrintDBChunk(columnType ColumnType, hashid []byte, c []byte) {
-	self.dbchunkstore.PrintDBChunk(columnType, hashid, c)
-}
-
 func (self *SwarmDB) RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	val, err = self.dbchunkstore.RetrieveChunk(u, key)
 	return val, err

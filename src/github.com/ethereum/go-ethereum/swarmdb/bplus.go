@@ -706,7 +706,6 @@ func (q *d) swarmPut(u *SWARMDBUser, swarmdb DBChunkstorage, columnType ColumnTy
 	}
 	q.hashid = new_hashid
 
-	//swarmdb.PrintDBChunk(columnType, q.hashid, sdata)
 	return new_hashid, true, nil
 }
 

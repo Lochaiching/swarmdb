@@ -43,10 +43,4 @@ func TestSwapDB(t *testing.T) {
 		fmt.Printf("Issued check %v\n", ch)
 	}
 
-	err = swapdb.GenerateSwapLog(u)
-	if err != nil {
-		t.Fatal("[swapdb_test:TestSwapDB] GenerateSwapLog")
-	} else {
-		fmt.Printf("Generated Swap Log")
-	}
 }

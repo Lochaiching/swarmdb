@@ -122,14 +122,14 @@ func TestAllSwarmdbLib(t *testing.T) {
 	expected = []swarmdb.Row{
 		swarmdb.Row{
 			"ColumnName": "email",
-			"ColumnType": float64(swarmdb.CT_STRING),
-			"IndexType":  float64(swarmdb.IT_BPLUSTREE),
-			"Primary":    float64(1)},
+			"ColumnType": swarmdb.CT_STRING,
+			"IndexType":  swarmdb.IT_BPLUSTREE,
+			"Primary":    1},
 		swarmdb.Row{
 			"ColumnName": "age",
-			"ColumnType": float64(swarmdb.CT_INTEGER),
-			"IndexType":  float64(swarmdb.IT_BPLUSTREE),
-			"Primary":    float64(0)},
+			"ColumnType": swarmdb.CT_INTEGER,
+			"IndexType":  swarmdb.IT_BPLUSTREE,
+			"Primary":    0},
 	}
 	if !reflect.DeepEqual(description, expected) {
 		fmt.Printf("  describe table: %+v, expected: %+v\n", description, expected)
