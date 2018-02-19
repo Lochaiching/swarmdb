@@ -648,14 +648,13 @@ func main() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*logLevelFlag), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
 	log.Debug(fmt.Sprintf("Starting SWARMDB (Version: %s) using [%s] and loglevel [%d]", swarmdb.SWARMDBVersion, *configFileLocation, *logLevelFlag))
 
-	swarmdbObj, err := swarmdb.NewSwarmDB(config.ChunkDBPath, config.ChunkDBPath)
-
+	swdb, err := swarmdb.NewSwarmDB(config)
 	if err != nil {
 		panic(fmt.Sprintf("Cannot start: %s", err.Error()))
 	}
 	log.Debug("Trying to start HttpServer")
-	go StartHttpServer(swarmdbObj, &config)
+	go StartHttpServer(swdb, config)
 
 	log.Debug("Trying to start TCPIP server...\n")
-	StartTcpipServer(swarmdbObj, &config)
+	StartTcpipServer(swdb, config)
 }

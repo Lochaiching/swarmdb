@@ -99,6 +99,7 @@ type SwarmDB struct {
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
 	swapdb       *SwapDB
+	netstats     *Netstats
 }
 
 //for sql parsing
@@ -125,7 +126,6 @@ type Where struct {
 type DBChunkstorage interface {
 	RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error)
 	StoreDBChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error)
-	PrintDBChunk(columnType ColumnType, hashid []byte, c []byte)
 }
 
 type Database interface {
@@ -224,21 +224,23 @@ const (
 	KNODE_END_CHUNKKEY     = 128
 )
 
-func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
+func NewSwarmDB(config *SWARMDBConfig) (swdb *SwarmDB, err error) {
 	sd := new(SwarmDB)
 	sd.tables = make(map[string]*Table)
-	chunkdbFileName := "chunk.db"
-	dbChunkStoreFullPath := filepath.Join(chunkDBPath, chunkdbFileName)
-	dbchunkstore, err := NewDBChunkStore(dbChunkStoreFullPath)
+
+	netstats := NewNetstats(config)
+	sd.netstats = netstats
+
+	dbchunkstore, err := NewDBChunkStore(config, netstats)
 	if err != nil {
 		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewDBChunkStore `+err.Error())
 	} else {
 		sd.dbchunkstore = dbchunkstore
 	}
 
-	//default /tmp/ens.db
+	// default /tmp/ens.db
 	ensdbFileName := "ens.db"
-	ensdbFullPath := filepath.Join(ensPath, ensdbFileName)
+	ensdbFullPath := filepath.Join(config.ChunkDBPath, ensdbFileName)
 	ens, errENS := NewENSSimulation(ensdbFullPath)
 	if errENS != nil {
 		return swdb, GenerateSWARMDBError(errENS, `[swarmdb:NewSwarmDB] NewENSSimulation `+errENS.Error())
@@ -246,7 +248,7 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 	sd.ens = ens
 
 	swapDBFileName := "swap.db"
-	swapDBFullPath := filepath.Join(chunkDBPath, swapDBFileName)
+	swapDBFullPath := filepath.Join(config.ChunkDBPath, swapDBFileName)
 	swapdbObj, errSwapDB := NewSwapDB(swapDBFullPath)
 	if errSwapDB != nil {
 		return swdb, GenerateSWARMDBError(errSwapDB, `[swarmdb:NewSwarmDB] NewSwapDB `+swapDBFullPath+`|`+errSwapDB.Error())
@@ -257,9 +259,6 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 }
 
 // DBChunkStore  API
-func (self *SwarmDB) PrintDBChunk(columnType ColumnType, hashid []byte, c []byte) {
-	self.dbchunkstore.PrintDBChunk(columnType, hashid, c)
-}
 
 func (self *SwarmDB) GenerateSwapLog(startts int64, endts int64) (err error) {
 	err = self.swapdb.GenerateSwapLog(startts, endts)
