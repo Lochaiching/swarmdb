@@ -17,24 +17,24 @@ package swarmdb
 import (
 	"bytes"
 	"crypto/sha256"
-	"fmt"
-	"encoding/json"
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
-	"swarmdb/ash"
-"math/rand"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
+	"math/rand"
+	"swarmdb/ash"
 	"time"
 )
 
 const (
-hashChunkSize = 4000
-epochSeconds  = 600
+	hashChunkSize = 4000
+	epochSeconds  = 600
 )
 
 type DBChunkstore struct {
@@ -97,7 +97,6 @@ func (u *MerkleProof) MarshalJSON() ([]byte, error) {
 		})
 }
 
-
 func NewDBChunkStore(config *SWARMDBConfig, netstats *Netstats) (self *DBChunkstore, err error) {
 	path := config.ChunkDBPath
 	ldb, err := leveldb.OpenFile(path, nil)
@@ -115,10 +114,11 @@ func NewDBChunkStore(config *SWARMDBConfig, netstats *Netstats) (self *DBChunkst
 	walletAddr := common.HexToAddress(userWallet)
 
 	self = &DBChunkstore{
-	ldb:      ldb,
-	km:       &km,
-	farmer:   walletAddr,
-	filepath: path,
+		ldb:      ldb,
+		km:       &km,
+		farmer:   walletAddr,
+		filepath: path,
+		netstats: netstats,
 	}
 	return self, nil
 }
@@ -133,6 +133,7 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 }
 
 func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
+	self.netstats.StoreChunk()
 	return self.storeChunkInDB(u, val, encrypted, key)
 }
 
@@ -211,7 +212,6 @@ func (self *DBChunkstore) RetrieveRawChunk(key []byte) (val []byte, err error) {
 	return c.Val, nil
 }
 
-
 func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	data, err := self.ldb.Get(key, nil)
 	if err == leveldb.ErrNotFound {
@@ -249,11 +249,11 @@ func epochBytesFromTimestamp(ts int64) (out []byte) {
 	return IntToByte(int(ts / epochSeconds))
 }
 
-func (self *DBChunkstore) GenerateFarmerLog(startTS int64, endTS int64) (err error) {
+func (self *DBChunkstore) GenerateFarmerLog(startTS int64, endTS int64) (log []string, err error) {
 	return self.GenerateBuyerLog(startTS, endTS)
 }
 
-func (self *DBChunkstore) GenerateBuyerLog(startTS int64, endTS int64) (err error) {
+func (self *DBChunkstore) GenerateBuyerLog(startTS int64, endTS int64) (log []string, err error) {
 	for ts := startTS; ts < endTS; ts += epochSeconds {
 		epochPrefix := epochBytesFromTimestamp(ts)
 		iter := self.ldb.NewIterator(util.BytesPrefix(epochPrefix), nil)
@@ -261,6 +261,7 @@ func (self *DBChunkstore) GenerateBuyerLog(startTS int64, endTS int64) (err erro
 			epochkey := iter.Key()
 			key := epochkey[8:]
 			fmt.Printf("%x\n", key)
+			log = append(log, fmt.Sprintf("%x\n", key))
 			// data, err := self.ldb.Get(key, nil)
 			// chunklog, err := json.Marshal(c)
 			// sql_readall := fmt.Sprintf("SELECT chunkKey,strftime('%s',chunkBirthDT) as chunkBirthTS, strftime('%s',chunkStoreDT) as chunkStoreTS, maxReplication, renewal FROM chunk where chunkBD >= %d and chunkBD < %d", time.Unix(startTS, 0).Format(time.RFC3339), time.Unix(endTS, 0).Format(time.RFC3339))
@@ -268,11 +269,7 @@ func (self *DBChunkstore) GenerateBuyerLog(startTS int64, endTS int64) (err erro
 		iter.Release()
 		err = iter.Error()
 	}
-	return nil
-}
-
-func (self *SwapDB) GenerateSwapLog(startTS int64, endTS int64) (err error) {
-	return nil
+	return log, nil
 }
 
 func (self *DBChunkstore) RetrieveAsh(key []byte, secret []byte, proofRequired bool, auditIndex int8) (res ash.AshResponse, err error) {
@@ -294,7 +291,5 @@ func (self *DBChunkstore) RetrieveAsh(key []byte, secret []byte, proofRequired b
 	if err != nil {
 		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] %s", err.Error()), ErrorCode: 471, ErrorMessage: "RetrieveAsh Error"}
 	}
-    output, _ := json.Marshal(res)
-    fmt.Printf("%s\n",string(output))
 	return res, nil
 }

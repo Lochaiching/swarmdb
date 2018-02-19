@@ -16,18 +16,12 @@
 package swarmdb
 
 import (
-	// "bytes"
 	"database/sql"
 	"github.com/ethereum/go-ethereum/crypto"
-	//"encoding/binary"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	_ "github.com/mattn/go-sqlite3"
-	// "io/ioutil"
-	// "math/big"
-	// "os"
-	// "time"
 )
 
 type SwapCheck struct {
@@ -142,4 +136,8 @@ func (self *SwapDB) Issue(km *KeyManager, u *SWARMDBUser, beneficiary common.Add
 		}
 		return ch, nil
 	}
+}
+
+func (self *SwapDB) GenerateSwapLog(startTS int64, endTS int64) (log []string, err error) {
+	return log, nil
 }

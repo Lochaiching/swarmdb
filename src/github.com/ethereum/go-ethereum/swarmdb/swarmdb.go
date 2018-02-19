@@ -17,7 +17,6 @@ package swarmdb
 
 import (
 	"swarmdb/ash"
-	//"github.com/ethereum/go-ethereum/swarmdb/ash"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -260,36 +259,37 @@ func NewSwarmDB(config *SWARMDBConfig) (swdb *SwarmDB, err error) {
 
 // DBChunkStore  API
 
-func (self *SwarmDB) GenerateSwapLog(startts int64, endts int64) (err error) {
-	err = self.swapdb.GenerateSwapLog(startts, endts)
+func (self *SwarmDB) GenerateSwapLog(startts int64, endts int64) (log []string, err error) {
+	log, err = self.swapdb.GenerateSwapLog(startts, endts)
 	if err != nil {
-		GenerateSWARMDBError(err, "Unable to GenerateSwapLog")
+		return log, GenerateSWARMDBError(err, "Unable to GenerateSwapLog")
 	}
-	return err
+	return log, nil
 }
 
-func (self *SwarmDB) GenerateBuyerLog(startts int64, endts int64) (err error) {
-	err = self.dbchunkstore.GenerateBuyerLog(startts, endts)
+func (self *SwarmDB) GenerateBuyerLog(startts int64, endts int64) (log []string, err error) {
+	log, err = self.dbchunkstore.GenerateBuyerLog(startts, endts)
 	if err != nil {
-		GenerateSWARMDBError(err, "Unable to GenerateBuyerLog")
+		return log, GenerateSWARMDBError(err, "Unable to GenerateBuyerLog")
 	}
-	return err
+	return log, nil
 }
 
-func (self *SwarmDB) GenerateFarmerLog(startts int64, endts int64) (err error) {
-	err = self.dbchunkstore.GenerateFarmerLog(startts, endts)
+func (self *SwarmDB) GenerateFarmerLog(startts int64, endts int64) (log []string, err error) {
+	log, err = self.dbchunkstore.GenerateFarmerLog(startts, endts)
 	if err != nil {
-		GenerateSWARMDBError(err, "Unable to GenerateFarmerLog")
+		return log, GenerateSWARMDBError(err, "Unable to GenerateFarmerLog")
 	}
-	return err
+	return log, nil
 }
 
 func (self *SwarmDB) GenerateAshResponse(chunkId []byte, seed []byte, proofRequired bool, index int8) (resp ash.AshResponse, err error) {
 	resp, err = self.dbchunkstore.RetrieveAsh(chunkId, seed, proofRequired, index)
+	// output, _ := json.Marshal(res)	fmt.Printf("%s\n", string(output))
 	if err != nil {
 		return resp, GenerateSWARMDBError(err, "Unable to Retrieve Ash")
 	}
-	return resp, err
+	return resp, nil
 }
 
 func (self *SwarmDB) RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
