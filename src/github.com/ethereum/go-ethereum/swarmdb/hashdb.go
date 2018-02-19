@@ -73,20 +73,20 @@ func (self *HashDB) GetRootHash() []byte {
 	return self.rootnode.NodeHash
 }
 
-func NewHashDB(u *SWARMDBUser, rootnode []byte, swarmdb SwarmDB, columntype ColumnType, encrypted int) (*HashDB, error) {
+func NewHashDB(u *SWARMDBUser, rootnode []byte, swarmdb *SwarmDB, columntype ColumnType, encrypted int) (*HashDB, error) {
 	hd := new(HashDB)
 	n := NewNode(nil, nil)
 	n.Root = true
 	if rootnode == nil {
 	} else {
 		n.NodeHash = rootnode
-		err := n.load(u, &swarmdb, columntype)
+		err := n.load(u, swarmdb, columntype)
 		if err != nil {
 			return nil, err
 		}
 	}
 	hd.rootnode = n
-	hd.swarmdb = &swarmdb
+	hd.swarmdb = swarmdb
 	hd.buffered = false
 	hd.encrypted = encrypted
 	hd.columnType = columntype

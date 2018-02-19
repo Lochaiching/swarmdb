@@ -3,6 +3,8 @@ package ash
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -27,6 +29,42 @@ type Node struct {
 	Cont        Content
 	isLeaf      bool
 	isDuplicate bool
+}
+
+type AshChallenge struct {
+	ProofRequired bool `json: "proofrequired"`
+	Index         int8 `json: index`
+}
+
+type AshRequest struct {
+	ChunkID   []byte `json:"chunkID"`
+	Seed      []byte `json: seed`
+	Challenge *AshChallenge
+}
+
+type AshResponse struct {
+	root  []byte `json: "-"`
+	Mash  string `json: "mash"`
+	Proof *MerkleProof
+}
+
+type MerkleProof struct {
+	Root  []byte `json: "root"`
+	Path  []byte `json: "path"`
+	Index int8   `json: "index"`
+}
+
+func (u *MerkleProof) MarshalJSON() ([]byte, error) {
+	return json.Marshal(
+		&struct {
+			Root  string `json: "root"`
+			Path  string `json: "path"`
+			Index int8   `json: "index"`
+		}{
+			Root:  hex.EncodeToString(u.Root),
+			Path:  hex.EncodeToString(u.Path),
+			Index: u.Index,
+		})
 }
 
 func NewTree(contents []Content) (m *MerkleTree, err error) {
@@ -213,12 +251,41 @@ func PrepareSegment(chunk []byte, secret []byte) (segments []Content) {
 	return rawseg
 }
 
-//ComputeAsh returns merkleroot with proof
-func ComputeAsh(chunk []byte, secret []byte) (m *MerkleTree, err error) {
-	segments := PrepareSegment(chunk, secret)
-	m, err = NewTree(segments)
+//ComputeAsh answers to an AshRequest
+func ComputeAsh(request AshRequest, rawchunk []byte) (response AshResponse, err error) {
+	segments := PrepareSegment(rawchunk, request.Seed)
+	tree, err := NewTree(segments)
 	if err != nil {
-		return nil, err
+		return response, err
 	}
-	return m, nil
+	challenge := request.Challenge
+	if challenge.ProofRequired {
+		ok, merkleroot, mkproof, jth := tree.GetProof(segments[challenge.Index].B)
+		if !ok {
+			return response, err
+		}
+		response.Proof = &MerkleProof{Root: merkleroot, Path: mkproof, Index: jth}
+	}
+	response.root = tree.Roothash
+	response.Mash = fmt.Sprintf("%x", response.root)
+	return response, nil
+}
+
+//Verify AshResponse
+func VerifyAsh(response AshResponse, expectedMash []byte) (isValid bool, givenRoot []byte, err error) {
+	if response.Proof != nil {
+		merkleproof := response.Proof
+		ok, merkleroot, err := CheckProof(merkleproof.Root, merkleproof.Path, merkleproof.Index)
+        if err != nil {
+            return false, givenRoot, err
+        }
+		if !ok || bytes.Compare(response.root, merkleroot) != 0 {
+			return false, merkleroot, nil
+		}
+	}
+	mash := Computehash(response.root)
+	if bytes.Compare(mash, expectedMash) != 0 {
+		return false, response.root, nil
+	}
+	return true, response.root, nil
 }

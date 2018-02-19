@@ -90,13 +90,13 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 		// fmt.Printf("\n columnName: %s (%d) roothash: %x (secondary: %v) columnType: %d", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary, columninfo.columnType)
 		switch columninfo.indexType {
 		case IT_BPLUSTREE:
-			bplustree, err := NewBPlusTreeDB(u, *t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType), t.encrypted)
+			bplustree, err := NewBPlusTreeDB(u, t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType), t.encrypted)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:OpenTable] NewBPlusTreeDB %s", err.Error()))
 			}
 			columninfo.dbaccess = bplustree
 		case IT_HASHTREE:
-			columninfo.dbaccess, err = NewHashDB(u, columninfo.roothash, *t.swarmdb, ColumnType(columninfo.columnType), t.encrypted)
+			columninfo.dbaccess, err = NewHashDB(u, columninfo.roothash, t.swarmdb, ColumnType(columninfo.columnType), t.encrypted)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:OpenTable] NewHashDB %s", err.Error()))
 			}
@@ -121,8 +121,11 @@ func (t *Table) getPrimaryColumn() (c *ColumnInfo, err error) {
 }
 
 func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
+	if _, ok := t.columns[columnName]; !ok {
+		return c, &SWARMDBError{message: fmt.Sprintf("[table:getColumn] columns array missing %s ", columnName), ErrorCode: 479, ErrorMessage: "Table Definition Missing Selected Column"}
+	}
 	if t.columns[columnName] == nil {
-		return c, &NoColumnError{tableName: t.tableName, tableOwner: t.Owner, columnName: columnName}
+		return c, &SWARMDBError{message: fmt.Sprintf("[table:getColumn] columns array missing %s ", columnName), ErrorCode: 479, ErrorMessage: "Table Definition Missing Selected Column"}
 	}
 	return t.columns[columnName], nil
 }
@@ -262,6 +265,9 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error)
 	// fmt.Printf("\n GET key: (%s)%v\n", key, key)
 
 	log.Debug("About to Get from DB")
+	if _, ok := t.columns[primaryColumnName]; !ok {
+		return c, &SWARMDBError{message: fmt.Sprintf("[table:Get] columns array missing %s ", columnName), ErrorCode: 479, ErrorMessage: fm.Sprintf("Table Definition Missing Selected Column [%s]", columnName)}
+	}
 	_, ok, err = t.columns[primaryColumnName].dbaccess.Get(u, key)
 	if err != nil {
 		log.Debug(fmt.Sprintf("[table:Get] dbaccess.Get %s", err.Error()))
@@ -288,6 +294,9 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error)
 }
 
 func (t *Table) Delete(u *SWARMDBUser, key interface{}) (ok bool, err error) {
+	if _, ok := t.columns[t.primaryColumnName]; !ok {
+		return c, &SWARMDBError{message: fmt.Sprintf("[table:Get] columns array missing %s ", columnName), ErrorCode: 479, ErrorMessage: fm.Sprintf("Table Definition Missing Selected Column [%s]", columnName)}
+	}
 	k, err := convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, key)
 	if err != nil {
 		return ok, GenerateSWARMDBError(err, fmt.Sprintf("[table:Delete] convertJSONValueToKey %s", err.Error()))
@@ -479,7 +488,6 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 	for _, c := range t.columns {
 		//fmt.Printf("\nProcessing a column %s and primary is %d", c.columnName, c.primary)
 		if c.primary > 0 {
-
 			pvalue, ok := row[t.primaryColumnName]
 			if !ok {
 				return &SWARMDBError{message: fmt.Sprintf("[table:Put] Primary key %s not specified in input", t.primaryColumnName), ErrorCode: 428, ErrorMessage: "Row missing primary key"}
@@ -510,6 +518,9 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 			}
 
 			// fmt.Printf(" - primary  %s | %x\n", c.columnName, k)
+			if _, ok := t.columns[c.columnName]; !ok {
+				return &SWARMDBError{message: fmt.Sprintf("[table:Put] Primary key %s not specified in input", c.columnName), ErrorCode: 479, ErrorMessage: "Row missing primary key"}
+			}
 			_, err = t.columns[c.columnName].dbaccess.Put(u, k, hashVal)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] dbaccess.Put %s", err.Error()))
@@ -528,6 +539,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 			}
 
 			// fmt.Printf(" - secondary %s %x | %x\n", c.columnName, k2, k)
+			//TODO: could this just be simplified by using c.dbaccess.Put ???
 			_, err = t.columns[c.columnName].dbaccess.Put(u, k2, k)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] dbaccess.Put %s", err.Error()))
@@ -618,6 +630,9 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (outRows []Row, err error
 			//TODO: confirm we're not letting columns in the WHERE clause that don't exist in the table get this far
 			//return outRows, &SWARMDBError{message:"Where clause col %s doesn't exist in table", ErrorCode:, ErrorMessage:""}
 		}
+		if _, ok := t.columns[where.Left]; !ok {
+			return outRows, &SWARMDBError{message: fmt.Sprintf("[table:applyWhere] Invalid column %s", name), ErrorCode: 404, ErrorMessage: fmt.Sprintf("Column Does Not Exist in table definition: [%s]", name)}
+		}
 		colType := t.columns[where.Left].columnType
 		right, err := stringToColumnType(where.Right, colType)
 		//TODO: Should we be checking that the type of where.Right matches the colType?
@@ -675,19 +690,14 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (outRows []Row, err error
 		case ">":
 			switch colType {
 			case CT_INTEGER:
-				log.Debug("FOUND INTEGER")
 				if row[where.Left].(int) > right.(int) {
 					fRow = row
-				} else {
-					log.Debug("[]BAD NEWS!")
 				}
 			case CT_FLOAT:
-				log.Debug("FOUND FLOAT")
 				if row[where.Left].(float64) > right.(float64) {
 					fRow = row
 				}
 			case CT_STRING:
-				log.Debug("FOUND STRING")
 				if row[where.Left].(string) > right.(string) {
 					fRow = row
 				}

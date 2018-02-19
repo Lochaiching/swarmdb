@@ -48,6 +48,9 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 
 		//From
 		//fmt.Printf("from 0: %+v \n", sqlparser.String(stmt.From[0]))
+		if len(From) == 0 {
+			return query, &SWARMDBError{message: "Invalid SQL - Missing FROM", ErrorCode: 401, ErrorMessage: "SQL Parsing Error:[Missing FROM]"}
+		}
 		query.Table = sqlparser.String(stmt.From[0])
 
 		//Where & Having
@@ -192,6 +195,9 @@ func ParseQuery(rawQuery string) (query QueryOption, err error) {
 		return query, nil
 	case *sqlparser.Delete:
 		query.Type = "Delete"
+		if _, ok := stmt.TableExprs[0]; !ok {
+			return query, &SWARMDBError{message: fmt.Sprintf("[query:ParseQuery] DELETE TableExprs empty"), ErrorCode: 401, ErrorMessage: "SQL Parsing Error: [DELETE missing Table]"}
+		}
 		query.Table = sqlparser.String(stmt.TableExprs[0]) // TODO: an OK around the array in case of panic
 		//fmt.Printf("Comments: %+v \n", stmt.Comments)
 
