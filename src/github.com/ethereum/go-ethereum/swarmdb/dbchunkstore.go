@@ -102,18 +102,20 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	var finalSdata []byte
 	if len(k) > 0 {
 		finalSdata = make([]byte, CHUNK_SIZE)
-		key := k
+		key = k
 		recordData := val[KNODE_START_ENCRYPTION : CHUNK_SIZE-41] //MAJOR TODO: figure out how we pass in to ensure <=4096
 		log.Debug(fmt.Sprintf("Key: [%x][%v] After Loop recordData length (%d) and start pos %d", key, key, len(recordData), KNODE_START_ENCRYPTION))
 		copy(finalSdata[0:KNODE_START_ENCRYPTION], val[0:KNODE_START_ENCRYPTION])
 		copy(finalSdata[KNODE_START_ENCRYPTION:CHUNK_SIZE], recordData)
 		val = finalSdata
+
 	} else {
 		inp := make([]byte, hashChunkSize)
 		copy(inp, val[0:hashChunkSize])
 		h := sha256.New() // TODO: Update this
 		h.Write([]byte(inp))
 		key = h.Sum(nil)
+
 	}
 
 	var chunk DBChunk
@@ -132,12 +134,13 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	if err != nil {
 		return key, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Exec %s | encrypted:%s", err.Error(), encrypted), ErrorCode: 439, ErrorMessage: "Unable to Store Chunk"}
 	}
+	//fmt.Printf("storeChunkInDB enc: %d [%x] -- %x\n", chunk.Enc, key, data)
 
 	// TODO: the TS here should be the FIRST time the chunk is originally written
 	ts := int64(time.Now().Unix())
 	epochPrefix := epochBytesFromTimestamp(ts)
 	ekey := append(epochPrefix, key...)
-	fmt.Printf("%d --> %x --> %x\n", ts, epochPrefix, ekey)
+	// fmt.Printf("%d --> %x --> %x\n", ts, epochPrefix, ekey)
 
 	data = []byte("1")
 	if err != nil {
@@ -153,6 +156,12 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 
 func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	data, err := self.ldb.Get(key, nil)
+	if err == leveldb.ErrNotFound {
+		val = make([]byte, CHUNK_SIZE)
+		return val, nil
+	} else if err != nil {
+		return val, err
+	}
 	c := new(DBChunk)
 	err = rlp.Decode(bytes.NewReader(data), c)
 	if err != nil {
@@ -172,7 +181,7 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	val, err = self.RetrieveChunk(u, key)
 	if err != nil {
-		return val, err
+		return val, err // TODO
 	}
 	jsonRecord := val[KNODE_START_ENCRYPTION:]
 	return bytes.TrimRight(jsonRecord, "\x00"), nil

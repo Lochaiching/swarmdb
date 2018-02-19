@@ -593,8 +593,8 @@ func main() {
 		panic(fmt.Sprintf("Cannot start: %s", err.Error()))
 	}
 	log.Debug("Trying to start HttpServer")
-	go StartHttpServer(swdb, &config)
+	go StartHttpServer(swdb, config)
 
 	log.Debug("Trying to start TCPIP server...\n")
-	StartTcpipServer(swdb, &config)
+	StartTcpipServer(swdb, config)
 }

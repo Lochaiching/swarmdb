@@ -235,15 +235,14 @@ func NewSwarmDB(config *SWARMDBConfig) (swdb *SwarmDB, err error) {
 		sd.dbchunkstore = dbchunkstore
 	}
 
-	//default /tmp/ens.db
+	// default /tmp/ens.db
 	ensdbFileName := "ens.db"
 	ensdbFullPath := filepath.Join(config.ChunkDBPath, ensdbFileName)
 	ens, errENS := NewENSSimulation(ensdbFullPath)
 	if errENS != nil {
 		return swdb, GenerateSWARMDBError(errENS, `[swarmdb:NewSwarmDB] NewENSSimulation `+errENS.Error())
-	} else {
-		sd.ens = ens
-	}
+	} 
+	sd.ens = ens
 
 	return sd, nil
 }
