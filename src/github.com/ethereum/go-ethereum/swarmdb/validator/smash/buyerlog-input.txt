@@ -1,7 +1,0 @@
-{"buyer":"0xd80a4004350027f618107fe3240937d54e46c21b","chunkID":"1d4b6e4aa86d48c464c9adf83940d4e00df8affc","chunkBD":1515542149,"rep":3,"renewable":1,"sig":"s1","smash":"smash1"}
-{"buyer":"0xd80a4004350027f618107fe3240937d54e46c21b","chunkID":"4b09668b93c718092a408c4222867968fcd3ad98","chunkBD":1515542150,"rep":4,"renewable":0,"sig":"s2","smash":"smash2"}
-{"buyer":"0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","chunkID":"aeec6f5aca72f3a005af1b3420ab8c8c7009bac8","chunkBD":1515542151,"rep":5,"renewable":1,"sig":"s3","smash":"smash3"}
-{"buyer":"0xd80a4004350027f618107fe3240937d54e46c21b","chunkID":"aeec6f5aca72f3a005af1b3420ab8c8c7009bac8","chunkBD":1515542152,"rep":4,"renewable":0,"sig":"s4","smash":"smash4"}
-{"buyer":"0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","chunkID":"1d4b6e4aa86d48c464c9adf83940d4e00df8affc","chunkBD":1515542153,"rep":3,"renewable":1,"sig":"s5","smash":"smash5"}
-{"buyer":"0xcb2fa2c491451cac943bb5a0261eb101cc36a4f8","chunkID":"d368b1c09e7ddfb6aff24e8e6f181ffeea905d31","chunkBD":1515542154,"rep":2,"renewable":0,"sig":"s6","smash":"smash6"}
-

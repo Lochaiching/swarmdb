@@ -139,6 +139,9 @@ func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	row := NewRow()
 
 	for colName, cell := range res {
+		if _, ok := t.columns[colName]; !ok {
+			return res, &SWARMDBError{message: fmt.Sprintf("[table:byteArrayToRow] colName not in t.columns %s for [%s]", err.Error(), byteData), ErrorCode: 436, ErrorMessage: "Unable to converty byte array to Row Object"}
+		}
 		colDef := t.columns[colName]
 		switch a := cell.(type) {
 		case int, int8, int16, int32, int64, uint8, uint16, uint32, uint64:
