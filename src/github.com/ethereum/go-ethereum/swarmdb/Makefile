@@ -61,8 +61,3 @@ hashdb:
 netstat:
 	@echo "test netstat."
 	go test ./netstat_test.go
-
-swarmdblib:
-	@echo "test swarmdblib"
-	go run ./server/wolkdb.go
-	go test ./swarmdblib_test.go
