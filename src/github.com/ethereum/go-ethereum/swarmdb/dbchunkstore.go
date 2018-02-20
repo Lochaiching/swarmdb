@@ -145,10 +145,10 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	if len(k) > 0 {
 		finalSdata = make([]byte, CHUNK_SIZE)
 		key = k
-		recordData := val[KNODE_START_ENCRYPTION : CHUNK_SIZE-41] //MAJOR TODO: figure out how we pass in to ensure <=4096
-		log.Debug(fmt.Sprintf("Key: [%x][%v] After Loop recordData length (%d) and start pos %d", key, key, len(recordData), KNODE_START_ENCRYPTION))
-		copy(finalSdata[0:KNODE_START_ENCRYPTION], val[0:KNODE_START_ENCRYPTION])
-		copy(finalSdata[KNODE_START_ENCRYPTION:CHUNK_SIZE], recordData)
+		recordData := val[CHUNK_START_CHUNKVAL : CHUNK_END_CHUNKVAL-41] //MAJOR TODO: figure out how we pass in to ensure <=4096
+		log.Debug(fmt.Sprintf("Key: [%x][%v] After Loop recordData length (%d) and start pos %d", key, key, len(recordData), CHUNK_START_CHUNKVAL))
+		copy(finalSdata[0:CHUNK_START_CHUNKVAL], val[0:CHUNK_START_CHUNKVAL])
+		copy(finalSdata[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL], recordData)
 		val = finalSdata
 
 	} else {
@@ -241,7 +241,7 @@ func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte
 	if err != nil {
 		return val, err // TODO
 	}
-	jsonRecord := val[KNODE_START_ENCRYPTION:]
+	jsonRecord := val[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL]
 	return bytes.TrimRight(jsonRecord, "\x00"), nil
 }
 
@@ -276,7 +276,7 @@ func (self *DBChunkstore) RetrieveAsh(key []byte, secret []byte, proofRequired b
 	debug := false
 	request := ash.AshRequest{ChunkID: key, Seed: secret}
 	request.Challenge = &ash.AshChallenge{ProofRequired: proofRequired, Index: auditIndex}
-	chunkval := make([]byte, 8192)
+	chunkval := make([]byte, 4096)
 	if debug {
 		simulatedChunk := make([]byte, 4096)
 		rand.Read(simulatedChunk)

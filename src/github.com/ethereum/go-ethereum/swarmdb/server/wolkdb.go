@@ -403,7 +403,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			//TODO: Error Handling
 		}
-		
+
 		return
 	case "buyerlog":
 		startts, err := strconv.Atoi(pathParts[2])
@@ -432,7 +432,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			//TODO: Error Handling
 		}
-		
+
 		return
 	case "ashrequest":
 		chunkID, _ := hex.DecodeString(pathParts[2])
