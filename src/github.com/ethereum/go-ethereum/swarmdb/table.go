@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"io"
 	"strconv"
+	"time"
 )
 
 type Table struct {
@@ -192,27 +193,30 @@ func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte) (mergedB
 	log.Debug(fmt.Sprintf("[table:buildSdata] contentPrefix is: %s", contentPrefix))
 
 	var metadataBody []byte
-	metadataBody = make([]byte, NODE_START_CHUNKVAL)
+	metadataBody = make([]byte, CHUNK_START_CHUNKVAL)
 	//TODO: Use Constants
-	copy(metadataBody[NODE_START_OWNER:NODE_END_OWNER], []byte(self.Owner))
-	copy(metadataBody[NODE_START_DB:NODE_END_DB], []byte(self.Database))
-	copy(metadataBody[NODE_START_TABLE:NODE_END_TABLE], []byte(self.tableName))
-	copy(metadataBody[NODE_START_KEY:NODE_END_KEY], contentPrefix)
-	copy(metadataBody[NODE_START_PAYER:NODE_END_PAYER], u.Address)         //TODO: Chunk needs to use Address of Owner instead of owner
-	copy(metadataBody[NODE_START_NODETYPE:NODE_END_NODETYPE], []byte("K")) //TODO: Define nodeType representation -- self.nodeType)
-	copy(metadataBody[NODE_START_RENEW:NODE_END_RENEW], IntToByte(u.AutoRenew))
-	copy(metadataBody[NODE_START_MINREP:NODE_END_MINREP], IntToByte(u.MinReplication))
-	copy(metadataBody[NODE_START_MAXREP:NODE_END_MAXREP], IntToByte(u.MaxReplication))
-	copy(metadataBody[NODE_START_ENCRYPTED:NODE_END_ENCRYPTED], IntToByte(self.encrypted))
-	copy(metadataBody[NODE_START_BIRTHTS:NODE_END_BIRTHTS], IntToByte(birthtimestamp))
-	copy(metadataBody[NODE_START_LASTUPDATETS:NODE_END_LASTUPDATETS], IntToByte(lastupdttimestamp))
-	copy(metadataBody[NODE_START_VERSION:NODE_END_VERSION], IntToByte(version))
+	copy(metadataBody[CHUNK_START_OWNER:CHUNK_END_OWNER], []byte(self.Owner))
+	copy(metadataBody[CHUNK_START_DB:CHUNK_END_DB], []byte(self.Database))
+	copy(metadataBody[CHUNK_START_TABLE:CHUNK_END_TABLE], []byte(self.tableName))
+	copy(metadataBody[CHUNK_START_KEY:CHUNK_END_KEY], contentPrefix)
+	copy(metadataBody[CHUNK_START_PAYER:CHUNK_END_PAYER], u.Address)         //TODO: Chunk needs to use Address of Owner instead of owner
+	copy(metadataBody[CHUNK_START_NODETYPE:CHUNK_END_NODETYPE], []byte("K")) //TODO: Define nodeType representation -- self.nodeType)
+	copy(metadataBody[CHUNK_START_RENEW:CHUNK_END_RENEW], IntToByte(u.AutoRenew))
+	copy(metadataBody[CHUNK_START_MINREP:CHUNK_END_MINREP], IntToByte(u.MinReplication))
+	copy(metadataBody[CHUNK_START_MAXREP:CHUNK_END_MAXREP], IntToByte(u.MaxReplication))
+	copy(metadataBody[CHUNK_START_ENCRYPTED:CHUNK_END_ENCRYPTED], IntToByte(self.encrypted))
+	//TODO: Need to GET first-- copy(metadataBody[CHUNK_START_BIRTHTS:CHUNK_END_BIRTHTS], IntToByte(birthtimestamp))
 
-	unencryptedMetadata := metadataBody[NODE_END_MSGHASH:NODE_START_CHUNKVAL]
+	lastupdatets := int(time.Now().Unix())
+	copy(metadataBody[CHUNK_START_LASTUPDATETS:CHUNK_END_LASTUPDATETS], IntToByte(lastupdatets))
+
+	//TODO: Need to GET first-- copy(metadataBody[CHUNK_START_VERSION:CHUNK_END_VERSION], IntToByte(version))
+
+	unencryptedMetadata := metadataBody[CHUNK_END_MSGHASH:CHUNK_START_CHUNKVAL]
 	msg_hash := SignHash(unencryptedMetadata)
 
 	//TODO: msg_hash --
-	copy(metadataBody[NODE_START_MSGHASH:NODE_END_MSGHASH], msg_hash)
+	copy(metadataBody[CHUNK_START_MSGHASH:CHUNK_END_MSGHASH], msg_hash)
 
 	km := self.swarmdb.dbchunkstore.GetKeyManager()
 	sdataSig, errSign := km.SignMessage(msg_hash)
@@ -221,12 +225,12 @@ func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte) (mergedB
 	}
 
 	//TODO: Sig -- document this
-	copy(metadataBody[NODE_START_SIG:NODE_END_SIG], sdataSig)
+	copy(metadataBody[CHUNK_START_SIG:CHUNK_END_SIG], sdataSig)
 	log.Debug(fmt.Sprintf("Metadata is [%+v]", metadataBody))
 
 	mergedBodycontent = make([]byte, CHUNK_SIZE)
 	copy(mergedBodycontent[:], metadataBody)
-	copy(mergedBodycontent[NODE_START_CHUNKVAL:NODE_END_CHUNKVAL], value) // expected to be the encrypted body content
+	copy(mergedBodycontent[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL], value) // expected to be the encrypted body content
 
 	log.Debug(fmt.Sprintf("Merged Body Content: [%v]", mergedBodycontent))
 	return mergedBodycontent, err
@@ -258,15 +262,8 @@ func BuildSwarmdbPrefix(owner []byte, database []byte, table []byte, id []byte) 
 
 func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error) {
 	primaryColumnName := t.primaryColumnName
-	if t.columns[primaryColumnName] == nil {
-		return nil, false, &NoColumnError{tableName: t.tableName, tableOwner: t.Owner}
-	}
-	//t.swarmdb.kaddb.Open([]byte(t.Owner), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
-	// fmt.Printf("\n GET key: (%s)%v\n", key, key)
-
-	log.Debug("About to Get from DB")
 	if _, ok := t.columns[primaryColumnName]; !ok {
-		return c, &SWARMDBError{message: fmt.Sprintf("[table:Get] columns array missing %s ", columnName), ErrorCode: 479, ErrorMessage: fm.Sprintf("Table Definition Missing Selected Column [%s]", columnName)}
+		return out, false, &SWARMDBError{message: fmt.Sprintf("[table:Get] columns array missing %s ", primaryColumnName), ErrorCode: 479, ErrorMessage: fmt.Sprintf("Table Definition Missing Selected Column [%s]", primaryColumnName)}
 	}
 	_, ok, err = t.columns[primaryColumnName].dbaccess.Get(u, key)
 	if err != nil {
@@ -295,7 +292,7 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error)
 
 func (t *Table) Delete(u *SWARMDBUser, key interface{}) (ok bool, err error) {
 	if _, ok := t.columns[t.primaryColumnName]; !ok {
-		return c, &SWARMDBError{message: fmt.Sprintf("[table:Get] columns array missing %s ", columnName), ErrorCode: 479, ErrorMessage: fm.Sprintf("Table Definition Missing Selected Column [%s]", columnName)}
+		return false, &SWARMDBError{message: fmt.Sprintf("[table:Get] columns array missing %s ", t.primaryColumnName), ErrorCode: 479, ErrorMessage: fmt.Sprintf("Table Definition Missing Selected Column [%s]", t.primaryColumnName)}
 	}
 	k, err := convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, key)
 	if err != nil {
@@ -509,7 +506,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 				return GenerateSWARMDBError(err, `[kademliadb:Put] buildSdata `+errS.Error())
 			}
 
-			hashVal := sdata[NODE_START_KEY:NODE_END_KEY] // 32 bytes
+			hashVal := sdata[CHUNK_START_KEY:CHUNK_END_KEY] // 32 bytes
 			log.Debug(fmt.Sprintf("Kademlia Encrypted Bit: %d", t.encrypted))
 			errStore := t.swarmdb.dbchunkstore.StoreKChunk(u, hashVal, sdata, t.encrypted)
 			if errStore != nil {
@@ -630,7 +627,7 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (outRows []Row, err error
 			//return outRows, &SWARMDBError{message:"Where clause col %s doesn't exist in table", ErrorCode:, ErrorMessage:""}
 		}
 		if _, ok := t.columns[where.Left]; !ok {
-			return outRows, &SWARMDBError{message: fmt.Sprintf("[table:applyWhere] Invalid column %s", name), ErrorCode: 404, ErrorMessage: fmt.Sprintf("Column Does Not Exist in table definition: [%s]", name)}
+			return outRows, &SWARMDBError{message: fmt.Sprintf("[table:applyWhere] Invalid column %s", where.Left), ErrorCode: 404, ErrorMessage: fmt.Sprintf("Column Does Not Exist in table definition: [%s]", where.Left)}
 		}
 		colType := t.columns[where.Left].columnType
 		right, err := stringToColumnType(where.Right, colType)
