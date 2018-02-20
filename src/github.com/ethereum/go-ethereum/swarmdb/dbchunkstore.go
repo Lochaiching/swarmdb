@@ -146,9 +146,9 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 		finalSdata = make([]byte, CHUNK_SIZE)
 		key = k
 		recordData := val[NODE_START_CHUNKVAL:NODE_END_CHUNKVAL-41] //MAJOR TODO: figure out how we pass in to ensure <=4096
-		log.Debug(fmt.Sprintf("Key: [%x][%v] After Loop recordData length (%d) and start pos %d", key, key, len(recordData), KNODE_START_ENCRYPTION))
-		copy(finalSdata[0:KNODE_START_ENCRYPTION], val[0:KNODE_START_ENCRYPTION])
-		copy(finalSdata[KNODE_START_ENCRYPTION:CHUNK_SIZE], recordData)
+		log.Debug(fmt.Sprintf("Key: [%x][%v] After Loop recordData length (%d) and start pos %d", key, key, len(recordData), NODE_START_CHUNKVAL))
+		copy(finalSdata[0:NODE_START_CHUNKVAL], val[0:NODE_START_CHUNKVAL])
+		copy(finalSdata[NODE_START_CHUNKVAL:NODE_END_CHUNKVAL], recordData)
 		val = finalSdata
 
 	} else {
@@ -241,7 +241,7 @@ func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte
 	if err != nil {
 		return val, err // TODO
 	}
-	jsonRecord := val[KNODE_START_ENCRYPTION:]
+	jsonRecord := val[NODE_START_CHUNKVAL:NODE_END_CHUNKVAL]
 	return bytes.TrimRight(jsonRecord, "\x00"), nil
 }
 
