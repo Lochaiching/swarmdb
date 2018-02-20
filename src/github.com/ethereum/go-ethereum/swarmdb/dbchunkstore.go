@@ -437,7 +437,7 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 	}
 	defer stmt.Close()
 
-	recordData := val[KNODE_START_ENCRYPTION : 4096-41] //MAJOR TODO: figure out how we pass in to ensure <=4096
+	recordData := val[NODE_START_CHUNKVAL : NODE_END_CHUNKVAL-41] //MAJOR TODO: figure out how we pass in to ensure <=4096
 	//log.Debug(fmt.Sprintf("StoreKChunk: Encrypted bit when saving was: %d", encrypted))
 	if encrypted == 1 {
 		recordData = self.km.EncryptData(u, recordData)
@@ -447,10 +447,10 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 	}
 
 	var finalSdata [4096]byte
-	log.Debug(fmt.Sprintf("Key: [%x][%v] After Loop recordData length (%d) and start pos %d", key, key, len(recordData), KNODE_START_ENCRYPTION))
-	copy(finalSdata[0:KNODE_START_ENCRYPTION], val[0:KNODE_START_ENCRYPTION])
-	copy(finalSdata[KNODE_START_ENCRYPTION:4096], recordData)
-	//log.Debug(fmt.Sprintf("Key: [%x][%v] After copy recordData sData is : %s [%v]", key, key, finalSdata[KNODE_START_ENCRYPTION:4096], finalSdata[KNODE_START_ENCRYPTION:4096]))
+	log.Debug(fmt.Sprintf("Key: [%x][%v] After Loop recordData length (%d) and start pos %d", key, key, len(recordData), NODE_START_CHUNKVAL))
+	copy(finalSdata[0:NODE_START_CHUNKVAL], val[0:NODE_START_CHUNKVAL])
+	copy(finalSdata[NODE_START_CHUNKVAL:NODE_END_CHUNKVAL], recordData)
+	//log.Debug(fmt.Sprintf("Key: [%x][%v] After copy recordData sData is : %s [%v]", key, key, finalSdata[NODE_START_CHUNKVAL:NODE_END_CHUNKVAL], finalSdata[NODE_START_CHUNKVAL:NODE_END_CHUNKVAL]))
 	//log.Debug(fmt.Sprintf("finalSdata (encrypted=%d) being stored is: %+v", encrypted, finalSdata))
 	_, err2 := stmt.Exec(key[:32], finalSdata[0:], encrypted, key[:32], key[:32], u.AutoRenew, u.MinReplication, u.MaxReplication, u.Address, key[:32], seed, merkleRoot)
 	if err2 != nil {
@@ -491,7 +491,7 @@ func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte
 		}
 		//TODO: (Rodney) parse encrypted chunk
 		//	log.Debug(fmt.Sprintf("Key [%x][%v]  SQLLIT got back: [%+v]", key, key, val))
-		jsonRecord := val[KNODE_START_ENCRYPTION:]
+		jsonRecord := val[NODE_START_CHUNKVAL:]
 		trimmedJson := bytes.TrimRight(jsonRecord, "\x00")
 		var retVal []byte
 		retVal = trimmedJson
@@ -620,7 +620,7 @@ func (self *DBChunkstore) StoreChunkFile(u *SWARMDBUser, val []byte, encrypted i
 
 func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	ts := time.Now()
-	val = make([]byte, 8192)
+	val = make([]byte, 4096)
 	sql := `SELECT chunkVal, encrypted FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
@@ -897,7 +897,7 @@ func (self *DBChunkstore) GetChunkStat() (res string, err error) {
 }
 
 func (self *DBChunkstore) RetrieveRawChunk(key []byte) (chunkval []byte, err error) {
-	rawchunk := make([]byte, 8192)
+	rawchunk := make([]byte, 4096)
 	sql := `SELECT chunkVal FROM chunk WHERE chunkKey = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
@@ -925,7 +925,7 @@ func (self *DBChunkstore) RetrieveAsh(key []byte, secret []byte, proofRequired b
 	debug := true
 	request := ash.AshRequest{ChunkID: key, Seed: secret}
 	request.Challenge = &ash.AshChallenge{ProofRequired: proofRequired, Index: auditIndex}
-	chunkval := make([]byte, 8192)
+	chunkval := make([]byte, 4096)
 	if debug {
 		simulatedChunk := make([]byte, 4096)
 		rand.Read(simulatedChunk)
