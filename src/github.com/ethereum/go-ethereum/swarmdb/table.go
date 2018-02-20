@@ -189,27 +189,27 @@ func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte) (mergedB
 	log.Debug(fmt.Sprintf("[table:buildSdata] contentPrefix is: %s", contentPrefix))
 
 	var metadataBody []byte
-	metadataBody = make([]byte, 286)
+	metadataBody = make([]byte, NODE_START_CHUNKVAL)
 	//TODO: Use Constants
-	copy(metadataBody[0:32], []byte(self.Owner))
-	copy(metadataBody[32:64], []byte(self.Database))
-	copy(metadataBody[64:96], []byte(self.tableName))
-	copy(metadataBody[KNODE_START_CHUNKKEY:KNODE_END_CHUNKKEY], contentPrefix)
-	copy(metadataBody[128:160], self.Owner)  //TODO: Chunk needs to use Address of Owner instead of owner
-	copy(metadataBody[160:161], []byte("K")) //TODO: Define nodeType representation -- self.nodeType)
-	copy(metadataBody[161:162], IntToByte(u.AutoRenew))
-	copy(metadataBody[162:163], IntToByte(u.MinReplication))
-	copy(metadataBody[163:164], IntToByte(u.MaxReplication))
-	copy(metadataBody[164:165], IntToByte(self.encrypted))
-	//TODO: Reserved for birthTimestamp -- copy(metadataBody[165:173], IntToByte(birthtimestamp))
-	//TODO: lastupdate timestamp -- copy(metadataBody[173:181], IntToByte(lastupdttimestamp))
-	//TODO: Version -- copy(metadataBody[181:189], IntToByte(version))
+	copy(metadataBody[NODE_START_OWNER:NODE_END_OWNER], []byte(self.Owner))
+	copy(metadataBody[NODE_START_DB:NODE_END_DB], []byte(self.Database))
+	copy(metadataBody[NODE_START_TABLE:NODE_END_TABLE], []byte(self.tableName))
+	copy(metadataBody[NODE_START_KEY:NODE_END_KEY], contentPrefix)
+	copy(metadataBody[NODE_START_PAYER:NODE_END_PAYER], u.Address)         //TODO: Chunk needs to use Address of Owner instead of owner
+	copy(metadataBody[NODE_START_NODETYPE:NODE_END_NODETYPE], []byte("K")) //TODO: Define nodeType representation -- self.nodeType)
+	copy(metadataBody[NODE_START_RENEW:NODE_END_RENEW], IntToByte(u.AutoRenew))
+	copy(metadataBody[NODE_START_MINREP:NODE_END_MINREP], IntToByte(u.MinReplication))
+	copy(metadataBody[NODE_START_MAXREP:NODE_END_MAXREP], IntToByte(u.MaxReplication))
+	copy(metadataBody[NODE_START_ENCRYPTED:NODE_END_ENCRYPTED], IntToByte(self.encrypted))
+	copy(metadataBody[NODE_START_BIRTHTS:NODE_END_BIRTHTS], IntToByte(birthtimestamp))
+	copy(metadataBody[NODE_START_LASTUPDATETS:NODE_END_LASTUPDATETS], IntToByte(lastupdttimestamp))
+	copy(metadataBody[NODE_START_VERSION:NODE_END_VERSION], IntToByte(version))
 
-	unencryptedMetadata := metadataBody[0:189]
+	unencryptedMetadata := metadataBody[NODE_END_MSGHASH:NODE_START_CHUNKVAL]
 	msg_hash := SignHash(unencryptedMetadata)
 
 	//TODO: msg_hash --
-	copy(metadataBody[189:221], msg_hash)
+	copy(metadataBody[NODE_START_MSGHASH:NODE_END_MSGHASH], msg_hash)
 
 	km := self.swarmdb.dbchunkstore.GetKeyManager()
 	sdataSig, errSign := km.SignMessage(msg_hash)
@@ -218,12 +218,12 @@ func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte) (mergedB
 	}
 
 	//TODO: Sig -- document this
-	copy(metadataBody[221:286], sdataSig)
+	copy(metadataBody[NODE_START_SIG:NODE_END_SIG], sdataSig)
 	log.Debug(fmt.Sprintf("Metadata is [%+v]", metadataBody))
 
 	mergedBodycontent = make([]byte, CHUNK_SIZE)
 	copy(mergedBodycontent[:], metadataBody)
-	copy(mergedBodycontent[KNODE_START_ENCRYPTION:], value) // expected to be the encrypted body content
+	copy(mergedBodycontent[NODE_START_CHUNKVAL:NODE_END_CHUNKVAL], value) // expected to be the encrypted body content
 
 	log.Debug(fmt.Sprintf("Merged Body Content: [%v]", mergedBodycontent))
 	return mergedBodycontent, err
@@ -468,7 +468,6 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 }
 
 func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
-
 	rawvalue, err := json.Marshal(row)
 	if err != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[table:Put] Marshal %s", err.Error()), ErrorCode: 435, ErrorMessage: "Invalid Row Data"}
@@ -502,7 +501,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 				return GenerateSWARMDBError(err, `[kademliadb:Put] buildSdata `+errS.Error())
 			}
 
-			hashVal := sdata[KNODE_START_CHUNKKEY:KNODE_END_CHUNKKEY] // 32 bytes
+			hashVal := sdata[NODE_START_KEY:NODE_END_KEY] // 32 bytes
 			log.Debug(fmt.Sprintf("Kademlia Encrypted Bit: %d", t.encrypted))
 			errStore := t.swarmdb.dbchunkstore.StoreKChunk(u, hashVal, sdata, t.encrypted)
 			if errStore != nil {
