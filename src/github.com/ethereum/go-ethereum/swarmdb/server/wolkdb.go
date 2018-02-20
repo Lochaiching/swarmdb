@@ -389,6 +389,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	reqJson := bodyContent
 
 	pathParts := strings.Split(r.URL.Path, "/")
+	var logData []string
 	switch pathParts[1] {
 	case "swaplog":
 		startts, err := strconv.Atoi(pathParts[2])
@@ -399,7 +400,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			//TODO: Error Handling
 		}
-		log, err = s.swarmdb.GenerateSwapLog(int64(startts), int64(endts))
+		logData, err = s.swarmdb.GenerateSwapLog(int64(startts), int64(endts))
 		if err != nil {
 			//TODO: Error Handling
 		}
@@ -414,7 +415,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			//TODO: Error Handling
 		}
-		log, err = s.swarmdb.GenerateBuyerLog(int64(startts), int64(endts))
+		logData, err = s.swarmdb.GenerateBuyerLog(int64(startts), int64(endts))
 		if err != nil {
 			//TODO: Error Handling
 		}
@@ -428,7 +429,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			//TODO: Error Handling
 		}
-		log, err = s.swarmdb.GenerateFarmerLog(int64(startts), int64(endts))
+		logData, err = s.swarmdb.GenerateFarmerLog(int64(startts), int64(endts))
 		if err != nil {
 			//TODO: Error Handling
 		}
@@ -448,8 +449,8 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		fmt.Printf("ChunkID:%x | seed:%x | ProofRequired:%t | Index: %d\n", chunkkID, seed, proofRequired, int8(auditIndex))
-		resp, err := s.swarmdb.GenerateAshResponse(w, chunkID, seed, proofRequired, int8(auditIndex))
+		fmt.Printf("ChunkID:%x | seed:%x | ProofRequired:%t | Index: %d\n", chunkID, seed, proofRequired, int8(auditIndex))
+		resp, err := s.swarmdb.GenerateAshResponse(chunkID, seed, proofRequired, int8(auditIndex))
 		if err != nil {
 			//TODO: Error Handling
 		}
@@ -458,6 +459,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	default:
 	}
+	log.Debug( "Logdata", logData )
 	swReq, err := parsePath(r.URL.Path)
 	if err != nil {
 		retJson := buildErrorResp(err)
