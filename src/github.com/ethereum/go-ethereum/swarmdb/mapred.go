@@ -750,14 +750,15 @@ func (self *Validator) tallyCollationSummary(id string, b int, s int) {
 	fmt.Printf("%s\n", string(out))
 }
 
+
 func genID(i int, maxlen int) (out string) {
 	o := fmt.Sprintf("%d", i)
 	hash := crypto.Keccak256([]byte(o))
 	out = fmt.Sprintf("%x", hash)
 	if len(out) > maxlen {
 		out1 := []rune(out)
-		return (string(out1[0:maxlen]))
-	}
+		return(string(out1[0:maxlen]))
+	} 
 	return out
 }
 
@@ -775,45 +776,46 @@ func (self *Validator) GenerateLogs() (err error) {
 	for i := 1; i < 100; i++ {
 		// farmerlog
 		var sm0 SmashLogEntry
-		sm0.FarmerID = genID(3+i%8, 40)
-		sm0.ChunkID = genID(100+i, 64)
+		sm0.FarmerID = genID(3 + i % 8, 40)
+		sm0.ChunkID = genID(100 + i, 64)  
 		out0, _ := json.Marshal(sm0)
 		f0.WriteString(fmt.Sprintf("%s\n", string(out0)))
-
+		
 		// buyerlog
 		var sm1 SmashLogEntry
-		sm1.ChunkID = genID(100+i, 64)
+		sm1.ChunkID = genID(100 + i, 64)  
 		sm1.ChunkBD = 1518508203
 		sm1.Rep = 3
 		sm1.Renewable = i % 2
-		sm1.BuyerID = genID(i%3, 40)
-		sm1.Smash = genID(1000+i, 64)
+		sm1.BuyerID = genID(i % 3, 40)
+		sm1.Smash = genID(1000 + i, 64)
 		out1, _ := json.Marshal(sm1)
 		f1.WriteString(fmt.Sprintf("%s\n", string(out1)))
 	}
+	
 	f3, err := os.Create("data/swaplog.txt")
 	if err != nil {
 		return fmt.Errorf("Could not create swaplog")
 	}
 	defer f3.Close()
 	for i := 1; i < 100; i++ {
-		// local is getting +B
+		// local is getting +B 
 		var sw0 SwapLogEntry
 		sw0.SwapID = genID(i+1000, 64)
-		sw0.LocalID = genID(3+i%8, 40)
-		sw0.RemoteID = genID(i%3, 40)
-		sw0.B = i%3 + 3
+		sw0.LocalID = genID(3 + i % 8, 40)
+		sw0.RemoteID = genID(i % 3, 40)
+		sw0.B = i % 3+3
 		sw0.Sig = "sig0" // km.SignMessage
-
+		
 		out, _ := json.Marshal(sw0)
 		f3.WriteString(fmt.Sprintf("%s\n", string(out)))
-
-		// local is getting -B
+		
+		// local is getting -B 
 		var sw1 SwapLogEntry
 		sw1.SwapID = genID(i+1000, 64)
 		sw1.LocalID = sw0.RemoteID
 		sw1.RemoteID = sw0.LocalID
-		sw1.B = -sw0.B
+		sw1.B = - sw0.B
 		sw1.Sig = "sig1" // km.SignMessage
 		out, _ = json.Marshal(sw1)
 		f3.WriteString(fmt.Sprintf("%s\n", string(out)))

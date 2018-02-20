@@ -19,8 +19,7 @@ import (
 	"bytes"
 	"fmt"
 	"math/rand"
-	"os"
-	wolkdb "swarmdb"
+	"swarmdb"
 	"testing"
 )
 
@@ -28,34 +27,30 @@ const (
 	HASHDB_ENCRYPTED = 0
 )
 
-var config *wolkdb.SWARMDBConfig
-var swarmdb *wolkdb.SwarmDB
-
-func TestMain(m *testing.M) {
-	config, _ = wolkdb.LoadSWARMDBConfig(wolkdb.SWARMDBCONF_FILE)
-	var err error
-	swarmdb, err = wolkdb.NewSwarmDB(config)
+func getHashDBSwarmDB(t *testing.T) swarmdb.SwarmDB {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := "/tmp"
+	swarmdb, err := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 	if err != nil {
-		os.Exit(0) // m.Fatal("could not create SWARMDB", err)
+		t.Fatal("Could not create SWARMDB", err)
 	}
-	wolkdb.NewKeyManager(config)
-	code := m.Run()
-	// do somethng in shutdown
-	os.Exit(code)
+	return *swarmdb
 }
 
 func TestHashDBPutInteger(t *testing.T) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
 
 	fmt.Printf("---- TestHashDBPutInteger: generate 20 ints and enumerate them\n")
 	hashid := make([]byte, 32)
-	r, _ := wolkdb.NewHashDB(u, nil, swarmdb, wolkdb.CT_INTEGER, HASHDB_ENCRYPTED)
+	r, _ := swarmdb.NewHashDB(u, nil, getHashDBSwarmDB(t), swarmdb.CT_INTEGER, HASHDB_ENCRYPTED)
 
 	// write 20 values into B-tree (only kept in memory)
 	r.StartBuffer(u)
 	vals := rand.Perm(20)
 	for _, i := range vals {
-		k := wolkdb.IntToByte(i)
+		k := swarmdb.IntToByte(i)
 		v := []byte(fmt.Sprintf("valueof%06x", i))
 		fmt.Printf("Insert %d %v %v\n", i, string(k), string(v))
 		r.Put(u, k, v)
@@ -65,15 +60,15 @@ func TestHashDBPutInteger(t *testing.T) {
 	r.Print(u)
 
 	hashid = r.GetRootHash()
-	s, _ := wolkdb.NewHashDB(u, hashid, swarmdb, wolkdb.CT_INTEGER, HASHDB_ENCRYPTED)
+	s, _ := swarmdb.NewHashDB(u, hashid, getHashDBSwarmDB(t), swarmdb.CT_INTEGER, HASHDB_ENCRYPTED)
 	//s.Print()
-	g, ok, err := s.Get(u, wolkdb.IntToByte(10))
+	g, ok, err := s.Get(u, swarmdb.IntToByte(10))
 	if !ok || err != nil {
 		t.Fatal(g, err)
 	} else {
 		fmt.Printf("Get(10): [%s]\n", string(g))
 	}
-	h, ok2, err2 := s.Get(u, wolkdb.IntToByte(1))
+	h, ok2, err2 := s.Get(u, swarmdb.IntToByte(1))
 	if !ok2 || err2 != nil {
 		t.Fatal(h, err2)
 	}
@@ -85,7 +80,7 @@ func TestHashDBPutInteger(t *testing.T) {
 		res, _ := s.SeekFirst(u)
 		records := 0
 		for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
-			fmt.Printf(" *int*> %d: K: %s V: %v\n", records, wolkdb.KeyToString(wolkdb.CT_INTEGER, k), string(v))
+			fmt.Printf(" *int*> %d: K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_INTEGER, k), string(v))
 			records++
 		}
 		fmt.Printf("---- TestHashDBPutInteger Next (%d records)\n", records)
@@ -96,7 +91,7 @@ func TestHashDBPutInteger(t *testing.T) {
 		res, _ := s.SeekLast(u)
 		records := 0
 		for k, v, err := res.Prev(u); err == nil; k, v, err = res.Prev(u) {
-			fmt.Printf(" *int*> %d: K: %s V: %v\n", records, wolkdb.KeyToString(wolkdb.CT_INTEGER, k), string(v))
+			fmt.Printf(" *int*> %d: K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_INTEGER, k), string(v))
 			records++
 			if err != nil {
 				fmt.Println("err = ", err)
@@ -109,10 +104,12 @@ func TestHashDBPutInteger(t *testing.T) {
 
 func TestHashDBPutString(t *testing.T) {
 	fmt.Printf("---- TestHashDBPutString: generate 20 strings and enumerate them\n")
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
 
 	hashid := make([]byte, 32)
-	r, _ := wolkdb.NewHashDB(u, nil, swarmdb, wolkdb.CT_STRING, HASHDB_ENCRYPTED)
+	r, _ := swarmdb.NewHashDB(u, nil, getHashDBSwarmDB(t), swarmdb.CT_STRING, HASHDB_ENCRYPTED)
 
 	r.StartBuffer(u)
 	vals := rand.Perm(20)
@@ -128,7 +125,7 @@ func TestHashDBPutString(t *testing.T) {
 	// r.Print()
 
 	hashid = r.GetRootHash()
-	s, _ := wolkdb.NewHashDB(u, hashid, swarmdb, wolkdb.CT_STRING, HASHDB_ENCRYPTED)
+	s, _ := swarmdb.NewHashDB(u, hashid, getHashDBSwarmDB(t), swarmdb.CT_STRING, HASHDB_ENCRYPTED)
 	g, _, _ := s.Get(u, []byte("000008"))
 	fmt.Printf("Get(000008): %v\n", string(g))
 
@@ -140,7 +137,7 @@ func TestHashDBPutString(t *testing.T) {
 	res, _, _ := r.Seek(u, []byte("000004"))
 	records := 0
 	for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
-		fmt.Printf(" *string*> %d K: %s V: %v\n", records, wolkdb.KeyToString(wolkdb.CT_STRING, k), string(v))
+		fmt.Printf(" *string*> %d K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_STRING, k), string(v))
 		records++
 	}
 	fmt.Printf("---- TestHashDBPutString DONE (%d records)\n", records)
@@ -149,28 +146,30 @@ func TestHashDBPutString(t *testing.T) {
 
 func TestHashDBPutFloat(t *testing.T) {
 	fmt.Printf("---- TestHashDBPutFloat: generate 20 floats and enumerate them\n")
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
 
-	r, _ := wolkdb.NewHashDB(u, nil, swarmdb, wolkdb.CT_FLOAT, HASHDB_ENCRYPTED)
+	r, _ := swarmdb.NewHashDB(u, nil, getHashDBSwarmDB(t), swarmdb.CT_FLOAT, HASHDB_ENCRYPTED)
 
 	r.StartBuffer(u)
 	vals := rand.Perm(20)
 	// write 20 values into B-tree (only kept in memory)
 	for _, i := range vals {
-		k := wolkdb.FloatToByte(float64(i) + .314159)
+		k := swarmdb.FloatToByte(float64(i) + .314159)
 		v := []byte(fmt.Sprintf("valueof%06x", i))
-		// fmt.Printf("Insert %d %v %v\n", i, wolkdb.KeyToString(wolkdb.KT_FLOAT, k), string(v))
+		// fmt.Printf("Insert %d %v %v\n", i, swarmdb.KeyToString(swarmdb.KT_FLOAT, k), string(v))
 		r.Put(u, k, v)
 	}
 	// this writes B+tree to SWARM
 	r.FlushBuffer(u)
-	h, _, _ := r.Get(u, wolkdb.FloatToByte(0.314159))
+	h, _, _ := r.Get(u, swarmdb.FloatToByte(0.314159))
 	fmt.Printf("Get(0.314159): %v\n", string(h))
 	// r.Print()
 	// ENUMERATOR
 	hashid := r.GetRootHash()
-	s, _ := wolkdb.NewHashDB(u, hashid, swarmdb, wolkdb.CT_FLOAT, HASHDB_ENCRYPTED)
-	res, _, err := s.Seek(u, wolkdb.FloatToByte(0.314159))
+	s, _ := swarmdb.NewHashDB(u, hashid, getHashDBSwarmDB(t), swarmdb.CT_FLOAT, HASHDB_ENCRYPTED)
+	res, _, err := s.Seek(u, swarmdb.FloatToByte(0.314159))
 	if res == nil || err != nil {
 		t.Fatal(err)
 		return
@@ -178,20 +177,22 @@ func TestHashDBPutFloat(t *testing.T) {
 
 	records := 0
 	for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
-		fmt.Printf(" *float*> %d: K: %s V: %v\n", records, wolkdb.KeyToString(wolkdb.CT_FLOAT, k), string(v))
+		fmt.Printf(" *float*> %d: K: %s V: %v\n", records, swarmdb.KeyToString(swarmdb.CT_FLOAT, k), string(v))
 		records++
 	}
 }
 
 func TestHashDBSetGetString(t *testing.T) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
 
 	hashid := make([]byte, 32)
-	r, _ := wolkdb.NewHashDB(u, nil, swarmdb, wolkdb.CT_STRING, HASHDB_ENCRYPTED)
+	r, _ := swarmdb.NewHashDB(u, nil, getHashDBSwarmDB(t), swarmdb.CT_STRING, HASHDB_ENCRYPTED)
 
 	// put
 	key := []byte("42")
-	val := wolkdb.SHA256("314")
+	val := swarmdb.SHA256("314")
 	r.Put(u, key, val)
 
 	// check put with get
@@ -206,8 +207,8 @@ func TestHashDBSetGetString(t *testing.T) {
 	hashid = r.GetRootHash()
 
 	// r2 put
-	r2, _ := wolkdb.NewHashDB(u, hashid, swarmdb, wolkdb.CT_STRING, HASHDB_ENCRYPTED)
-	val2 := wolkdb.SHA256("278")
+	r2, _ := swarmdb.NewHashDB(u, hashid, getHashDBSwarmDB(t), swarmdb.CT_STRING, HASHDB_ENCRYPTED)
+	val2 := swarmdb.SHA256("278")
 	r2.Put(u, key, val2)
 	//r2.Print()
 
@@ -222,9 +223,9 @@ func TestHashDBSetGetString(t *testing.T) {
 	hashid = r2.GetRootHash()
 
 	// r3 put
-	r3, _ := wolkdb.NewHashDB(u, hashid, swarmdb, wolkdb.CT_STRING, HASHDB_ENCRYPTED)
+	r3, _ := swarmdb.NewHashDB(u, hashid, getHashDBSwarmDB(t), swarmdb.CT_STRING, HASHDB_ENCRYPTED)
 	key2 := []byte("420")
-	val3 := wolkdb.SHA256("bbb")
+	val3 := swarmdb.SHA256("bbb")
 	r3.Put(u, key2, val3)
 
 	// check put with get
@@ -241,11 +242,13 @@ func TestHashDBSetGetString(t *testing.T) {
 }
 
 func TestHashDBSetGetInt(t *testing.T) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
 
 	const N = 4
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := wolkdb.NewHashDB(u, nil, swarmdb, wolkdb.CT_INTEGER, HASHDB_ENCRYPTED)
+		r, _ := swarmdb.NewHashDB(u, nil, getHashDBSwarmDB(t), swarmdb.CT_INTEGER, HASHDB_ENCRYPTED)
 
 		a := make([]int, N)
 		for i := range a {
@@ -253,23 +256,23 @@ func TestHashDBSetGetInt(t *testing.T) {
 		}
 		fmt.Printf("%v\n", a)
 		for _, k := range a {
-			r.Put(u, wolkdb.IntToByte(k), wolkdb.SHA256(fmt.Sprintf("%v", k^x)))
+			r.Put(u, swarmdb.IntToByte(k), swarmdb.SHA256(fmt.Sprintf("%v", k^x)))
 		}
 
 		for i, k := range a {
-			v, ok, err := r.Get(u, wolkdb.IntToByte(k))
+			v, ok, err := r.Get(u, swarmdb.IntToByte(k))
 			if !ok || err != nil {
 				t.Fatal(i, k, v, ok)
 			}
 
-			val := wolkdb.SHA256(fmt.Sprintf("%v", k^x))
+			val := swarmdb.SHA256(fmt.Sprintf("%v", k^x))
 			if bytes.Compare([]byte(val), v) != 0 {
 				t.Fatal(i, val, v)
 			}
 
 			k |= 1
 
-			_, ok, _ = r.Get(u, wolkdb.IntToByte(k))
+			_, ok, _ = r.Get(u, swarmdb.IntToByte(k))
 			if ok {
 				t.Fatal(i, k)
 			}
@@ -277,22 +280,22 @@ func TestHashDBSetGetInt(t *testing.T) {
 		}
 
 		for _, k := range a {
-			r.Put(u, wolkdb.IntToByte(k), wolkdb.SHA256(fmt.Sprintf("%v", k^x+42)))
+			r.Put(u, swarmdb.IntToByte(k), swarmdb.SHA256(fmt.Sprintf("%v", k^x+42)))
 		}
 
 		for i, k := range a {
-			v, ok, err := r.Get(u, wolkdb.IntToByte(k))
+			v, ok, err := r.Get(u, swarmdb.IntToByte(k))
 			if !ok || err != nil {
 				t.Fatal(i, k, v, ok)
 			}
 
-			val := wolkdb.SHA256(fmt.Sprintf("%v", k^x+42))
+			val := swarmdb.SHA256(fmt.Sprintf("%v", k^x+42))
 			if bytes.Compare([]byte(val), v) != 0 {
 				t.Fatal(i, v, val)
 			}
 
 			k |= 1
-			_, ok, _ = r.Get(u, wolkdb.IntToByte(k))
+			_, ok, _ = r.Get(u, swarmdb.IntToByte(k))
 			if ok {
 				t.Fatal(i, k)
 			}
@@ -302,14 +305,16 @@ func TestHashDBSetGetInt(t *testing.T) {
 }
 
 func TestHashDBDelete0(t *testing.T) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
-	r, _ := wolkdb.NewHashDB(u, nil, swarmdb, wolkdb.CT_INTEGER, HASHDB_ENCRYPTED)
+	r, _ := swarmdb.NewHashDB(u, nil, getHashDBSwarmDB(t), swarmdb.CT_INTEGER, HASHDB_ENCRYPTED)
 
-	key0 := wolkdb.IntToByte(0)
-	key1 := wolkdb.IntToByte(1)
+	key0 := swarmdb.IntToByte(0)
+	key1 := swarmdb.IntToByte(1)
 
-	val0 := wolkdb.SHA256("0")
-	val1 := wolkdb.SHA256("1")
+	val0 := swarmdb.SHA256("0")
+	val1 := swarmdb.SHA256("1")
 
 	if ok, _ := r.Delete(u, key0); ok {
 		t.Fatal(ok)
@@ -366,20 +371,22 @@ func TestHashDBDelete0(t *testing.T) {
 }
 
 func TestHashDBDelete1(t *testing.T) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := wolkdb.NewHashDB(u, nil, swarmdb, wolkdb.CT_INTEGER, HASHDB_ENCRYPTED)
+		r, _ := swarmdb.NewHashDB(u, nil, getHashDBSwarmDB(t), swarmdb.CT_INTEGER, HASHDB_ENCRYPTED)
 		a := make([]int, N)
 		for i := range a {
 			a[i] = (i ^ x) << 1
 		}
 		for _, k := range a {
-			r.Put(u, wolkdb.IntToByte(k), wolkdb.SHA256("0"))
+			r.Put(u, swarmdb.IntToByte(k), swarmdb.SHA256("0"))
 		}
 
 		for i, k := range a {
-			ok, _ := r.Delete(u, wolkdb.IntToByte(k))
+			ok, _ := r.Delete(u, swarmdb.IntToByte(k))
 			if !ok {
 				fmt.Printf("YIPE%s\n", k)
 				t.Fatal(i, x, k)
@@ -389,20 +396,22 @@ func TestHashDBDelete1(t *testing.T) {
 }
 
 func TestHashDBDelete2(t *testing.T) {
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	swarmdb.NewKeyManager(&config)
 	u := config.GetSWARMDBUser()
 	const N = 100
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := wolkdb.NewHashDB(u, nil, swarmdb, wolkdb.CT_INTEGER, HASHDB_ENCRYPTED)
+		r, _ := swarmdb.NewHashDB(u, nil, getHashDBSwarmDB(t), swarmdb.CT_INTEGER, HASHDB_ENCRYPTED)
 		a := make([]int, N)
-		rng := wolkdb.Rng()
+		rng := swarmdb.Rng()
 		for i := range a {
 			a[i] = (rng.Next() ^ x) << 1
 		}
 		for _, k := range a {
-			r.Put(u, wolkdb.IntToByte(k), wolkdb.SHA256("0"))
+			r.Put(u, swarmdb.IntToByte(k), swarmdb.SHA256("0"))
 		}
 		for i, k := range a {
-			ok, _ := r.Delete(u, wolkdb.IntToByte(k))
+			ok, _ := r.Delete(u, swarmdb.IntToByte(k))
 			if !ok {
 				t.Fatal(i, x, k)
 			}

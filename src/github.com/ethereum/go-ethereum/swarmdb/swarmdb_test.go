@@ -18,9 +18,8 @@ package swarmdb_test
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
-	sdb "swarmdb"
+	"swarmdb"
 	"testing"
 	"time"
 )
@@ -32,8 +31,8 @@ const (
 type testTableConfig struct {
 	tableName         string
 	primaryColumnName string
-	indexType         sdb.IndexType
-	columnType        sdb.ColumnType
+	indexType         swarmdb.IndexType
+	columnType        swarmdb.ColumnType
 	sampleValue1      interface{}
 	sampleValue2      interface{}
 	sampleValue3      interface{}
@@ -44,45 +43,42 @@ type testTableConfig struct {
 	sampleValue4str   string
 }
 
-var config *sdb.SWARMDBConfig
-var swarmdb *sdb.SwarmDB
-var u *sdb.SWARMDBUser
-
-func TestMain(m *testing.M) {
-	config, _ = sdb.LoadSWARMDBConfig(sdb.SWARMDBCONF_FILE)
-	var err error
-	swarmdb, err = sdb.NewSwarmDB(config)
-	if err != nil {
-		os.Exit(0) // m.Fatal("could not create SWARMDB", err)
-	}
-	sdb.NewKeyManager(config)
-	u = config.GetSWARMDBUser()
-
-	code := m.Run()
-	// do somethng in shutdown
-	os.Exit(code)
-}
-
 func make_name(prefix string) (nm string) {
 	return fmt.Sprintf("%s%d", prefix, int32(time.Now().Unix()))
 }
 
+func getUser() (u *swarmdb.SWARMDBUser) {
+	config, err := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	if err != nil {
+		panic("No config error")
+	}
+
+	swarmdb.NewKeyManager(&config)
+	user := config.GetSWARMDBUser()
+	return user
+}
+
 func TestCoreTables(t *testing.T) {
 
+	u := getUser()
 	owner := make_name("owner")
 	owner2 := make_name("altowner")
 	database := make_name("db")
 	database2 := make_name("altdb")
 
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := TEST_ENS_DIR
+	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+
 	// create database
-	var tReq *sdb.RequestOption
-	tReq = new(sdb.RequestOption)
-	tReq.RequestType = sdb.RT_CREATE_DATABASE
+	var tReq *swarmdb.RequestOption
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_CREATE_DATABASE
 	tReq.Owner = owner
 	tReq.Database = database
 	mReq, _ := json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
-	res, err := swarmdb.SelectHandler(u, string(mReq))
+	res, err := swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatalf("[swarmdb_test:TestCoreTables] CREATE DATABASE: %s", err)
 	}
@@ -90,7 +86,7 @@ func TestCoreTables(t *testing.T) {
 
 	// create database again with the exact name ==> should fail
 	fmt.Printf("Input: %s\n", mReq)
-	res, err = swarmdb.SelectHandler(u, string(mReq))
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		fmt.Printf("Output: %s\n\n", err)
 	} else {
@@ -100,26 +96,26 @@ func TestCoreTables(t *testing.T) {
 
 	// create another database
 
-	tReq = new(sdb.RequestOption)
-	tReq.RequestType = sdb.RT_CREATE_DATABASE
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_CREATE_DATABASE
 	tReq.Owner = owner
 	tReq.Database = database2
 	mReq, _ = json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
-	res, err = swarmdb.SelectHandler(u, string(mReq))
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatalf("[swarmdb_test:TestCoreTables] CREATE DATABASE: %s", err)
 	}
 	fmt.Printf("Output: %s\n\n", res.Stringify())
 
 	// list databases ==> should have 2 databases
-	tReq = new(sdb.RequestOption)
-	tReq.RequestType = sdb.RT_LIST_DATABASES
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_LIST_DATABASES
 	tReq.Owner = owner
 	tReq.Database = database
 	mReq, _ = json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
-	res, err = swarmdb.SelectHandler(u, string(mReq))
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatalf("[swarmdb_test:TestCoreTables] LIST DATABASES: %s", err)
 	}
@@ -129,13 +125,13 @@ func TestCoreTables(t *testing.T) {
 	fmt.Printf("Output: %s \n\n", res.Stringify())
 
 	// list databases ==> should have 0 databases
-	tReq = new(sdb.RequestOption)
-	tReq.RequestType = sdb.RT_LIST_DATABASES
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_LIST_DATABASES
 	tReq.Owner = owner2
 	tReq.Database = database
 	mReq, _ = json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
-	res, err = swarmdb.SelectHandler(u, string(mReq))
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatalf("[swarmdb_test:TestCoreTables] LIST DATABASES: %s", err)
 	}
@@ -145,12 +141,12 @@ func TestCoreTables(t *testing.T) {
 	fmt.Printf("Output: %s \n\n", res.Stringify())
 
 	// list tables
-	tReq.RequestType = sdb.RT_LIST_TABLES
+	tReq.RequestType = swarmdb.RT_LIST_TABLES
 	tReq.Owner = owner
 	tReq.Database = database
 	mReq, _ = json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
-	res, err = swarmdb.SelectHandler(u, string(mReq))
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatalf("[swarmdb_test:TestCoreTables] LIST TABLES: %s", err)
 	}
@@ -162,8 +158,8 @@ func TestCoreTables(t *testing.T) {
 	tabletest := make([]testTableConfig, 6)
 	tabletest[0].tableName = make_name("teststrb")
 	tabletest[0].primaryColumnName = "stb"
-	tabletest[0].columnType = sdb.CT_STRING
-	tabletest[0].indexType = sdb.IT_BPLUSTREE
+	tabletest[0].columnType = swarmdb.CT_STRING
+	tabletest[0].indexType = swarmdb.IT_BPLUSTREE
 	tabletest[0].sampleValue1 = "gamma"
 	tabletest[0].sampleValue2 = "alpha"
 	tabletest[0].sampleValue3 = "beta"
@@ -173,8 +169,8 @@ func TestCoreTables(t *testing.T) {
 
 	tabletest[1].tableName = make_name("teststrh")
 	tabletest[1].primaryColumnName = "sth"
-	tabletest[1].columnType = sdb.CT_STRING
-	tabletest[1].indexType = sdb.IT_HASHTREE
+	tabletest[1].columnType = swarmdb.CT_STRING
+	tabletest[1].indexType = swarmdb.IT_HASHTREE
 	tabletest[1].sampleValue1 = "gamma"
 	tabletest[1].sampleValue2 = "alpha"
 	tabletest[1].sampleValue3 = "beta"
@@ -184,8 +180,8 @@ func TestCoreTables(t *testing.T) {
 
 	tabletest[2].tableName = make_name("testintb")
 	tabletest[2].primaryColumnName = "inb"
-	tabletest[2].columnType = sdb.CT_INTEGER
-	tabletest[2].indexType = sdb.IT_BPLUSTREE
+	tabletest[2].columnType = swarmdb.CT_INTEGER
+	tabletest[2].indexType = swarmdb.IT_BPLUSTREE
 	tabletest[2].sampleValue1 = 3
 	tabletest[2].sampleValue2 = 1
 	tabletest[2].sampleValue3 = 2
@@ -195,8 +191,8 @@ func TestCoreTables(t *testing.T) {
 
 	tabletest[3].tableName = make_name("testinth")
 	tabletest[3].primaryColumnName = "inh"
-	tabletest[3].columnType = sdb.CT_INTEGER
-	tabletest[3].indexType = sdb.IT_HASHTREE
+	tabletest[3].columnType = swarmdb.CT_INTEGER
+	tabletest[3].indexType = swarmdb.IT_HASHTREE
 	tabletest[3].sampleValue1 = 3
 	tabletest[3].sampleValue2 = 1
 	tabletest[3].sampleValue3 = 2
@@ -206,8 +202,8 @@ func TestCoreTables(t *testing.T) {
 
 	tabletest[4].tableName = make_name("testfltb")
 	tabletest[4].primaryColumnName = "flb"
-	tabletest[4].columnType = sdb.CT_FLOAT
-	tabletest[4].indexType = sdb.IT_BPLUSTREE
+	tabletest[4].columnType = swarmdb.CT_FLOAT
+	tabletest[4].indexType = swarmdb.IT_BPLUSTREE
 	tabletest[4].sampleValue1 = 3.14
 	tabletest[4].sampleValue2 = 1.66
 	tabletest[4].sampleValue3 = 2.71
@@ -217,8 +213,8 @@ func TestCoreTables(t *testing.T) {
 
 	tabletest[5].tableName = make_name("testflth")
 	tabletest[5].primaryColumnName = "flh"
-	tabletest[5].columnType = sdb.CT_FLOAT
-	tabletest[5].indexType = sdb.IT_HASHTREE
+	tabletest[5].columnType = swarmdb.CT_FLOAT
+	tabletest[5].indexType = swarmdb.IT_HASHTREE
 	tabletest[5].sampleValue1 = 3.14
 	tabletest[5].sampleValue2 = 1.66
 	tabletest[5].sampleValue3 = 2.71
@@ -231,8 +227,8 @@ func TestCoreTables(t *testing.T) {
 		tableName := tbl.tableName
 
 		// CREATE TABLE
-		var testColumn []sdb.Column
-		testColumn = make([]sdb.Column, 3)
+		var testColumn []swarmdb.Column
+		testColumn = make([]swarmdb.Column, 3)
 		testColumn[0].ColumnName = tbl.primaryColumnName
 		testColumn[0].Primary = 1 // TODO: test when (a) more than one primary (b) no primary specified
 		testColumn[0].IndexType = tbl.indexType
@@ -240,23 +236,23 @@ func TestCoreTables(t *testing.T) {
 
 		testColumn[1].ColumnName = "name"
 		testColumn[1].Primary = 0
-		testColumn[1].IndexType = sdb.IT_BPLUSTREE
-		testColumn[1].ColumnType = sdb.CT_STRING // TODO: test what happens when value of incorrect type supplied for column
+		testColumn[1].IndexType = swarmdb.IT_BPLUSTREE
+		testColumn[1].ColumnType = swarmdb.CT_STRING // TODO: test what happens when value of incorrect type supplied for column
 
 		testColumn[2].ColumnName = "age"
 		testColumn[2].Primary = 0
-		testColumn[2].IndexType = sdb.IT_BPLUSTREE
-		testColumn[2].ColumnType = sdb.CT_INTEGER
+		testColumn[2].IndexType = swarmdb.IT_BPLUSTREE
+		testColumn[2].ColumnType = swarmdb.CT_INTEGER
 
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_CREATE_TABLE
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_CREATE_TABLE
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Columns = testColumn
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] CreateTable: %s", err)
 		}
@@ -264,7 +260,7 @@ func TestCoreTables(t *testing.T) {
 
 		// CREATE TABLE second time ==> FAIL
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			fmt.Printf("Output: %s\n\n", err)
 		} else {
@@ -273,14 +269,14 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// DESCRIBE TABLE
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_DESCRIBE_TABLE
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_DESCRIBE_TABLE
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] DescribeTable: %s", err)
 		}
@@ -291,13 +287,13 @@ func TestCoreTables(t *testing.T) {
 
 		// PUT(sampleValue1)
 		testKey := tbl.sampleValue1
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_PUT
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_PUT
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Key = testKey
-		rowObj := make(sdb.Row)
+		rowObj := make(swarmdb.Row)
 		rowObj[tbl.primaryColumnName] = testKey
 		rowObj["name"] = "Rodney"
 		rowObj["age"] = int(37)
@@ -305,7 +301,7 @@ func TestCoreTables(t *testing.T) {
 		tReq.Rows = append(tReq.Rows, rowObj)
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err := swarmdb.SelectHandler(u, string(mReq))
+		res, err := swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Put %s", err.Error())
 		}
@@ -315,15 +311,15 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// GET(sampleValue1)
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_GET
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_GET
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Key = testKey
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Get %s", err.Error())
 		}
@@ -335,34 +331,32 @@ func TestCoreTables(t *testing.T) {
 			} else if strings.Compare(d["name"].(string), "Rodney") != 0 {
 				t.Fatalf("MISMATCH: [%v]\n", d["name"])
 			} else {
-				if tbl.columnType == sdb.CT_STRING {
+				if tbl.columnType == swarmdb.CT_STRING {
 					if strings.Compare(d[tbl.primaryColumnName].(string), testKey.(string)) != 0 {
 						t.Fatalf("MISMATCH on %s: [%v] != [%v]\n", tbl.primaryColumnName, d[tbl.primaryColumnName], testKey)
 					}
-				} else if tbl.columnType == sdb.CT_INTEGER {
+				} else if tbl.columnType == swarmdb.CT_INTEGER {
 					if d[tbl.primaryColumnName].(int) != testKey.(int) {
 						t.Fatalf("MISMATCH on %s: [%d] != [%d]\n", tbl.primaryColumnName, d[tbl.primaryColumnName], testKey)
 					}
-				} else if tbl.columnType == sdb.CT_FLOAT {
+				} else if tbl.columnType == swarmdb.CT_FLOAT {
 					if d[tbl.primaryColumnName].(float64) != testKey.(float64) {
 						t.Fatalf("MISMATCH on %s: [%f] != [%f]\n", tbl.primaryColumnName, d[tbl.primaryColumnName], testKey)
 					}
 				}
 			}
-		} else {
-			t.Fatalf("Missing row!")
 		}
 
 		// GET(samplevalue2) should return ok = false, but not error
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_GET
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_GET
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Key = tbl.sampleValue2
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Get %s", err.Error())
 		}
@@ -372,15 +366,15 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// DELETE(samplevalue2) should return ok = false, but not error
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_DELETE
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_DELETE
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Key = tbl.sampleValue2
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Delete %s", err.Error())
 		}
@@ -390,16 +384,16 @@ func TestCoreTables(t *testing.T) {
 		fmt.Printf("Output: %s\n\n", res.Stringify())
 
 		// INSERT(sampleValue2) QUERY
-		tReq = new(sdb.RequestOption)
+		tReq = new(swarmdb.RequestOption)
 		queryInsert := fmt.Sprintf("insert into %s (%s, name, age) values ('%s', 'randomname', '99')", tableName, tbl.primaryColumnName, tbl.sampleValue2str)
-		tReq.RequestType = sdb.RT_QUERY
+		tReq.RequestType = swarmdb.RT_QUERY
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.RawQuery = queryInsert
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Insert %s", err.Error())
 		}
@@ -409,16 +403,16 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// SELECT(sampleValue2) ==> 1
-		tReq = new(sdb.RequestOption)
+		tReq = new(swarmdb.RequestOption)
 		querySelect := fmt.Sprintf("select %s, name, age from %s where %s = '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue2str)
-		tReq.RequestType = sdb.RT_QUERY
+		tReq.RequestType = swarmdb.RT_QUERY
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.RawQuery = querySelect
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Select(samplevalue2) %s", err.Error())
 		}
@@ -428,16 +422,16 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// SELECT AND ==> 2 rows
-		tReq = new(sdb.RequestOption)
+		tReq = new(swarmdb.RequestOption)
 		querySelect = fmt.Sprintf("select %s, name, age from %s where %s = \"%s\" AND age = 99", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue2str)
-		tReq.RequestType = sdb.RT_QUERY
+		tReq.RequestType = swarmdb.RT_QUERY
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.RawQuery = querySelect
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			// t.Fatalf("[swarmdb_test:TestCoreTables] Select(*) %s", err.Error())
 			// TODO: FIX THIS -- [swarmdb_test:TestCoreTables] Select(*) [swarmdb:SelectHandler] Query col [(stb = 'alpha')] does not exist in table
@@ -448,16 +442,16 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// SELECT OR ==> 2 rows
-		tReq = new(sdb.RequestOption)
+		tReq = new(swarmdb.RequestOption)
 		querySelect = fmt.Sprintf("select %s, name, age from %s where %s = '%s' OR %s = '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue1str, tbl.primaryColumnName, tbl.sampleValue2str)
-		tReq.RequestType = sdb.RT_QUERY
+		tReq.RequestType = swarmdb.RT_QUERY
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.RawQuery = querySelect
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			// t.Fatalf("[swarmdb_test:TestCoreTables] Select(*) %s", err.Error())
 			// TODO: FIX THIS -- Select(*) [swarmdb:SelectHandler] Query col [(stb = 'gamma')] does not exist in table
@@ -468,14 +462,14 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// SCAN ==> 2 Rows
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_SCAN
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_SCAN
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Scan %s", err.Error())
 		}
@@ -485,16 +479,16 @@ func TestCoreTables(t *testing.T) {
 		fmt.Printf("Output: %s\n\n", res.Stringify())
 
 		// SELECT(sampleValue3) ==> 0 rows
-		tReq = new(sdb.RequestOption)
+		tReq = new(swarmdb.RequestOption)
 		querySelect = fmt.Sprintf("select %s, name, age from %s where %s = '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue3str)
-		tReq.RequestType = sdb.RT_QUERY
+		tReq.RequestType = swarmdb.RT_QUERY
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.RawQuery = querySelect
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Select(samplevalue3) %s", err.Error())
 		}
@@ -504,16 +498,16 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// Update(sampleValue2) ==> 1 row affected
-		tReq = new(sdb.RequestOption)
+		tReq = new(swarmdb.RequestOption)
 		queryUpdate := fmt.Sprintf("update %s set age = 38 where %s = '%s'", tableName, tbl.primaryColumnName, tbl.sampleValue2str)
-		tReq.RequestType = sdb.RT_QUERY
+		tReq.RequestType = swarmdb.RT_QUERY
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.RawQuery = queryUpdate
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Update(samplevalue2) %s", err.Error())
 		}
@@ -523,15 +517,15 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// GET(samplevalue2) should have age 38
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_GET
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_GET
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Key = tbl.sampleValue2
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Get %s", err.Error())
 		}
@@ -547,16 +541,16 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// Delete(sampleValue2) ==> 1 row affected
-		tReq = new(sdb.RequestOption)
+		tReq = new(swarmdb.RequestOption)
 		queryDelete := fmt.Sprintf("delete from %s where %s = '%s'", tableName, tbl.primaryColumnName, tbl.sampleValue2str)
-		tReq.RequestType = sdb.RT_QUERY
+		tReq.RequestType = swarmdb.RT_QUERY
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.RawQuery = queryDelete
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Delete(samplevalue2)y %s", err.Error())
 		}
@@ -566,15 +560,15 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// GET(samplevalue2) should have no data
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_GET
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_GET
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Key = tbl.sampleValue2
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Get %s", err.Error())
 		}
@@ -584,15 +578,15 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// DELETE(samplevalue1) => 1
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_DELETE
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_DELETE
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Key = tbl.sampleValue1
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Delete(samplevalue1) %s", err.Error())
 		}
@@ -603,14 +597,14 @@ func TestCoreTables(t *testing.T) {
 		fmt.Printf("Output: %s\n\n", res.Stringify())
 
 		// SCAN ==> 0 Rows
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_SCAN
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_SCAN
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestCoreTables] Scan %s", err.Error())
 		}
@@ -625,14 +619,14 @@ func TestCoreTables(t *testing.T) {
 	// list tables, then drop 1 for each for the tables
 	for _, tbl := range tabletest {
 		// list tables should have 6 tables, then 5, .. then 4, ... until just 1
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_LIST_TABLES
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_LIST_TABLES
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = ""
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("SCAN error: %s", err)
 		}
@@ -642,13 +636,13 @@ func TestCoreTables(t *testing.T) {
 		}
 
 		// drop table
-		tReq.RequestType = sdb.RT_DROP_TABLE
+		tReq.RequestType = swarmdb.RT_DROP_TABLE
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tbl.tableName
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -660,13 +654,13 @@ func TestCoreTables(t *testing.T) {
 	}
 
 	// drop table
-	tReq.RequestType = sdb.RT_DROP_TABLE
+	tReq.RequestType = swarmdb.RT_DROP_TABLE
 	tReq.Owner = owner
 	tReq.Database = database
 	tReq.Table = "random"
 	mReq, _ = json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
-	res, err = swarmdb.SelectHandler(u, string(mReq))
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -676,12 +670,12 @@ func TestCoreTables(t *testing.T) {
 	fmt.Printf("Output: %s\n\n", res.Stringify())
 
 	// drop database "random"
-	tReq.RequestType = sdb.RT_DROP_DATABASE
+	tReq.RequestType = swarmdb.RT_DROP_DATABASE
 	tReq.Owner = owner
 	tReq.Database = "random"
 	mReq, _ = json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
-	res, err = swarmdb.SelectHandler(u, string(mReq))
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -691,13 +685,13 @@ func TestCoreTables(t *testing.T) {
 	fmt.Printf("Output: %s\n\n", res.Stringify())
 
 	// drop database
-	tReq = new(sdb.RequestOption)
-	tReq.RequestType = sdb.RT_DROP_DATABASE
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_DROP_DATABASE
 	tReq.Owner = owner
 	tReq.Database = database
 	mReq, _ = json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
-	res, err = swarmdb.SelectHandler(u, string(mReq))
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -707,12 +701,12 @@ func TestCoreTables(t *testing.T) {
 	}
 
 	// list databases
-	tReq = new(sdb.RequestOption)
-	tReq.RequestType = sdb.RT_LIST_DATABASES
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_LIST_DATABASES
 	tReq.Owner = owner
 	mReq, _ = json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
-	res, err = swarmdb.SelectHandler(u, string(mReq))
+	res, err = swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatalf("error marshaling tReq 2: %s", err)
 	}
@@ -725,23 +719,23 @@ func TestCoreTables(t *testing.T) {
 	}
 }
 
-func checktype(columnType sdb.ColumnType, v interface{}) (ok bool) {
+func checktype(columnType swarmdb.ColumnType, v interface{}) (ok bool) {
 	switch columnType {
-	case sdb.CT_INTEGER:
+	case swarmdb.CT_INTEGER:
 		switch v.(type) {
 		case int, uint:
 			return true
 		default:
 			return false
 		}
-	case sdb.CT_STRING:
+	case swarmdb.CT_STRING:
 		switch v.(type) {
 		case string:
 			return true
 		default:
 			return false
 		}
-	case sdb.CT_FLOAT:
+	case swarmdb.CT_FLOAT:
 		switch v.(type) {
 		case float32, float64:
 			return true
@@ -755,19 +749,23 @@ func checktype(columnType sdb.ColumnType, v interface{}) (ok bool) {
 }
 
 func TestTypeCoercion(t *testing.T) {
-
+	u := getUser()
 	owner := make_name("owner")
 	database := make_name("db")
 
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := TEST_ENS_DIR
+	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
+
 	// create database
-	var tReq *sdb.RequestOption
-	tReq = new(sdb.RequestOption)
-	tReq.RequestType = sdb.RT_CREATE_DATABASE
+	var tReq *swarmdb.RequestOption
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_CREATE_DATABASE
 	tReq.Owner = owner
 	tReq.Database = database
 	mReq, _ := json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
-	res, err := swarmdb.SelectHandler(u, string(mReq))
+	res, err := swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatalf("[swarmdb_test:TestTypeCoercion] CREATE DATABASE: %s", err)
 	}
@@ -778,8 +776,8 @@ func TestTypeCoercion(t *testing.T) {
 	// (1) create table with "inb" integer (primary key) and "age" integer (secondary key)
 	tabletest[0].tableName = make_name("testintb")
 	tabletest[0].primaryColumnName = "inb"
-	tabletest[0].columnType = sdb.CT_INTEGER
-	tabletest[0].indexType = sdb.IT_BPLUSTREE
+	tabletest[0].columnType = swarmdb.CT_INTEGER
+	tabletest[0].indexType = swarmdb.IT_BPLUSTREE
 	tabletest[0].sampleValue1 = 88
 	tabletest[0].sampleValue2 = 9
 	tabletest[0].sampleValue3 = 13
@@ -792,8 +790,8 @@ func TestTypeCoercion(t *testing.T) {
 	// (2) same as above, with hashdb
 	tabletest[1].tableName = make_name("testinth")
 	tabletest[1].primaryColumnName = "inh"
-	tabletest[1].columnType = sdb.CT_INTEGER
-	tabletest[1].indexType = sdb.IT_HASHTREE
+	tabletest[1].columnType = swarmdb.CT_INTEGER
+	tabletest[1].indexType = swarmdb.IT_HASHTREE
 	tabletest[1].sampleValue1 = 77
 	tabletest[1].sampleValue2 = 5
 	tabletest[1].sampleValue3 = 19
@@ -806,8 +804,8 @@ func TestTypeCoercion(t *testing.T) {
 	// (3) create table with "flb" float and "age" float with samplevalue1str and samplevalue2str
 	tabletest[2].tableName = make_name("testfltb")
 	tabletest[2].primaryColumnName = "flb"
-	tabletest[2].columnType = sdb.CT_FLOAT
-	tabletest[2].indexType = sdb.IT_BPLUSTREE
+	tabletest[2].columnType = swarmdb.CT_FLOAT
+	tabletest[2].indexType = swarmdb.IT_BPLUSTREE
 	tabletest[2].sampleValue1 = float64(3.14)
 	tabletest[2].sampleValue2 = float64(1.66)
 	tabletest[2].sampleValue3 = float64(2.71)
@@ -820,8 +818,8 @@ func TestTypeCoercion(t *testing.T) {
 	// (4) same tests with hashdb
 	tabletest[3].tableName = make_name("testflth")
 	tabletest[3].primaryColumnName = "flh"
-	tabletest[3].columnType = sdb.CT_FLOAT
-	tabletest[3].indexType = sdb.IT_HASHTREE
+	tabletest[3].columnType = swarmdb.CT_FLOAT
+	tabletest[3].indexType = swarmdb.IT_HASHTREE
 	tabletest[3].sampleValue1 = float64(12.34)
 	tabletest[3].sampleValue2 = float64(666.66)
 	tabletest[3].sampleValue3 = float64(43.21)
@@ -835,8 +833,8 @@ func TestTypeCoercion(t *testing.T) {
 		tableName := tbl.tableName
 
 		// CREATE TABLE
-		var testColumn []sdb.Column
-		testColumn = make([]sdb.Column, 3)
+		var testColumn []swarmdb.Column
+		testColumn = make([]swarmdb.Column, 3)
 		testColumn[0].ColumnName = tbl.primaryColumnName
 		testColumn[0].Primary = 1 // TODO: test when (a) more than one primary (b) no primary specified
 		testColumn[0].IndexType = tbl.indexType
@@ -849,18 +847,18 @@ func TestTypeCoercion(t *testing.T) {
 
 		testColumn[2].ColumnName = "name"
 		testColumn[2].Primary = 0
-		testColumn[2].IndexType = sdb.IT_BPLUSTREE
-		testColumn[2].ColumnType = sdb.CT_STRING // TODO: test what happens when value of incorrect type supplied for column
+		testColumn[2].IndexType = swarmdb.IT_BPLUSTREE
+		testColumn[2].ColumnType = swarmdb.CT_STRING // TODO: test what happens when value of incorrect type supplied for column
 
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_CREATE_TABLE
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_CREATE_TABLE
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Columns = testColumn
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestTypeCoercion] CreateTable: %s", err)
 		}
@@ -869,7 +867,7 @@ func TestTypeCoercion(t *testing.T) {
 		// PUT(samplevalue1) - with quotes
 		dReq := fmt.Sprintf("{\"requesttype\":\"Put\",\"owner\":\"%s\",\"database\":\"%s\",\"table\":\"%s\",\"key\":\"%s\",\"rows\":[{\"%s\":\"%s\",\"age\":\"%s\",\"name\":\"Rodney\"}]}", owner, database, tableName, tbl.sampleValue1str, tbl.primaryColumnName, tbl.sampleValue1str, tbl.sampleValue2str)
 		fmt.Printf("Input: %s\n", dReq)
-		res, err := swarmdb.SelectHandler(u, dReq)
+		res, err := swdb.SelectHandler(u, dReq)
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestTypeCoercion] Put %s", err.Error())
 		}
@@ -879,15 +877,15 @@ func TestTypeCoercion(t *testing.T) {
 		}
 
 		// GET(sampleValue1)
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_GET
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_GET
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Key = tbl.sampleValue1
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestTypeCoercion] Get %s", err.Error())
 		}
@@ -916,7 +914,7 @@ func TestTypeCoercion(t *testing.T) {
 		// PUT(samplevalue2) - no quotes
 		dReq = fmt.Sprintf("{\"requesttype\":\"Put\",\"owner\":\"%s\",\"database\":\"%s\",\"table\":\"%s\",\"key\":\"%s\",\"rows\":[{\"%s\":%s,\"age\":%s,\"name\":\"Rodney\"}]}", owner, database, tableName, tbl.sampleValue2str, tbl.primaryColumnName, tbl.sampleValue2str, tbl.sampleValue3str)
 		fmt.Printf("Input: %s\n", dReq)
-		res, err = swarmdb.SelectHandler(u, dReq)
+		res, err = swdb.SelectHandler(u, dReq)
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestTypeCoercion] Put %s", err.Error())
 		}
@@ -926,15 +924,15 @@ func TestTypeCoercion(t *testing.T) {
 		}
 
 		// GET(sampleValue2)
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_GET
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_GET
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Key = tbl.sampleValue2
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestTypeCoercion] Get %s", err.Error())
 		}
@@ -962,15 +960,15 @@ func TestTypeCoercion(t *testing.T) {
 
 		// INSERT(samplevalue3) -- with quotes
 		sql := fmt.Sprintf("insert into %s (%s, age, name) values (\"%s\", \"%s\", \"Sourabh\")", tableName, tbl.primaryColumnName, tbl.sampleValue3str, tbl.sampleValue4str)
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_QUERY
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_QUERY
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.RawQuery = sql
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestTypeCoercion] Insert %s", err.Error())
 		}
@@ -981,15 +979,15 @@ func TestTypeCoercion(t *testing.T) {
 
 		// SELECT(samplevalue3)
 		sql = fmt.Sprintf("select %s, age, name from %s where %s = \"%s\"", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue3str)
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_QUERY
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_QUERY
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.RawQuery = sql
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestTypeCoercion] Select %s", err.Error())
 		}
@@ -1017,15 +1015,15 @@ func TestTypeCoercion(t *testing.T) {
 
 		// INSERT(samplevalue4) -- without quotes
 		sql = fmt.Sprintf("insert into %s (%s, age, name) values (%s, %s, \"Sourabh\")", tableName, tbl.primaryColumnName, tbl.sampleValue4str, tbl.sampleValue1str)
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_QUERY
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_QUERY
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.RawQuery = sql
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestTypeCoercion] Insert %s", err.Error())
 		}
@@ -1036,15 +1034,15 @@ func TestTypeCoercion(t *testing.T) {
 
 		// SELECT(samplevalue4)
 		sql = fmt.Sprintf("select %s, age, name from %s where %s = \"%s\"", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue4str)
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_QUERY
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_QUERY
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.RawQuery = sql
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestTypeCoercion] Insert %s", err.Error())
 		}
@@ -1073,18 +1071,25 @@ func TestTypeCoercion(t *testing.T) {
 }
 
 func TestSmallOps(t *testing.T) {
-	owner := make_name("smallops")
-	database := make_name("smalldb")
+
+	u := getUser()
+	owner := make_name("owner")
+
+	database := make_name("db")
+
+	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
+	ensdbPath := TEST_ENS_DIR
+	swdb, _ := swarmdb.NewSwarmDB(ensdbPath, config.ChunkDBPath)
 
 	// create database
-	var tReq *sdb.RequestOption
-	tReq = new(sdb.RequestOption)
-	tReq.RequestType = sdb.RT_CREATE_DATABASE
+	var tReq *swarmdb.RequestOption
+	tReq = new(swarmdb.RequestOption)
+	tReq.RequestType = swarmdb.RT_CREATE_DATABASE
 	tReq.Owner = owner
 	tReq.Database = database
 	mReq, _ := json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
-	res, err := swarmdb.SelectHandler(u, string(mReq))
+	res, err := swdb.SelectHandler(u, string(mReq))
 	if err != nil {
 		t.Fatalf("[swarmdb_test:TestSmallOps] CREATE DATABASE: %s", err)
 	}
@@ -1093,24 +1098,24 @@ func TestSmallOps(t *testing.T) {
 	tabletest := make([]testTableConfig, 3)
 	tabletest[0].tableName = make_name("testintb")
 	tabletest[0].primaryColumnName = "inb"
-	tabletest[0].columnType = sdb.CT_INTEGER
-	tabletest[0].indexType = sdb.IT_BPLUSTREE
+	tabletest[0].columnType = swarmdb.CT_INTEGER
+	tabletest[0].indexType = swarmdb.IT_BPLUSTREE
 	tabletest[0].sampleValue1str = "55"
 	tabletest[0].sampleValue2str = "50"
 	tabletest[0].sampleValue3str = "45"
 
 	tabletest[1].tableName = make_name("teststrb")
 	tabletest[1].primaryColumnName = "stb"
-	tabletest[1].columnType = sdb.CT_STRING
-	tabletest[1].indexType = sdb.IT_BPLUSTREE
+	tabletest[1].columnType = swarmdb.CT_STRING
+	tabletest[1].indexType = swarmdb.IT_BPLUSTREE
 	tabletest[1].sampleValue1str = "key055"
 	tabletest[1].sampleValue2str = "key050"
 	tabletest[1].sampleValue3str = "key045"
 
 	tabletest[2].tableName = make_name("testfltb")
 	tabletest[2].primaryColumnName = "flb"
-	tabletest[2].columnType = sdb.CT_FLOAT
-	tabletest[2].indexType = sdb.IT_BPLUSTREE
+	tabletest[2].columnType = swarmdb.CT_FLOAT
+	tabletest[2].indexType = swarmdb.IT_BPLUSTREE
 	tabletest[2].sampleValue1str = "55.1"
 	tabletest[2].sampleValue2str = "50.1"
 	tabletest[2].sampleValue3str = "45.1"
@@ -1119,31 +1124,31 @@ func TestSmallOps(t *testing.T) {
 		tableName := tbl.tableName
 
 		// CREATE TABLE
-		var testColumn []sdb.Column
-		testColumn = make([]sdb.Column, 3)
+		var testColumn []swarmdb.Column
+		testColumn = make([]swarmdb.Column, 3)
 		testColumn[0].ColumnName = tbl.primaryColumnName
 		testColumn[0].Primary = 1 // TODO: test when (a) more than one primary (b) no primary specified
 		testColumn[0].IndexType = tbl.indexType
 		testColumn[0].ColumnType = tbl.columnType
 		testColumn[1].ColumnName = "name"
 		testColumn[1].Primary = 0
-		testColumn[1].IndexType = sdb.IT_BPLUSTREE
-		testColumn[1].ColumnType = sdb.CT_STRING // TODO: test what happens when value of incorrect type supplied for column
+		testColumn[1].IndexType = swarmdb.IT_BPLUSTREE
+		testColumn[1].ColumnType = swarmdb.CT_STRING // TODO: test what happens when value of incorrect type supplied for column
 
 		testColumn[2].ColumnName = "age"
 		testColumn[2].Primary = 0
-		testColumn[2].IndexType = sdb.IT_BPLUSTREE
-		testColumn[2].ColumnType = sdb.CT_INTEGER
+		testColumn[2].IndexType = swarmdb.IT_BPLUSTREE
+		testColumn[2].ColumnType = swarmdb.CT_INTEGER
 
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_CREATE_TABLE
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_CREATE_TABLE
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		tReq.Columns = testColumn
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestSmallOps] CreateTable: %s", err)
 		}
@@ -1152,24 +1157,24 @@ func TestSmallOps(t *testing.T) {
 		// PUT(sampleValue1)
 		for i := 0; i < 100; i++ {
 
-			tReq = new(sdb.RequestOption)
-			tReq.RequestType = sdb.RT_PUT
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_PUT
 			tReq.Owner = owner
 			tReq.Database = database
 			tReq.Table = tableName
-			rowObj := make(sdb.Row)
+			rowObj := make(swarmdb.Row)
 			switch tbl.columnType {
-			case sdb.CT_INTEGER:
+			case swarmdb.CT_INTEGER:
 				tReq.Key = i
 				rowObj[tbl.primaryColumnName] = i
 				rowObj["name"] = fmt.Sprintf("name%3d", i)
 				rowObj["age"] = 37 + i
-			case sdb.CT_FLOAT:
+			case swarmdb.CT_FLOAT:
 				tReq.Key = float64(i) + .1
 				rowObj[tbl.primaryColumnName] = tReq.Key
 				rowObj["name"] = fmt.Sprintf("name%3d", i)
 				rowObj["age"] = 13 + i
-			case sdb.CT_STRING:
+			case swarmdb.CT_STRING:
 				tReq.Key = fmt.Sprintf("key%03d", i)
 				rowObj[tbl.primaryColumnName] = tReq.Key
 				rowObj["name"] = fmt.Sprintf("name%03d", i)
@@ -1178,7 +1183,7 @@ func TestSmallOps(t *testing.T) {
 
 			tReq.Rows = append(tReq.Rows, rowObj)
 			mReq, _ = json.Marshal(tReq)
-			res, err := swarmdb.SelectHandler(u, string(mReq))
+			res, err := swdb.SelectHandler(u, string(mReq))
 			if err != nil {
 				t.Fatalf("[swarmdb_test:TestSmallOps] Put %s", err.Error())
 			}
@@ -1193,14 +1198,14 @@ func TestSmallOps(t *testing.T) {
 		fmt.Printf("Put operations done\n")
 
 		// SCAN ==> 100 Rows
-		tReq = new(sdb.RequestOption)
-		tReq.RequestType = sdb.RT_SCAN
+		tReq = new(swarmdb.RequestOption)
+		tReq.RequestType = swarmdb.RT_SCAN
 		tReq.Owner = owner
 		tReq.Database = database
 		tReq.Table = tableName
 		mReq, _ = json.Marshal(tReq)
 		fmt.Printf("Input: %s\n", mReq)
-		res, err = swarmdb.SelectHandler(u, string(mReq))
+		res, err = swdb.SelectHandler(u, string(mReq))
 		if err != nil {
 			t.Fatalf("[swarmdb_test:TestSmallOps] Scan %s", err.Error())
 		}
@@ -1209,48 +1214,48 @@ func TestSmallOps(t *testing.T) {
 		}
 		fmt.Printf("Output: %s\n\n", res.Stringify())
 
-		var expectedRows map[sdb.ColumnType]int
-		expectedRows = make(map[sdb.ColumnType]int)
+		var expectedRows map[swarmdb.ColumnType]int
+		expectedRows = make(map[swarmdb.ColumnType]int)
 		for j := 0; j < 5; j++ {
 			sql := ""
 			switch j {
 			case 0:
 				sql = fmt.Sprintf("select %s, name, age from %s where %s >= '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue1str)
-				expectedRows[sdb.CT_INTEGER] = 45
-				expectedRows[sdb.CT_FLOAT] = 45
-				expectedRows[sdb.CT_STRING] = 45
+				expectedRows[swarmdb.CT_INTEGER] = 45
+				expectedRows[swarmdb.CT_FLOAT] = 45
+				expectedRows[swarmdb.CT_STRING] = 45
 
 			case 1:
 				sql = fmt.Sprintf("select %s, name, age from %s where %s > '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue1str)
-				expectedRows[sdb.CT_INTEGER] = 44
-				expectedRows[sdb.CT_FLOAT] = 44
-				expectedRows[sdb.CT_STRING] = 44
+				expectedRows[swarmdb.CT_INTEGER] = 44
+				expectedRows[swarmdb.CT_FLOAT] = 44
+				expectedRows[swarmdb.CT_STRING] = 44
 			case 2:
 				sql = fmt.Sprintf("select %s, name, age from %s where %s = '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue2str)
-				expectedRows[sdb.CT_INTEGER] = 1
-				expectedRows[sdb.CT_FLOAT] = 1
-				expectedRows[sdb.CT_STRING] = 1
+				expectedRows[swarmdb.CT_INTEGER] = 1
+				expectedRows[swarmdb.CT_FLOAT] = 1
+				expectedRows[swarmdb.CT_STRING] = 1
 			case 3:
 				sql = fmt.Sprintf("select %s, name, age from %s where %s < '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue3str)
-				expectedRows[sdb.CT_INTEGER] = 45
-				expectedRows[sdb.CT_FLOAT] = 45
-				expectedRows[sdb.CT_STRING] = 45
+				expectedRows[swarmdb.CT_INTEGER] = 45
+				expectedRows[swarmdb.CT_FLOAT] = 45
+				expectedRows[swarmdb.CT_STRING] = 45
 			case 4:
 				sql = fmt.Sprintf("select %s, name, age from %s where %s <= '%s'", tbl.primaryColumnName, tableName, tbl.primaryColumnName, tbl.sampleValue3str)
-				expectedRows[sdb.CT_INTEGER] = 46
-				expectedRows[sdb.CT_FLOAT] = 46
-				expectedRows[sdb.CT_STRING] = 46
+				expectedRows[swarmdb.CT_INTEGER] = 46
+				expectedRows[swarmdb.CT_FLOAT] = 46
+				expectedRows[swarmdb.CT_STRING] = 46
 			}
 			expectedAffectedRows := expectedRows[tbl.columnType]
-			tReq = new(sdb.RequestOption)
-			tReq.RequestType = sdb.RT_QUERY
+			tReq = new(swarmdb.RequestOption)
+			tReq.RequestType = swarmdb.RT_QUERY
 			tReq.Owner = owner
 			tReq.Database = database
 			tReq.Table = tableName
 			tReq.RawQuery = sql
 			mReq, _ = json.Marshal(tReq)
 			fmt.Printf("Input: %s\n", mReq)
-			res, err = swarmdb.SelectHandler(u, string(mReq))
+			res, err = swdb.SelectHandler(u, string(mReq))
 			if err != nil {
 				t.Fatalf("[swarmdb_test:TestSmallOps] Select [%s] %s", sql, err.Error())
 			}

@@ -27,11 +27,11 @@ import (
 )
 
 const (
-	CHUNK_SIZE    = 4096
+	CHUNK_SIZE = 4096
 	VERSION_MAJOR = 0
 	VERSION_MINOR = 1
 	VERSION_PATCH = 1
-	VERSION_META  = "poc"
+	VERSION_META = "poc"
 )
 
 var SWARMDBVersion = func() string {
