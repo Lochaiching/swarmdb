@@ -17,9 +17,9 @@ package swarmdb
 
 import (
 	"database/sql"
-	"github.com/ethereum/go-ethereum/crypto"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	_ "github.com/mattn/go-sqlite3"
 )
