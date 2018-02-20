@@ -388,11 +388,6 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	reqJson := bodyContent
 
-	//  /swaplog/startts/endts   => calls dbchunkstore.GenerateSwapLog(startts, endts)
-	//  /buyerlog/startts/endts  => calls dbchunkstore.GenerateBuyerLog(startts, endts)
-	//  /farmerlog/startts/endts => calls dbchunkstore.GenerateFarmerLog(startts, endts)
-	//  /ashrequest/chunkID/seed/index/proofRequired => calls dbchunkstore.RetrieveAsh(chunkID, seed, index, proofRequired)
-
 	pathParts := strings.Split(r.URL.Path, "/")
 	switch pathParts[1] {
 	case "swaplog":
@@ -404,7 +399,11 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			//TODO: Error Handling
 		}
-		s.swarmdb.GenerateSwapLog(int64(startts), int64(endts))
+		log, err = s.swarmdb.GenerateSwapLog(int64(startts), int64(endts))
+		if err != nil {
+			//TODO: Error Handling
+		}
+		
 		return
 	case "buyerlog":
 		startts, err := strconv.Atoi(pathParts[2])
@@ -415,7 +414,10 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			//TODO: Error Handling
 		}
-		s.swarmdb.GenerateBuyerLog(int64(startts), int64(endts))
+		log, err = s.swarmdb.GenerateBuyerLog(int64(startts), int64(endts))
+		if err != nil {
+			//TODO: Error Handling
+		}
 		return
 	case "farmerlog":
 		startts, err := strconv.Atoi(pathParts[2])
@@ -426,18 +428,33 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			//TODO: Error Handling
 		}
-		s.swarmdb.GenerateFarmerLog(int64(startts), int64(endts))
+		log, err = s.swarmdb.GenerateFarmerLog(int64(startts), int64(endts))
+		if err != nil {
+			//TODO: Error Handling
+		}
+		
 		return
 	case "ashrequest":
-		auditIndex, err := strconv.Atoi(pathParts[5])
+		chunkID, _ := hex.DecodeString(pathParts[2])
+		seed, _ := hex.DecodeString(pathParts[3])
+		auditIndex, err := strconv.Atoi(pathParts[4])
 		if err != nil {
 			//TODO: Error Handling
 		}
 		proofRequired := false
-		if pathParts[4] == "true" || pathParts[4] == "1" {
-			proofRequired = true
+		if len(pathParts) > 4 {
+			if pathParts[5] == "true" || pathParts[5] == "1" {
+				proofRequired = true
+			}
 		}
-		s.swarmdb.GenerateAshResponse([]byte(pathParts[2]), []byte(pathParts[3]), proofRequired, int8(auditIndex))
+
+		fmt.Printf("ChunkID:%x | seed:%x | ProofRequired:%t | Index: %d\n", chunkkID, seed, proofRequired, int8(auditIndex))
+		resp, err := s.swarmdb.GenerateAshResponse(w, chunkID, seed, proofRequired, int8(auditIndex))
+		if err != nil {
+			//TODO: Error Handling
+		}
+		output, _ := json.Marshal(resp)
+		fmt.Printf("%s\n", string(output))
 		return
 	default:
 	}
@@ -641,14 +658,13 @@ func main() {
 	log.Root().SetHandler(log.LvlFilterHandler(log.Lvl(*logLevelFlag), log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
 	log.Debug(fmt.Sprintf("Starting SWARMDB (Version: %s) using [%s] and loglevel [%d]", swarmdb.SWARMDBVersion, *configFileLocation, *logLevelFlag))
 
-	swarmdbObj, err := swarmdb.NewSwarmDB(config.ChunkDBPath, config.ChunkDBPath)
-
+	swdb, err := swarmdb.NewSwarmDB(config)
 	if err != nil {
 		panic(fmt.Sprintf("Cannot start: %s", err.Error()))
 	}
 	log.Debug("Trying to start HttpServer")
-	go StartHttpServer(swarmdbObj, &config)
+	go StartHttpServer(swdb, config)
 
 	log.Debug("Trying to start TCPIP server...\n")
-	StartTcpipServer(swarmdbObj, &config)
+	StartTcpipServer(swdb, config)
 }

@@ -56,7 +56,7 @@ func TestSignVerifyMessage(t *testing.T) {
 		t.Fatal("Failure to open Config", errConfig)
 	}
 
-	km, err := swarmdb.NewKeyManager(&config)
+	km, err := swarmdb.NewKeyManager(config)
 	if err != nil {
 		t.Fatal("Failure to open KeyManager", err)
 	}
@@ -99,7 +99,7 @@ func TestEncryptDecrypt(t *testing.T) {
 		t.Fatal("Failure to open Config", errConfig)
 	}
 
-	km, err := swarmdb.NewKeyManager(&config)
+	km, err := swarmdb.NewKeyManager(config)
 	if err != nil {
 		t.Fatal("Failure to open KeyManager", err)
 	}

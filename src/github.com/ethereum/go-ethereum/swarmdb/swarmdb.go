@@ -16,8 +16,6 @@
 package swarmdb
 
 import (
-	"swarmdb/ash"
-	//"github.com/ethereum/go-ethereum/swarmdb/ash"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -25,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"path/filepath"
 	"strings"
+	"swarmdb/ash"
 )
 
 const (
@@ -99,6 +98,7 @@ type SwarmDB struct {
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
 	swapdb       *SwapDB
+	netstats     *Netstats
 }
 
 //for sql parsing
@@ -125,7 +125,6 @@ type Where struct {
 type DBChunkstorage interface {
 	RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error)
 	StoreDBChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error)
-	PrintDBChunk(columnType ColumnType, hashid []byte, c []byte)
 }
 
 type Database interface {
@@ -259,21 +258,23 @@ const (
 	NODE_END_CHUNKVAL       = 4096
 )
 
-func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
+func NewSwarmDB(config *SWARMDBConfig) (swdb *SwarmDB, err error) {
 	sd := new(SwarmDB)
 	sd.tables = make(map[string]*Table)
-	chunkdbFileName := "chunk.db"
-	dbChunkStoreFullPath := filepath.Join(chunkDBPath, chunkdbFileName)
-	dbchunkstore, err := NewDBChunkStore(dbChunkStoreFullPath)
+
+	netstats := NewNetstats(config)
+	sd.netstats = netstats
+
+	dbchunkstore, err := NewDBChunkStore(config, netstats)
 	if err != nil {
 		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewDBChunkStore `+err.Error())
 	} else {
 		sd.dbchunkstore = dbchunkstore
 	}
 
-	//default /tmp/ens.db
+	// default /tmp/ens.db
 	ensdbFileName := "ens.db"
-	ensdbFullPath := filepath.Join(ensPath, ensdbFileName)
+	ensdbFullPath := filepath.Join(config.ChunkDBPath, ensdbFileName)
 	ens, errENS := NewENSSimulation(ensdbFullPath)
 	if errENS != nil {
 		return swdb, GenerateSWARMDBError(errENS, `[swarmdb:NewSwarmDB] NewENSSimulation `+errENS.Error())
@@ -281,7 +282,7 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 	sd.ens = ens
 
 	swapDBFileName := "swap.db"
-	swapDBFullPath := filepath.Join(chunkDBPath, swapDBFileName)
+	swapDBFullPath := filepath.Join(config.ChunkDBPath, swapDBFileName)
 	swapdbObj, errSwapDB := NewSwapDB(swapDBFullPath)
 	if errSwapDB != nil {
 		return swdb, GenerateSWARMDBError(errSwapDB, `[swarmdb:NewSwarmDB] NewSwapDB `+swapDBFullPath+`|`+errSwapDB.Error())
@@ -292,40 +293,38 @@ func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
 }
 
 // DBChunkStore  API
-func (self *SwarmDB) PrintDBChunk(columnType ColumnType, hashid []byte, c []byte) {
-	self.dbchunkstore.PrintDBChunk(columnType, hashid, c)
+
+func (self *SwarmDB) GenerateSwapLog(startts int64, endts int64) (log []string, err error) {
+	log, err = self.swapdb.GenerateSwapLog(startts, endts)
+	if err != nil {
+		return log, GenerateSWARMDBError(err, "Unable to GenerateSwapLog")
+	}
+	return log, nil
 }
 
-func (self *SwarmDB) GenerateSwapLog(startts int64, endts int64) (err error) {
-	err = self.swapdb.GenerateSwapLog(startts, endts)
+func (self *SwarmDB) GenerateBuyerLog(startts int64, endts int64) (log []string, err error) {
+	log, err = self.dbchunkstore.GenerateBuyerLog(startts, endts)
 	if err != nil {
-		GenerateSWARMDBError(err, "Unable to GenerateSwapLog")
+		return log, GenerateSWARMDBError(err, "Unable to GenerateBuyerLog")
 	}
-	return err
+	return log, nil
 }
 
-func (self *SwarmDB) GenerateBuyerLog(startts int64, endts int64) (err error) {
-	err = self.dbchunkstore.GenerateBuyerLog(startts, endts)
+func (self *SwarmDB) GenerateFarmerLog(startts int64, endts int64) (log []string, err error) {
+	log, err = self.dbchunkstore.GenerateFarmerLog(startts, endts)
 	if err != nil {
-		GenerateSWARMDBError(err, "Unable to GenerateBuyerLog")
+		return log, GenerateSWARMDBError(err, "Unable to GenerateFarmerLog")
 	}
-	return err
-}
-
-func (self *SwarmDB) GenerateFarmerLog(startts int64, endts int64) (err error) {
-	err = self.dbchunkstore.GenerateFarmerLog(startts, endts)
-	if err != nil {
-		GenerateSWARMDBError(err, "Unable to GenerateFarmerLog")
-	}
-	return err
+	return log, nil
 }
 
 func (self *SwarmDB) GenerateAshResponse(chunkId []byte, seed []byte, proofRequired bool, index int8) (resp ash.AshResponse, err error) {
 	resp, err = self.dbchunkstore.RetrieveAsh(chunkId, seed, proofRequired, index)
+	// output, _ := json.Marshal(res)	fmt.Printf("%s\n", string(output))
 	if err != nil {
 		return resp, GenerateSWARMDBError(err, "Unable to Retrieve Ash")
 	}
-	return resp, err
+	return resp, nil
 }
 
 func (self *SwarmDB) RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
@@ -403,6 +402,9 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (affectedRo
 			return affectedRows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row %+v needs primary column '%s' value", row, table.primaryColumnName), ErrorCode: 446, ErrorMessage: fmt.Sprintf("Insert Query Missing Primary Key [%]", table.primaryColumnName)}
 		}
 		// check if Row already exists
+		if _, ok := table.columns[table.primaryColumnName]; !ok {
+			return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] table.columns check - %s", err.Error()))
+		}
 		convertedKey, err := convertJSONValueToKey(table.columns[table.primaryColumnName].columnType, row[table.primaryColumnName])
 		if err != nil {
 			return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] convertJSONValueToKey - %s", err.Error()))
@@ -720,6 +722,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			}
 			// check to see if row already exists in table (no overwriting, TODO: check if that is right??)
 			/* TODO: we want to have PUT blindly update.  INSERT will fail on duplicate and need to confirm what to do if multiple rows attempted to be inserted and just some are dupes
+			if _, ok := tbl.columns[tbl.primaryColumnName]; !ok {
+				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Put row %+v has unknown column %s", row, columnName), ErrorCode: 429, ErrorMessage: fmt.Sprintf("Row contains unknown column [%s]", columnName)}
+			}
 			primaryColumnType := tbl.columns[tbl.primaryColumnName].columnType
 			convertedKey, err := convertJSONValueToKey(primaryColumnType, row[tbl.primaryColumnName])
 			if err != nil {
@@ -756,6 +761,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		}
 		if isNil(d.Key) {
 			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Get - Missing Key"), ErrorCode: 433, ErrorMessage: "GET Request Missing Key"}
+		}
+		if _, ok := tbl.columns[tbl.primaryColumnName]; !ok {
+			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Get - Primary Key Not found in Column Definition"), ErrorCode: 479, ErrorMessage: "Table Definition Missing Primary Key"}
 		}
 		primaryColumnType := tbl.columns[tbl.primaryColumnName].columnType
 		convertedKey, err := convertJSONValueToKey(primaryColumnType, d.Key)
@@ -858,6 +866,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			//checking if the query is just a primary key Get
 			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
 				// fmt.Printf("Calling Get from Query\n")
+				if _, ok := tbl.columns[tbl.primaryColumnName]; !ok {
+					return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Query col [%s] does not exist in table", tbl.primaryColumnName), ErrorCode: 432, ErrorMessage: fmt.Sprintf("Primary key [%s] not defined in table", tbl.primaryColumnName)}
+				}
 				convertedKey, err := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, query.Where.Right)
 				if err != nil {
 					return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] convertJSONValueToKey %s", err.Error()))
