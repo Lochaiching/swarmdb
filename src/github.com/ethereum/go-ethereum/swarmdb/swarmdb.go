@@ -16,7 +16,6 @@
 package swarmdb
 
 import (
-	"swarmdb/ash"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -24,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"path/filepath"
 	"strings"
+	"swarmdb/ash"
 )
 
 const (
@@ -367,6 +367,9 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (affectedRo
 			return affectedRows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row %+v needs primary column '%s' value", row, table.primaryColumnName), ErrorCode: 446, ErrorMessage: fmt.Sprintf("Insert Query Missing Primary Key [%]", table.primaryColumnName)}
 		}
 		// check if Row already exists
+		if _, ok := table.columns[table.primaryColumnName]; !ok {
+			return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] table.columns check - %s", err.Error()))
+		}
 		convertedKey, err := convertJSONValueToKey(table.columns[table.primaryColumnName].columnType, row[table.primaryColumnName])
 		if err != nil {
 			return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] convertJSONValueToKey - %s", err.Error()))
@@ -684,6 +687,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			}
 			// check to see if row already exists in table (no overwriting, TODO: check if that is right??)
 			/* TODO: we want to have PUT blindly update.  INSERT will fail on duplicate and need to confirm what to do if multiple rows attempted to be inserted and just some are dupes
+			if _, ok := tbl.columns[tbl.primaryColumnName]; !ok {
+				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Put row %+v has unknown column %s", row, columnName), ErrorCode: 429, ErrorMessage: fmt.Sprintf("Row contains unknown column [%s]", columnName)}
+			}
 			primaryColumnType := tbl.columns[tbl.primaryColumnName].columnType
 			convertedKey, err := convertJSONValueToKey(primaryColumnType, row[tbl.primaryColumnName])
 			if err != nil {
@@ -720,6 +726,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		}
 		if isNil(d.Key) {
 			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Get - Missing Key"), ErrorCode: 433, ErrorMessage: "GET Request Missing Key"}
+		}
+		if _, ok := tbl.columns[tbl.primaryColumnName]; !ok {
+			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Get - Primary Key Not found in Column Definition"), ErrorCode: 479, ErrorMessage: "Table Definition Missing Primary Key"}
 		}
 		primaryColumnType := tbl.columns[tbl.primaryColumnName].columnType
 		convertedKey, err := convertJSONValueToKey(primaryColumnType, d.Key)
@@ -822,6 +831,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			//checking if the query is just a primary key Get
 			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
 				// fmt.Printf("Calling Get from Query\n")
+				if _, ok := tbl.columns[tbl.primaryColumnName]; !ok {
+					return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Query col [%s] does not exist in table", tbl.primaryColumnName), ErrorCode: 432, ErrorMessage: fmt.Sprintf("Primary key [%s] not defined in table", tbl.primaryColumnName)}
+				}
 				convertedKey, err := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, query.Where.Right)
 				if err != nil {
 					return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] convertJSONValueToKey %s", err.Error()))
