@@ -379,7 +379,7 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 	if encrypted == 1 {
 		recordData = self.km.EncryptData(u, recordData)
 		//rev,_ := self.km.DecryptData(u, recordData)
-		log.Debug(fmt.Sprintf("Key: [%x][%v] Encrypted : %s [%v]", key, key, recordData, recordData))
+		log.Debug(fmt.Sprintf("Key: [%x][%v] Encrypted : %s [%v]", key, key, recordData[:10], recordData[:10]))
 		//log.Debug(fmt.Sprintf("Key: [%x][%v] Decrypted : %s [%v]", key, key, rev, rev))
 	}
 

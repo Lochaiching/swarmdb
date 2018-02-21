@@ -20,6 +20,7 @@ type Table struct {
 	columns           map[string]*ColumnInfo
 	primaryColumnName string
 	encrypted         int
+	status		  uint
 }
 
 type ColumnInfo struct {
@@ -47,10 +48,11 @@ func (r Row) Set(columnName string, val interface{}) {
 func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 
 	t.columns = make(map[string]*ColumnInfo)
+	t.status = 0
 
 	/// get Table RootHash to  retrieve the table descriptor
 	tblKey := t.swarmdb.GetTableKey(t.Owner, t.Database, t.tableName)
-	roothash, err := t.swarmdb.GetRootHash(u, []byte(tblKey))
+	roothash, err := t.swarmdb.GetRootHash([]byte(tblKey))
 	log.Debug(fmt.Sprintf("[table:OpenTable] opening table @ %s roothash [%x]\n", t.tableName, roothash))
 
 	if err != nil {
@@ -114,6 +116,28 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 	}
 	log.Debug(fmt.Sprintf("OpenTable [%s] with Owner [%s] Database [%s] Returning with Columns: %v\n", t.tableName, t.Owner, t.Database, t.columns))
 	return nil
+}
+
+func (t *Table) Close(u *SWARMDBUser) (err error){
+	log.Debug(fmt.Sprintf("CloseTable \n"))
+	if t.status == 1{
+		err = t.FlushBuffer(u)
+		if err != nil {
+			return err
+		}
+	}
+	err = t.UpdateRootHash()
+	return err
+}
+
+func (t *Table) UpdateRootHash()(err error){
+        tblKey := t.swarmdb.GetTableKey(t.Owner, t.Database, t.tableName)
+	swarmhash, status, err := t.swarmdb.GetRootHashFromLDB([]byte(tblKey))
+	if err == nil && status == 1{
+        	t.swarmdb.StoreRootHashWithStatus([]byte(tblKey), []byte(swarmhash), 3)
+	}
+	log.Debug(fmt.Sprintf("UpdateRootHash %v %v %v %d\n", t.Owner, t.Database, t.tableName, status))
+	return err
 }
 
 func (t *Table) getPrimaryColumn() (c *ColumnInfo, err error) {
@@ -216,7 +240,7 @@ func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte) (mergedB
 
 	//TODO: Sig -- document this
 	copy(metadataBody[221:286], sdataSig)
-	log.Debug(fmt.Sprintf("Metadata is [%+v]", metadataBody))
+	log.Debug(fmt.Sprintf("Metadata is [%+v]", metadataBody[:10]))
 
 	mergedBodycontent = make([]byte, CHUNK_SIZE)
 	copy(mergedBodycontent[:], metadataBody)
@@ -366,7 +390,8 @@ func (t *Table) updateTableInfo(u *SWARMDBUser) (err error) {
 		return GenerateSWARMDBError(err, fmt.Sprintf("[table:updateTableInfo] StoreDBChunk %s", err.Error()))
 	}
 	tblKey := t.swarmdb.GetTableKey(t.Owner, t.Database, t.tableName)
-	err = t.swarmdb.StoreRootHash(u, []byte(tblKey), []byte(swarmhash))
+	err = t.swarmdb.StoreRootHash([]byte(tblKey), []byte(swarmhash))
+	//err = t.swarmdb.StoreRootHashToLDB([]byte(tblKey), []byte(swarmhash))
 	if err != nil {
 		return GenerateSWARMDBError(err, fmt.Sprintf("[table:updateTableInfo] StoreRootHash %s", err.Error()))
 	}
@@ -534,6 +559,7 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 	}
 
 	if t.buffered {
+		t.status = 1
 		// do nothing until FlushBuffer called
 	} else {
 		err = t.FlushBuffer(u)
@@ -724,3 +750,5 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (outRows []Row, err error
 	}
 	return outRows, nil
 }
+
+

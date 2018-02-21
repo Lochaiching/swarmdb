@@ -17,31 +17,45 @@ package swarmdb
 
 import (
 	// "database/sql"
-	"encoding/json"
+	"context"
 	"fmt"
     	"io/ioutil"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
-	"path/filepath"
 	"strings"
-	// "encoding/hex"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/syndtr/goleveldb/leveldb"
+	//"github.com/syndtr/goleveldb/leveldb/util"
 	"github.com/ethereum/go-ethereum/ethclient"
 	elog "github.com/ethereum/go-ethereum/log"
+	"path/filepath"
+	"encoding/json"
+	"time"
+
 )
 
 type ENSSimple struct {
 	auth *bind.TransactOpts
 	sens *Simplestens
+	conn *ethclient.Client
+	ldb      *leveldb.DB
+}
+
+type EnsData struct{
+	Root []byte	 `json:"root"`
+	Status	uint	 `json:"status"`
 }
 
 type ENSSimpleConfig struct{
 	Ipaddress	string	`json:"ipaddress,omitempty"`
 }
 
-func NewENSSimple(path string) (ens ENSSimple, err error) {
+func NewENSSimple(path string, config *SWARMDBConfig) (ens ENSSimple, err error) {
 // TODO: using temporary config file
+	elog.Debug(fmt.Sprintf("SimpleENS config %v", config))
+	//ipaddress := config.EnsIP
+//////debug
 	confdir, err := ioutil.ReadDir("/var/www/vhosts/data/swarmdb")
 	var ipaddress string
 	ipaddress = "/var/www/vhosts/data/geth.ipc"
@@ -58,16 +72,26 @@ func NewENSSimple(path string) (ens ENSSimple, err error) {
 		err = json.Unmarshal(dat, &conf)
 		ipaddress = conf.Ipaddress
 	}
-	elog.Debug(fmt.Sprintf("SimpleENS ipaddress = %s", ipaddress))
+	elog.Debug(fmt.Sprintf("SimpleENS ipaddress = %s", ipaddress))	
+
+
+
 	
 	// Create an IPC based RPC connection to a remote node
 	conn, err := ethclient.Dial(ipaddress)
+	ens.conn  = conn
+	var ctx     context.Context
+	ctx, _ = context.WithTimeout(context.Background(), time.Second)
+	h, err := conn.HeaderByNumber(ctx, nil)
+	elog.Debug(fmt.Sprintf("SimpleENS h = %v err = %v", h, err))	
 
 	if err != nil {
 		log.Fatalf("Failed to connect to the Ethereum client: %v", err)
 	}
 
 // TODO: need to get the dir (or filename) from config
+//	k, err := ioutil.ReadFile(config.EnsKeyPath)
+//debug
     	files, err := ioutil.ReadDir("/var/www/vhosts/data/keystore")
 	var filename string
         for _, file := range files {
@@ -95,6 +119,11 @@ func NewENSSimple(path string) (ens ENSSimple, err error) {
 		elog.Debug(fmt.Sprintf("NewSimplestens success %v", sens))
 		ens.sens = sens
 	}
+
+
+	p := "/tmp/ensdb"
+	ldb, err := leveldb.OpenFile(p, nil)
+	ens.ldb = ldb
 
 	// -------------------
 	/*
@@ -129,12 +158,28 @@ func (self *ENSSimple) StoreRootHash(indexName []byte, roothash []byte) (err err
 	var r32 [32]byte
 	copy(i32[0:], indexName)
 	copy(r32[0:], roothash)
-	elog.Debug(fmt.Sprintf("ENSSimple StoreRootHash %x roothash %x", indexName, roothash))
+	elog.Debug(fmt.Sprintf("in ENSSimple StoreRootHash(len = %d) %x %x roothash (len = %d) %x %x ", len(indexName), indexName,i32, len(roothash), roothash, r32))
 	fmt.Printf("ENSSimple StoreRootHash %x roothash %x\n", indexName, roothash)
+
+	//status, err :=	self.sens.Content(self.auth, i32)
+	//elog.Debug(fmt.Sprintf("ENSSimple StoreRootHash status %v err = %v", status, err))
+/*
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	defer cancel()
+	opts := &bind.CallOpts{Context: ctx}
+	r, err := self.sens.SimplestensCaller.Context(opts, i32)
+*/
+	ctx, _ := context.WithTimeout(context.Background(), time.Second)
+	h, err := self.conn.HeaderByNumber(ctx, nil)
+	elog.Debug(fmt.Sprintf("SimpleENS StoreRootHash h = %v err = %v", h, err))	
+	fmt.Printf("SimpleENS StoreRootHash h = %v err = %v", h, err)
 
 	tx, err2 := self.sens.SetContent(self.auth, i32, r32)
 	fmt.Printf("return store %x %v\n", tx, err2)
+	elog.Debug(fmt.Sprintf("return store %x %v\n", tx, err2))
+	fmt.Printf("SimpleENS StoreRootHash h = %v err = %v", h, err)
 	if err2 != nil {
+		elog.Debug(fmt.Sprintf("ENSSimple StoreRootHash error %v", err2))
 		return err // log.Fatalf("Failed to set Content: %v", err2)
 	}
 	fmt.Printf("i32: %x r32: %x tx: %v\n", i32, r32, tx.Hash())
@@ -152,12 +197,61 @@ func (self *ENSSimple) StoreRootHash(indexName []byte, roothash []byte) (err err
 			return (err2)
 		}
 	*/
-	elog.Debug(fmt.Sprintf("ENSSimple StoreRootHash %x roothash %x", indexName, roothash))
+	elog.Debug(fmt.Sprintf("out ENSSimple StoreRootHash %x roothash %x", indexName, roothash))
 	return nil
 }
 
+func (self *ENSSimple) StoreRootHashToLDB(indexName, roothash []byte, status uint)(err error){
+	j, err := json.Marshal(EnsData{roothash, status})
+	elog.Debug(fmt.Sprintf("in ENSSimple StoreRootHashToLDB %v json = %v", indexName, j))
+	if err != nil {
+		return err
+	}
+	err = self.ldb.Put(indexName, j , nil)
+	return err
+}
+
+func (self *ENSSimple) StoreRootHashWithStatus(indexName, roothash []byte, status uint)(err error){
+	if status == 2{
+		s := status
+                err = self.StoreRootHash(indexName, roothash)
+		if err != nil{
+			s = 1
+		}
+                err = self.StoreRootHashToLDB(indexName, roothash, s)
+		return err
+	}
+        return self.StoreRootHashToLDB(indexName, roothash, status)
+}
+
+
+func (self *ENSSimple) GotRootHashFromLDB(indexName []byte)(value []byte, status uint, err error){
+	elog.Debug(fmt.Sprintf("in ENSSimple GotRootHashFromLDB %v", indexName))
+        var d EnsData
+        res, err := self.ldb.Get(indexName, nil)
+	if err != nil {
+		res, err = self.GetRootHash(indexName)
+		return res, 0, err
+	}
+        err = json.Unmarshal(res, &d)
+	elog.Debug(fmt.Sprintf("in ENSSimple GotRootHashFromLDB res = %v d = %v", res, d))
+	return d.Root, d.Status, err
+}
+
+
+
+
 func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
-	elog.Debug(fmt.Sprintf("ENSSimple GotRootHash %v", indexName))
+	elog.Debug(fmt.Sprintf("in ENSSimple GotRootHash %v", indexName))
+	//status, err :=	self.sens.Content(self.auth, indexName)
+	//elog.Debug(fmt.Sprintf("ENSSimple GetRootHash status %v err = %v", status, err))
+
+	var d EnsData
+	res, err := self.ldb.Get(indexName, nil)
+	err = json.Unmarshal(res, &d)
+	if d.Status == 1{
+		return d.Root, nil
+	} 
 	
 	/*
 		sql := `SELECT roothash FROM ens WHERE indexName = $1`
@@ -203,6 +297,6 @@ func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
 	}
 	//copy(val[0:], s[0:32])
 	fmt.Printf("indexName: [%x] => s: [%x] val: [%x]\n", indexName, s, val)
-	elog.Debug(fmt.Sprintf("ENSSimple GotRootHash %x s %x val %x", indexName, s, val))
+	elog.Debug(fmt.Sprintf("out ENSSimple GotRootHash %x s %x val %x", indexName, s, val))
 	return val, nil
 }
