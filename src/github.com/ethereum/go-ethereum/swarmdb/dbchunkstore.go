@@ -231,7 +231,6 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 		if err != nil {
 			return val, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveChunk] DecryptData %s", err.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
 		}
-
 	}
 	return val, nil
 }
@@ -239,7 +238,7 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	val, err = self.RetrieveChunk(u, key)
 	if err != nil {
-		return val, err // TODO
+		return val, GenerateSWARMDBError(err, fmt.Sprintf("[dbchunkstore:RetrieveChunk] DecryptData %s", err.Error()))
 	}
 	jsonRecord := val[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL]
 	return bytes.TrimRight(jsonRecord, "\x00"), nil
