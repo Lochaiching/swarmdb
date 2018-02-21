@@ -17,7 +17,7 @@
 package network
 
 import (
-  "encoding/json"
+  //"encoding/json"
 	"fmt"
 	"math/rand"
 	"time"
@@ -57,7 +57,7 @@ var searchTimeout = 3 * time.Second
 func (self *forwarder) Retrieve(chunk *storage.Chunk) {
 	log.Trace(fmt.Sprintf("forwarder.Retrieve: hive %s ", self.hive.String()))
 	peers := self.hive.getPeers(chunk.Key, 0)
-	log.Trace(fmt.Sprintf("forwarder.Retrieve: %v - received %d peers from KΛÐΞMLIΛ... %v", chunk.Key.Log(), len(peers), peers))
+	log.Trace(fmt.Sprintf("forwarder.Retrieve: %v - received %d peers from KÎ›Ã�ÎžMLIÎ›... %v", chunk.Key.Log(), len(peers), peers))
 OUT:
 	for _, p := range peers {
 		log.Trace(fmt.Sprintf("forwarder.Retrieve: sending retrieveRequest %v to peer [%v] %v", chunk.Key.Log(), p, chunk.Key))
@@ -89,7 +89,7 @@ OUT:
 func (self *forwarder) RetrieveDB(chunk *storage.Chunk) {
         log.Trace(fmt.Sprintf("[wolk-cloudstore] forwarder.RetrieveDB: hive %s ", self.hive.String()))
         peers := self.hive.getPeers(chunk.Key, 0)
-        log.Trace(fmt.Sprintf("forwarder.RetrieveDB: %v - received %d peers from KΛÐΞMLIΛ... %v", chunk.Key.Log(), len(peers), peers))
+        log.Trace(fmt.Sprintf("forwarder.RetrieveDB: %v - received %d peers from KÎ›Ã�ÎžMLIÎ›... %v", chunk.Key.Log(), len(peers), peers))
 OUT:
         for _, p := range peers {
                 log.Trace(fmt.Sprintf("forwarder.Retrieve DB: sending retrieveRequest %v to peer [%v] %v", chunk.Key.Log(), p, chunk.Key))
@@ -108,8 +108,8 @@ OUT:
 
 			//SWARMDB payment
 			var err error
-			if p.swapDB != nil {
-				err = p.swapDB.Add(-1)
+			if p.swarmdb.SwapDB != nil {
+				err = p.swarmdb.SwapDB.Add(-1)
 			}
 			if err != nil {
 				log.Warn(fmt.Sprintf("forwarder.RetrieveDB: - cannot process request p.swapDB.Add(-1): %v", err))

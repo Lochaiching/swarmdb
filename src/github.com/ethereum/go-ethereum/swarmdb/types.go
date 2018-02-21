@@ -112,6 +112,8 @@ type SwarmDB struct {
 	ens          ENSSimple
 	kaddb        *KademliaDB
 	SwarmStore   storage.ChunkStore
+	SwapDB       *SwapDB
+	Netstats     *Netstats
 }
 
 //for sql parsing

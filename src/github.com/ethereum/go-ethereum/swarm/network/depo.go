@@ -262,9 +262,10 @@ func (self *Depo) HandleSdbRetrieveRequestMsg(req *retrieveRequestMsgData, p *pe
 	// swap - record credit for 1 request
 	// note that only charge actual reqsearches
 	var err error
-	if p.swapDB != nil {
-		err = p.swapDB.Add(1)
-	}
+
+	if p.swarmdb.SwapDB != nil {
+		err = p.swarmdb.SwapDB.Add(1)
+  }
 	if err != nil {
 		log.Warn(fmt.Sprintf("Depo.HandleSdbRetrieveRequestMsg: %v - cannot process request p.swapDB.Add(1): %v", req.Key.Log(), err))
 		return

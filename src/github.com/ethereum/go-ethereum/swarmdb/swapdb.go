@@ -68,10 +68,12 @@ type SwapDB struct {
 	remotePayAt  uint   // remote peer's PayAt
 	localAddress common.Address
 	peerAddress common.Address
+	netstats *Netstats
 }
 
 // path = "/tmp/swap.db"
-func NewSwapDB(path string, proto Protocol, remotePayAt uint, localAddress common.Address, peerAddress common.Address) (self *SwapDB, err error) {
+func NewSwapDB(path string, proto Protocol, remotePayAt uint, localAddress common.Address, peerAddress common.Address, netstats *Netstats) (self *SwapDB, err error) {
+
 	db, err := sql.Open("sqlite3", path)
 	if err != nil || db == nil {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDB] Open %s", err.Error())}
@@ -106,6 +108,8 @@ func NewSwapDB(path string, proto Protocol, remotePayAt uint, localAddress commo
 		remotePayAt:  3,
 		localAddress: localAddress,
 		peerAddress: peerAddress,
+		netstats: netstats,
+
 	}
 
 	return self, nil
@@ -218,6 +222,8 @@ func (self *SwapDB) Issue() (err error) {
 		log.Debug(fmt.Sprintf("[wolk-cloudstore] swapdb.Issue self.balance: %v", self.balance))		
 		self.balance = self.balance - amount
 		log.Debug(fmt.Sprintf("[wolk-cloudstore] swapdb.Issue self.balance: %v", self.balance))		
+		self.netstats.AddIssue(amount)
+			
 		return  nil
 	//}
 }
@@ -285,6 +291,8 @@ func (self *SwapDB) Receive(units int, promise Promise) error {
 			log.Debug(fmt.Sprintf("[wolk-cloudstore] swapdb.Receive self.balance: %v", self.balance))
 			self.balance = self.balance - units
 			log.Debug(fmt.Sprintf("[wolk-cloudstore] swapdb.Receive self.balance: %v", self.balance))
+			
+			self.netstats.AddReceive(units)
 			
 		} else {
 			return &SWARMDBError{message: fmt.Sprintf("[swapdb:Receive] sig != sig")}

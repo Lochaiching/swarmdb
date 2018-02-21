@@ -77,7 +77,8 @@ type bzz struct {
 	syncer      *syncer             // syncer instance for the peer connection
 	syncParams  *SyncParams         // syncer params
 	syncState   *syncState          // outgoing syncronisation state (contains reference to remote peers db counter)
-	swapDB      *swarmdb.SwapDB
+	//swapDB      *swarmdb.SwapDB
+	swarmdb     *swarmdb.SwarmDB
 }
 
 // interface type for handler of storage/retrieval related requests coming
@@ -103,7 +104,7 @@ on each peer connection
 The Run function of the Bzz protocol class creates a bzz instance
 which will represent the peer for the swarm hive and all peer-aware components
 */
-func Bzz(cloud StorageHandler, backend chequebook.Backend, hive *Hive, dbaccess *DbAccess, sp *bzzswap.SwapParams, sy *SyncParams, networkId uint64) (p2p.Protocol, error) {
+func Bzz(cloud StorageHandler, backend chequebook.Backend, hive *Hive, dbaccess *DbAccess, sp *bzzswap.SwapParams, sy *SyncParams, networkId uint64, swarmdb *swarmdb.SwarmDB) (p2p.Protocol, error) {
 
 	// a single global request db is created for all peer connections
 	// this is to persist delivery backlog and aid syncronisation
@@ -119,7 +120,7 @@ func Bzz(cloud StorageHandler, backend chequebook.Backend, hive *Hive, dbaccess 
 		Version: Version,
 		Length:  ProtocolLength,
 		Run: func(p *p2p.Peer, rw p2p.MsgReadWriter) error {
-			return run(requestDb, cloud, backend, hive, dbaccess, sp, sy, networkId, p, rw)
+			return run(requestDb, cloud, backend, hive, dbaccess, sp, sy, networkId, p, rw, swarmdb)
 		},
 	}, nil
 }
@@ -136,7 +137,7 @@ the main protocol loop that
  * whenever the loop terminates, the peer will disconnect with Subprotocol error
  * whenever handlers return an error the loop terminates
 */
-func run(requestDb *storage.LDBDatabase, depo StorageHandler, backend chequebook.Backend, hive *Hive, dbaccess *DbAccess, sp *bzzswap.SwapParams, sy *SyncParams, networkId uint64, p *p2p.Peer, rw p2p.MsgReadWriter) (err error) {
+func run(requestDb *storage.LDBDatabase, depo StorageHandler, backend chequebook.Backend, hive *Hive, dbaccess *DbAccess, sp *bzzswap.SwapParams, sy *SyncParams, networkId uint64, p *p2p.Peer, rw p2p.MsgReadWriter, swarmdb *swarmdb.SwarmDB) (err error) {
 
 	self := &bzz{
 		storage:     depo,
@@ -151,6 +152,7 @@ func run(requestDb *storage.LDBDatabase, depo StorageHandler, backend chequebook
 		swapEnabled: hive.swapEnabled,
 		syncEnabled: true,
 		NetworkId:   networkId,
+		swarmdb:     swarmdb,
 	}
 
 	// handle handshake
@@ -352,7 +354,7 @@ func (self *bzz) handle() error {
 			}
 			log.Debug(fmt.Sprintf("<- payment: %s", req.String()))
 			log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.sDBPaymentMsg Units: %v  Promise %v", req.Units, req.Promise))
-			self.swapDB.Receive(int(req.Units), req.Promise)
+			self.swarmdb.SwapDB.Receive(int(req.Units), req.Promise)
 		}
  
 
@@ -412,8 +414,9 @@ func (self *bzz) handleStatus() (err error) {
 	self.remoteAddr = self.peerAddr(status.Addr)
 	log.Trace(fmt.Sprintf("self: advertised IP: %v, peer advertised: %v, local address: %v\npeer: advertised IP: %v, remote address: %v\n", self.selfAddr(), self.remoteAddr, self.peer.LocalAddr(), status.Addr.IP, self.peer.RemoteAddr()))
 
-	if self.swapEnabled {                                          // remote peer PayAt       // local Address                        // remote peer Address
-		self.swapDB, err = swarmdb.NewSwapDB("/tmp/swap.db", self, status.Swap.Profile.PayAt, self.swapParams.PayProfile.Beneficiary, status.Swap.PayProfile.Beneficiary)
+	if self.swapEnabled {                                                  // remote peer PayAt       // local Address                        // remote peer Address
+		self.swarmdb.SwapDB, err = swarmdb.NewSwapDB("/tmp/swap.db", self, status.Swap.Profile.PayAt, self.swapParams.PayProfile.Beneficiary, status.Swap.PayProfile.Beneficiary, self.swarmdb.Netstats)
+
 		if err != nil {
 			log.Debug(fmt.Sprintf("[wolk-cloudstore] protocol.handleStatus swarmdb.NewSwapDB err: %v ", err))
 			return err

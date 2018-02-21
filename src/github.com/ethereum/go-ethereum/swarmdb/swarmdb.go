@@ -45,6 +45,9 @@ func NewSwarmDB(cloud storage.ChunkStore) *SwarmDB {
 
 	sd.Logger = swarmdblog.NewLogger()
 
+	config, _ := LoadSWARMDBConfig(SWARMDBCONF_FILE)
+	sd.Netstats = NewNetstats(&config)
+
 	return sd
 }
 
