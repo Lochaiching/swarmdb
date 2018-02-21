@@ -19,13 +19,12 @@ package network
 import (
 	"bytes"
 	"encoding/binary"
-        "encoding/json"
+	"encoding/json"
 	"fmt"
 	"time"
-
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-        "github.com/ethereum/go-ethereum/swarmdb"
+	"github.com/ethereum/go-ethereum/swarmdb"
 )
 
 // Handler for storage/retrieval related protocol requests
@@ -256,21 +255,21 @@ func (self *Depo) HandleRetrieveRequestMsg(req *retrieveRequestMsgData, p *peer)
 }
 
 func (self *Depo) HandleSdbRetrieveRequestMsg(req *retrieveRequestMsgData, p *peer) {
-        log.Debug(fmt.Sprintf("[wolk-cloudstore] depo.HandleSdbRetrieveRequestMsg :received %v from %v", req.Key, p))
-        req.from = p
-/*
-SwarmDBSwap: Check balance and send money if needed
-        // swap - record credit for 1 request
-        // note that only charge actual reqsearches
-        var err error
-        if p.swapdb != nil {
-                err = p.swapdb.Add(1)
-        }
-        if err != nil {
-                log.Warn(fmt.Sprintf("Depo.HandleRetrieveRequest: %v - cannot process request: %v", req.Key.Log(), err))
-                return
-        }
-*/
+	log.Debug(fmt.Sprintf("[wolk-cloudstore] depo.HandleSdbRetrieveRequestMsg :received %v from %v", req.Key, p))
+	req.from = p
+
+	// SwarmDBSwap: Check balance and send money if needed
+	// swap - record credit for 1 request
+	// note that only charge actual reqsearches
+	var err error
+
+	if p.swarmdb.SwapDB != nil {
+		err = p.swarmdb.SwapDB.Add(1)
+  }
+	if err != nil {
+		log.Warn(fmt.Sprintf("Depo.HandleSdbRetrieveRequestMsg: %v - cannot process request p.swapDB.Add(1): %v", req.Key.Log(), err))
+		return
+	}
 
 	// okay to ignore err since it means this node doesn't have the key's result
 	ret, opt, _ := self.swarmdb.RetrieveDB([]byte(req.Key))

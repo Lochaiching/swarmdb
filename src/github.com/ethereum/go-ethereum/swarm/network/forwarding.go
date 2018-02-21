@@ -17,10 +17,10 @@
 package network
 
 import (
+  //"encoding/json"
 	"fmt"
 	"math/rand"
 	"time"
-
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 )
@@ -57,7 +57,7 @@ var searchTimeout = 3 * time.Second
 func (self *forwarder) Retrieve(chunk *storage.Chunk) {
 	log.Trace(fmt.Sprintf("forwarder.Retrieve: hive %s ", self.hive.String()))
 	peers := self.hive.getPeers(chunk.Key, 0)
-	log.Trace(fmt.Sprintf("forwarder.Retrieve: %v - received %d peers from KΛÐΞMLIΛ... %v", chunk.Key.Log(), len(peers), peers))
+	log.Trace(fmt.Sprintf("forwarder.Retrieve: %v - received %d peers from KÎ›Ã�ÎžMLIÎ›... %v", chunk.Key.Log(), len(peers), peers))
 OUT:
 	for _, p := range peers {
 		log.Trace(fmt.Sprintf("forwarder.Retrieve: sending retrieveRequest %v to peer [%v] %v", chunk.Key.Log(), p, chunk.Key))
@@ -89,7 +89,7 @@ OUT:
 func (self *forwarder) RetrieveDB(chunk *storage.Chunk) {
         log.Trace(fmt.Sprintf("[wolk-cloudstore] forwarder.RetrieveDB: hive %s ", self.hive.String()))
         peers := self.hive.getPeers(chunk.Key, 0)
-        log.Trace(fmt.Sprintf("forwarder.RetrieveDB: %v - received %d peers from KΛÐΞMLIΛ... %v", chunk.Key.Log(), len(peers), peers))
+        log.Trace(fmt.Sprintf("forwarder.RetrieveDB: %v - received %d peers from KÎ›Ã�ÎžMLIÎ›... %v", chunk.Key.Log(), len(peers), peers))
 OUT:
         for _, p := range peers {
                 log.Trace(fmt.Sprintf("forwarder.Retrieve DB: sending retrieveRequest %v to peer [%v] %v", chunk.Key.Log(), p, chunk.Key))
@@ -105,13 +105,16 @@ OUT:
                         Key: chunk.Key,
                         Id:  generateId(),
                 }
-                var err error
-/*
-SWARMDB payment
-                if p.swapdb != nil {
-                        err = p.swapdb.Add(-1)
-                }
-*/
+
+			//SWARMDB payment
+			var err error
+			if p.swarmdb.SwapDB != nil {
+				err = p.swarmdb.SwapDB.Add(-1)
+			}
+			if err != nil {
+				log.Warn(fmt.Sprintf("forwarder.RetrieveDB: - cannot process request p.swapDB.Add(-1): %v", err))
+			}
+
                 if err == nil {
                         p.sDBRetrieve(req)
                         break OUT
