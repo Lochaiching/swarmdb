@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/crypto"
+        "github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"path/filepath"
@@ -182,6 +183,10 @@ type OrderedDatabaseCursor interface {
 	Prev(*SWARMDBUser) (k []byte /*K*/, v []byte /*V*/, err error)
 }
 
+func hashcolumn(k []byte) [32]byte {
+        return sha3.Sum256(k)
+}
+
 type ColumnType string
 type IndexType string
 type RequestType string
@@ -205,6 +210,7 @@ const (
 	RT_DESCRIBE_TABLE = "DescribeTable"
 	RT_LIST_TABLES    = "ListTables"
 	RT_DROP_TABLE     = "DropTable"
+	RT_CLOSE_TABLE    = "CloseTable"
 
 	RT_START_BUFFER = "StartBuffer"
 	RT_FLUSH_BUFFER = "FlushBuffer"
@@ -285,13 +291,49 @@ func (self *SwarmDB) RetrieveDB(key []byte) (val []byte, options *storage.CloudO
 }
 
 // ENSSimulation  API
-func (self *SwarmDB) GetRootHash(u *SWARMDBUser, tblKey []byte /* GetTableKeyValue */) (roothash []byte, err error) {
-	log.Debug(fmt.Sprintf("[GetRootHash] Getting Root Hash for (%s)[%x] ", tblKey, tblKey))
-	return self.ens.GetRootHash(tblKey)
+func (self *SwarmDB) GetRootHash(tblKey []byte /* GetTableKeyValue */) (roothash []byte, err error) {
+	log.Debug(fmt.Sprintf("[swarmdb GetRootHash] Getting Root Hash for (%s)[%x] ", tblKey, tblKey))
+	hashc := hashcolumn(tblKey)
+	s := hashc[:]
+	res, status, err := self.ens.GotRootHashFromLDB(s)
+	if err != nil{
+		res, err = self.ens.GetRootHash(s)
+	}
+	log.Debug(fmt.Sprintf("swarmdb GetRootHash index = %x hashed index = %x status = %d", tblKey, s, status)) 
+	return res, err
 }
 
-func (self *SwarmDB) StoreRootHash(u *SWARMDBUser, fullTableName []byte /* GetTableKey Value */, roothash []byte) (err error) {
-	return self.ens.StoreRootHash(fullTableName, roothash)
+func (self *SwarmDB) GetRootHashFromLDB(tblKey []byte /* GetTableKeyValue */) (roothash []byte, status uint, err error) {
+        log.Debug(fmt.Sprintf("[swarmdb GetRootHashFromLDB] Getting Root Hash for (%s)[%x] ", tblKey, tblKey))
+        hashc := hashcolumn(tblKey)
+        s := hashc[:]
+        res, status, err := self.ens.GotRootHashFromLDB(s)
+        log.Debug(fmt.Sprintf("swarmdb GetRootHashFromLDB index = %x hashed index = %x status = %d", tblKey, s, status))
+        return res, status, err
+}
+
+
+
+func (self *SwarmDB) StoreRootHash(fullTableName []byte /* GetTableKey Value */, roothash []byte) (err error) {
+	hashc := hashcolumn(fullTableName)
+	s := hashc[:]
+	log.Debug(fmt.Sprintf("swarmdb StoreRootHash index = %x value = %x hashed index = %x", fullTableName, roothash, s)) 
+	return self.ens.StoreRootHashToLDB(s, roothash, 1)
+}
+
+func (self *SwarmDB) StoreRootHashWithStatus(fullTableName []byte /* GetTableKey Value */, roothash []byte, status uint) (err error) {
+        hashc := hashcolumn(fullTableName)
+        s := hashc[:]
+        log.Debug(fmt.Sprintf("swarmdb StoreRootHash index = %x value = %x hashed index = %x", fullTableName, roothash, s))
+	if status == 3{
+        	self.ens.StoreRootHashToLDB(s, roothash, 0)
+		return self.ens.StoreRootHash(s, roothash)
+	}
+	if status == 2{
+        	self.ens.StoreRootHashToLDB(s, roothash, status)
+		return self.ens.StoreRootHash(s, roothash)
+	}
+        return self.ens.StoreRootHashToLDB(s, roothash, status)
 }
 
 // parse sql and return rows in bulk (order by, group by, etc.)
@@ -627,6 +669,16 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			resp.Data = append(resp.Data, r)
 		}
 		return resp, nil
+	case RT_CLOSE_TABLE:
+		tbl, err := self.GetTable(u, d.Owner, d.Database, d.Table)
+		if err != nil{
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] CloseTable %s", err.Error()))
+		}
+		err = tbl.Close(u)
+		if err != nil{
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] CloseTable %s", err.Error()))
+		}
+		return resp, nil
 
 	case RT_LIST_TABLES:
 		tableNames, err := self.ListTables(u, d.Owner, d.Database)
@@ -759,6 +811,10 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] FlushBuffer %s", err.Error()))
 		}
+		err = tbl.UpdateRootHash()
+		if err != nil {
+			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] FlushBuffer %s", err.Error()))
+		}
 		//TODO: update to use real "count"
 		return SWARMDBResponse{AffectedRowCount: 1}, nil
 
@@ -878,7 +934,7 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 	copy(newDBName[0:], database)
 
 	// look up what databases the owner has already
-	ownerDatabaseChunkID, err := self.ens.GetRootHash(ownerHash)
+	ownerDatabaseChunkID, err := self.GetRootHash(ownerHash)
 	if err != nil {
 		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateDatabase] GetRootHash %s", err))
 	}
@@ -938,7 +994,7 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 				return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateDatabase] StoreDBChunk %s", err.Error()))
 			}
 
-			err = self.StoreRootHash(u, ownerHash, ownerDatabaseChunkID)
+			err = self.StoreRootHashWithStatus(ownerHash, ownerDatabaseChunkID, 2)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateDatabase] StoreRootHash %s", err.Error()))
 			}
@@ -951,7 +1007,7 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 func (self *SwarmDB) ListDatabases(u *SWARMDBUser, owner string) (ret []Row, err error) {
 	ownerHash := crypto.Keccak256([]byte(owner))
 	// look up what databases the owner has
-	ownerDatabaseChunkID, err := self.ens.GetRootHash(ownerHash)
+	ownerDatabaseChunkID, err := self.GetRootHash(ownerHash)
 	if err != nil {
 		return ret, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:ListDatabases] GetRootHash %s", err))
 	}
@@ -999,7 +1055,7 @@ func (self *SwarmDB) DropDatabase(u *SWARMDBUser, owner string, database string)
 	copy(dropDBName[0:], database)
 
 	// look up what databases the owner has already
-	ownerDatabaseChunkID, err := self.ens.GetRootHash(ownerHash)
+	ownerDatabaseChunkID, err := self.GetRootHash(ownerHash)
 	if err != nil {
 		return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] GetRootHash %s", err)}
 	}
@@ -1027,7 +1083,7 @@ func (self *SwarmDB) DropDatabase(u *SWARMDBUser, owner string, database string)
 				if err != nil {
 					return false, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:DropDatabase] StoreDBChunk %s", err.Error()))
 				}
-				err = self.StoreRootHash(u, ownerHash, ownerDatabaseChunkID)
+				err = self.StoreRootHashWithStatus(ownerHash, ownerDatabaseChunkID, 2)
 				if err != nil {
 					return false, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:DropDatabase] StoreRootHash %s", err.Error()))
 				}
@@ -1052,7 +1108,7 @@ func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, ta
 	copy(dropTableName[0:], tableName)
 
 	// look up what databases the owner has already
-	ownerDatabaseChunkID, err := self.ens.GetRootHash(ownerHash)
+	ownerDatabaseChunkID, err := self.GetRootHash(ownerHash)
 	if err != nil {
 		return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] GetRootHash %s", err)}
 	}
@@ -1106,7 +1162,7 @@ func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, ta
 							return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] StoreDBChunk %s", err)}
 						}
 
-						err = self.StoreRootHash(u, ownerHash, ownerDatabaseChunkID)
+						err = self.StoreRootHashWithStatus(ownerHash, ownerDatabaseChunkID, 2)
 						if err != nil {
 							return false, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:DropTable] StoreRootHash %s", err.Error()))
 						}
@@ -1129,7 +1185,7 @@ func (self *SwarmDB) ListTables(u *SWARMDBUser, owner string, database string) (
 	copy(dbName[0:], database)
 
 	// look up what databases the owner has already
-	ownerDatabaseChunkID, err := self.ens.GetRootHash(ownerHash)
+	ownerDatabaseChunkID, err := self.GetRootHash(ownerHash)
 	if err != nil {
 		return tableNames, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListTables] GetRootHash %s", err)}
 	}
@@ -1223,7 +1279,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 	copy(databaseName[0:], database)
 
 	// look up what databases the owner has already
-	ownerDatabaseChunkID, err := self.ens.GetRootHash(ownerHash)
+	ownerDatabaseChunkID, err := self.GetRootHash(ownerHash)
 	if err != nil {
 		return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:GetDatabase] GetRootHash %s", err))
 	}
@@ -1298,7 +1354,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 					return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreDBChunk %s", err))
 				}
 				log.Debug(fmt.Sprintf("[swarmdb:CreateTable] Storing Hash of (%x) and ChunkID: [%s]", ownerHash, ownerDatabaseChunkID))
-				err = self.StoreRootHash(u, ownerHash, ownerDatabaseChunkID)
+				err = self.StoreRootHashWithStatus(ownerHash, ownerDatabaseChunkID, 2)
 				if err != nil {
 					return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreRootHash %s", err.Error()))
 				}
@@ -1351,7 +1407,7 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 	tblKey := self.GetTableKey(tbl.Owner, tbl.Database, tbl.tableName)
 
 	log.Debug(fmt.Sprintf("**** CreateTable (owner [%s] database [%s] tableName: [%s]) Primary: [%s] tblKey: [%s] Roothash:[%x]\n", tbl.Owner, tbl.Database, tbl.tableName, tbl.primaryColumnName, tblKey, swarmhash))
-	err = self.StoreRootHash(u, []byte(tblKey), []byte(swarmhash))
+	err = self.StoreRootHashWithStatus([]byte(tblKey), []byte(swarmhash), 2)
 	if err != nil {
 		return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreRootHash %s", err.Error()))
 	}
@@ -1365,4 +1421,12 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 
 func (self *SwarmDB) GetTableKey(owner string, database string, tableName string) (key string) {
 	return fmt.Sprintf("%s|%s|%s", owner, database, tableName)
+}
+
+func (self *SwarmDB) Close(){
+/*
+	for _, table := range self.tables{
+		table.Close()
+	}
+*/
 }
