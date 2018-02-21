@@ -188,7 +188,7 @@ func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	return row, nil
 }
 
-func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte) (mergedBodycontent []byte, err error) {
+func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte, birthts int, version int) (mergedBodycontent []byte, err error) {
 	contentPrefix := BuildSwarmdbPrefix([]byte(self.Owner), []byte(self.Database), []byte(self.tableName), key)
 	log.Debug(fmt.Sprintf("[table:buildSdata] contentPrefix is: %s", contentPrefix))
 
@@ -199,18 +199,18 @@ func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte) (mergedB
 	copy(metadataBody[CHUNK_START_DB:CHUNK_END_DB], []byte(self.Database))
 	copy(metadataBody[CHUNK_START_TABLE:CHUNK_END_TABLE], []byte(self.tableName))
 	copy(metadataBody[CHUNK_START_KEY:CHUNK_END_KEY], contentPrefix)
-	copy(metadataBody[CHUNK_START_PAYER:CHUNK_END_PAYER], u.Address)         //TODO: Chunk needs to use Address of Owner instead of owner
+	copy(metadataBody[CHUNK_START_PAYER:CHUNK_END_PAYER], u.Address)
 	copy(metadataBody[CHUNK_START_NODETYPE:CHUNK_END_NODETYPE], []byte("K")) //TODO: Define nodeType representation -- self.nodeType)
 	copy(metadataBody[CHUNK_START_RENEW:CHUNK_END_RENEW], IntToByte(u.AutoRenew))
 	copy(metadataBody[CHUNK_START_MINREP:CHUNK_END_MINREP], IntToByte(u.MinReplication))
 	copy(metadataBody[CHUNK_START_MAXREP:CHUNK_END_MAXREP], IntToByte(u.MaxReplication))
 	copy(metadataBody[CHUNK_START_ENCRYPTED:CHUNK_END_ENCRYPTED], IntToByte(self.encrypted))
-	//TODO: Need to GET first-- copy(metadataBody[CHUNK_START_BIRTHTS:CHUNK_END_BIRTHTS], IntToByte(birthtimestamp))
+	copy(metadataBody[CHUNK_START_BIRTHTS:CHUNK_END_BIRTHTS], IntToByte(birthts))
 
 	lastupdatets := int(time.Now().Unix())
 	copy(metadataBody[CHUNK_START_LASTUPDATETS:CHUNK_END_LASTUPDATETS], IntToByte(lastupdatets))
 
-	//TODO: Need to GET first-- copy(metadataBody[CHUNK_START_VERSION:CHUNK_END_VERSION], IntToByte(version))
+	copy(metadataBody[CHUNK_START_VERSION:CHUNK_END_VERSION], IntToByte(version))
 
 	unencryptedMetadata := metadataBody[CHUNK_END_MSGHASH:CHUNK_START_CHUNKVAL]
 	msg_hash := SignHash(unencryptedMetadata)
@@ -273,10 +273,8 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error)
 	if !ok {
 		return out, false, nil
 	}
-	log.Debug("About to Generate Key")
-
 	chunkKey := t.GenerateKChunkKey(key)
-	log.Debug(fmt.Sprintf("ChunkKey generated is: %s", chunkKey))
+	log.Debug(fmt.Sprintf("[table:Get] ChunkKey generated is: %s", chunkKey))
 	contentReader, err := t.swarmdb.dbchunkstore.RetrieveKChunk(u, chunkKey)
 	if bytes.Trim(contentReader, "\x00") == nil {
 		log.Debug(fmt.Sprintf("RETURNING NIL CHUNK [%s]", out))
@@ -492,32 +490,36 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] convertJSONValueToKey %s", err.Error()))
 			}
-
-			//t.swarmdb.kaddb.Open([]byte(t.Owner), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
-			/*
-				khash, err := t.swarmdb.kaddb.Put(u, k, []byte(rawvalue)) // TODO: use u (sk) in kaddb
+			rawChunkBytes, err := t.swarmdb.dbchunkstore.RetrieveRawChunk(k)
+			if err != nil {
+				return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] RetrieveRawChunk - Error Retrieving Data checking if [%s] exists %s", k, err.Error()))
+			}
+			var birthts int
+			var version int
+			if len(bytes.Trim(rawChunkBytes, "\x00")) == 0 {
+				birthts = int(time.Now().Unix())
+				version = 0
+			} else {
+				//TODO: retrieve birthdt and version from chunk
+				chunkHeader, err := ParseChunkHeader(rawChunkBytes)
 				if err != nil {
-					return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] kaddb.Put %s", err.Error()))
+					return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] Unable to parse Chunk Header"))
 				}
-			*/
+				birthts = chunkHeader.Birthts
+				version = chunkHeader.Version + 1
+			}
 			v := []byte(rawvalue)
-			sdata, errS := t.buildSdata(u, k, v)
+			sdata, errS := t.buildSdata(u, k, v, birthts, version)
 			if errS != nil {
 				return GenerateSWARMDBError(err, `[kademliadb:Put] buildSdata `+errS.Error())
 			}
 
 			hashVal := sdata[CHUNK_START_KEY:CHUNK_END_KEY] // 32 bytes
-			log.Debug(fmt.Sprintf("Kademlia Encrypted Bit: %d", t.encrypted))
 			errStore := t.swarmdb.dbchunkstore.StoreKChunk(u, hashVal, sdata, t.encrypted)
 			if errStore != nil {
 				return GenerateSWARMDBError(err, `[table:Put] StoreKChunk `+errStore.Error())
 			}
-
-			// fmt.Printf(" - primary  %s | %x\n", c.columnName, k)
-			if _, ok := t.columns[c.columnName]; !ok {
-				return &SWARMDBError{message: fmt.Sprintf("[table:Put] Primary key %s not specified in input", c.columnName), ErrorCode: 479, ErrorMessage: "Row missing primary key"}
-			}
-			_, err = t.columns[c.columnName].dbaccess.Put(u, k, hashVal)
+			_, err = c.dbaccess.Put(u, k, hashVal)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] dbaccess.Put %s", err.Error()))
 			}
@@ -534,13 +536,10 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 				return GenerateSWARMDBError(errPvalue, fmt.Sprintf("[table:Put] convertJSONValueToKey %s", errPvalue.Error()))
 			}
 
-			// fmt.Printf(" - secondary %s %x | %x\n", c.columnName, k2, k)
-			//TODO: could this just be simplified by using c.dbaccess.Put ???
-			_, err = t.columns[c.columnName].dbaccess.Put(u, k2, k)
+			_, err = c.dbaccess.Put(u, k2, k)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] dbaccess.Put %s", err.Error()))
 			}
-			//t.columns[c.columnName].dbaccess.Print()
 		}
 	}
 
