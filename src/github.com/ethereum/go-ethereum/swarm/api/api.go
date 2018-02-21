@@ -25,27 +25,19 @@ import (
 	"sync"
 
 	"bytes"
-	//"crypto/sha256"
 	"mime"
 	"path/filepath"
-	// "reflect"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	//	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 )
 
-var (
-	hashMatcher      = regexp.MustCompile("^[0-9A-Fa-f]{64}")
-	slashes          = regexp.MustCompile("/+")
-	domainAndVersion = regexp.MustCompile("[@:;,]+")
-)
+var hashMatcher = regexp.MustCompile("^[0-9A-Fa-f]{64}")
 
 type Resolver interface {
 	Resolve(string) (common.Hash, error)
-	//	Register(string) (*types.Transaction, error)
 }
 
 /*
@@ -54,8 +46,8 @@ on top of the dpa
 it is the public interface of the dpa which is included in the ethereum stack
 */
 type Api struct {
-	dpa *storage.DPA 
-	dns Resolver     
+	dpa *storage.DPA
+	dns Resolver
 }
 
 //the api constructor initialises
@@ -66,15 +58,6 @@ func NewApi(dpa *storage.DPA, dns Resolver) (self *Api) {
 	}
 	return
 }
-
-
-func NewApiTest(dpa *storage.DPA, dns Resolver, ldb *storage.LDBDatabase) (self *Api) {
- 	self = &Api{
- 		dpa:        dpa,
- 		dns:        dns,
-  	}
-  	return
-  }
 
 // to be used only in TEST
 func (self *Api) Upload(uploadDir, index string) (hash string, err error) {
@@ -92,7 +75,6 @@ func (self *Api) Store(data io.Reader, size int64, wg *sync.WaitGroup) (key stor
 	return self.dpa.Store(data, size, wg, nil)
 }
 
-
 type ErrResolve error
 
 // DNS Resolver
@@ -101,7 +83,7 @@ func (self *Api) Resolve(uri *URI) (storage.Key, error) {
 
 	// if the URI is immutable, check if the address is a hash
 	isHash := hashMatcher.MatchString(uri.Addr)
-	if uri.Immutable() {
+	if uri.Immutable() || uri.DeprecatedImmutable() {
 		if !isHash {
 			return nil, fmt.Errorf("immutable address not a content hash: %q", uri.Addr)
 		}
@@ -144,14 +126,13 @@ func (self *Api) Put(content, contentType string) (storage.Key, error) {
 	return key, nil
 }
 
-
 // Get uses iterative manifest retrieval and prefix matching
 // to resolve basePath to content using dpa retrieve
 // it returns a section reader, mimeType, status and an error
 func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionReader, mimeType string, status int, err error) {
-	log.Trace(fmt.Sprintf("Get key %v, (%s)", key, path))
 	trie, err := loadManifest(self.dpa, key, nil)
 	if err != nil {
+		status = http.StatusNotFound
 		log.Warn(fmt.Sprintf("loadManifestTrie error: %v", err))
 		return
 	}
@@ -159,15 +140,17 @@ func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionRe
 	log.Trace(fmt.Sprintf("getEntry(%s)", path))
 
 	entry, _ := trie.getEntry(path)
-	log.Trace(fmt.Sprintf("getmain entry 1: %v '%v'", entry, path))
 
 	if entry != nil {
 		key = common.Hex2Bytes(entry.Hash)
 		status = entry.Status
-		mimeType = entry.ContentType
-		log.Trace(fmt.Sprintf("content lookup key: '%v' (%v)", key, mimeType))
-		log.Trace(fmt.Sprintf("content lookup key: %v '%v' (%v)", entry.Hash, key, mimeType))
-		reader = self.dpa.Retrieve(key)
+		if status == http.StatusMultipleChoices {
+			return
+		} else {
+			mimeType = entry.ContentType
+			log.Trace(fmt.Sprintf("content lookup key: '%v' (%v)", key, mimeType))
+			reader = self.dpa.Retrieve(key)
+		}
 	} else {
 		status = http.StatusNotFound
 		err = fmt.Errorf("manifest entry for '%s' not found", path)
@@ -175,23 +158,6 @@ func (self *Api) Get(key storage.Key, path string) (reader storage.LazySectionRe
 	}
 	return
 }
-
-/*
-// will move it to hashdb.go
-func cv(a Val) []byte {
-	log.Trace(fmt.Sprintf("convertToByte cv: %v %v ", a, reflect.TypeOf(a)))
-	if va, ok := a.([]byte); ok {
-		log.Trace(fmt.Sprintf("convertToByte cv: %v '%v' %s", a, va, string(va)))
-		return []byte(va)
-	}
-	if va, ok := a.(storage.Key); ok {
-		log.Trace(fmt.Sprintf("convertToByte cv key: %v '%v' %s", a, va, string(va)))
-		return []byte(va)
-	}
-	return nil
-}
-
-*/
 
 func (self *Api) Modify(key storage.Key, path, contentHash, contentType string) (storage.Key, error) {
 	quitC := make(chan bool)
@@ -257,6 +223,7 @@ func (self *Api) AddFile(mhash, path, fname string, content []byte, nameresolver
 	}
 
 	return fkey, newMkey.String(), nil
+
 }
 
 func (self *Api) RemoveFile(mhash, path, fname string, nameresolver bool) (string, error) {
@@ -288,6 +255,7 @@ func (self *Api) RemoveFile(mhash, path, fname string, nameresolver bool) (strin
 	newMkey, err := mw.Store()
 	if err != nil {
 		return "", err
+
 	}
 
 	return newMkey.String(), nil
@@ -368,7 +336,6 @@ func (self *Api) AppendFile(mhash, path, fname string, existingSize int64, conte
 }
 
 func (self *Api) BuildDirectoryTree(mhash string, nameresolver bool) (key storage.Key, manifestEntryMap map[string]*manifestTrieEntry, err error) {
-
 	uri, err := Parse("bzz:/" + mhash)
 	if err != nil {
 		return nil, nil, err
@@ -389,5 +356,8 @@ func (self *Api) BuildDirectoryTree(mhash string, nameresolver bool) (key storag
 		manifestEntryMap[suffix] = entry
 	})
 
+	if err != nil {
+		return nil, nil, fmt.Errorf("list with prefix failed %v: %v", key.String(), err)
+	}
 	return key, manifestEntryMap, nil
 }

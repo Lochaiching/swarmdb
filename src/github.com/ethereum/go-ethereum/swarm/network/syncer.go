@@ -131,9 +131,8 @@ type SyncParams struct {
 }
 
 // constructor with default values
-func NewSyncParams(bzzdir string) *SyncParams {
+func NewDefaultSyncParams() *SyncParams {
 	return &SyncParams{
-		RequestDbPath:      filepath.Join(bzzdir, "requests"),
 		RequestDbBatchSize: requestDbBatchSize,
 		KeyBufferSize:      keyBufferSize,
 		SyncBufferSize:     syncBufferSize,
@@ -142,6 +141,12 @@ func NewSyncParams(bzzdir string) *SyncParams {
 		SyncPriorities:     []uint{High, Medium, Medium, Low, Low},
 		SyncModes:          []bool{true, true, true, true, false},
 	}
+}
+
+//this can only finally be set after all config options (file, cmd line, env vars)
+//have been evaluated
+func (self *SyncParams) Init(path string) {
+	self.RequestDbPath = filepath.Join(path, "requests")
 }
 
 // syncer is the agent that manages content distribution/storage replication/chunk storeRequest forwarding
@@ -156,8 +161,7 @@ type syncer struct {
 	quit            chan bool       // signal to quit loops
 
 	// DB related fields
-	dbAccess *DbAccess            // access to dbStore
-	db       *storage.LDBDatabase // delivery msg db
+	dbAccess *DbAccess // access to dbStore
 
 	// native fields
 	queues     [priorities]*syncDb                   // in-memory cache / queues for sync reqs
@@ -379,7 +383,7 @@ func (self *syncer) syncHistory(state *syncState) chan interface{} {
 				}
 				select {
 				// blocking until history channel is read from
-				case history <- storage.Key(key):
+				case history <- key:
 					n++
 					log.Trace(fmt.Sprintf("syncer[%v]: history: %v (%v keys)", self.key.Log(), key.Log(), n))
 					state.Latest = key
@@ -607,7 +611,7 @@ func (self *syncer) syncDeliveries() {
 				log.Warn(fmt.Sprintf("syncer[%v]: failed to deliver %v: %v", self.key.Log(), req, err))
 			} else {
 				success++
-				log.Trace(fmt.Sprintf("syncer[%v]: %v %v successfully delivered", self.key.Log(), req, self.key))
+				log.Trace(fmt.Sprintf("syncer[%v]: %v successfully delivered", self.key.Log(), req))
 			}
 		}
 		if total%self.SyncBatchSize == 0 {
@@ -722,7 +726,6 @@ func (self *syncer) replay() func(req interface{}, quit chan bool) bool {
 func (self *syncer) newStoreRequestMsgData(req interface{}) (*storeRequestMsgData, error) {
 
 	key, id, chunk, sreq, err := parseRequest(req)
-	log.Trace(fmt.Sprintf("syncer newStoreRequestMsgData key = %v id = %v sreq = %v", key, id, sreq))
 	if err != nil {
 		return nil, err
 	}
@@ -742,7 +745,6 @@ func (self *syncer) newStoreRequestMsgData(req interface{}) (*storeRequestMsgDat
 			SData: chunk.SData,
 		}
 	}
-	log.Trace(fmt.Sprintf("syncer newStoreRequestMsgData2 key = %v id = %v sreq = %v", key, id, sreq))
 
 	return sreq, nil
 }

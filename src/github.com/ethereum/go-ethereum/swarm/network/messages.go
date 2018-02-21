@@ -42,7 +42,6 @@ const (
 	deliveryRequestMsg        // 0x06
 	unsyncedKeysMsg           // 0x07
 	paymentMsg                // 0x08
-	manifestRequestMsg        // 0x09
 )
 
 /*
@@ -101,33 +100,6 @@ func (self storeRequestMsgData) String() string {
 	return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end])
 }
 
-type storeRequestDBMsgData struct {
-    Key   storage.Key // hash of datasize | data
-    SData []byte      // the actual chunk Data
-    IndexData []byte      // index
-    SHash []byte      // Swarm Hash
-    // optional
-    Id             uint64     // request ID. if delivery, the ID is retrieve request ID
-    requestTimeout *time.Time // expiry for forwarding - [not serialised][not currently used]
-    storageTimeout *time.Time // expiry of content - [not serialised][not currently used]
-    from           *peer      // [not serialised] protocol registers the requester
-}
-
-func (self storeRequestDBMsgData) String() string {
-    var from string
-    if self.from == nil {
-        from = "self"
-    } else {
-        from = self.from.Addr().String()
-    }
-    end := len(self.SData)
-    if len(self.SData) > 10 {
-        end = 10
-    }
-    return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end])
-}
-
-
 /*
 Retrieve request
 
@@ -161,7 +133,7 @@ type retrieveRequestMsgData struct {
 	from     *peer       //
 }
 
-func (self retrieveRequestMsgData) String() string {
+func (self *retrieveRequestMsgData) String() string {
 	var from string
 	if self.from == nil {
 		from = "ourselves"
@@ -176,12 +148,12 @@ func (self retrieveRequestMsgData) String() string {
 }
 
 // lookups are encoded by missing request ID
-func (self retrieveRequestMsgData) isLookup() bool {
+func (self *retrieveRequestMsgData) isLookup() bool {
 	return self.Id == 0
 }
 
 // sets timeout fields
-func (self retrieveRequestMsgData) setTimeout(t *time.Time) {
+func (self *retrieveRequestMsgData) setTimeout(t *time.Time) {
 	self.timeout = t
 	if t != nil {
 		self.Timeout = uint64(t.UnixNano())
@@ -190,7 +162,7 @@ func (self retrieveRequestMsgData) setTimeout(t *time.Time) {
 	}
 }
 
-func (self retrieveRequestMsgData) getTimeout() (t *time.Time) {
+func (self *retrieveRequestMsgData) getTimeout() (t *time.Time) {
 	if self.Timeout > 0 && self.timeout == nil {
 		timeout := time.Unix(int64(self.Timeout), 0)
 		t = &timeout
@@ -208,7 +180,7 @@ type peerAddr struct {
 }
 
 // peerAddr pretty prints as enode
-func (self peerAddr) String() string {
+func (self *peerAddr) String() string {
 	var nodeid discover.NodeID
 	copy(nodeid[:], self.ID)
 	return discover.NewNode(nodeid, self.IP, 0, self.Port).String()
@@ -241,7 +213,7 @@ type peersMsgData struct {
 }
 
 // peers msg pretty printer
-func (self peersMsgData) String() string {
+func (self *peersMsgData) String() string {
 	var from string
 	if self.from == nil {
 		from = "ourselves"
@@ -255,22 +227,13 @@ func (self peersMsgData) String() string {
 	return fmt.Sprintf("from: %v, Key: %x; ID: %v, Peers: %v", from, target, self.Id, self.Peers)
 }
 
-func (self peersMsgData) setTimeout(t *time.Time) {
+func (self *peersMsgData) setTimeout(t *time.Time) {
 	self.timeout = t
 	if t != nil {
 		self.Timeout = uint64(t.UnixNano())
 	} else {
 		self.Timeout = 0
 	}
-}
-
-func (self peersMsgData) getTimeout() (t *time.Time) {
-	if self.Timeout > 0 && self.timeout == nil {
-		timeout := time.Unix(int64(self.Timeout), 0)
-		t = &timeout
-		self.timeout = t
-	}
-	return
 }
 
 /*

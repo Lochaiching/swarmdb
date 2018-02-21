@@ -26,7 +26,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	whisper "github.com/ethereum/go-ethereum/whisper/whisperv5"
+	whisper "github.com/ethereum/go-ethereum/whisper/whisperv6"
 )
 
 const powRequirement = 0.00001
@@ -168,7 +168,7 @@ func singleRequest(t *testing.T, server *WMailServer, env *whisper.Envelope, p *
 	src[0]++
 	ok, lower, upper, topic = server.validateRequest(src, request)
 	if ok {
-		t.Fatalf("request validation false positive, seed: %d.", seed)
+		t.Fatalf("request validation false positive, seed: %d (lower: %d, upper: %d).", seed, lower, upper)
 	}
 }
 

@@ -17,11 +17,9 @@
 package storage
 
 import (
-	//"bytes"
 	"errors"
 	"fmt"
 	"io"
-	//"strings"
 	"sync"
 	"time"
 
@@ -61,15 +59,14 @@ type DPA struct {
 
 	lock    sync.Mutex
 	running bool
-	wg      *sync.WaitGroup
 	quitC   chan bool
 }
 
 // for testing locally
 func NewLocalDPA(datadir string) (*DPA, error) {
-	//hash := MakeHashFunc("SWARMDBSHA3")
+
 	hash := MakeHashFunc("SHA256")
-	//fmt.Printf("Does the hasher have a rodney func? %s",hash.RodneyTest())
+
 	dbStore, err := NewDbStore(datadir, hash, singletonSwarmDbCapacity, 0)
 	if err != nil {
 		return nil, err
@@ -100,13 +97,6 @@ func (self *DPA) Retrieve(key Key) LazySectionReader {
 // Public API. Main entry point for document storage directly. Used by the
 // FS-aware API and httpaccess
 func (self *DPA) Store(data io.Reader, size int64, swg *sync.WaitGroup, wwg *sync.WaitGroup) (key Key, err error) {
-	//return self.Chunker.Split(data, size, self.storeC, swg, wwg, false)
-	return self.Chunker.Split(data, size, self.storeC, swg, wwg)
-}
-
-func (self *DPA) StoreDB(data io.Reader, size int64, swg *sync.WaitGroup, wwg *sync.WaitGroup) (key Key, err error) {
-	////////////////
-	//return self.Chunker.Split(data, size, self.storeC, swg, wwg, true)
 	return self.Chunker.Split(data, size, self.storeC, swg, wwg)
 }
 
@@ -210,7 +200,6 @@ func NewDpaChunkStore(localStore, netStore ChunkStore) *dpaChunkStore {
 // waits for response or times out
 func (self *dpaChunkStore) Get(key Key) (chunk *Chunk, err error) {
 	chunk, err = self.netStore.Get(key)
-	log.Trace(fmt.Sprintf("DPA.Get from netstore: %v %v", key.Log(), string(chunk.SData)))
 	// timeout := time.Now().Add(searchTimeout)
 	if chunk.SData != nil {
 		log.Trace(fmt.Sprintf("DPA.Get: %v found locally, %d bytes", key.Log(), len(chunk.SData)))
@@ -230,51 +219,23 @@ func (self *dpaChunkStore) Get(key Key) (chunk *Chunk, err error) {
 
 // Put is the entrypoint for local store requests coming from storeLoop
 func (self *dpaChunkStore) Put(entry *Chunk) {
-	fmt.Printf("In dpaChunkstore PUT \n\n")
 	chunk, err := self.localStore.Get(entry.Key)
 	if err != nil {
-		log.Debug(fmt.Sprintf("DPA.Put: %v new chunk. call netStore.Put Entry Details %+v", entry.Key.Log(), entry))
+		log.Trace(fmt.Sprintf("DPA.Put: %v new chunk. call netStore.Put", entry.Key.Log()))
 		chunk = entry
 	} else if chunk.SData == nil {
-		log.Debug(fmt.Sprintf("DPA.Put: %v request entry found. Entry Details: [%v]", entry.Key.Log(), entry))
+		log.Trace(fmt.Sprintf("DPA.Put: %v request entry found", entry.Key.Log()))
 		chunk.SData = entry.SData
 		chunk.Size = entry.Size
 	} else {
 		log.Trace(fmt.Sprintf("DPA.Put: %v chunk already known", entry.Key.Log()))
-		if !entry.swarmdb {
-			return
-		}
+		return
 	}
 	// from this point on the storage logic is the same with network storage requests
-	log.Debug(fmt.Sprintf("DPA.Put %v: %v", self.n, chunk.Key.Log()))
+	log.Trace(fmt.Sprintf("DPA.Put %v: %v", self.n, chunk.Key.Log()))
 	self.n++
 	self.netStore.Put(chunk)
 }
 
-/*
-func (self *dpaChunkStore) PutDB(entry *Chunk) {
-    chunk, err := self.localStore.Get(entry.Key)
-    if err != nil {
-        log.Trace(fmt.Sprintf("DPA.Put: %v new chunk. call netStore.Put", entry.Key.Log()))
-        chunk = entry
-    } else if chunk.SData == nil {
-        log.Trace(fmt.Sprintf("DPA.Put: %v request entry found", entry.Key.Log()))
-        chunk.SData = entry.SData
-        chunk.Size = entry.Size
-    } else {
-        log.Trace(fmt.Sprintf("DPA.Put: %v chunk already known", entry.Key.Log()))
-        if !entry.swarmdb{
-        //  return
-        }
-    }
-    // from this point on the storage logic is the same with network storage requests
-    log.Trace(fmt.Sprintf("DPA.PutDB %v: %v", self.n, chunk.Key.Log()))
-    self.n++
-    self.netStore.Put(chunk)
-}
-*/
-
 // Close chunk store
-func (self *dpaChunkStore) Close() {
-	return
-}
+func (self *dpaChunkStore) Close() {}

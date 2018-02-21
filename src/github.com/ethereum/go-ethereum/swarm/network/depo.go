@@ -29,26 +29,16 @@ import (
 // Handler for storage/retrieval related protocol requests
 // implements the StorageHandler interface used by the bzz protocol
 type Depo struct {
-	hashfunc   storage.Hasher
+	hashfunc   storage.SwarmHasher
 	localStore storage.ChunkStore
 	netStore   storage.ChunkStore
-	manifestStore	*storage.LDBDatabase
 }
 
-func NewDepo(hash storage.Hasher, localStore, remoteStore storage.ChunkStore) *Depo {
+func NewDepo(hash storage.SwarmHasher, localStore, remoteStore storage.ChunkStore) *Depo {
 	return &Depo{
 		hashfunc:   hash,
 		localStore: localStore,
 		netStore:   remoteStore, // entrypoint internal
-	}
-}
-
-func NewDepoTest(hash storage.Hasher, localStore, remoteStore storage.ChunkStore, ldb *storage.LDBDatabase) *Depo {
-	return &Depo{
-		hashfunc:   hash,
-		localStore: localStore,
-		netStore:   remoteStore, // entrypoint internal
-		manifestStore: 	ldb, 
 	}
 }
 
@@ -65,7 +55,7 @@ func (self *Depo) HandleUnsyncedKeysMsg(req *unsyncedKeysMsgData, p *peer) error
 	var err error
 	for _, req := range unsynced {
 		// skip keys that are found,
-		chunk, err = self.localStore.Get(storage.Key(req.Key[:]))
+		chunk, err = self.localStore.Get(req.Key[:])
 		if err != nil || chunk.SData == nil {
 			missing = append(missing, req)
 		}
@@ -133,8 +123,6 @@ func (self *Depo) HandleStoreRequestMsg(req *storeRequestMsgData, p *peer) {
 
 	hasher := self.hashfunc()
 	hasher.Write(req.SData)
-	log.Trace(fmt.Sprintf("Depo.HandleStoreRequest: SData: %v %v", req.SData, req))
-	
 	if !bytes.Equal(hasher.Sum(nil), req.Key) {
 		// data does not validate, ignore
 		// TODO: peer should be penalised/dropped?
@@ -152,66 +140,6 @@ func (self *Depo) HandleStoreRequestMsg(req *storeRequestMsgData, p *peer) {
 	chunk.Source = p
 	self.netStore.Put(chunk)
 }
-
-/// it accept only <4k byte data
-func (self *Depo) HandleStoreRequestDBMsg(req *storeRequestDBMsgData, p *peer) {
-    var islocal bool
-    req.from = p
-    chunk, err := self.localStore.Get(req.Key)
-    switch {
-    case err != nil:
-        log.Trace(fmt.Sprintf("Depo.handleStoreRequest: %v not found locally. create new chunk/request", req.Key))
-        // not found in memory cache, ie., a genuine store request
-        // create chunk
-        chunk = storage.NewChunk(req.Key, nil)
-
-    case chunk.SData == nil:
-        // found chunk in memory store, needs the data, validate now
-        log.Trace(fmt.Sprintf("Depo.HandleStoreRequest: %v. request entry found", req))
-
-    default:
-        // data is found, store request ignored
-        // this should update access count?
-        log.Trace(fmt.Sprintf("Depo.HandleStoreRequest: %v found locally. ignore.", req))
-        islocal = true
-        //return
-    }
-
-    hasher := self.hashfunc()
-    hasher.Write(req.SData)
-/*
-	hashermain := self.hashfunc()
-	keylength := len(req.Key)
-	dummydata := req.SData[len(req.SData)-keylength:]
-	hashermain.Write(dummydata)
-	for i := 0; i < keylength; i++{
-		dummyhash[len(req.SData)-keylength+i] = "Z"
-	}
-*/
-    if !bytes.Equal(hasher.Sum(nil), req.Key) {
-        // data does not validate, ignore
-        // TODO: peer should be penalised/dropped?
-        log.Warn(fmt.Sprintf("Depo.HandleStoreRequest: chunk invalid. store request ignored: %v", req))
-        return
-    }
-
-    if islocal {
-        return
-    }
-    // update chunk with size and data
-    chunk.SData = req.SData // protocol validates that SData is minimum 9 bytes long (int64 size  + at least one byte of data)
-    chunk.Size = int64(binary.LittleEndian.Uint64(req.SData[0:8]))
-    log.Trace(fmt.Sprintf("delivery of %v from %v", chunk, p))
-    chunk.Source = p
-    self.netStore.Put(chunk)
-}
-
-
-
-
-
-
-
 
 // entrypoint for retrieve requests coming from the bzz wire protocol
 // checks swap balance - return if peer has no credit
@@ -287,21 +215,3 @@ func (self *Depo) addRequester(rs *storage.RequestStatus, req *retrieveRequestMs
 	list := rs.Requesters[req.Id]
 	rs.Requesters[req.Id] = append(list, req)
 }
-
-
-
-
-
-/*
-func (self *Depo) HandleUpdateManifestRequestMsg(req *manifestRequestMsgData, p *peer) {
-    var islocal bool
-    req.from = p
-	deviceid := req.Key
-	hash		 := req.Key
-    self.manifestStore.Put([]byte(deviceid), []byte(hash))
-}
-*/
-
-
-
-

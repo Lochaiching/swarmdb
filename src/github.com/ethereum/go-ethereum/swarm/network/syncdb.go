@@ -383,7 +383,6 @@ func (self *syncDb) newSyncDbEntry(req interface{}, counter uint64) (entry *sync
 		copy(dbval, key[:])
 		binary.BigEndian.PutUint64(dbval[32:], id)
 
-		log.Trace(fmt.Sprintf("syncdb[%v]: %v ", dbkey, dbval))
 		entry = &syncDbEntry{dbkey, dbval}
 	}
 	return

@@ -21,13 +21,9 @@ package http
 
 import (
 	"archive/tar"
-	"bytes"
-	"crypto/sha256"
-	//"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/crypto/nacl/box"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -37,13 +33,9 @@ import (
 	"path"
 	"strconv"
 	"strings"
-	//"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/swarm/api"
 	"github.com/ethereum/go-ethereum/swarm/storage"
@@ -55,20 +47,6 @@ import (
 type ServerConfig struct {
 	Addr       string
 	CorsString string
-}
-
-type devicejson struct {
-	DeviceID     string `json:"deviceID,omitempty"`
-	Email        string `json:"email,omitempty"`
-	Phone        string `json:"phone,omitempty"`
-	Email_sha256 string `json:"email_sha256,omitempty"`
-	Phone_sha256 string `json:"phone_sha256,omitempty"`
-}
-
-type tablejson struct {
-	TableID  string `json:"tableid,omitempty"`
-	ID       string `json:"id,omitempty"`
-	Document string `json:"document,omitempty"`
 }
 
 // browser API for registering bzz url scheme handlers:
@@ -88,84 +66,17 @@ func StartHttpServer(api *api.Api, config *ServerConfig) {
 		MaxAge:         600,
 		AllowedHeaders: []string{"*"},
 	})
-	sk, pk := GetKeys()
-	hdlr := c.Handler(NewServer(api, sk, pk))
+	hdlr := c.Handler(NewServer(api))
 
 	go http.ListenAndServe(config.Addr, hdlr)
 }
 
-func GetKeys() (sk [32]byte, pk [32]byte) {
-	ks := keystore.NewKeyStore("/var/www/vhosts/data/keystore", keystore.StandardScryptN, keystore.StandardScryptP)
-	var ks_accounts []accounts.Account //     type Account struct    in->   keystore/keystore.go
-	ks_accounts = ks.Accounts()
-	acc_url := ks_accounts[0].URL
-	acc_url_string := fmt.Sprintf("%s", acc_url)
-	filename := acc_url_string[11:] // /var/www/vhosts/data/keystore/UTC--2017-10-13T23-15-16.214744640Z--dc8a520a69157a7087f0b575644b8e454f462159
-
-	// Open the key file
-	//keyJson, readErr := ioutil.ReadFile("/var/www/vhosts/data/keystore/UTC--2017-10-13T23-15-16.214744640Z--dc8a520a69157a7087f0b575644b8e454f462159")
-	keyJson, readErr := ioutil.ReadFile(filename)
-	if readErr != nil {
-		//s.logDebug("SWARM server.go ReadFile of keystore file error: %s ", readErr)
-		log.Debug(fmt.Sprintf("[BZZ] HTTP: "+"SWARM server.go ReadFile of keystore file error: %s ", readErr))
-
-		// if ReadFile fail use default keys
-		sk = [32]byte{240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
-		pk = [32]byte{159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
-		return sk, pk
-	}
-
-	keyWrapper, keyErr := keystore.DecryptKey([]byte(keyJson), "mdotm")
-	if keyErr != nil {
-		//s.logDebug("SWARM server.go DecryptKey error: %s ", keyErr)
-		log.Debug(fmt.Sprintf("[BZZ] HTTP: "+"SWARM server.go DecryptKey error: %s ", keyErr))
-
-		// if we don't know the pass use default keys
-		sk = [32]byte{240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
-		pk = [32]byte{159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
-		return sk, pk
-	}
-
-	acc_sk := crypto.FromECDSA(keyWrapper.PrivateKey)
-
-	acc_pk := crypto.FromECDSAPub(&keyWrapper.PrivateKey.PublicKey)
-	// fun call elliptic.Marshal   add  ret[0] = 4 // uncompressed point
-	// pk:[]byte{0x4, 0x8d, 0x9b,
-	// need to remove the "ret[0] = 4" to get the pk
-	acc_pk = append(pk[:0], pk[1:]...)
-
-	//secretkey := [32]byte{}
-	for i := range acc_sk {
-		sk[i] = acc_sk[i]
-		if i == 31 {
-			break
-		}
-	}
-
-	// crypto/nacl  box.Seal()  box.Open()   PublicKey is  type *[32]byte  so cut the account PublicKey from [64]byte to [32]byte
-	//publickey := [64]byte{}
-	//publickey := [32]byte{}
-	for i := range acc_pk {
-		pk[i] = acc_pk[i]
-		if i == 31 {
-			break
-		}
-	}
-
-	//	sk = [32]byte{240, 59, 251, 116, 145, 52, 30, 76, 203, 237, 108, 95, 200, 16, 23, 228, 142, 155, 177, 199, 104, 251, 204, 162, 90, 121, 34, 77, 200, 214, 204, 50}
-	//	pk = [32]byte{159, 34, 74, 113, 185, 191, 95, 49, 125, 184, 92, 125, 15, 82, 209, 53, 25, 124, 115, 138, 46, 218, 156, 199, 210, 169, 145, 81, 199, 191, 134, 74}
-
-	return sk, pk
-}
-
-func NewServer(api *api.Api, sk [32]byte, pk [32]byte) *Server {
-	return &Server{api, sk, pk}
+func NewServer(api *api.Api) *Server {
+	return &Server{api}
 }
 
 type Server struct {
 	api *api.Api
-	sk  [32]byte
-	pk  [32]byte
 }
 
 // Request wraps http.Request and also includes the parsed bzz URI
@@ -175,7 +86,7 @@ type Request struct {
 	uri *api.URI
 }
 
-// HandlePostRaw handles a POST request to a raw bzzr:/ URI, stores the request
+// HandlePostRaw handles a POST request to a raw bzz-raw:/ URI, stores the request
 // body in swarm and returns the resulting storage key as a text/plain response
 func (s *Server) HandlePostRaw(w http.ResponseWriter, r *Request) {
 	if r.uri.Path != "" {
@@ -188,78 +99,7 @@ func (s *Server) HandlePostRaw(w http.ResponseWriter, r *Request) {
 		return
 	}
 
-	bodycontent, _ := ioutil.ReadAll(r.Body)
-	rdrUpdated := ioutil.NopCloser(bytes.NewBuffer(bodycontent))
-	r.ContentLength = int64(bytes.NewBuffer(bodycontent).Len())
-
-	s.logDebug(fmt.Sprintf("%s ==> %+v with lenghth [%v]", bodycontent, bodycontent, r.ContentLength))
-	key, err := s.api.Store(rdrUpdated, r.ContentLength, nil)
-	if err != nil {
-		s.Error(w, r, err)
-		return
-	}
-	reader_retrieved := s.api.Retrieve(key)
-	s.logDebug("content for key.Log [%s] [%+v] stored [%+v]", key.Log(), key, reader_retrieved)
-
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, key)
-}
-
-func BuildSwarmdbPrefix(owner string, table string, id string) string {
-	//hashType := "SHA3"
-	//hashType := SHA256"
-
-	//Should add checks for valid type / length for building
-	prepString := strings.ToLower(owner) + strings.ToLower(table) + strings.ToLower(id)
-	h256 := sha256.New()
-	h256.Write([]byte(prepString))
-	prefix := fmt.Sprintf("%x", h256.Sum(nil))
-	log.Debug(fmt.Sprintf("In BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]", prepString, prefix, []byte(prefix), len([]byte(prefix))))
-	return prefix
-}
-
-/*
-func (s *Server) HandlePostDB(w http.ResponseWriter, r *Request) {
-	log.Debug(fmt.Sprintf("In HandlePostDB r.uri(%v) r.uri.Path(%v) r.uri.Addr(%v)", r.uri, r.uri.Path, r.uri.Addr))
-
-	//r.uri.Addr == Owner
-	//r.uri.Path == table/id
-
-	if r.uri.Path == "" {
-		s.BadRequest(w, r, "DB POST request should contain a path")
-		return
-	}
-
-	if r.Header.Get("Content-Length") == "" {
-		s.BadRequest(w, r, "missing Content-Length header in request")
-		return
-	}
-
-	rdrBody, _ := ioutil.ReadAll(r.Body)
-	kv := string(rdrBody)
-	s.logDebug("In HandlePostDB kv PRESTORE (%v) ", kv)
-	kvlen := int64(len(kv))
-	dbwg := &sync.WaitGroup{}
-	rdb := strings.NewReader(kv)
-
-	//Take the Hash returned for the stored 'Main' content and store it
-	raw_indexkey, err := s.api.StoreDB(rdb, kvlen, dbwg)
-	if err != nil {
-		s.Error(w, r, err)
-		return
-	}
-	s.logDebug("Index content stored (kv=[%v]) for raw_indexkey.Log [%s] [%+v] (size of [%+v])", string(kv), raw_indexkey.Log(), raw_indexkey, kvlen)
-
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, r.uri.Path)
-}
-
-func (s *Server) HandlePostHashDB(w http.ResponseWriter, r *Request) {
-	k := r.uri.Path
-
-	key, err := s.api.StoreHashDB([]byte(k), r.Body, r.ContentLength, nil)
+	key, err := s.api.Store(r.Body, r.ContentLength, nil)
 	if err != nil {
 		s.Error(w, r, err)
 		return
@@ -270,79 +110,6 @@ func (s *Server) HandlePostHashDB(w http.ResponseWriter, r *Request) {
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprint(w, key)
 }
-
-// HandlePostRaw handles a POST request to a raw bzzr:/ URI, stores the request
-// body in swarm and returns the resulting storage key as a text/plain response
-func (s *Server) HandlePostRawTest(w http.ResponseWriter, r *Request) {
-	log.Debug(fmt.Sprintf("In PostTest %v %v", r.uri.Path, r.uri.Addr))
-
-	if r.uri.Path != "" {
-		s.BadRequest(w, r, "raw POST request cannot contain a path")
-		return
-	}
-
-	if r.Header.Get("Content-Length") == "" {
-		s.BadRequest(w, r, "missing Content-Length header in request")
-		return
-	}
-
-	body, err := ioutil.ReadAll(r.Body)
-	var dec devicejson
-	json.Unmarshal(body, &dec)
-	log.Debug(fmt.Sprintf("In PostTest %v %v", dec, string(body)))
-	log.Debug(fmt.Sprintf("In PostTest body %v ", string(body)))
-	var email, phone string
-	if len(dec.Email_sha256) > 0 {
-		email = dec.Email_sha256
-	} else if len(dec.Email) > 0 {
-		h256_email := sha256.Sum256([]byte(strings.Trim(dec.Email, " ")))
-		email = hex.EncodeToString(h256_email[:])
-	}
-	if len(dec.Phone_sha256) > 0 {
-		phone = dec.Phone_sha256
-	} else if len(dec.Phone) > 0 {
-		h256 := sha256.New()
-		h256.Write([]byte(dec.Phone))
-		phone = fmt.Sprintf("%x", h256.Sum(nil))
-	}
-	log.Debug(fmt.Sprintf("In PostTest %v", dec))
-	log.Debug(fmt.Sprintf("In PostTest %v %v %v", dec.DeviceID, email, phone))
-	key, err := s.api.PutTest(string(body), "text/plain; charset=utf-8", dec.DeviceID, email, phone)
-	if err != nil {
-		s.Error(w, r, err)
-		return
-	}
-
-	s.logDebug("content for %s stored", key.Log())
-	//s.api.ldb.Put(dec.DeviceID, key)
-
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, key)
-}
-
-func (s *Server) HandlePostRawTable(w http.ResponseWriter, r *Request) {
-	body, err := ioutil.ReadAll(r.Body)
-	var dec tablejson
-	json.Unmarshal(body, &dec)
-
-	log.Debug(fmt.Sprintf("In PostTable body %v %v", dec, string(body)))
-	log.Debug(fmt.Sprintf("In PostTable id %v tableid %v", dec.ID, dec.TableID))
-	log.Debug(fmt.Sprintf("In PostTable document %v", dec.Document))
-
-	key, err := s.api.PutTable(dec.Document, "text/plain; charset=utf-8", dec.ID, dec.TableID)
-	if err != nil {
-		s.Error(w, r, err)
-		return
-	}
-
-	s.logDebug("content for %s stored", key.Log())
-
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, key)
-}
-*/
 
 // HandlePostFiles handles a POST request (or deprecated PUT request) to
 // bzz:/<hash>/<path> which contains either a single file or multiple files
@@ -457,7 +224,7 @@ func (s *Server) handleMultipartUpload(req *Request, boundary string, mw *api.Ma
 			if err != nil {
 				return fmt.Errorf("error copying multipart content: %s", err)
 			}
-			if _, err := tmp.Seek(0, os.SEEK_SET); err != nil {
+			if _, err := tmp.Seek(0, io.SeekStart); err != nil {
 				return fmt.Errorf("error copying multipart content: %s", err)
 			}
 			reader = tmp
@@ -523,142 +290,13 @@ func (s *Server) HandleDelete(w http.ResponseWriter, r *Request) {
 	fmt.Fprint(w, newKey)
 }
 
-/*
-func (s *Server) HandleGetHashDB(w http.ResponseWriter, r *Request) {
-	value := s.api.GetHashDB(r.uri.Path)
-	if value == nil {
-		http.NotFound(w, &r.Request)
-		return
-	}
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, value)
-}
-
-func (s *Server) HandlePostTableData(w http.ResponseWriter, r *Request) {
-	rootkey, _ := ioutil.ReadAll(r.Body)
-	a := fmt.Sprintf("%s", rootkey)
-	s.api.StoreTableData(r.uri.Path, rootkey)
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, a)
-}
-
-func (s *Server) HandleGetTableData(w http.ResponseWriter, r *Request) {
-	value := s.api.GetTableData(r.uri.Path)
-	log.Debug(fmt.Sprintf("HandleGetTableData res %v %v", r.uri.Path, value))
-	v := fmt.Sprintf("%s", value)
-
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprint(w, v)
-}
-
-func (s *Server) HandleGetRawTest(w http.ResponseWriter, r *Request) {
-	manifestroot := s.api.GetManifestRoot()
-	if manifestroot == nil {
-		s.logDebug("GetRawTest Manifest not found ")
-		http.NotFound(w, &r.Request)
-		return
-	}
-	r.uri.Addr = string(manifestroot)
-	log.Debug("GetRawTest Manifest = ", string(manifestroot))
-	log.Debug(fmt.Sprintf("In GetRawTest %v %v", r.uri.Path, r.uri.Addr))
-	s.HandleGetRaw(w, r)
-}
-*/
-
-func (s *Server) HandleGetDB(w http.ResponseWriter, r *Request) {
-	var contentPrefix string
-	var column string
-
-	log.Debug(fmt.Sprintf("In HandleGetDB r.uri(%v) r.uri.Path(%v) r.uri.Addr(%v)", r.uri, r.uri.Path, r.uri.Addr))
-
-	keylen := 64 ///////..........
-	dummy := bytes.Repeat([]byte("Z"), keylen)
-
-	owner := strings.ToLower(r.uri.Addr)
-	path_parts := strings.Split(r.uri.Path, "/")
-	if len(path_parts) < 2 {
-		//invalid request need both table and id
-		return
-	} else {
-		table := strings.ToLower(path_parts[0])
-		id := strings.ToLower(path_parts[1])
-		contentPrefix = BuildSwarmdbPrefix(owner, table, id)
-		if len(path_parts) > 2 {
-			column = strings.ToLower(path_parts[2])
-		}
-	}
-
-	newkeybase := contentPrefix + string(dummy)
-	chunker := storage.NewTreeChunker(storage.NewChunkerParams())
-	rd := strings.NewReader(newkeybase)
-	key, err := chunker.Split(rd, int64(len(newkeybase)), nil, nil, nil)
-	log.Debug(fmt.Sprintf("In HandleGetDB prefix [%v] dummy %v newkeybase %v key %v", contentPrefix, dummy, newkeybase, key))
-
-	contentReader := s.api.Retrieve(key)
-	if _, err := contentReader.Size(nil); err != nil {
-		s.logDebug("key not found %s: %s", key, err)
-		http.NotFound(w, &r.Request)
-		return
-	}
-	if err != nil {
-		s.Error(w, r, err)
-		return
-	}
-
-	contentReaderSize, _ := contentReader.Size(nil)
-	contentBytes := make([]byte, contentReaderSize)
-	_, _ = contentReader.ReadAt(contentBytes, 0)
-
-	encryptedContentBytes := bytes.TrimRight(contentBytes[577:], "\x00")
-	//encryptedContentBytes := contentBytes[len(contentPrefix):]
-	log.Debug(fmt.Sprintf("In HandledGetDB Retrieved 'mainhash' v[%v] s[%s] ", encryptedContentBytes, encryptedContentBytes))
-
-	decryptedContentBytes := s.DecryptData(encryptedContentBytes)
-
-	if len(column) > 0 {
-		s.logDebug("COLUMN LOOKUP")
-		var returnedJson map[string]interface{}
-		_ = json.Unmarshal(decryptedContentBytes, &returnedJson)
-
-		log.Debug(fmt.Sprintf("In HandledGetDB decBytes[%s][%+v] retJson[%+v] ", decryptedContentBytes, decryptedContentBytes, returnedJson))
-
-		columnSlice := make(map[string]interface{})
-		for mapColumn, mapValue := range returnedJson {
-			log.Debug(fmt.Sprintf("HANDLEGETDB: found mapColumn [%s] which matches column [%s]", mapColumn, column))
-			if mapColumn == column {
-				columnSlice[mapColumn] = mapValue
-			}
-		}
-		jsonColumn, _ := json.Marshal(columnSlice)
-		s.logDebug("Slice [%+v]:[%+v]", columnSlice, jsonColumn)
-		decryptedContentBytes = []byte(jsonColumn)
-	}
-
-	decrypted_reader := bytes.NewReader(decryptedContentBytes)
-	log.Debug(fmt.Sprintf("In HandledGetDB got back the 'reader' v[%v] s[%s] ", decrypted_reader, decrypted_reader))
-
-	// allow the request to overwrite the content type using a query
-	// parameter
-	contentType := "application/octet-stream"
-	if typ := r.URL.Query().Get("content_type"); typ != "" {
-		contentType = typ
-	}
-	queryResponse := make([]byte, 4096)              //TODO: match to sizes in metadata content
-	_, _ = decrypted_reader.ReadAt(queryResponse, 0) //TODO: match to sizes in metadata content
-
-	queryResponseReader := bytes.NewReader(queryResponse)
-	w.Header().Set("Content-Type", contentType)
-	http.ServeContent(w, &r.Request, "", time.Now(), queryResponseReader)
-}
-
-// HandleGetRaw handles a GET request to bzzr://<key> and responds with
-// the raw content stored at the given storage key
-func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
+// HandleGet handles a GET request to
+// - bzz-raw://<key> and responds with the raw content stored at the
+//   given storage key
+// - bzz-hash://<key> and responds with the hash of the content stored
+//   at the given storage key as a text/plain response
+func (s *Server) HandleGet(w http.ResponseWriter, r *Request) {
 	key, err := s.api.Resolve(r.uri)
-	log.Debug(fmt.Sprintf("In GetRaw %v %v %v %v", r.uri, r.uri.Path, r.uri.Addr, key))
 	if err != nil {
 		s.Error(w, r, fmt.Errorf("error resolving %s: %s", r.uri.Addr, err))
 		return
@@ -697,7 +335,7 @@ func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 			return api.SkipManifest
 		})
 		if entry == nil {
-			http.NotFound(w, &r.Request)
+			s.NotFound(w, r, fmt.Errorf("Manifest entry could not be loaded"))
 			return
 		}
 		key = storage.Key(common.Hex2Bytes(entry.Hash))
@@ -706,20 +344,26 @@ func (s *Server) HandleGetRaw(w http.ResponseWriter, r *Request) {
 	// check the root chunk exists by retrieving the file's size
 	reader := s.api.Retrieve(key)
 	if _, err := reader.Size(nil); err != nil {
-		s.logDebug("key not found %s: %s", key, err)
-		http.NotFound(w, &r.Request)
+		s.NotFound(w, r, fmt.Errorf("Root chunk not found %s: %s", key, err))
 		return
 	}
 
-	// allow the request to overwrite the content type using a query
-	// parameter
-	contentType := "application/octet-stream"
-	if typ := r.URL.Query().Get("content_type"); typ != "" {
-		contentType = typ
-	}
-	w.Header().Set("Content-Type", contentType)
+	switch {
+	case r.uri.Raw():
+		// allow the request to overwrite the content type using a query
+		// parameter
+		contentType := "application/octet-stream"
+		if typ := r.URL.Query().Get("content_type"); typ != "" {
+			contentType = typ
+		}
+		w.Header().Set("Content-Type", contentType)
 
-	http.ServeContent(w, &r.Request, "", time.Now(), reader)
+		http.ServeContent(w, &r.Request, "", time.Now(), reader)
+	case r.uri.Hash():
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, key)
+	}
 }
 
 // HandleGetFiles handles a GET request to bzz:/<manifest> with an Accept
@@ -732,7 +376,6 @@ func (s *Server) HandleGetFiles(w http.ResponseWriter, r *Request) {
 	}
 
 	key, err := s.api.Resolve(r.uri)
-	log.Debug(fmt.Sprintf("In GetFiles %v %v %v", r.uri.Path, r.uri.Addr, key))
 	if err != nil {
 		s.Error(w, r, fmt.Errorf("error resolving %s: %s", r.uri.Addr, err))
 		return
@@ -791,14 +434,13 @@ func (s *Server) HandleGetFiles(w http.ResponseWriter, r *Request) {
 	}
 }
 
-// HandleGetList handles a GET request to bzz:/<manifest>/<path> which has
-// the "list" query parameter set to "true" and returns a list of all files
-// contained in <manifest> under <path> grouped into common prefixes using
-// "/" as a delimiter
+// HandleGetList handles a GET request to bzz-list:/<manifest>/<path> and returns
+// a list of all files contained in <manifest> under <path> grouped into
+// common prefixes using "/" as a delimiter
 func (s *Server) HandleGetList(w http.ResponseWriter, r *Request) {
 	// ensure the root path has a trailing slash so that relative URLs work
 	if r.uri.Path == "" && !strings.HasSuffix(r.URL.Path, "/") {
-		http.Redirect(w, &r.Request, r.URL.Path+"/?list=true", http.StatusMovedPermanently)
+		http.Redirect(w, &r.Request, r.URL.Path+"/", http.StatusMovedPermanently)
 		return
 	}
 
@@ -808,14 +450,41 @@ func (s *Server) HandleGetList(w http.ResponseWriter, r *Request) {
 		return
 	}
 
-	walker, err := s.api.NewManifestWalker(key, nil)
+	list, err := s.getManifestList(key, r.uri.Path)
+
 	if err != nil {
 		s.Error(w, r, err)
 		return
 	}
 
-	var list api.ManifestList
-	prefix := r.uri.Path
+	// if the client wants HTML (e.g. a browser) then render the list as a
+	// HTML index with relative URLs
+	if strings.Contains(r.Header.Get("Accept"), "text/html") {
+		w.Header().Set("Content-Type", "text/html")
+		err := htmlListTemplate.Execute(w, &htmlListData{
+			URI: &api.URI{
+				Scheme: "bzz",
+				Addr:   r.uri.Addr,
+				Path:   r.uri.Path,
+			},
+			List: &list,
+		})
+		if err != nil {
+			s.logError("error rendering list HTML: %s", err)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(&list)
+}
+
+func (s *Server) getManifestList(key storage.Key, prefix string) (list api.ManifestList, err error) {
+	walker, err := s.api.NewManifestWalker(key, nil)
+	if err != nil {
+		return
+	}
+
 	err = walker.Walk(func(entry *api.ManifestEntry) error {
 		// handle non-manifest files
 		if entry.ContentType != api.ManifestType {
@@ -862,49 +531,55 @@ func (s *Server) HandleGetList(w http.ResponseWriter, r *Request) {
 		// so just skip it
 		return api.SkipManifest
 	})
-	if err != nil {
-		s.Error(w, r, err)
-		return
-	}
 
-	// if the client wants HTML (e.g. a browser) then render the list as a
-	// HTML index with relative URLs
-	if strings.Contains(r.Header.Get("Accept"), "text/html") {
-		w.Header().Set("Content-Type", "text/html")
-		err := htmlListTemplate.Execute(w, &htmlListData{
-			URI:  r.uri,
-			List: &list,
-		})
-		if err != nil {
-			s.logError("error rendering list HTML: %s", err)
-		}
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(&list)
+	return list, nil
 }
 
 // HandleGetFile handles a GET request to bzz://<manifest>/<path> and responds
 // with the content of the file at <path> from the given <manifest>
 func (s *Server) HandleGetFile(w http.ResponseWriter, r *Request) {
+	// ensure the root path has a trailing slash so that relative URLs work
+	if r.uri.Path == "" && !strings.HasSuffix(r.URL.Path, "/") {
+		http.Redirect(w, &r.Request, r.URL.Path+"/", http.StatusMovedPermanently)
+		return
+	}
+
 	key, err := s.api.Resolve(r.uri)
-	log.Debug(fmt.Sprintf("In GetFile %v %v %v", r.uri.Path, r.uri.Addr, key))
 	if err != nil {
 		s.Error(w, r, fmt.Errorf("error resolving %s: %s", r.uri.Addr, err))
 		return
 	}
 
-	reader, contentType, _, err := s.api.Get(key, r.uri.Path)
+	reader, contentType, status, err := s.api.Get(key, r.uri.Path)
 	if err != nil {
-		s.Error(w, r, err)
+		switch status {
+		case http.StatusNotFound:
+			s.NotFound(w, r, err)
+		default:
+			s.Error(w, r, err)
+		}
+		return
+	}
+
+	//the request results in ambiguous files
+	//e.g. /read with readme.md and readinglist.txt available in manifest
+	if status == http.StatusMultipleChoices {
+		list, err := s.getManifestList(key, r.uri.Path)
+
+		if err != nil {
+			s.Error(w, r, err)
+			return
+		}
+
+		s.logDebug(fmt.Sprintf("Multiple choices! -->  %v", list))
+		//show a nice page links to available entries
+		ShowMultipleChoices(w, &r.Request, list)
 		return
 	}
 
 	// check the root chunk exists by retrieving the file's size
 	if _, err := reader.Size(nil); err != nil {
-		s.logDebug("file not found %s: %s", r.uri, err)
-		http.NotFound(w, &r.Request)
+		s.NotFound(w, r, fmt.Errorf("File not found %s: %s", r.uri, err))
 		return
 	}
 
@@ -914,112 +589,20 @@ func (s *Server) HandleGetFile(w http.ResponseWriter, r *Request) {
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-	if r.Method == "OPTIONS" {
-		return
-	}
 	s.logDebug("HTTP %s request URL: '%s', Host: '%s', Path: '%s', Referer: '%s', Accept: '%s'", r.Method, r.RequestURI, r.URL.Host, r.URL.Path, r.Referer(), r.Header.Get("Accept"))
+
 	uri, err := api.Parse(strings.TrimLeft(r.URL.Path, "/"))
+	req := &Request{Request: *r, uri: uri}
 	if err != nil {
 		s.logError("Invalid URI %q: %s", r.URL.Path, err)
-		http.Error(w, fmt.Sprintf("Invalid bzz URI: %s", err), http.StatusBadRequest)
+		s.BadRequest(w, req, fmt.Sprintf("Invalid URI %q: %s", r.URL.Path, err))
 		return
 	}
+	s.logDebug("%s request received for %s", r.Method, uri)
 
-	//if uri.Swarmdb() == true && r.Method == "POST" {
-	if uri.Swarmdb() == true {
-		bodycontent, _ := ioutil.ReadAll(r.Body)
-		/*
-			if json.Valid(bodycontent) == false {
-				//http.Error(w, "Data Submission invalid.  Only valid JSON is allowed and ["+bodycontent+"] is not valid json", http.StatusBadRequest)
-				return
-			}
-		*/
-		/*
-			TODO: Validate body data against table
-			1. Retrieve Table Definition from "table" variable
-			2. For POST - confirm that
-			  (a) all columns exist in the table that are sent in the JSON object
-			  (b) all column values sent in match the type set forth in table definition
-			  (c) LONG TERM: dispatch to appropriate index function based on index defined in table definition
-			3. For GET - confirm that
-			  (a) column exists
-			  (b) LONG TERM: dispatch to appropriate index function based on index defined in table definition
-		*/
-		s.logDebug("in SWARMDB")
-		ownerAddress := []byte(strings.ToLower(uri.Addr))
-		buyAt := []byte("4096000000000000") //Need to research how to grab
-		timestamp := []byte(strconv.FormatInt(time.Now().Unix(), 10))
-		blockNumber := []byte("100")
-		wlkSig := []byte("100")
-
-		var metadataBody []byte
-		metadataBody = make([]byte, 108)
-		copy(metadataBody[0:41], ownerAddress)
-		copy(metadataBody[42:59], buyAt)
-		copy(metadataBody[60:91], blockNumber)
-		copy(metadataBody[92:107], timestamp)
-		copy(metadataBody[108:139], wlkSig)
-		s.logDebug("Metadata is [%+v]", metadataBody)
-
-		path_parts := strings.Split(uri.Path, "/")
-		table := strings.ToLower(path_parts[0])
-		id := strings.ToLower(path_parts[1])
-		contentPrefix := BuildSwarmdbPrefix(string(ownerAddress), table, id)
-
-		encryptedBodycontent := s.EncryptData(bodycontent)
-		testDecrypt := s.DecryptData(encryptedBodycontent)
-		s.logDebug("Initial BodyContent is [%s][%+v]", bodycontent, bodycontent)
-		s.logDebug("Decrypted test is [%s][%+v]", testDecrypt, testDecrypt)
-		s.logDebug("Encrypted is [%+v]", encryptedBodycontent)
-
-		var mergedBodycontent []byte
-		mergedBodycontent = make([]byte, 4088)
-		copy(mergedBodycontent[:], metadataBody)
-		copy(mergedBodycontent[512:576], contentPrefix)
-		copy(mergedBodycontent[577:], encryptedBodycontent)
-
-		s.logDebug("ContentPrefix: [%+v]", string(contentPrefix))
-		s.logDebug("Content: [%+v][%+v]", bodycontent, encryptedBodycontent)
-		s.logDebug("Merged Body Content: [%v]", mergedBodycontent)
-
-		mergedBodyContentReader := ioutil.NopCloser(bytes.NewBuffer(mergedBodycontent))
-		r.Body = mergedBodyContentReader
-		r.ContentLength = int64(bytes.NewBuffer(mergedBodycontent).Len())
-		if r.ContentLength > int64(4096) && uri.Swarmdb() == true {
-			http.Error(w, "ContentLength "+strconv.Itoa(int(r.ContentLength))+" is longer than 4096 limit.", http.StatusBadRequest)
-		}
-	}
-
-	req := &Request{Request: *r, uri: uri}
 	switch r.Method {
 	case "POST":
-		//bodycontent, _ := ioutil.ReadAll(r.Body)
-		//s.logDebug("server POST %s %s %s", uri, req.uri.Addr, bodycontent)
-		s.logDebug("server POST %s %s", uri, req.uri.Addr)
-		if req.uri.Addr == "demo" || r.URL.Query().Get("posttest") == "true" {
-			//s.HandlePostRawTest(w, req)
-			return
-		}
-		if req.uri.Addr == "table" {
-			//s.HandlePostRawTable(w, req)
-			return
-		}
-		if req.uri.Addr == "hashdb" {
-			//s.HandlePostHashDB(w, req)
-			return
-		}
-		if req.uri.Addr == "tabledata" {
-			//s.HandlePostTableData(w, req)
-			return
-		}
-		if uri.Swarmdb() == true {
-			//s.HandlePostDB(w, req)
-			return
-		}
-		if uri.Raw() {
+		if uri.Raw() || uri.DeprecatedRaw() {
 			s.HandlePostRaw(w, req)
 		} else {
 			s.HandlePostFiles(w, req)
@@ -1031,48 +614,28 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		//   new manifest leaving the existing one intact, so it isn't
 		//   strictly a traditional PUT request which replaces content
 		//   at a URI, and POST is more ubiquitous)
-		if uri.Raw() {
-			http.Error(w, fmt.Sprintf("No PUT to %s allowed.", uri), http.StatusBadRequest)
+		if uri.Raw() || uri.DeprecatedRaw() {
+			ShowError(w, r, fmt.Sprintf("No PUT to %s allowed.", uri), http.StatusBadRequest)
 			return
 		} else {
 			s.HandlePostFiles(w, req)
 		}
 
 	case "DELETE":
-		if req.uri.Addr == "hashdb" {
-			//will come later
-			//s.HandleDeleteHashDB(w, req)
-			return
-		}
-		if uri.Raw() {
-			http.Error(w, fmt.Sprintf("No DELETE to %s allowed.", uri), http.StatusBadRequest)
+		if uri.Raw() || uri.DeprecatedRaw() {
+			ShowError(w, r, fmt.Sprintf("No DELETE to %s allowed.", uri), http.StatusBadRequest)
 			return
 		}
 		s.HandleDelete(w, req)
 
 	case "GET":
-		if uri.Swarmdb() == true {
-			s.HandleGetDB(w, req)
+		if uri.Raw() || uri.Hash() || uri.DeprecatedRaw() {
+			s.HandleGet(w, req)
 			return
 		}
-		if req.uri.Addr == "demo" || r.URL.Query().Get("gettest") == "true" {
-			//s.HandleGetRawTest(w, req)
-			return
-		}
-		if req.uri.Addr == "table" {
-			//s.HandleGetRawTable(w, req)
-			return
-		}
-		if req.uri.Addr == "hashdb" {
-			//s.HandleGetHashDB(w, req)
-			return
-		}
-		if req.uri.Addr == "tabledata" {
-			//s.HandleGetTableData(w, req)
-			return
-		}
-		if uri.Raw() {
-			s.HandleGetRaw(w, req)
+
+		if uri.List() {
+			s.HandleGetList(w, req)
 			return
 		}
 
@@ -1081,15 +644,10 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if r.URL.Query().Get("list") == "true" {
-			s.HandleGetList(w, req)
-			return
-		}
-
 		s.HandleGetFile(w, req)
 
 	default:
-		http.Error(w, "Method "+r.Method+" is not supported.", http.StatusMethodNotAllowed)
+		ShowError(w, r, fmt.Sprintf("Method "+r.Method+" is not supported.", uri), http.StatusMethodNotAllowed)
 
 	}
 }
@@ -1112,25 +670,6 @@ func (s *Server) updateManifest(key storage.Key, update func(mw *api.ManifestWri
 	return key, nil
 }
 
-func (s *Server) DecryptData(data []byte) []byte {
-	var decryptNonce [24]byte
-	//decryptNonce = [24]byte {4, 0, 50, 203, 12, 81, 11, 49, 236, 255, 155, 11, 101, 6, 97, 233, 94, 169, 107, 4, 37, 57, 106, 151}
-	copy(decryptNonce[:], data[:24])
-	decrypted, ok := box.Open(nil, data[24:], &decryptNonce, &s.pk, &s.sk)
-	if !ok {
-		panic("decryption error")
-	}
-	return decrypted
-}
-
-func (s *Server) EncryptData(data []byte) []byte {
-	var nonce [24]byte
-	nonce = [24]byte{4, 0, 50, 203, 12, 81, 11, 49, 236, 255, 155, 11, 101, 6, 97, 233, 94, 169, 107, 4, 37, 57, 106, 151}
-	msg := data //[]byte("Alas, poor Yorick! I knew him, Horatio")
-	encrypted := box.Seal(nonce[:], msg, &nonce, &s.pk, &s.sk)
-	return encrypted
-}
-
 func (s *Server) logDebug(format string, v ...interface{}) {
 	log.Debug(fmt.Sprintf("[BZZ] HTTP: "+format, v...))
 }
@@ -1140,11 +679,13 @@ func (s *Server) logError(format string, v ...interface{}) {
 }
 
 func (s *Server) BadRequest(w http.ResponseWriter, r *Request, reason string) {
-	s.logDebug("bad request %s %s: %s", r.Method, r.uri, reason)
-	http.Error(w, reason, http.StatusBadRequest)
+	ShowError(w, &r.Request, fmt.Sprintf("Bad request %s %s: %s", r.Method, r.uri, reason), http.StatusBadRequest)
 }
 
 func (s *Server) Error(w http.ResponseWriter, r *Request, err error) {
-	s.logError("error serving %s %s: %s", r.Method, r.uri, err)
-	http.Error(w, err.Error(), http.StatusInternalServerError)
+	ShowError(w, &r.Request, fmt.Sprintf("Error serving %s %s: %s", r.Method, r.uri, err), http.StatusInternalServerError)
+}
+
+func (s *Server) NotFound(w http.ResponseWriter, r *Request, err error) {
+	ShowError(w, &r.Request, fmt.Sprintf("NOT FOUND error serving %s %s: %s", r.Method, r.uri, err), http.StatusNotFound)
 }

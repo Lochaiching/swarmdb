@@ -19,12 +19,8 @@ package storage
 import (
 	"fmt"
 	"path/filepath"
-	"sync"
 	"time"
-	//"bytes"
-	//"strings"
 
-	//"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -40,10 +36,9 @@ NetStore falls back to a backend (CloudStorage interface)
 implemented by bzz/network/forwarder. forwarder or IPFS or IPΞS
 */
 type NetStore struct {
-	hashfunc   Hasher
+	hashfunc   SwarmHasher
 	localStore *LocalStore
 	cloud      CloudStore
-	lock       sync.Mutex
 }
 
 // backend engine for cloud store
@@ -62,19 +57,25 @@ type StoreParams struct {
 	Radius        int
 }
 
-func NewStoreParams(path string) (self *StoreParams) {
+//create params with default values
+func NewDefaultStoreParams() (self *StoreParams) {
 	return &StoreParams{
-		ChunkDbPath:   filepath.Join(path, "chunks"),
 		DbCapacity:    defaultDbCapacity,
 		CacheCapacity: defaultCacheCapacity,
 		Radius:        defaultRadius,
 	}
 }
 
+//this can only finally be set after all config options (file, cmd line, env vars)
+//have been evaluated
+func (self *StoreParams) Init(path string) {
+	self.ChunkDbPath = filepath.Join(path, "chunks")
+}
+
 // netstore contructor, takes path argument that is used to initialise dbStore,
 // the persistent (disk) storage component of LocalStore
 // the second argument is the hive, the connection/logistics manager for the node
-func NewNetStore(hash Hasher, lstore *LocalStore, cloud CloudStore, params *StoreParams) *NetStore {
+func NewNetStore(hash SwarmHasher, lstore *LocalStore, cloud CloudStore, params *StoreParams) *NetStore {
 	return &NetStore{
 		hashfunc:   hash,
 		localStore: lstore,
@@ -98,7 +99,7 @@ var (
 // caller needs to make sure if that is wanted
 func (self *NetStore) Put(entry *Chunk) {
 	self.localStore.Put(entry)
-	log.Trace(fmt.Sprintf("NetStore.Put: entry %v %v %s", entry, entry.Key, string(entry.SData)))
+
 	// handle deliveries
 	if entry.Req != nil {
 		log.Trace(fmt.Sprintf("NetStore.Put: localStore.Put %v hit existing request...delivering", entry.Key.Log()))
@@ -133,11 +134,8 @@ func (self *NetStore) Get(key Key) (*Chunk, error) {
 	chunk = NewChunk(key, newRequestStatus(key))
 	self.localStore.memStore.Put(chunk)
 	go self.cloud.Retrieve(chunk)
-	log.Trace(fmt.Sprintf("NetStore.Get From Net: %v %v", key, string(chunk.SData)))
 	return chunk, nil
 }
 
 // Close netstore
-func (self *NetStore) Close() {
-	return
-}
+func (self *NetStore) Close() {}

@@ -1,4 +1,4 @@
-// Copyright 2016 The go-ethereum Authors
+// Copyright 2017 The go-ethereum Authors
 // This file is part of go-ethereum.
 //
 // go-ethereum is free software: you can redistribute it and/or modify
@@ -27,8 +27,6 @@ import (
 // TestCLISwarmUp tests that running 'swarm up' makes the resulting file
 // available from all nodes via the HTTP API
 func TestCLISwarmUp(t *testing.T) {
-	t.Skip("flaky test")
-
 	// start 3 node cluster
 	t.Log("starting 3 node cluster")
 	cluster := newTestCluster(t, 3)

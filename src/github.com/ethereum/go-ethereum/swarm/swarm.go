@@ -22,7 +22,6 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"net"
-	"path/filepath"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -40,11 +39,6 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/fuse"
 	"github.com/ethereum/go-ethereum/swarm/network"
 	"github.com/ethereum/go-ethereum/swarm/storage"
-	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
-	//tcpapi "github.com/ethereum/go-ethereum/swarmdb/server"
-
-	//"github.com/syndtr/goleveldb/leveldb"
-	"reflect"
 )
 
 // the swarm stack
@@ -64,8 +58,6 @@ type Swarm struct {
 	swapEnabled bool
 	lstore      *storage.LocalStore // local store, needs to store for releasing resources after node stopped
 	sfs         *fuse.SwarmFS       // need this to cleanup all the active mounts on node exit
-	ldb         *storage.LDBDatabase
-	swarmdb     *swarmdb.SwarmDB
 }
 
 type SwarmAPI struct {
@@ -123,17 +115,15 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	log.Debug(fmt.Sprintf("Set up swarm network with Kademlia hive"))
 
 	// setup cloud storage backend
-	cloud := network.NewForwarder(self.hive)
+	self.cloud = network.NewForwarder(self.hive)
 	log.Debug(fmt.Sprintf("-> set swarm forwarder as cloud storage backend"))
-	// setup cloud storage internal access layer
 
-	self.storage = storage.NewNetStore(hash, self.lstore, cloud, config.StoreParams)
+	// setup cloud storage internal access layer
+	self.storage = storage.NewNetStore(hash, self.lstore, self.cloud, config.StoreParams)
 	log.Debug(fmt.Sprintf("-> swarm net store shared access layer to Swarm Chunk Store"))
 
 	// set up Depo (storage handler = cloud storage access layer for incoming remote requests)
 	self.depo = network.NewDepo(hash, self.lstore, self.storage)
-	self.ldb, _ = storage.NewLDBDatabase(filepath.Join(self.config.Path, "ldb"))
-	//self.depo = network.NewDepoTest(hash, self.lstore, self.storage, self.ldb)
 	log.Debug(fmt.Sprintf("-> REmote Access to CHunks"))
 
 	// set up DPA, the cloud storage local access layer
@@ -146,7 +136,6 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	// set up high level api
 	transactOpts := bind.NewKeyedTransactor(self.privateKey)
 
-	log.Debug(fmt.Sprintf("ENS: %v %v %v", transactOpts, config.EnsRoot, ensClient))
 	if ensClient == nil {
 		log.Warn("No ENS, please specify non-empty --ens-api to use domain name resolution")
 	} else {
@@ -155,16 +144,9 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 			return nil, err
 		}
 	}
-	enstest, enserr := ens.NewENS(transactOpts, config.EnsRoot, ensClient)
-	log.Debug(fmt.Sprintf("type of dns = %s", reflect.TypeOf(self.dns)))
-	log.Debug(fmt.Sprintf("type of ens = %s %v", reflect.TypeOf(enstest), enserr))
 	log.Debug(fmt.Sprintf("-> Swarm Domain Name Registrar @ address %v", config.EnsRoot.Hex()))
 
-	//self.api = api.NewApi(self.dpa, self.dns, self.lstore.DbStore.getMHash())
-	self.api = api.NewApiTest(self.dpa, self.dns, self.ldb)
-	//Rodney commented at 17:08 PDT on 2017/12/08 to use just api -- self.swarmdb = swarmdb.NewSwarmDB(self.api, self.ldb)
-	//self.swarmdb = swarmdb.NewSwarmDB(self.api)
-	self.swarmdb = swarmdb.NewSwarmDB()
+	self.api = api.NewApi(self.dpa, self.dns)
 	// Manifests for Smart Hosting
 	log.Debug(fmt.Sprintf("-> Web3 virtual server API"))
 
@@ -230,67 +212,7 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 			log.Debug(fmt.Sprintf("Swarm http proxy started with corsdomain: %v", self.corsString))
 		}
 	}
-	if true {
-	/*
-		tcpaddr := net.JoinHostPort("127.0.0.1", "8503")
-		go tcpapi.StartTCPIPServer(self.swarmdb, &tcpapi.ServerConfig{
-			Addr: tcpaddr,
-			Port: "23456",
-		})
-	*/
-	}
-	/* start of mayumi tcp/ip server call */
-	//tcpip.StartTCPServer(self)
 
-	/* start of tcp/ip server code */
-	/*
-		type HandleFunc func(map[string]interface{})
-
-		var handlerArray map[string]HandleFunc
-		handlerArray = make(map[string]HandleFunc)
-		handlerArray["TcpipDispatch"] = TcpipDispatch
-
-		type funcCall struct {
-			FuncName string
-			Args     map[string]interface{}
-		}
-
-		psock, err := net.Listen("tcp", ":5000")
-		if err != nil {
-			return nil
-		}
-
-		conn, err := psock.Accept()
-		if err != nil {
-			log.Debug(fmt.Sprintf("TCPIP: Error connecting"))
-			return nil
-		}
-		for {
-			tcpipReader := bufio.NewReader(conn)
-			message, _ := tcpipReader.ReadString('\n')
-			// output message received
-			conn.Write([]byte("GOB received\n"))
-			log.Debug("[TCPIP] Message Received: [%s]", string(message))
-			log.Debug("[TCPIP] READER: [%+v]", tcpipReader)
-			var data funcCall
-			dec := gob.NewDecoder(tcpipReader)
-			log.Debug(fmt.Sprintf("[TCPIP] GOB Decoder: [%v]", dec))
-			err = dec.Decode(&data)
-			log.Debug(fmt.Sprintf("[TCPIP] GOB Data: [%v]", data))
-			if err != nil {
-				log.Debug(fmt.Sprintf("[TCPIP] Error decoding GOB data:", err))
-				return nil
-			}
-			log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.FuncName))
-			log.Debug(fmt.Sprintf("[TCPIP] Trying to call [%v] ", data.Args))
-			handlerArray[data.FuncName](data.Args)
-			conn.Write([]byte("Request processed successfully\n"))
-			//return nil
-		//		channel := make(chan string)
-		//		go request_handler(conn, channel)
-		//		go send_data(conn, channel)
-		}
-	*/
 	return nil
 }
 
@@ -298,7 +220,7 @@ func (self *Swarm) Start(srv *p2p.Server) error {
 // stops all component services.
 func (self *Swarm) Stop() error {
 	self.dpa.Stop()
-	self.hive.Stop()
+	err := self.hive.Stop()
 	if ch := self.config.Swap.Chequebook(); ch != nil {
 		ch.Stop()
 		ch.Save()
@@ -308,7 +230,7 @@ func (self *Swarm) Stop() error {
 		self.lstore.DbStore.Close()
 	}
 	self.sfs.Stop()
-	return self.config.Save()
+	return err
 }
 
 // implements the node.Service interface
@@ -379,7 +301,6 @@ func (self *Swarm) SetChequebook(ctx context.Context) error {
 		return err
 	}
 	log.Info(fmt.Sprintf("new chequebook set (%v): saving config file, resetting all connections in the hive", self.config.Swap.Contract.Hex()))
-	self.config.Save()
 	self.hive.DropAll()
 	return nil
 }
@@ -392,10 +313,9 @@ func NewLocalSwarm(datadir, port string) (self *Swarm, err error) {
 		return
 	}
 
-	config, err := api.NewConfig(datadir, common.Address{}, prvKey, network.NetworkId)
-	if err != nil {
-		return
-	}
+	config := api.NewDefaultConfig()
+	config.Path = datadir
+	config.Init(prvKey)
 	config.Port = port
 
 	dpa, err := storage.NewLocalDPA(datadir)

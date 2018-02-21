@@ -173,7 +173,7 @@ func (self *Whisper) Send(envelope *Envelope) error {
 // Start implements node.Service, starting the background data propagation thread
 // of the Whisper protocol.
 func (self *Whisper) Start(*p2p.Server) error {
-	log.Info(fmt.Sprint("Whisper started"))
+	log.Info("Whisper started")
 	go self.update()
 	return nil
 }
@@ -182,7 +182,7 @@ func (self *Whisper) Start(*p2p.Server) error {
 // of the Whisper protocol.
 func (self *Whisper) Stop() error {
 	close(self.quit)
-	log.Info(fmt.Sprint("Whisper stopped"))
+	log.Info("Whisper stopped")
 	return nil
 }
 
@@ -262,7 +262,7 @@ func (self *Whisper) add(envelope *Envelope) error {
 	// Insert the message into the tracked pool
 	hash := envelope.Hash()
 	if _, ok := self.messages[hash]; ok {
-		log.Trace(fmt.Sprintf("whisper envelope already cached: %x\n", envelope))
+		log.Trace(fmt.Sprintf("whisper envelope already cached: %x\n", hash))
 		return nil
 	}
 	self.messages[hash] = envelope
@@ -277,7 +277,7 @@ func (self *Whisper) add(envelope *Envelope) error {
 		// Notify the local node of a message arrival
 		go self.postEvent(envelope)
 	}
-	log.Trace(fmt.Sprintf("cached whisper envelope %x\n", envelope))
+	log.Trace(fmt.Sprintf("cached whisper envelope %x\n", hash))
 	return nil
 }
 

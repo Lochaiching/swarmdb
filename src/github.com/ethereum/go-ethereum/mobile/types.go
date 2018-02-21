@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -68,7 +69,7 @@ func NewHeaderFromRLP(data []byte) (*Header, error) {
 	h := &Header{
 		header: new(types.Header),
 	}
-	if err := rlp.DecodeBytes(data, h.header); err != nil {
+	if err := rlp.DecodeBytes(common.CopyBytes(data), h.header); err != nil {
 		return nil, err
 	}
 	return h, nil
@@ -111,8 +112,8 @@ func (h *Header) GetReceiptHash() *Hash  { return &Hash{h.header.ReceiptHash} }
 func (h *Header) GetBloom() *Bloom       { return &Bloom{h.header.Bloom} }
 func (h *Header) GetDifficulty() *BigInt { return &BigInt{h.header.Difficulty} }
 func (h *Header) GetNumber() int64       { return h.header.Number.Int64() }
-func (h *Header) GetGasLimit() int64     { return h.header.GasLimit.Int64() }
-func (h *Header) GetGasUsed() int64      { return h.header.GasUsed.Int64() }
+func (h *Header) GetGasLimit() int64     { return int64(h.header.GasLimit) }
+func (h *Header) GetGasUsed() int64      { return int64(h.header.GasUsed) }
 func (h *Header) GetTime() int64         { return h.header.Time.Int64() }
 func (h *Header) GetExtra() []byte       { return h.header.Extra }
 func (h *Header) GetMixDigest() *Hash    { return &Hash{h.header.MixDigest} }
@@ -145,7 +146,7 @@ func NewBlockFromRLP(data []byte) (*Block, error) {
 	b := &Block{
 		block: new(types.Block),
 	}
-	if err := rlp.DecodeBytes(data, b.block); err != nil {
+	if err := rlp.DecodeBytes(common.CopyBytes(data), b.block); err != nil {
 		return nil, err
 	}
 	return b, nil
@@ -188,8 +189,8 @@ func (b *Block) GetReceiptHash() *Hash  { return &Hash{b.block.ReceiptHash()} }
 func (b *Block) GetBloom() *Bloom       { return &Bloom{b.block.Bloom()} }
 func (b *Block) GetDifficulty() *BigInt { return &BigInt{b.block.Difficulty()} }
 func (b *Block) GetNumber() int64       { return b.block.Number().Int64() }
-func (b *Block) GetGasLimit() int64     { return b.block.GasLimit().Int64() }
-func (b *Block) GetGasUsed() int64      { return b.block.GasUsed().Int64() }
+func (b *Block) GetGasLimit() int64     { return int64(b.block.GasLimit()) }
+func (b *Block) GetGasUsed() int64      { return int64(b.block.GasUsed()) }
 func (b *Block) GetTime() int64         { return b.block.Time().Int64() }
 func (b *Block) GetExtra() []byte       { return b.block.Extra() }
 func (b *Block) GetMixDigest() *Hash    { return &Hash{b.block.MixDigest()} }
@@ -211,8 +212,8 @@ type Transaction struct {
 }
 
 // NewTransaction creates a new transaction with the given properties.
-func NewTransaction(nonce int64, to *Address, amount, gasLimit, gasPrice *BigInt, data []byte) *Transaction {
-	return &Transaction{types.NewTransaction(uint64(nonce), to.address, amount.bigint, gasLimit.bigint, gasPrice.bigint, data)}
+func NewTransaction(nonce int64, to *Address, amount *BigInt, gasLimit int64, gasPrice *BigInt, data []byte) *Transaction {
+	return &Transaction{types.NewTransaction(uint64(nonce), to.address, amount.bigint, uint64(gasLimit), gasPrice.bigint, common.CopyBytes(data))}
 }
 
 // NewTransactionFromRLP parses a transaction from an RLP data dump.
@@ -220,7 +221,7 @@ func NewTransactionFromRLP(data []byte) (*Transaction, error) {
 	tx := &Transaction{
 		tx: new(types.Transaction),
 	}
-	if err := rlp.DecodeBytes(data, tx.tx); err != nil {
+	if err := rlp.DecodeBytes(common.CopyBytes(data), tx.tx); err != nil {
 		return nil, err
 	}
 	return tx, nil
@@ -255,20 +256,24 @@ func (tx *Transaction) String() string {
 }
 
 func (tx *Transaction) GetData() []byte      { return tx.tx.Data() }
-func (tx *Transaction) GetGas() int64        { return tx.tx.Gas().Int64() }
+func (tx *Transaction) GetGas() int64        { return int64(tx.tx.Gas()) }
 func (tx *Transaction) GetGasPrice() *BigInt { return &BigInt{tx.tx.GasPrice()} }
 func (tx *Transaction) GetValue() *BigInt    { return &BigInt{tx.tx.Value()} }
 func (tx *Transaction) GetNonce() int64      { return int64(tx.tx.Nonce()) }
 
-func (tx *Transaction) GetHash() *Hash    { return &Hash{tx.tx.Hash()} }
-func (tx *Transaction) GetSigHash() *Hash { return &Hash{tx.tx.SigHash(types.HomesteadSigner{})} }
-func (tx *Transaction) GetCost() *BigInt  { return &BigInt{tx.tx.Cost()} }
+func (tx *Transaction) GetHash() *Hash   { return &Hash{tx.tx.Hash()} }
+func (tx *Transaction) GetCost() *BigInt { return &BigInt{tx.tx.Cost()} }
 
+// Deprecated: GetSigHash cannot know which signer to use.
+func (tx *Transaction) GetSigHash() *Hash { return &Hash{types.HomesteadSigner{}.Hash(tx.tx)} }
+
+// Deprecated: use EthereumClient.TransactionSender
 func (tx *Transaction) GetFrom(chainID *BigInt) (address *Address, _ error) {
-	if chainID == nil { // Null passed from mobile app
-		chainID = new(BigInt)
+	var signer types.Signer = types.HomesteadSigner{}
+	if chainID != nil {
+		signer = types.NewEIP155Signer(chainID.bigint)
 	}
-	from, err := types.Sender(types.NewEIP155Signer(chainID.bigint), tx.tx)
+	from, err := types.Sender(signer, tx.tx)
 	return &Address{from}, err
 }
 
@@ -279,8 +284,12 @@ func (tx *Transaction) GetTo() *Address {
 	return nil
 }
 
-func (tx *Transaction) WithSignature(sig []byte) (signedTx *Transaction, _ error) {
-	rawTx, err := tx.tx.WithSignature(types.HomesteadSigner{}, sig)
+func (tx *Transaction) WithSignature(sig []byte, chainID *BigInt) (signedTx *Transaction, _ error) {
+	var signer types.Signer = types.HomesteadSigner{}
+	if chainID != nil {
+		signer = types.NewEIP155Signer(chainID.bigint)
+	}
+	rawTx, err := tx.tx.WithSignature(signer, common.CopyBytes(sig))
 	return &Transaction{rawTx}, err
 }
 
@@ -310,7 +319,7 @@ func NewReceiptFromRLP(data []byte) (*Receipt, error) {
 	r := &Receipt{
 		receipt: new(types.Receipt),
 	}
-	if err := rlp.DecodeBytes(data, r.receipt); err != nil {
+	if err := rlp.DecodeBytes(common.CopyBytes(data), r.receipt); err != nil {
 		return nil, err
 	}
 	return r, nil
@@ -344,10 +353,10 @@ func (r *Receipt) String() string {
 	return r.receipt.String()
 }
 
-func (r *Receipt) GetPostState() []byte          { return r.receipt.PostState }
-func (r *Receipt) GetCumulativeGasUsed() *BigInt { return &BigInt{r.receipt.CumulativeGasUsed} }
-func (r *Receipt) GetBloom() *Bloom              { return &Bloom{r.receipt.Bloom} }
-func (r *Receipt) GetLogs() *Logs                { return &Logs{r.receipt.Logs} }
-func (r *Receipt) GetTxHash() *Hash              { return &Hash{r.receipt.TxHash} }
-func (r *Receipt) GetContractAddress() *Address  { return &Address{r.receipt.ContractAddress} }
-func (r *Receipt) GetGasUsed() *BigInt           { return &BigInt{r.receipt.GasUsed} }
+func (r *Receipt) GetPostState() []byte         { return r.receipt.PostState }
+func (r *Receipt) GetCumulativeGasUsed() int64  { return int64(r.receipt.CumulativeGasUsed) }
+func (r *Receipt) GetBloom() *Bloom             { return &Bloom{r.receipt.Bloom} }
+func (r *Receipt) GetLogs() *Logs               { return &Logs{r.receipt.Logs} }
+func (r *Receipt) GetTxHash() *Hash             { return &Hash{r.receipt.TxHash} }
+func (r *Receipt) GetContractAddress() *Address { return &Address{r.receipt.ContractAddress} }
+func (r *Receipt) GetGasUsed() int64            { return int64(r.receipt.GasUsed) }

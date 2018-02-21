@@ -48,11 +48,9 @@ func NewTestSwarmServer(t *testing.T) *TestSwarmServer {
 		Chunker:    chunker,
 		ChunkStore: localStore,
 	}
-
 	dpa.Start()
 	a := api.NewApi(dpa, nil)
-	sk, pk := httpapi.GetKeys()
-	srv := httptest.NewServer(httpapi.NewServer(a, sk, pk))
+	srv := httptest.NewServer(httpapi.NewServer(a))
 	return &TestSwarmServer{
 		Server: srv,
 		Dpa:    dpa,

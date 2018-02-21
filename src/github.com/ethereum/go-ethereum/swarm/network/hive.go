@@ -70,17 +70,23 @@ type HiveParams struct {
 	*kademlia.KadParams
 }
 
-func NewHiveParams(path string) *HiveParams {
-	kad := kademlia.NewKadParams()
+//create default params
+func NewDefaultHiveParams() *HiveParams {
+	kad := kademlia.NewDefaultKadParams()
 	// kad.BucketSize = bucketSize
 	// kad.MaxProx = maxProx
 	// kad.ProxBinSize = proxBinSize
 
 	return &HiveParams{
 		CallInterval: callInterval,
-		KadDbPath:    filepath.Join(path, "bzz-peers.json"),
 		KadParams:    kad,
 	}
+}
+
+//this can only finally be set after all config options (file, cmd line, env vars)
+//have been evaluated
+func (self *HiveParams) Init(path string) {
+	self.KadDbPath = filepath.Join(path, "bzz-peers.json")
 }
 
 func NewHive(addr common.Hash, params *HiveParams, swapEnabled, syncEnabled bool) *Hive {
@@ -355,7 +361,7 @@ func saveSync(record *kademlia.NodeRecord, node kademlia.Node) {
 // sends relevant peer data given by the kademlia hive to the requester
 // TODO: remember peers sent for duration of the session, only new peers sent
 func (self *Hive) peers(req *retrieveRequestMsgData) {
-	if req != nil && req.MaxPeers >= 0 {
+	if req != nil {
 		var addrs []*peerAddr
 		if req.timeout == nil || time.Now().Before(*(req.timeout)) {
 			key := req.Key

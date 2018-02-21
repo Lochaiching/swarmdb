@@ -20,10 +20,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"hash"
 	"io"
 	"sync"
+	"time"
 )
 
 /*
@@ -51,14 +50,6 @@ data_{i} := size(subtree_{i}) || key_{j} || key_{j+1} .... || key_{j+n-1}
  The underlying hash function is configurable
 */
 
-const (
-	defaultHash = "SHA3" // http://golang.org/pkg/hash/#Hash
-	// defaultHash           = "SHA256" // http://golang.org/pkg/hash/#Hash
-	defaultBranches int64 = 128
-	// hashSize     int64 = hasherfunc.New().Size() // hasher knows about its own length in bytes
-	// chunksize    int64 = branches * hashSize     // chunk is defined as this
-)
-
 /*
 Tree chunker is a concrete implementation of data chunking.
 This chunker works in a simple way, it builds a tree out of the document so that each node either represents a chunk of real data or a chunk of data representing an branching non-leaf node of the tree. In particular each such non-leaf chunk will represent is a concatenation of the hash of its respective children. This scheme simultaneously guarantees data integrity as well as self addressing. Abstract nodes are transparent since their represented size component is strictly greater than their maximum data size, since they encode a subtree.
@@ -67,25 +58,19 @@ If all is well it is possible to implement this by simply composing readers so t
 The hashing itself does use extra copies and allocation though, since it does need it.
 */
 
-type ChunkerParams struct {
-	Branches int64
-	Hash     string
-}
-
-func NewChunkerParams() *ChunkerParams {
-	return &ChunkerParams{
-		Branches: defaultBranches,
-		Hash:     defaultHash,
-	}
-}
+var (
+	errAppendOppNotSuported = errors.New("Append operation not supported")
+	errOperationTimedOut    = errors.New("operation timed out")
+)
 
 type TreeChunker struct {
 	branches int64
-	hashFunc Hasher
+	hashFunc SwarmHasher
 	// calculated
-	hashSize    int64 // self.hashFunc.New().Size()
-	chunkSize   int64 // hashSize* branches
-	workerCount int
+	hashSize    int64        // self.hashFunc.New().Size()
+	chunkSize   int64        // hashSize* branches
+	workerCount int64        // the number of worker routines used
+	workerLock  sync.RWMutex // lock for the worker count
 }
 
 func NewTreeChunker(params *ChunkerParams) (self *TreeChunker) {
@@ -94,7 +79,8 @@ func NewTreeChunker(params *ChunkerParams) (self *TreeChunker) {
 	self.branches = params.Branches
 	self.hashSize = int64(self.hashFunc().Size())
 	self.chunkSize = self.hashSize * self.branches
-	self.workerCount = 1
+	self.workerCount = 0
+
 	return
 }
 
@@ -114,14 +100,30 @@ type hashJob struct {
 	parentWg *sync.WaitGroup
 }
 
-//func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, swg, wwg *sync.WaitGroup, swarmdb bool) (Key, error) {
-func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, swg, wwg *sync.WaitGroup) (Key, error) {
+func (self *TreeChunker) incrementWorkerCount() {
+	self.workerLock.Lock()
+	defer self.workerLock.Unlock()
+	self.workerCount += 1
+}
 
+func (self *TreeChunker) getWorkerCount() int64 {
+	self.workerLock.RLock()
+	defer self.workerLock.RUnlock()
+	return self.workerCount
+}
+
+func (self *TreeChunker) decrementWorkerCount() {
+	self.workerLock.Lock()
+	defer self.workerLock.Unlock()
+	self.workerCount -= 1
+}
+
+func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, swg, wwg *sync.WaitGroup) (Key, error) {
 	if self.chunkSize <= 0 {
 		panic("chunker must be initialised")
 	}
 
-	jobC := make(chan *hashJob, 2*processors)
+	jobC := make(chan *hashJob, 2*ChunkProcessors)
 	wg := &sync.WaitGroup{}
 	errC := make(chan error)
 	quitC := make(chan bool)
@@ -130,7 +132,8 @@ func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, s
 	if wwg != nil {
 		wwg.Add(1)
 	}
-	//go self.hashWorker(jobC, chunkC, errC, quitC, swg, wwg, swarmdb)
+
+	self.incrementWorkerCount()
 	go self.hashWorker(jobC, chunkC, errC, quitC, swg, wwg)
 
 	depth := 0
@@ -141,13 +144,11 @@ func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, s
 	for ; treeSize < size; treeSize *= self.branches {
 		depth++
 	}
-	log.Trace(fmt.Sprintf("Chunker: %v %v %v %v", treeSize, depth, size, self.hashFunc().Size()))
 
 	key := make([]byte, self.hashFunc().Size())
 	// this waitgroup member is released after the root hash is calculated
 	wg.Add(1)
 	//launch actual recursive function passing the waitgroups
-	//go self.split(depth, treeSize/self.branches, key, data, size, jobC, chunkC, errC, quitC, wg, swg, wwg, swarmdb)
 	go self.split(depth, treeSize/self.branches, key, data, size, jobC, chunkC, errC, quitC, wg, swg, wwg)
 
 	// closes internal error channel if all subprocesses in the workgroup finished
@@ -161,27 +162,27 @@ func (self *TreeChunker) Split(data io.Reader, size int64, chunkC chan *Chunk, s
 		close(errC)
 	}()
 
+	defer close(quitC)
 	select {
 	case err := <-errC:
 		if err != nil {
-			close(quitC)
 			return nil, err
 		}
-		//TODO: add a timeout
+	case <-time.NewTimer(splitTimeout).C:
+		return nil, errOperationTimedOut
 	}
-	log.Trace(fmt.Sprintf("Chunker: %v %v %v %v %v", treeSize, depth, size, self.hashFunc().Size(), key))
+
 	return key, nil
 }
 
-//func (self *TreeChunker) split(depth int, treeSize int64, key Key, data io.Reader, size int64, jobC chan *hashJob, chunkC chan *Chunk, errC chan error, quitC chan bool, parentWg, swg, wwg *sync.WaitGroup, swarmdb bool) {
 func (self *TreeChunker) split(depth int, treeSize int64, key Key, data io.Reader, size int64, jobC chan *hashJob, chunkC chan *Chunk, errC chan error, quitC chan bool, parentWg, swg, wwg *sync.WaitGroup) {
 
-	log.Trace(fmt.Sprintf("Chunker.split: %v %v %v %v", treeSize, depth, size, key))
+	//
+
 	for depth > 0 && size < treeSize {
 		treeSize /= self.branches
 		depth--
 	}
-	log.Trace(fmt.Sprintf("Chunker.split: %v %v %v", treeSize, depth, size))
 
 	if depth == 0 {
 		// leaf nodes -> content chunks
@@ -204,9 +205,9 @@ func (self *TreeChunker) split(depth int, treeSize int64, key Key, data io.Reade
 	}
 	// dept > 0
 	// intermediate chunk containing child nodes hashes
-	branchCnt := int64((size + treeSize - 1) / treeSize)
+	branchCnt := (size + treeSize - 1) / treeSize
 
-	var chunk []byte = make([]byte, branchCnt*self.hashSize+8)
+	var chunk = make([]byte, branchCnt*self.hashSize+8)
 	var pos, i int64
 
 	binary.LittleEndian.PutUint64(chunk[0:8], uint64(size))
@@ -224,7 +225,6 @@ func (self *TreeChunker) split(depth int, treeSize int64, key Key, data io.Reade
 		subTreeKey := chunk[8+i*self.hashSize : 8+(i+1)*self.hashSize]
 
 		childrenWg.Add(1)
-		//self.split(depth-1, treeSize/self.branches, subTreeKey, data, secSize, jobC, chunkC, errC, quitC, childrenWg, swg, wwg, swarmdb)
 		self.split(depth-1, treeSize/self.branches, subTreeKey, data, secSize, jobC, chunkC, errC, quitC, childrenWg, swg, wwg)
 
 		i++
@@ -234,23 +234,25 @@ func (self *TreeChunker) split(depth int, treeSize int64, key Key, data io.Reade
 	// parentWg.Add(1)
 	// go func() {
 	childrenWg.Wait()
-	if len(jobC) > self.workerCount && self.workerCount < processors {
+
+	worker := self.getWorkerCount()
+	if int64(len(jobC)) > worker && worker < ChunkProcessors {
 		if wwg != nil {
 			wwg.Add(1)
 		}
-		self.workerCount++
-		//go self.hashWorker(jobC, chunkC, errC, quitC, swg, wwg, swarmdb)
+		self.incrementWorkerCount()
 		go self.hashWorker(jobC, chunkC, errC, quitC, swg, wwg)
+
 	}
-	log.Trace(fmt.Sprintf("Chunker.split: %v %v %v %v", treeSize, depth, size, key))
 	select {
 	case jobC <- &hashJob{key, chunk, size, parentWg}:
 	case <-quitC:
 	}
 }
 
-//func (self *TreeChunker) hashWorker(jobC chan *hashJob, chunkC chan *Chunk, errC chan error, quitC chan bool, swg, wwg *sync.WaitGroup, swarmdb bool) {
 func (self *TreeChunker) hashWorker(jobC chan *hashJob, chunkC chan *Chunk, errC chan error, quitC chan bool, swg, wwg *sync.WaitGroup) {
+	defer self.decrementWorkerCount()
+
 	hasher := self.hashFunc()
 	if wwg != nil {
 		defer wwg.Done()
@@ -263,8 +265,6 @@ func (self *TreeChunker) hashWorker(jobC chan *hashJob, chunkC chan *Chunk, errC
 				return
 			}
 			// now we got the hashes in the chunk, then hash the chunks
-			hasher.Reset()
-			//self.hashChunk(hasher, job, chunkC, swg, swarmdb)
 			self.hashChunk(hasher, job, chunkC, swg)
 		case <-quitC:
 			return
@@ -275,44 +275,17 @@ func (self *TreeChunker) hashWorker(jobC chan *hashJob, chunkC chan *Chunk, errC
 // The treeChunkers own Hash hashes together
 // - the size (of the subtree encoded in the Chunk)
 // - the Chunk, ie. the contents read from the input reader
-//func (self *TreeChunker) hashChunk(hasher hash.Hash, job *hashJob, chunkC chan *Chunk, swg *sync.WaitGroup, swarmdb bool) {
-func (self *TreeChunker) hashChunk(hasher hash.Hash, job *hashJob, chunkC chan *Chunk, swg *sync.WaitGroup) {
-	hasher.Write(job.chunk)
+func (self *TreeChunker) hashChunk(hasher SwarmHash, job *hashJob, chunkC chan *Chunk, swg *sync.WaitGroup) {
+	hasher.ResetWithLength(job.chunk[:8]) // 8 bytes of length
+	hasher.Write(job.chunk[8:])           // minus 8 []byte length
 	h := hasher.Sum(nil)
-	log.Trace(fmt.Sprintf("hashChunk: %v %s %v", h, job.chunk, job.size))
+
 	newChunk := &Chunk{
 		Key:   h,
 		SData: job.chunk,
 		Size:  job.size,
 		wg:    swg,
-		//swarmdb: swarmdb,
 	}
-
-	fmt.Printf("\nin HASHCHUNK and chunk has a key [%v](%s)\n", newChunk.Key, newChunk.Key)
-	fmt.Printf("\nin Contents/SDATA [%v](%s)\n", newChunk.SData, newChunk.SData)
-
-	/*
-	   	                chunk = entry
-	                   ekey := fmt.Sprintf("%v", entry.Key)
-	                   keylen := len(ekey)
-	                   dummy := bytes.Repeat([]byte("Z"), keylen)
-	                   idx := make([]byte, len(chunk.SData)-8)
-	                   copy(idx, chunk.SData[8:])
-	                   contentPrefixStart := 512+8
-	                   contentPrefixEnd := 576+8
-	                   newkeybase_bytes := chunk.SData[contentPrefixStart:contentPrefixEnd]
-	                   log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB keybase bytes: [%+v][%s]", newkeybase_bytes, string(newkeybase_bytes)))
-	                   newkeybase := string(newkeybase_bytes)+string(dummy)
-	                   log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB keybase used: [%+v][%s]", newkeybase, string(newkeybase)))
-	                   chunker := NewTreeChunker(NewChunkerParams())
-	                   r := strings.NewReader(newkeybase)
-	                   fmt.Printf("IN STOREWORKER CHUNK PRE is %s %v\n\n", chunk.Key, chunk.Key)
-	                   _, _ = chunker.Split(r, int64(len(newkeybase)), nil, nil, nil, false)
-	                   //chunk.Key, err = chunker.Split(r, int64(len(newkeybase)), nil, nil, nil, false)
-	                   fmt.Printf("IN STOREWORKER CHUNK POST is %s %v\n\n", chunk.Key, chunk.Key)
-	                   log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB new Chunk.Key [%s][%v]", entry.Key, entry.Key))
-	                   log.Debug(fmt.Sprintf("SwarmDB DPA.PutDB basekey = %v: key = %v sdata = %v(%s) chunkKey=[%v][%s]", newkeybase, entry.Key, chunk.SData, chunk.SData, chunk.Key, chunk.Key))
-	*/
 
 	// report hash of this chunk one level up (keys corresponds to the proper subslice of the parent chunk)
 	copy(job.key, h)
@@ -329,6 +302,10 @@ func (self *TreeChunker) hashChunk(hasher hash.Hash, job *hashJob, chunkC chan *
 	}
 }
 
+func (self *TreeChunker) Append(key Key, data io.Reader, chunkC chan *Chunk, swg, wwg *sync.WaitGroup) (Key, error) {
+	return nil, errAppendOppNotSuported
+}
+
 // LazyChunkReader implements LazySectionReader
 type LazyChunkReader struct {
 	key       Key         // root key
@@ -342,7 +319,6 @@ type LazyChunkReader struct {
 
 // implements the Joiner interface
 func (self *TreeChunker) Join(key Key, chunkC chan *Chunk) LazySectionReader {
-
 	return &LazyChunkReader{
 		key:       key,
 		chunkC:    chunkC,
