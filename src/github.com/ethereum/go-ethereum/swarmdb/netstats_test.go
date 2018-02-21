@@ -54,7 +54,7 @@ func TestNetstatsBasic(t *testing.T) {
 			simh, err := store.StoreChunk(u, simdata, enc)
 			if err != nil {
 				t.Fatal("[FAILURE] writting record #%v [%x] => %v\n", j, simh, string(simdata[:]))
-			} else if j%50 == 0 {
+			} else if j%5 == 0 {
 				fmt.Printf("Generating record [%x] => %v ... ", simh, string(simdata[:]))
 				fmt.Printf("[SUCCESS] writing #%v chunk | Encryption: %v\n", j, enc)
 			}
@@ -66,7 +66,7 @@ func TestNetstatsBasic(t *testing.T) {
 			response, err := store.RetrieveAsh(simh, secret, proofRequired, int8(auditIndex))
 			if err != nil {
 				t.Fatal("[FAILURE] Generating record [%x] %s\n", simh, err.Error())
-			} else if j%50 == 0 {
+			} else if j%5 == 0 {
 				if proofRequired {
 					ok, mr, err := ash.CheckProof(response.Proof.Root, response.Proof.Path, response.Proof.Index)
 					if err == nil {
@@ -75,7 +75,7 @@ func TestNetstatsBasic(t *testing.T) {
 						t.Fatal(err.Error())
 					}
 				}
-				if j%50 == 0 {
+				if j%5 == 0 {
 					output, _ := json.Marshal(response)
 					fmt.Printf("ProofRequired: %t | Index: %d | Seed: [%x]\n", proofRequired, auditIndex, secret)
 					fmt.Printf("Generating record [%x]\n %v\n\n", simh, string(output))
@@ -89,10 +89,11 @@ func TestNetstatsBasic(t *testing.T) {
 	})
 
 	t.Run("EFarmLog=1", func(t *testing.T) {
-		_, err := store.GenerateFarmerLog(ts, ts+60)
+		log, err := store.GenerateFarmerLog(ts, ts+60)
 		if err != nil {
 			t.Fatal("[FAILURE] Farmer log Error\n")
 		} else {
+            fmt.Printf("\n%s\n", log)
 			fmt.Printf("[SUCCESS] Farmer Operation completed\n")
 		}
 		err = netstats.Save()

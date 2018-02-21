@@ -251,6 +251,16 @@ func PrepareSegment(chunk []byte, secret []byte) (segments []Content) {
 	return rawseg
 }
 
+//GenerateAsh returns a merkle root based on given seed
+func GenerateAsh(seed []byte, rawchunk []byte) (rootHash []byte, err error) {
+    segments := PrepareSegment(rawchunk, seed)
+    tree, err := NewTree(segments)
+    if err != nil {
+        return rootHash, err
+    }
+    return tree.Roothash, nil
+}
+
 //ComputeAsh answers to an AshRequest
 func ComputeAsh(request AshRequest, rawchunk []byte) (response AshResponse, err error) {
 	segments := PrepareSegment(rawchunk, request.Seed)
