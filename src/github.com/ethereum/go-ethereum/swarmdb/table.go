@@ -52,6 +52,10 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 	/// get Table RootHash to  retrieve the table descriptor
 	tblKey := t.swarmdb.GetTableKey(t.Owner, t.Database, t.tableName)
 	roothash, err := t.swarmdb.GetRootHash(u, []byte(tblKey))
+	if len(bytes.Trim(roothash, "\x00")) == 0 {
+		return &SWARMDBError{message: fmt.Sprintf("Attempting to Open Table with roothash of [%v]", roothash), ErrorCode: 481, ErrorMessage: fmt.Sprintf("Table [%s] has an empty roothash", t.tableName)}
+	}
+
 	log.Debug(fmt.Sprintf("[table:OpenTable] opening table @ %s roothash [%x]\n", t.tableName, roothash))
 
 	if err != nil {
@@ -397,6 +401,7 @@ func (t *Table) DescribeTable() (tblInfo map[string]Column, err error) {
 		tblInfo[cname] = cinfo
 	}
 	log.Debug(fmt.Sprintf("Returning from DescribeTable with table [%+v] \n", tblInfo))
+	//TODO: Handle "EMPTY" tables
 	return tblInfo, nil
 }
 

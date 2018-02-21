@@ -93,7 +93,7 @@ func TestNetstatsBasic(t *testing.T) {
 		if err != nil {
 			t.Fatal("[FAILURE] Farmer log Error\n")
 		} else {
-            fmt.Printf("\n%s\n", log)
+			fmt.Printf("\n%s\n", log)
 			fmt.Printf("[SUCCESS] Farmer Operation completed\n")
 		}
 		err = netstats.Save()
