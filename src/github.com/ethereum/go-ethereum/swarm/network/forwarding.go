@@ -57,7 +57,7 @@ var searchTimeout = 3 * time.Second
 func (self *forwarder) Retrieve(chunk *storage.Chunk) {
 	log.Trace(fmt.Sprintf("forwarder.Retrieve: hive %s ", self.hive.String()))
 	peers := self.hive.getPeers(chunk.Key, 0)
-	log.Trace(fmt.Sprintf("forwarder.Retrieve: %v - received %d peers from KÎ›Ã�ÎžMLIÎ›... %v", chunk.Key.Log(), len(peers), peers))
+	log.Trace(fmt.Sprintf("forwarder.Retrieve: %v - received %d peers from KΛÐΞMLIΛ... %v", chunk.Key.Log(), len(peers), peers))
 OUT:
 	for _, p := range peers {
 		log.Trace(fmt.Sprintf("forwarder.Retrieve: sending retrieveRequest %v to peer [%v] %v", chunk.Key.Log(), p, chunk.Key))
@@ -89,7 +89,7 @@ OUT:
 func (self *forwarder) RetrieveDB(chunk *storage.Chunk) {
         log.Trace(fmt.Sprintf("[wolk-cloudstore] forwarder.RetrieveDB: hive %s ", self.hive.String()))
         peers := self.hive.getPeers(chunk.Key, 0)
-        log.Trace(fmt.Sprintf("forwarder.RetrieveDB: %v - received %d peers from KÎ›Ã�ÎžMLIÎ›... %v", chunk.Key.Log(), len(peers), peers))
+	log.Trace(fmt.Sprintf("forwarder.RetrieveDB: %v - received %d peers from KΛÐΞMLIΛ... %v", chunk.Key.Log(), len(peers), peers))
 OUT:
         for _, p := range peers {
                 log.Trace(fmt.Sprintf("forwarder.Retrieve DB: sending retrieveRequest %v to peer [%v] %v", chunk.Key.Log(), p, chunk.Key))
