@@ -16,13 +16,10 @@ package swarmdb
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-
 	"github.com/ethereum/go-ethereum/common"
-	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -41,13 +38,21 @@ type DBChunkstore struct {
 	ldb      *leveldb.DB
 	km       *KeyManager
 	netstats *Netstats
-	farmer   ethcommon.Address
+	farmer   common.Address
 	filepath string
 }
 
 type DBChunk struct {
 	Val []byte
 	Enc byte
+}
+
+type ChunkAsh struct {
+	chunkID []byte //internal
+    epoch   []byte //internal
+	Seed    []byte
+	Root    []byte
+	Renewal byte
 }
 
 type ChunkLog struct {
@@ -60,40 +65,23 @@ type ChunkLog struct {
 	Renewable        int    `json:"renewable"`
 }
 
-type AshChallenge struct {
-	ProofRequired bool `json: "proofrequired"`
-	Index         int8 `json: index`
-}
+func (u *ChunkAsh) MarshalJSON() ([]byte, error) {
+	mash := ash.Computehash(u.Root)
+    epochstr:= common.ToHex(u.epoch)
 
-type AchRequest struct {
-	ChunkID   []byte `json:"chunkID"`
-	Seed      []byte `json: seed`
-	Challenge *AshChallenge
-}
-
-type AshResponse struct {
-	mash  []byte `json: "-"`
-	Mask  string `json: "mask"`
-	Proof *MerkleProof
-}
-
-type MerkleProof struct {
-	Root  []byte `json: "root"`
-	Path  []byte `json: "path"`
-	Index int8   `json: "index"`
-}
-
-func (u *MerkleProof) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
 		&struct {
-			Root  string `json: "root"`
-			Path  string `json: "path"`
-			Index int8   `json: "index"`
+            Epoch   string `json: "epoch"`
+			ChunkID string `json: "chunkID"`
+			Seed    string `json: "seed"`
+			Mash    string `json: "mash"`
+			Renewal byte   `json: "renew"`
 		}{
-			//Mash:  hex.EncodeToString(u.Mash),
-			Root:  hex.EncodeToString(u.Root),
-			Path:  hex.EncodeToString(u.Path),
-			Index: u.Index,
+            Epoch:   epochstr,
+			ChunkID: hex.EncodeToString(u.chunkID),
+			Seed:    hex.EncodeToString(u.Seed),
+			Mash:    hex.EncodeToString(mash),
+			Renewal: u.Renewal,
 		})
 }
 
@@ -154,10 +142,7 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	} else {
 		inp := make([]byte, hashChunkSize)
 		copy(inp, val[0:hashChunkSize])
-		h := sha256.New() // TODO: Update this
-		h.Write([]byte(inp))
-		key = h.Sum(nil)
-
+		key = ash.Computehash(inp)
 	}
 
 	var chunk DBChunk
@@ -184,11 +169,22 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	ekey := append(epochPrefix, key...)
 	// fmt.Printf("%d --> %x --> %x\n", ts, epochPrefix, ekey)
 
-	data = []byte("1")
+	secret := make([]byte, 32)
+	rand.Read(secret)
+	roothash, err := ash.GenerateAsh(secret, chunk.Val)
+	if err != nil {
+		return key, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:storeChunkInDB] Exec %s | encrypted:%s", err.Error(), secret), ErrorCode: 450, ErrorMessage: "Unable to Generate Proper ASH"}
+	}
+
+	chunkAsh := ChunkAsh{Seed: secret, Root: roothash}
+	chunkAsh.Renewal = 1 //Renew bool should be passed in here
+
+	ashdata, err := rlp.EncodeToBytes(chunkAsh)
 	if err != nil {
 		return key, err
 	}
-	err = self.ldb.Put(ekey, data, nil)
+
+	err = self.ldb.Put(ekey, ashdata, nil)
 	if err != nil {
 		return key, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Exec %s | encrypted:%s", err.Error(), encrypted), ErrorCode: 439, ErrorMessage: "Unable to Store Chunk"}
 	}
@@ -231,7 +227,6 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 		if err != nil {
 			return val, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveChunk] DecryptData %s", err.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
 		}
-
 	}
 	return val, nil
 }
@@ -239,7 +234,7 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	val, err = self.RetrieveChunk(u, key)
 	if err != nil {
-		return val, err // TODO
+		return val, GenerateSWARMDBError(err, fmt.Sprintf("[dbchunkstore:RetrieveChunk] DecryptData %s", err.Error()))
 	}
 	jsonRecord := val[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL]
 	return bytes.TrimRight(jsonRecord, "\x00"), nil
@@ -260,8 +255,19 @@ func (self *DBChunkstore) GenerateBuyerLog(startTS int64, endTS int64) (log []st
 		for iter.Next() {
 			epochkey := iter.Key()
 			key := epochkey[8:]
-			fmt.Printf("%x\n", key)
-			log = append(log, fmt.Sprintf("%x\n", key))
+			//fmt.Printf("%x\n", key)
+
+			chunkash := new(ChunkAsh)
+			err = rlp.Decode(bytes.NewReader(iter.Value()), chunkash)
+			if err != nil {
+				return log, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:GenerateBuyerLog] EKEY: %x | Prepare %s", epochkey, err.Error()), ErrorCode: 451, ErrorMessage: "Unable to Decode Chunkash"}
+			}
+
+			chunkash.chunkID = key
+            chunkash.epoch = bytes.TrimLeft(epochkey[0:8],"\x00")
+			output, _ := json.Marshal(chunkash)
+            log = append(log, fmt.Sprintf("%s\n", string(output)))
+
 			// data, err := self.ldb.Get(key, nil)
 			// chunklog, err := json.Marshal(c)
 			// sql_readall := fmt.Sprintf("SELECT chunkKey,strftime('%s',chunkBirthDT) as chunkBirthTS, strftime('%s',chunkStoreDT) as chunkStoreTS, maxReplication, renewal FROM chunk where chunkBD >= %d and chunkBD < %d", time.Unix(startTS, 0).Format(time.RFC3339), time.Unix(endTS, 0).Format(time.RFC3339))
@@ -273,17 +279,10 @@ func (self *DBChunkstore) GenerateBuyerLog(startTS int64, endTS int64) (log []st
 }
 
 func (self *DBChunkstore) RetrieveAsh(key []byte, secret []byte, proofRequired bool, auditIndex int8) (res ash.AshResponse, err error) {
-	debug := false
 	request := ash.AshRequest{ChunkID: key, Seed: secret}
 	request.Challenge = &ash.AshChallenge{ProofRequired: proofRequired, Index: auditIndex}
-	chunkval := make([]byte, 4096)
-	if debug {
-		simulatedChunk := make([]byte, 4096)
-		rand.Read(simulatedChunk)
-		chunkval = simulatedChunk
-	} else {
-		chunkval, err = self.RetrieveRawChunk(request.ChunkID)
-	}
+	chunkval := make([]byte, 4128)
+	chunkval, err = self.RetrieveRawChunk(request.ChunkID)
 	if err != nil {
 		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] %s", err.Error()), ErrorCode: 470, ErrorMessage: "RawChunk Retrieval Error"}
 	}
