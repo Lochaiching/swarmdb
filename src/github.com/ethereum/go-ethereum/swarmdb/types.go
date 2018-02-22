@@ -88,6 +88,7 @@ type ChunkHeader struct {
 	Owner          []byte
 	Database       []byte
 	Table          []byte
+	//Epochts       []byte -- Do we need this in our Chunk?
 	//Trailing Bytes
 }
 
@@ -114,6 +115,7 @@ func ParseChunkHeader(chunk []byte) (ch ChunkHeader, err error) {
 	ch.Owner = chunk[CHUNK_START_OWNER:CHUNK_END_OWNER]
 	ch.Database = chunk[CHUNK_START_DB:CHUNK_END_DB]
 	ch.Table = chunk[CHUNK_START_TABLE:CHUNK_END_TABLE]
+	//ch.Epochts = chunk[CHUNK_START_EPOCHTS:CHUNK_END_EPOCHTS])
 	return ch, err
 }
 

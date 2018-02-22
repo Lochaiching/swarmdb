@@ -26,7 +26,6 @@ import (
 	"github.com/syndtr/goleveldb/leveldb/util"
 	"math/rand"
 	"swarmdb/ash"
-	"time"
 )
 
 const (
@@ -138,7 +137,6 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 		copy(finalSdata[0:CHUNK_START_CHUNKVAL], val[0:CHUNK_START_CHUNKVAL])
 		copy(finalSdata[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL], recordData)
 		val = finalSdata
-
 	} else {
 		inp := make([]byte, hashChunkSize)
 		copy(inp, val[0:hashChunkSize])
@@ -163,8 +161,13 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	}
 	//fmt.Printf("storeChunkInDB enc: %d [%x] -- %x\n", chunk.Enc, key, data)
 
+	chunkHeader, errCh := ParseChunkHeader(chunk.Val)
+	if errCh != nil {
+		return key, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] ParseChunkHeader %s ", err.Error()), ErrorCode: 439, ErrorMessage: "Unable to Parse Chunk"}
+	}
+
 	// TODO: the TS here should be the FIRST time the chunk is originally written
-	ts := int64(time.Now().Unix())
+	ts := int64(chunkHeader.LastUpdatets)
 	epochPrefix := epochBytesFromTimestamp(ts)
 	ekey := append(epochPrefix, key...)
 	// fmt.Printf("%d --> %x --> %x\n", ts, epochPrefix, ekey)
@@ -177,7 +180,7 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	}
 
 	chunkAsh := ChunkAsh{Seed: secret, Root: roothash}
-	chunkAsh.Renewal = 1 //Renew bool should be passed in here
+	chunkAsh.Renewal = byte(chunkHeader.AutoRenew) //Renew bool should be passed in here
 
 	ashdata, err := rlp.EncodeToBytes(chunkAsh)
 	if err != nil {
