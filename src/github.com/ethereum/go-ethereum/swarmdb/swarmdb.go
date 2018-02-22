@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
         "github.com/ethereum/go-ethereum/crypto/sha3"
 	"github.com/ethereum/go-ethereum/log"
+	swarmdblog "github.com/ethereum/go-ethereum/swarmdb/log"
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"path/filepath"
 	"strings"
@@ -97,10 +98,12 @@ func (resp *SWARMDBResponse) Stringify() string {
 type SwarmDB struct {
 	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
-	//ens          ENSSimulation
 	ens          ENSSimple
 	Config       *SWARMDBConfig
 	SwarmStore   storage.ChunkStore
+	Logger       *swarmdblog.Logger
+	SwapDB       *SwapDB
+	Netstats     *Netstats
 }
 
 //for sql parsing
@@ -248,15 +251,16 @@ func NewSwarmDB(config *SWARMDBConfig, cloud storage.ChunkStore) (swdb *SwarmDB,
 
 	//default /tmp/ens.db
 	ensdbFileName := "ens.db"
-	//ensdbFullPath := filepath.Join(ensPath, ensdbFileName)
 	ensdbFullPath := filepath.Join(config.ChunkDBPath, ensdbFileName)
-	//ens, err := NewENSSimulation(ensdbFullPath)
 	ens, err := NewENSSimple(ensdbFullPath, config)
 	if err != nil {
 		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewENSSimulation `+err.Error())
 	} else {
 		sd.ens = ens
 	}
+
+	sd.Logger = swarmdblog.NewLogger()
+	sd.Netstats = NewNetstats(config)
 
 	return sd, nil
 }
