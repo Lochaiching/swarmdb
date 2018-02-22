@@ -316,8 +316,6 @@ func (self *SwarmDB) GetRootHashFromLDB(tblKey []byte /* GetTableKeyValue */) (r
         return res, status, err
 }
 
-
-
 func (self *SwarmDB) StoreRootHash(fullTableName []byte /* GetTableKey Value */, roothash []byte) (err error) {
 	hashc := hashcolumn(fullTableName)
 	s := hashc[:]

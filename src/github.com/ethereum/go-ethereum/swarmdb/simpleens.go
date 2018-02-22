@@ -53,12 +53,16 @@ type ENSSimpleConfig struct{
 
 func NewENSSimple(path string, config *SWARMDBConfig) (ens ENSSimple, err error) {
 // TODO: using temporary config file
-	elog.Debug(fmt.Sprintf("SimpleENS config %v", config))
+	elog.Debug(fmt.Sprintf("SimpleENS config %s %s %s", config.EnsIP, config.EnsKeyPath, config.EnsAddress))
 	//ipaddress := config.EnsIP
 //////debug
-	confdir, err := ioutil.ReadDir("/var/www/vhosts/data/swarmdb")
 	var ipaddress string
 	ipaddress = "/var/www/vhosts/data/geth.ipc"
+	if len(config.EnsIP) > 0 {
+		ipaddress = config.EnsIP
+	}
+/*
+	confdir, err := ioutil.ReadDir("/var/www/vhosts/data/swarmdb")
 	if err == nil{
 		var conffilename string
 		for _, cf := range confdir{
@@ -72,10 +76,8 @@ func NewENSSimple(path string, config *SWARMDBConfig) (ens ENSSimple, err error)
 		err = json.Unmarshal(dat, &conf)
 		ipaddress = conf.Ipaddress
 	}
+*/
 	elog.Debug(fmt.Sprintf("SimpleENS ipaddress = %s", ipaddress))	
-
-
-
 	
 	// Create an IPC based RPC connection to a remote node
 	conn, err := ethclient.Dial(ipaddress)
@@ -92,14 +94,20 @@ func NewENSSimple(path string, config *SWARMDBConfig) (ens ENSSimple, err error)
 // TODO: need to get the dir (or filename) from config
 //	k, err := ioutil.ReadFile(config.EnsKeyPath)
 //debug
-    	files, err := ioutil.ReadDir("/var/www/vhosts/data/keystore")
+	keystoredir := "/var/www/vhosts/data/keystore"
+	if len(config.EnsKeyPath) > 0{
+		keystoredir = config.EnsKeyPath
+	}
+    	//files, err := ioutil.ReadDir("/var/www/vhosts/data/keystore")
+    	files, err := ioutil.ReadDir(keystoredir)
 	var filename string
         for _, file := range files {
         	if strings.HasPrefix(file.Name(), "UTC") {
                 	filename =  file.Name()
         	}
 	}
-        fullpath := filepath.Join("/var/www/vhosts/data/keystore", filename)
+        //fullpath := filepath.Join("/var/www/vhosts/data/keystore", filename)
+        fullpath := filepath.Join(keystoredir, filename)
 	k, err := ioutil.ReadFile(fullpath)
 	key := fmt.Sprintf("%s", k)
 	
@@ -111,7 +119,8 @@ func NewENSSimple(path string, config *SWARMDBConfig) (ens ENSSimple, err error)
 	}
 
 	// Instantiate the contract and display its name
-	sens, err := NewSimplestens(common.HexToAddress("0x7e29ab7c40aaf6ca52270643b57c46c7766ca31d"), conn)
+	//sens, err := NewSimplestens(common.HexToAddress("0x7e29ab7c40aaf6ca52270643b57c46c7766ca31d"), conn)
+	sens, err := NewSimplestens(common.HexToAddress(config.Address), conn)
 	if err != nil {
 		elog.Debug(fmt.Sprintf("NewSimplestens failed %v", err))
 		log.Fatalf("Failed to instantiate a Simplestens contract: %v", err)
