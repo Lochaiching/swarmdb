@@ -120,7 +120,7 @@ func NewENSSimple(path string, config *SWARMDBConfig) (ens ENSSimple, err error)
 
 	// Instantiate the contract and display its name
 	//sens, err := NewSimplestens(common.HexToAddress("0x7e29ab7c40aaf6ca52270643b57c46c7766ca31d"), conn)
-	sens, err := NewSimplestens(common.HexToAddress(config.Address), conn)
+	sens, err := NewSimplestens(common.HexToAddress(config.EnsAddress), conn)
 	if err != nil {
 		elog.Debug(fmt.Sprintf("NewSimplestens failed %v", err))
 		log.Fatalf("Failed to instantiate a Simplestens contract: %v", err)
