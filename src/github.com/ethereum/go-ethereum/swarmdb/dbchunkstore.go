@@ -40,6 +40,8 @@ const (
 	minChunkSize = 4000
 )
 
+var searchTimeout = 3 * time.Second
+
 type NetstatFile struct {
 	NodeID        string
 	WalletAddress string
@@ -62,6 +64,7 @@ type DBChunkstore struct {
 	netstat  *NetstatFile
 	filepath string
 	statpath string
+	cloud    storage.ChunkStore
 }
 
 type DBChunk struct {
@@ -225,7 +228,7 @@ func (self *DBChunkstore) Flush() (err error) {
 	return nil
 }
 
-func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
+func NewDBChunkStore(path string, cloud storage.ChunkStore) (self *DBChunkstore, err error) {
 	ts := time.Now()
 	claim := make(map[string]*big.Int)
 	chunkstat := map[string]*big.Int{"ChunkR": big.NewInt(0), "ChunkW": big.NewInt(0), "ChunkS": big.NewInt(0), "ChunkRL": big.NewInt(0), "ChunkWL": big.NewInt(0), "ChunkSL": big.NewInt(0)}
@@ -300,6 +303,7 @@ func NewDBChunkStore(path string) (self *DBChunkstore, err error) {
 		netstat:  &netstat,
 		filepath: path,
 		statpath: "netstat.json",
+		cloud:    cloud,
 	}
 
 	return self, nil
@@ -310,13 +314,13 @@ func (self *DBChunkstore) GetKeyManager() (km *KeyManager) {
 }
 
 
-func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
+func LoadDBChunkStore(path string, cloud storage.ChunkStore) (self *DBChunkstore, err error) {
 	var data []byte
 	defaultDBPath := "netstat.json"
 
 	data, errLoad := ioutil.ReadFile(defaultDBPath)
 	if errLoad != nil {
-		self, err = NewDBChunkStore(path)
+		self, err = NewDBChunkStore(path, cloud)
 		if err != nil {
 			return nil, GenerateSWARMDBError(err, fmt.Sprintf("[dbchunkstore:LoadDBChunkStore] %s", err.Error()))
 		} else {
@@ -329,7 +333,7 @@ func LoadDBChunkStore(path string) (self *DBChunkstore, err error) {
 	self.netstat = new(NetstatFile)
 	errParse := json.Unmarshal(data, &self)
 	if errParse != nil {
-		self, err = NewDBChunkStore(path)
+		self, err = NewDBChunkStore(path, cloud)
 		if err != nil {
 			return nil, GenerateSWARMDBError(err, fmt.Sprintf("[dbchunkstore:LoadDBChunkStore] NewDBChunkStore %s", err.Error()))
 		} else {
@@ -396,6 +400,38 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 	stmt.Close()
 	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
+        sql := `SELECT chunkBirthDT FROM chunk WHERE chunkKey = $1`
+        stmt, err = self.db.Prepare(sql)
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return err
+        }
+        defer stmt.Close()
+        rows, err := stmt.Query(key[:32])
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return err
+        }
+        defer rows.Close()
+
+        var bts time.Time
+        for rows.Next() {
+                err = rows.Scan(&bts)
+                if err != nil {
+                        fmt.Printf("\nError Get birthDT: [%s]", err)
+                }
+        }
+        log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.StoreKChunk  : put %v to swarmdb", key))
+	opt := &storage.CloudOption{
+		BirthDT: &bts,
+		Version:	1,
+		Encrypted:	encrypted,
+	}
+        jopt, err := json.Marshal(opt)
+	chunk := storage.NewChunk(key[:32], nil)
+	chunk.SData = finalSdata[0:]
+	chunk.Options = jopt
+        self.cloud.Put(chunk)
 	return nil
 }
 
@@ -439,12 +475,21 @@ func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte
 				return val, GenerateSWARMDBError(err, fmt.Sprintf("[dbchunkstore:RetrieveKChunk] DecryptData %s", err.Error()))
 			}
 
-			retVal = bytes.TrimRight(retVal, "\x00")
+			val = bytes.TrimRight(retVal, "\x00")
 		}
 		self.netstat.LReadDT = &ts
 		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
-		return retVal, nil
 	}
+// TODO : the data what I have is latest or not?
+        if val == nil{
+//                chunk, err := self.cloud.RetrieveDB(key)
+        	var chunk *storage.Chunk
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.RetrieveKChunk vall CloudGet :%v", key))
+                chunk, err = self.CloudGet(key)
+                if chunk.SData != nil{
+                        val = chunk.SData
+                }
+        }
 	return val, nil
 }
 
@@ -483,6 +528,42 @@ func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) 
 	self.netstat.LWriteDT = &ts
 	self.netstat.CStat["ChunkW"].Add(self.netstat.CStat["ChunkW"], big.NewInt(1))
 	//self.netstat.CStat["ChunkS"].Add(self.netstat.CStat["ChunkS"], big.NewInt(1))
+        sql := `SELECT chunkBirthDT FROM chunk WHERE chunkKey = $1`
+        stmt, err = self.db.Prepare(sql)
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return key, err
+        }
+        defer stmt.Close()
+
+        rows, err := stmt.Query(key)
+        if err != nil {
+                fmt.Printf("Error preparing sql [%s] Err: [%s]", sql, err)
+                return key, err
+        }
+        defer rows.Close()
+
+        var bts time.Time
+        for rows.Next() {
+                err = rows.Scan(&bts)
+                if err != nil {
+                        fmt.Printf("\nError Get birthDT: [%s]", err)
+                }
+        }
+
+        log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.StoreKChunk  : put %v to swarmdb", key))
+	opt := &storage.CloudOption{
+		BirthDT: &bts,
+		Version:	1,
+		Encrypted:	encrypted,
+	}
+        jopt, err := json.Marshal(opt)
+//	self.cloud.StoreDB(k, v, jopt)
+	chunk := storage.NewChunk(key, nil)
+	chunk.SData = chunkVal
+	chunk.Options = jopt
+        log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.cloud  : %v", self.cloud))
+	self.cloud.Put(chunk)
 	return key, nil
 }
 
@@ -834,3 +915,28 @@ func (self *DBChunkstore) StoreDB(key []byte, val []byte, option *storage.CloudO
         return err
 }
 
+func (self *DBChunkstore) CloudGet(key []byte) (chunk *storage.Chunk, err error) {
+	//chunk = storage.NewChunk(storage.Key(key), storage.NewRequestStatus(key))
+	//self.cloud.RetrieveDB(chunk)
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] CloudGet :retreaving from swarmdb %s", key))
+	chunk, err = self.cloud.Get(key)
+        log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] CloudGet :before  chunk %v %v", chunk, &chunk))
+	
+        timer := time.After(searchTimeout)
+        select {
+        case <-timer:
+//TODO: it might need to close(Req.C) check memstore
+                log.Trace(fmt.Sprintf("[wolk-cloudstore]: %v request time out ", key))
+                err = fmt.Errorf("Not found")
+// if wait for the latest version
+//		if  chunk.SData == nil{
+//			err = fmt.Errorf("Not Found")
+//		} else {
+//	swapdb process might be here			
+//		}
+        case <-chunk.Req.C:
+                log.Trace(fmt.Sprintf("[wolk-cloudstore]: %v retrieved, %d bytes (%p)", key, len(chunk.SData), chunk))
+        }
+        log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] CloudGet :after chunk %v %v", chunk, &chunk))
+        return chunk, err
+}

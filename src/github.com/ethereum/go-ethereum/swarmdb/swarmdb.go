@@ -240,11 +240,12 @@ func NewSwarmDB(config *SWARMDBConfig, cloud storage.ChunkStore) (swdb *SwarmDB,
 	sd.Config = config
 	sd.tables = make(map[string]*Table)
 	sd.SwarmStore = cloud
+	log.Debug(fmt.Sprintf("NewSwarmDB cloud = %v", cloud))
 	chunkdbFileName := "chunk.db"
 	dbChunkStoreFullPath := filepath.Join(config.ChunkDBPath, chunkdbFileName)
-	dbchunkstore, err := NewDBChunkStore(dbChunkStoreFullPath)
+	dbchunkstore, err := NewDBChunkStore(dbChunkStoreFullPath, cloud)
 	if err != nil {
-		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewDBChunkStore `+err.Error())
+               return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewDBChunkStore `+err.Error())
 	} else {
 		sd.dbchunkstore = dbchunkstore
 	}
