@@ -161,35 +161,37 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	}
 	//fmt.Printf("storeChunkInDB enc: %d [%x] -- %x\n", chunk.Enc, key, data)
 
-	chunkHeader, errCh := ParseChunkHeader(chunk.Val)
-	if errCh != nil {
-		return key, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] ParseChunkHeader %s ", err.Error()), ErrorCode: 439, ErrorMessage: "Unable to Parse Chunk"}
-	}
+	if len(k) > 0 {
+		chunkHeader, errCh := ParseChunkHeader(chunk.Val)
+		if errCh != nil {
+			return key, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] ParseChunkHeader %s ", err.Error()), ErrorCode: 439, ErrorMessage: "Unable to Parse Chunk"}
+		}
 
-	// TODO: the TS here should be the FIRST time the chunk is originally written
-	ts := int64(chunkHeader.LastUpdatets)
-	epochPrefix := epochBytesFromTimestamp(ts)
-	ekey := append(epochPrefix, key...)
-	// fmt.Printf("%d --> %x --> %x\n", ts, epochPrefix, ekey)
+		// TODO: the TS here should be the FIRST time the chunk is originally written
+		ts := int64(chunkHeader.LastUpdatets)
+		epochPrefix := epochBytesFromTimestamp(ts)
+		ekey := append(epochPrefix, key...)
+		// fmt.Printf("%d --> %x --> %x\n", ts, epochPrefix, ekey)
 
-	secret := make([]byte, 32)
-	rand.Read(secret)
-	roothash, err := ash.GenerateAsh(secret, chunk.Val)
-	if err != nil {
-		return key, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:storeChunkInDB] Exec %s | encrypted:%s", err.Error(), secret), ErrorCode: 450, ErrorMessage: "Unable to Generate Proper ASH"}
-	}
+		secret := make([]byte, 32)
+		rand.Read(secret)
+		roothash, err := ash.GenerateAsh(secret, chunk.Val)
+		if err != nil {
+			return key, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:storeChunkInDB] Exec %s | encrypted:%s", err.Error(), secret), ErrorCode: 450, ErrorMessage: "Unable to Generate Proper ASH"}
+		}
 
-	chunkAsh := ChunkAsh{Seed: secret, Root: roothash}
-	chunkAsh.Renewal = byte(chunkHeader.AutoRenew) //Renew bool should be passed in here
+		chunkAsh := ChunkAsh{Seed: secret, Root: roothash}
+		chunkAsh.Renewal = byte(chunkHeader.AutoRenew) //Renew bool should be passed in here
 
-	ashdata, err := rlp.EncodeToBytes(chunkAsh)
-	if err != nil {
-		return key, err
-	}
+		ashdata, err := rlp.EncodeToBytes(chunkAsh)
+		if err != nil {
+			return key, err
+		}
 
-	err = self.ldb.Put(ekey, ashdata, nil)
-	if err != nil {
-		return key, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Exec %s | encrypted:%s", err.Error(), encrypted), ErrorCode: 439, ErrorMessage: "Unable to Store Chunk"}
+		err = self.ldb.Put(ekey, ashdata, nil)
+		if err != nil {
+			return key, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Exec %s | encrypted:%s", err.Error(), encrypted), ErrorCode: 439, ErrorMessage: "Unable to Store Chunk"}
+		}
 	}
 
 	return key, nil
