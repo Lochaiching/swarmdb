@@ -16,18 +16,12 @@
 package swarmdb
 
 import (
-	// "bytes"
 	"database/sql"
-	"github.com/ethereum/go-ethereum/crypto"
-	//"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	_ "github.com/mattn/go-sqlite3"
-	// "io/ioutil"
-	// "math/big"
-	// "os"
-	// "time"
 )
 
 type SwapCheck struct {
@@ -54,13 +48,13 @@ type SwapDB struct {
 
 // path = "swap.db"
 func NewSwapDB(path string) (self *SwapDB, err error) {
-	// ts := time.Now()
+	log.Debug("[swapdb|NewSwapDB] Creating New swapdb")
 	db, err := sql.Open("sqlite3", path)
 	if err != nil || db == nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDB] Open %s", err.Error())}
+		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDB] Open %s", err.Error()), ErrorCode: -1, ErrorMessage: ""}
 	}
 
-	//Local Chunk table
+	//Local Swap table
 	sql_table := `
     CREATE TABLE IF NOT EXISTS swap (
     swapID TEXT NOT NULL PRIMARY KEY,
@@ -144,30 +138,6 @@ func (self *SwapDB) Issue(km *KeyManager, u *SWARMDBUser, beneficiary common.Add
 	}
 }
 
-func (self *SwapDB) GenerateSwapLog(u *SWARMDBUser) (err error) {
-
-	sql_readall := `SELECT swapID, sender, beneficiary, amount, sig FROM swap`
-	rows, err := self.db.Query(sql_readall)
-	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Query %s", err.Error())}
-	}
-	defer rows.Close()
-
-	var result []SwapLog
-	for rows.Next() {
-		c := SwapLog{}
-		err = rows.Scan(&c.SwapID, &c.Sender, &c.Beneficiary, &c.Amount, &c.Sig)
-		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Scan %s", err.Error())}
-		}
-
-		l, err2 := json.Marshal(c)
-		if err != nil {
-			return &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Marshal %s", err2.Error())}
-		}
-		fmt.Printf("%s\n", l)
-		result = append(result, c)
-	}
-	rows.Close()
-	return nil
+func (self *SwapDB) GenerateSwapLog(startTS int64, endTS int64) (log []string, err error) {
+	return log, nil
 }

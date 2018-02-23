@@ -59,7 +59,7 @@ type SWARMDBConfig struct {
 	Address    string `json:"address,omitempty"`    // the address that earns, must be in keystore directory
 	PrivateKey string `json:"privateKey,omitempty"` // to access child chain
 
-	ChunkDBPath    string        `json:"chunkDBPath,omitempty"`    // the directory of the SQLite3 chunk databases (SWARMDBCONF_CHUNKDB_PATH)
+	ChunkDBPath    string        `json:"chunkDBPath,omitempty"`    // the directory of the SWARMDB local databases (SWARMDBCONF_CHUNKDB_PATH)
 	KeystorePath   string        `json:"usersKeysPath,omitempty"`  // directory containing the keystore of Ethereum wallets (SWARMDBCONF_KEYSTORE_PATH)
 	Authentication int           `json:"authentication,omitempty"` // 0 - authentication is not required, 1 - required 2 - only users data stored
 	Users          []SWARMDBUser `json:"users,omitempty"`          // array of users with permissions
@@ -111,7 +111,7 @@ func GenerateSampleSWARMDBConfig(privateKey string, address string, passphrase s
 
 func SaveSWARMDBConfig(c SWARMDBConfig, filename string) (err error) {
 	// save file
-	cout, err1 := json.Marshal(c)
+	cout, err1 := json.MarshalIndent(c, "", "\t")
 	if err1 != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[config:SaveSWARMDBConfig] Marshal %s", err1.Error()), ErrorCode: 457, ErrorMessage: "Unable to Save Config File"}
 	} else {
@@ -123,13 +123,14 @@ func SaveSWARMDBConfig(c SWARMDBConfig, filename string) (err error) {
 	return nil
 }
 
-func LoadSWARMDBConfig(filename string) (c SWARMDBConfig, err error) {
+func LoadSWARMDBConfig(filename string) (c *SWARMDBConfig, err error) {
 	// read file
+	c = new(SWARMDBConfig)
 	dat, err := ioutil.ReadFile(filename)
 	if err != nil {
 		return c, &SWARMDBError{message: fmt.Sprintf("[config:LoadSWARMDBConfig] ReadFile %s", err.Error()), ErrorCode: 458, ErrorMessage: "Unable to Load Config File"}
 	}
-	err = json.Unmarshal(dat, &c)
+	err = json.Unmarshal(dat, c)
 	if err != nil {
 		return c, &SWARMDBError{message: fmt.Sprintf("[config:LoadSWARMDBConfig] Unmarshal %s", err.Error()), ErrorCode: 458, ErrorMessage: "Unable to Load Config File"}
 	}
