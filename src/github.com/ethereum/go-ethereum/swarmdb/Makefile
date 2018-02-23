@@ -24,11 +24,8 @@ test:
 	-go test ./query_test.go
 	@echo "test hashdb."
 	-go test ./hashdb_test.go
-	@echo "test netstat."
-	-go test ./netstat_test.go
-	@echo "test swarmdblib"
-	go run ./server/wolkdb.go
-	go test ./swarmdblib_test.go
+	@echo "test netstats."
+	-go test ./netstats_test.go
 
 enssimulation:
 	@echo "test enssimulation."
@@ -59,5 +56,5 @@ hashdb:
 	go test hashdb_test.go
 
 netstat:
-	@echo "test netstat."
-	go test ./netstat_test.go
+	@echo "test netstats."
+	go test ./netstats_test.go
