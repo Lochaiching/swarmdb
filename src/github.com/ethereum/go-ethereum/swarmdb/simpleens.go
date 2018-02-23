@@ -188,22 +188,23 @@ func (self *ENSSimple) StoreRootHash(indexName []byte, roothash []byte) (err err
         elog.Debug(fmt.Sprintf("SimpleENS StoreRootHash self.conn.HeaderByNumber h = %v err = %v", h, err))
 
 	tx, err := self.sens.SetContent(self.auth, i32, r32)
-	elog.Debug(fmt.Sprintf("return store %x %v %x\n", tx.Hash(), err, tx))
 	if err != nil{
         	elog.Debug(fmt.Sprintf("SimpleENS StoreRootHash SetContent err = %v",err))
 		self.StoreRootHashToLDB(indexName, roothash, 1)
-	}
+	}else{
+//TODO: only for debugging
+		elog.Debug(fmt.Sprintf("return store %x %v %x\n", tx.Hash(), err, tx))
 /*
-        h, err = self.conn.HeaderByNumber(ctx, nil)
-        elog.Debug(fmt.Sprintf("SimpleENS StoreRootHash self.conn.HeaderByNumber h = %v err = %v", h,  err))
-        h, err = self.conn.HeaderByHash(ctx, tx.Hash())
-        elog.Debug(fmt.Sprintf("SimpleENS StoreRootHash self.conn.HeaderByHash h = %v err = %v", h, err))
-	if err != nil {
-		elog.Debug(fmt.Sprintf("ENSSimple StoreRootHash error %v", err2))
-		return err // log.Fatalf("Failed to set Content: %v", err2)
-	}
-	fmt.Printf("i32: %x r32: %x tx: %v\n", i32, r32, tx.Hash())
+        	h, err = self.conn.HeaderByNumber(ctx, nil)
+        	elog.Debug(fmt.Sprintf("SimpleENS StoreRootHash self.conn.HeaderByNumber h = %v err = %v", h,  err))
+        	h, err = self.conn.HeaderByHash(ctx, tx.Hash())
+        	elog.Debug(fmt.Sprintf("SimpleENS StoreRootHash self.conn.HeaderByHash h = %v err = %v", h, err))
+		if err != nil {
+			elog.Debug(fmt.Sprintf("ENSSimple StoreRootHash error %v", err2))
+			return err // log.Fatalf("Failed to set Content: %v", err2)
+		}
 */
+	}
 
 	elog.Debug(fmt.Sprintf("out ENSSimple StoreRootHash %x roothash %x", indexName, roothash))
 	return nil
