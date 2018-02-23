@@ -16,22 +16,24 @@
 package swarmdb
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"github.com/cznic/mathutil"
+	"github.com/ethereum/go-ethereum/log"
 	"math"
 	"reflect"
 	"strconv"
 )
 
 const (
-	CHUNK_SIZE = 4096
+	CHUNK_SIZE    = 4096
 	VERSION_MAJOR = 0
 	VERSION_MINOR = 1
 	VERSION_PATCH = 1
-	VERSION_META = "poc"
+	VERSION_META  = "poc"
 )
 
 var SWARMDBVersion = func() string {
@@ -69,6 +71,53 @@ func isDuplicateRow(row1 Row, row2 Row) bool {
 	}
 
 	return true
+}
+
+type ChunkHeader struct {
+	MsgHash        []byte
+	Sig            []byte
+	Payer          []byte
+	NodeType       []byte
+	MinReplication int
+	MaxReplication int
+	Birthts        int
+	LastUpdatets   int
+	Encrypted      int
+	Version        int
+	AutoRenew      int
+	Key            []byte
+	Owner          []byte
+	Database       []byte
+	Table          []byte
+	//Epochts       []byte -- Do we need this in our Chunk?
+	//Trailing Bytes
+}
+
+func ParseChunkHeader(chunk []byte) (ch ChunkHeader, err error) {
+	/*
+		if len(bytes.Trim(chunk, "\x00")) != CHUNK_SIZE {
+			return ch, &SWARMDBError{ message: fmt.Sprintf("[types:ParseChunkHeader]"), ErrorCode: 480, ErrorMessage: fmt.Sprintf("Chunk of invalid size.  Expecting %d bytes, chunk is %d bytes", CHUNK_SIZE, len(chunk)) }
+		}
+	*/
+	//fmt.Printf("Chunk is of size: %d and looking at %d to %d\n", len(chunk), CHUNK_START_MINREP, CHUNK_END_MINREP)
+	log.Debug(fmt.Sprintf("Chunk is of size: %d and looking at %d to %d", CHUNK_SIZE, CHUNK_START_MINREP, CHUNK_END_MINREP))
+	ch.MsgHash = chunk[CHUNK_START_MSGHASH:CHUNK_END_MSGHASH]
+	ch.Sig = chunk[CHUNK_START_SIG:CHUNK_END_SIG]
+	ch.Payer = chunk[CHUNK_START_PAYER:CHUNK_END_PAYER]
+	ch.NodeType = chunk[CHUNK_START_NODETYPE:CHUNK_END_NODETYPE]
+	ch.MinReplication = int(BytesToInt(chunk[CHUNK_START_MINREP:CHUNK_END_MINREP]))
+	ch.MaxReplication = int(BytesToInt(chunk[CHUNK_START_MAXREP:CHUNK_END_MAXREP]))
+	ch.Birthts = int(BytesToInt(chunk[CHUNK_START_BIRTHTS:CHUNK_END_BIRTHTS]))
+	ch.LastUpdatets = int(BytesToInt(chunk[CHUNK_START_LASTUPDATETS:CHUNK_END_LASTUPDATETS]))
+	ch.Encrypted = int(BytesToInt(chunk[CHUNK_START_ENCRYPTED:CHUNK_END_ENCRYPTED]))
+	ch.Version = int(BytesToInt(chunk[CHUNK_START_VERSION:CHUNK_END_VERSION]))
+	ch.AutoRenew = int(BytesToInt(chunk[CHUNK_START_RENEW:CHUNK_END_RENEW]))
+	ch.Key = chunk[CHUNK_START_KEY:CHUNK_END_KEY]
+	ch.Owner = chunk[CHUNK_START_OWNER:CHUNK_END_OWNER]
+	ch.Database = chunk[CHUNK_START_DB:CHUNK_END_DB]
+	ch.Table = chunk[CHUNK_START_TABLE:CHUNK_END_TABLE]
+	//ch.Epochts = chunk[CHUNK_START_EPOCHTS:CHUNK_END_EPOCHTS])
+	return ch, err
 }
 
 //gets data (Row) out of a slice of Rows, and rtns as one json.
@@ -313,11 +362,17 @@ func BytesToFloat(b []byte) (f float64) {
 }
 
 func BytesToInt64(b []byte) (i int64) {
+	if len(bytes.Trim(b, "\x00")) == 0 {
+		return 0
+	}
 	i = int64(binary.BigEndian.Uint64(b))
 	return i
 }
 
 func BytesToInt(b []byte) (i int) {
+	if len(bytes.Trim(b, "\x00")) == 0 {
+		return 0
+	}
 	i = int(binary.BigEndian.Uint64(b))
 	return i
 }

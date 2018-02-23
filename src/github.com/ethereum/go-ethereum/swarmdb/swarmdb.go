@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"path/filepath"
 	"strings"
+	"swarmdb/ash"
 )
 
 const (
@@ -96,6 +97,8 @@ type SwarmDB struct {
 	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
+	swapdb       *SwapDB
+	netstats     *Netstats
 }
 
 //for sql parsing
@@ -122,7 +125,6 @@ type Where struct {
 type DBChunkstorage interface {
 	RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error)
 	StoreDBChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error)
-	PrintDBChunk(columnType ColumnType, hashid []byte, c []byte)
 }
 
 type Database interface {
@@ -216,48 +218,122 @@ const (
 	DATABASES_PER_USER_MAX   = 30
 	COLUMNS_PER_TABLE_MAX    = 30
 
-	KNODE_START_ENCRYPTION = 320
-	KNODE_START_CHUNKKEY   = 96
-	KNODE_END_CHUNKKEY     = 128
+	CHUNK_START_SIG          = 0
+	CHUNK_END_SIG            = 65
+	CHUNK_START_MSGHASH      = 65
+	CHUNK_END_MSGHASH        = 97
+	CHUNK_START_PAYER        = 97
+	CHUNK_END_PAYER          = 129
+	CHUNK_START_NODETYPE     = 129
+	CHUNK_END_NODETYPE       = 130
+	CHUNK_START_MINREP       = 130
+	CHUNK_END_MINREP         = 131
+	CHUNK_START_MAXREP       = 131
+	CHUNK_END_MAXREP         = 132
+	CHUNK_START_BIRTHTS      = 132
+	CHUNK_END_BIRTHTS        = 140
+	CHUNK_START_LASTUPDATETS = 140
+	CHUNK_END_LASTUPDATETS   = 148
+	CHUNK_START_ENCRYPTED    = 148
+	CHUNK_END_ENCRYPTED      = 149
+	CHUNK_START_VERSION      = 149
+	CHUNK_END_VERSION        = 157
+	CHUNK_START_RENEW        = 157
+	CHUNK_END_RENEW          = 158
+	CHUNK_START_KEY          = 158
+	CHUNK_END_KEY            = 190
+	CHUNK_START_OWNER        = 190
+	CHUNK_END_OWNER          = 222
+	CHUNK_START_DB           = 222
+	CHUNK_END_DB             = 254
+	CHUNK_START_TABLE        = 254
+	CHUNK_END_TABLE          = 286
+	//CHUNK_START_EPOCHTS      = 254
+	//CHUNK_END_EPOCHTS        = 286
+	CHUNK_START_ITERATOR = 416
+	CHUNK_END_ITERATOR   = 512
+	CHUNK_START_CHUNKVAL = 512
+	CHUNK_END_CHUNKVAL   = 4096
 )
 
-func NewSwarmDB(ensPath string, chunkDBPath string) (swdb *SwarmDB, err error) {
+func NewSwarmDB(config *SWARMDBConfig) (swdb *SwarmDB, err error) {
 	sd := new(SwarmDB)
 	sd.tables = make(map[string]*Table)
-	chunkdbFileName := "chunk.db"
-	dbChunkStoreFullPath := filepath.Join(chunkDBPath, chunkdbFileName)
-	dbchunkstore, err := NewDBChunkStore(dbChunkStoreFullPath)
+
+	netstats := NewNetstats(config)
+	sd.netstats = netstats
+
+	dbchunkstore, err := NewDBChunkStore(config, netstats)
 	if err != nil {
 		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewDBChunkStore `+err.Error())
 	} else {
 		sd.dbchunkstore = dbchunkstore
 	}
 
-	//default /tmp/ens.db
+	// default /tmp/ens.db
 	ensdbFileName := "ens.db"
-	ensdbFullPath := filepath.Join(ensPath, ensdbFileName)
+	ensdbFullPath := filepath.Join(config.ChunkDBPath, ensdbFileName)
 	ens, errENS := NewENSSimulation(ensdbFullPath)
 	if errENS != nil {
 		return swdb, GenerateSWARMDBError(errENS, `[swarmdb:NewSwarmDB] NewENSSimulation `+errENS.Error())
-	} else {
-		sd.ens = ens
 	}
+	sd.ens = ens
+
+	swapDBFileName := "swap.db"
+	swapDBFullPath := filepath.Join(config.ChunkDBPath, swapDBFileName)
+	swapdbObj, errSwapDB := NewSwapDB(swapDBFullPath)
+	if errSwapDB != nil {
+		return swdb, GenerateSWARMDBError(errSwapDB, `[swarmdb:NewSwarmDB] NewSwapDB `+swapDBFullPath+`|`+errSwapDB.Error())
+	}
+	sd.swapdb = swapdbObj
 
 	return sd, nil
 }
 
 // DBChunkStore  API
-func (self *SwarmDB) PrintDBChunk(columnType ColumnType, hashid []byte, c []byte) {
-	self.dbchunkstore.PrintDBChunk(columnType, hashid, c)
+
+func (self *SwarmDB) GenerateSwapLog(startts int64, endts int64) (log []string, err error) {
+	log, err = self.swapdb.GenerateSwapLog(startts, endts)
+	if err != nil {
+		return log, GenerateSWARMDBError(err, "Unable to GenerateSwapLog")
+	}
+	return log, nil
+}
+
+func (self *SwarmDB) GenerateBuyerLog(startts int64, endts int64) (log []string, err error) {
+	log, err = self.dbchunkstore.GenerateBuyerLog(startts, endts)
+	if err != nil {
+		return log, GenerateSWARMDBError(err, "Unable to GenerateBuyerLog")
+	}
+	return log, nil
+}
+
+func (self *SwarmDB) GenerateFarmerLog(startts int64, endts int64) (log []string, err error) {
+	log, err = self.dbchunkstore.GenerateFarmerLog(startts, endts)
+	if err != nil {
+		return log, GenerateSWARMDBError(err, "Unable to GenerateFarmerLog")
+	}
+	return log, nil
+}
+
+func (self *SwarmDB) GenerateAshResponse(chunkId []byte, seed []byte, proofRequired bool, index int8) (resp ash.AshResponse, err error) {
+	resp, err = self.dbchunkstore.RetrieveAsh(chunkId, seed, proofRequired, index)
+	// output, _ := json.Marshal(res)	fmt.Printf("%s\n", string(output))
+	if err != nil {
+		return resp, GenerateSWARMDBError(err, "Unable to Retrieve Ash")
+	}
+	return resp, nil
 }
 
 func (self *SwarmDB) RetrieveDBChunk(u *SWARMDBUser, key []byte) (val []byte, err error) {
 	val, err = self.dbchunkstore.RetrieveChunk(u, key)
+	//TODO: SWARMDBError
 	return val, err
 }
 
 func (self *SwarmDB) StoreDBChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
 	key, err = self.dbchunkstore.StoreChunk(u, val, encrypted)
+	//TODO: SWARMDBError
 	return key, err
 }
 
@@ -324,6 +400,9 @@ func (self *SwarmDB) QueryInsert(u *SWARMDBUser, query *QueryOption) (affectedRo
 			return affectedRows, &SWARMDBError{message: fmt.Sprintf("[swarmdb:QueryInsert] Insert row %+v needs primary column '%s' value", row, table.primaryColumnName), ErrorCode: 446, ErrorMessage: fmt.Sprintf("Insert Query Missing Primary Key [%]", table.primaryColumnName)}
 		}
 		// check if Row already exists
+		if _, ok := table.columns[table.primaryColumnName]; !ok {
+			return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] table.columns check - %s", err.Error()))
+		}
 		convertedKey, err := convertJSONValueToKey(table.columns[table.primaryColumnName].columnType, row[table.primaryColumnName])
 		if err != nil {
 			return affectedRows, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:QueryInsert] convertJSONValueToKey - %s", err.Error()))
@@ -497,10 +576,9 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, owner string, database string, tab
 		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetTable] tablename missing "), ErrorCode: 426, ErrorMessage: "Table Name Missing"}
 	}
 	tblKey := self.GetTableKey(owner, database, tableName)
-	// fmt.Printf("\nGetting Table [%s] with the Owner [%s] from TABLES [%v]", tableName, owner, self.tables)
+	log.Debug(fmt.Sprintf("Getting Table [%s] with the Owner [%s] from TABLES [%v]", tableName, owner, self.tables))
 	if tbl, ok := self.tables[tblKey]; ok {
 		log.Debug(fmt.Sprintf("Table[%v] with Owner [%s] Database %s found in tables, it is: %+v\n", tblKey, owner, database, tbl))
-		// fmt.Printf("\nprimary column name GetTable: %+v -> columns: %+v\n", tbl.columns, tbl.primaryColumnName)
 		return tbl, nil
 	} else {
 		tbl = self.NewTable(owner, database, tableName)
@@ -595,6 +673,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeTable %s", err.Error()))
 		}
+		if len(tblcols) == 0 {
+			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Table [%s] not found", d.Table), ErrorCode: 482, ErrorMessage: fmt.Sprintf("Cannot Describe Table [%s] as it was not found", d.Table)}
+		}
 		for _, colInfo := range tblcols {
 			r := NewRow()
 			r["ColumnName"] = colInfo.ColumnName
@@ -641,6 +722,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			}
 			// check to see if row already exists in table (no overwriting, TODO: check if that is right??)
 			/* TODO: we want to have PUT blindly update.  INSERT will fail on duplicate and need to confirm what to do if multiple rows attempted to be inserted and just some are dupes
+			if _, ok := tbl.columns[tbl.primaryColumnName]; !ok {
+				return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Put row %+v has unknown column %s", row, columnName), ErrorCode: 429, ErrorMessage: fmt.Sprintf("Row contains unknown column [%s]", columnName)}
+			}
 			primaryColumnType := tbl.columns[tbl.primaryColumnName].columnType
 			convertedKey, err := convertJSONValueToKey(primaryColumnType, row[tbl.primaryColumnName])
 			if err != nil {
@@ -677,6 +761,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		}
 		if isNil(d.Key) {
 			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Get - Missing Key"), ErrorCode: 433, ErrorMessage: "GET Request Missing Key"}
+		}
+		if _, ok := tbl.columns[tbl.primaryColumnName]; !ok {
+			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Get - Primary Key Not found in Column Definition"), ErrorCode: 479, ErrorMessage: "Table Definition Missing Primary Key"}
 		}
 		primaryColumnType := tbl.columns[tbl.primaryColumnName].columnType
 		convertedKey, err := convertJSONValueToKey(primaryColumnType, d.Key)
@@ -779,6 +866,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 			//checking if the query is just a primary key Get
 			if query.Where.Left == tbl.primaryColumnName && query.Where.Operator == "=" {
 				// fmt.Printf("Calling Get from Query\n")
+				if _, ok := tbl.columns[tbl.primaryColumnName]; !ok {
+					return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Query col [%s] does not exist in table", tbl.primaryColumnName), ErrorCode: 432, ErrorMessage: fmt.Sprintf("Primary key [%s] not defined in table", tbl.primaryColumnName)}
+				}
 				convertedKey, err := convertJSONValueToKey(tbl.columns[tbl.primaryColumnName].columnType, query.Where.Right)
 				if err != nil {
 					return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] convertJSONValueToKey %s", err.Error()))
@@ -839,6 +929,12 @@ func (self *SwarmDB) RegisterTable(owner string, database string, tableName stri
 	// register the Table in SwarmDB
 	tblKey := self.GetTableKey(owner, database, tableName)
 	self.tables[tblKey] = t
+}
+
+func (self *SwarmDB) UnregisterTable(owner string, database string, tableName string) {
+	// register the Table in SwarmDB
+	tblKey := self.GetTableKey(owner, database, tableName)
+	delete(self.tables, tblKey)
 }
 
 // creating a database results in a new entry, e.g. "videos" in the owners ENS e.g. "wolktoken.eth" stored in a single chunk
@@ -983,7 +1079,7 @@ func (self *SwarmDB) DropDatabase(u *SWARMDBUser, owner string, database string)
 
 	buf := make([]byte, CHUNK_SIZE)
 	if EmptyBytes(ownerDatabaseChunkID) {
-		return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] No database %s", err)}
+		return false, nil // No error returned.  Just 'nil' it.  &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] No database %s", err)}
 	} else {
 		buf, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
 		if err != nil {
@@ -1016,6 +1112,7 @@ func (self *SwarmDB) DropDatabase(u *SWARMDBUser, owner string, database string)
 }
 
 func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, tableName string) (ok bool, err error) {
+	log.Debug(fmt.Sprintf("Attempting to Drop table [%s]", tableName))
 	if len(tableName) > TABLE_NAME_LENGTH_MAX {
 		return false, &SWARMDBError{message: "[swarmdb:DropTable] Tablename length", ErrorCode: 500, ErrorMessage: "Table Name too long (max is 32 chars)"}
 	}
@@ -1049,6 +1146,7 @@ func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, ta
 		}
 
 		// check for the database entry
+		foundTable := false
 		for i := 64; i < CHUNK_SIZE; i += 64 {
 			if bytes.Compare(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], dbName) == 0 {
 				// found it - read the encryption level
@@ -1070,33 +1168,48 @@ func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, ta
 				// nuke the table name in bufDB and write the updated bufDB
 				for j := 64; j < CHUNK_SIZE; j += 64 {
 					if bytes.Compare(bufDB[j:(j+TABLE_NAME_LENGTH_MAX)], dropTableName) == 0 {
+						foundTable = true
+						log.Debug(fmt.Sprintf("Found Table: %s - Attempting to delete from DB Chunk"))
 						blankN := make([]byte, TABLE_NAME_LENGTH_MAX)
 						copy(bufDB[j:(j+TABLE_NAME_LENGTH_MAX)], blankN[0:TABLE_NAME_LENGTH_MAX])
 						databaseHash, err := self.StoreDBChunk(u, bufDB, encrypted)
+						log.Debug(fmt.Sprintf("Update DB Chunk after blanking out [%s]", dropTableName))
 						if err != nil {
 							return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] StoreDBChunk %s", err)}
 						}
 						// update the database hash in the owner's databases
 						copy(buf[(i+32):(i+64)], databaseHash[0:32])
 						ownerDatabaseChunkID, err = self.StoreDBChunk(u, buf, 0) // TODO: review
+						log.Debug(fmt.Sprintf("Updating Owner Chunk with new DB hash of [%s]", buf[(i+32):(i+64)]))
 						if err != nil {
 							return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] StoreDBChunk %s", err)}
 						}
 
+						log.Debug(fmt.Sprintf("Storing new OwnerDatabaseChunkID of [%s]", ownerDatabaseChunkID))
 						err = self.StoreRootHash(u, ownerHash, ownerDatabaseChunkID)
 						if err != nil {
 							return false, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:DropTable] StoreRootHash %s", err.Error()))
 						}
-						return true, nil
+						break
 					}
 				}
-				return false, nil
-
 			}
 		}
+		if !foundTable {
+			return false, nil
+		}
+		//Drop Table from ENS hash as well as db columns
+		tblKey := self.GetTableKey(owner, database, tableName)
+		emptyRootHash := make([]byte, 64)
+		err = self.StoreRootHash(u, []byte(tblKey), emptyRootHash)
+		//TODO: Empty out column info?
+		if err != nil {
+			return false, GenerateSWARMDBError(err, fmt.Sprintf("[table:OpenTable] GetRootHash for table [%s]: %v", tblKey, err))
+		}
+		self.UnregisterTable(owner, database, tableName)
+		return true, nil
 	}
 	return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] Database could not be found")}
-
 }
 
 func (self *SwarmDB) ListTables(u *SWARMDBUser, owner string, database string) (tableNames []Row, err error) {
@@ -1247,7 +1360,6 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 		}
 		if !found {
 			return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetDatabase] Database could not be found"), ErrorCode: 443, ErrorMessage: "Database Specified Not Found"}
-			//TODO: ErrorCode/Msg
 		}
 	}
 
@@ -1279,8 +1391,6 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 				if err != nil {
 					return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreRootHash %s", err.Error()))
 				}
-				debugbufDB, _ := self.RetrieveDBChunk(u, newdatabaseHash)
-				log.Debug(fmt.Sprintf("debugbufDB[%d:%d] => [%s] using [%x]", i, i+32, debugbufDB[i:(i+32)], newdatabaseHash))
 				found = true
 				break //TODO: This ok?
 			}

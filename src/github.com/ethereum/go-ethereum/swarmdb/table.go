@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"io"
 	"strconv"
+	"time"
 )
 
 type Table struct {
@@ -51,6 +52,10 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 	/// get Table RootHash to  retrieve the table descriptor
 	tblKey := t.swarmdb.GetTableKey(t.Owner, t.Database, t.tableName)
 	roothash, err := t.swarmdb.GetRootHash(u, []byte(tblKey))
+	if len(bytes.Trim(roothash, "\x00")) == 0 {
+		return &SWARMDBError{message: fmt.Sprintf("Attempting to Open Table with roothash of [%v]", roothash), ErrorCode: 481, ErrorMessage: fmt.Sprintf("Table [%s] has an empty roothash", t.tableName)}
+	}
+
 	log.Debug(fmt.Sprintf("[table:OpenTable] opening table @ %s roothash [%x]\n", t.tableName, roothash))
 
 	if err != nil {
@@ -90,13 +95,13 @@ func (t *Table) OpenTable(u *SWARMDBUser) (err error) {
 		// fmt.Printf("\n columnName: %s (%d) roothash: %x (secondary: %v) columnType: %d", columninfo.columnName, columninfo.primary, columninfo.roothash, secondary, columninfo.columnType)
 		switch columninfo.indexType {
 		case IT_BPLUSTREE:
-			bplustree, err := NewBPlusTreeDB(u, *t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType), t.encrypted)
+			bplustree, err := NewBPlusTreeDB(u, t.swarmdb, columninfo.roothash, ColumnType(columninfo.columnType), secondary, ColumnType(primaryColumnType), t.encrypted)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:OpenTable] NewBPlusTreeDB %s", err.Error()))
 			}
 			columninfo.dbaccess = bplustree
 		case IT_HASHTREE:
-			columninfo.dbaccess, err = NewHashDB(u, columninfo.roothash, *t.swarmdb, ColumnType(columninfo.columnType), t.encrypted)
+			columninfo.dbaccess, err = NewHashDB(u, columninfo.roothash, t.swarmdb, ColumnType(columninfo.columnType), t.encrypted)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:OpenTable] NewHashDB %s", err.Error()))
 			}
@@ -121,8 +126,11 @@ func (t *Table) getPrimaryColumn() (c *ColumnInfo, err error) {
 }
 
 func (t *Table) getColumn(columnName string) (c *ColumnInfo, err error) {
+	if _, ok := t.columns[columnName]; !ok {
+		return c, &SWARMDBError{message: fmt.Sprintf("[table:getColumn] columns array missing %s ", columnName), ErrorCode: 479, ErrorMessage: "Table Definition Missing Selected Column"}
+	}
 	if t.columns[columnName] == nil {
-		return c, &NoColumnError{tableName: t.tableName, tableOwner: t.Owner, columnName: columnName}
+		return c, &SWARMDBError{message: fmt.Sprintf("[table:getColumn] columns array missing %s ", columnName), ErrorCode: 479, ErrorMessage: "Table Definition Missing Selected Column"}
 	}
 	return t.columns[columnName], nil
 }
@@ -184,32 +192,35 @@ func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 	return row, nil
 }
 
-func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte) (mergedBodycontent []byte, err error) {
+func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte, birthts int, version int) (mergedBodycontent []byte, err error) {
 	contentPrefix := BuildSwarmdbPrefix([]byte(self.Owner), []byte(self.Database), []byte(self.tableName), key)
 	log.Debug(fmt.Sprintf("[table:buildSdata] contentPrefix is: %s", contentPrefix))
 
 	var metadataBody []byte
-	metadataBody = make([]byte, 286)
+	metadataBody = make([]byte, CHUNK_START_CHUNKVAL)
 	//TODO: Use Constants
-	copy(metadataBody[0:32], []byte(self.Owner))
-	copy(metadataBody[32:64], []byte(self.Database))
-	copy(metadataBody[64:96], []byte(self.tableName))
-	copy(metadataBody[KNODE_START_CHUNKKEY:KNODE_END_CHUNKKEY], contentPrefix)
-	copy(metadataBody[128:160], self.Owner)  //TODO: Chunk needs to use Address of Owner instead of owner
-	copy(metadataBody[160:161], []byte("K")) //TODO: Define nodeType representation -- self.nodeType)
-	copy(metadataBody[161:162], IntToByte(u.AutoRenew))
-	copy(metadataBody[162:163], IntToByte(u.MinReplication))
-	copy(metadataBody[163:164], IntToByte(u.MaxReplication))
-	copy(metadataBody[164:165], IntToByte(self.encrypted))
-	//TODO: Reserved for birthTimestamp -- copy(metadataBody[165:173], IntToByte(birthtimestamp))
-	//TODO: lastupdate timestamp -- copy(metadataBody[173:181], IntToByte(lastupdttimestamp))
-	//TODO: Version -- copy(metadataBody[181:189], IntToByte(version))
+	copy(metadataBody[CHUNK_START_OWNER:CHUNK_END_OWNER], []byte(self.Owner))
+	copy(metadataBody[CHUNK_START_DB:CHUNK_END_DB], []byte(self.Database))
+	copy(metadataBody[CHUNK_START_TABLE:CHUNK_END_TABLE], []byte(self.tableName))
+	copy(metadataBody[CHUNK_START_KEY:CHUNK_END_KEY], contentPrefix)
+	copy(metadataBody[CHUNK_START_PAYER:CHUNK_END_PAYER], u.Address)
+	copy(metadataBody[CHUNK_START_NODETYPE:CHUNK_END_NODETYPE], []byte("K")) //TODO: Define nodeType representation -- self.nodeType)
+	copy(metadataBody[CHUNK_START_RENEW:CHUNK_END_RENEW], IntToByte(u.AutoRenew))
+	copy(metadataBody[CHUNK_START_MINREP:CHUNK_END_MINREP], IntToByte(u.MinReplication))
+	copy(metadataBody[CHUNK_START_MAXREP:CHUNK_END_MAXREP], IntToByte(u.MaxReplication))
+	copy(metadataBody[CHUNK_START_ENCRYPTED:CHUNK_END_ENCRYPTED], IntToByte(self.encrypted))
+	copy(metadataBody[CHUNK_START_BIRTHTS:CHUNK_END_BIRTHTS], IntToByte(birthts))
 
-	unencryptedMetadata := metadataBody[0:189]
+	lastupdatets := int(time.Now().Unix())
+	copy(metadataBody[CHUNK_START_LASTUPDATETS:CHUNK_END_LASTUPDATETS], IntToByte(lastupdatets))
+
+	copy(metadataBody[CHUNK_START_VERSION:CHUNK_END_VERSION], IntToByte(version))
+
+	unencryptedMetadata := metadataBody[CHUNK_END_MSGHASH:CHUNK_START_CHUNKVAL]
 	msg_hash := SignHash(unencryptedMetadata)
 
 	//TODO: msg_hash --
-	copy(metadataBody[189:221], msg_hash)
+	copy(metadataBody[CHUNK_START_MSGHASH:CHUNK_END_MSGHASH], msg_hash)
 
 	km := self.swarmdb.dbchunkstore.GetKeyManager()
 	sdataSig, errSign := km.SignMessage(msg_hash)
@@ -218,12 +229,12 @@ func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte) (mergedB
 	}
 
 	//TODO: Sig -- document this
-	copy(metadataBody[221:286], sdataSig)
+	copy(metadataBody[CHUNK_START_SIG:CHUNK_END_SIG], sdataSig)
 	log.Debug(fmt.Sprintf("Metadata is [%+v]", metadataBody))
 
 	mergedBodycontent = make([]byte, CHUNK_SIZE)
 	copy(mergedBodycontent[:], metadataBody)
-	copy(mergedBodycontent[KNODE_START_ENCRYPTION:], value) // expected to be the encrypted body content
+	copy(mergedBodycontent[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL], value) // expected to be the encrypted body content
 
 	log.Debug(fmt.Sprintf("Merged Body Content: [%v]", mergedBodycontent))
 	return mergedBodycontent, err
@@ -255,13 +266,9 @@ func BuildSwarmdbPrefix(owner []byte, database []byte, table []byte, id []byte) 
 
 func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error) {
 	primaryColumnName := t.primaryColumnName
-	if t.columns[primaryColumnName] == nil {
-		return nil, false, &NoColumnError{tableName: t.tableName, tableOwner: t.Owner}
+	if _, ok := t.columns[primaryColumnName]; !ok {
+		return out, false, &SWARMDBError{message: fmt.Sprintf("[table:Get] columns array missing %s ", primaryColumnName), ErrorCode: 479, ErrorMessage: fmt.Sprintf("Table Definition Missing Selected Column [%s]", primaryColumnName)}
 	}
-	//t.swarmdb.kaddb.Open([]byte(t.Owner), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
-	// fmt.Printf("\n GET key: (%s)%v\n", key, key)
-
-	log.Debug("About to Get from DB")
 	_, ok, err = t.columns[primaryColumnName].dbaccess.Get(u, key)
 	if err != nil {
 		log.Debug(fmt.Sprintf("[table:Get] dbaccess.Get %s", err.Error()))
@@ -270,10 +277,8 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error)
 	if !ok {
 		return out, false, nil
 	}
-	log.Debug("About to Generate Key")
-
 	chunkKey := t.GenerateKChunkKey(key)
-	log.Debug(fmt.Sprintf("ChunkKey generated is: %s", chunkKey))
+	log.Debug(fmt.Sprintf("[table:Get] ChunkKey generated is: %s", chunkKey))
 	contentReader, err := t.swarmdb.dbchunkstore.RetrieveKChunk(u, chunkKey)
 	if bytes.Trim(contentReader, "\x00") == nil {
 		log.Debug(fmt.Sprintf("RETURNING NIL CHUNK [%s]", out))
@@ -288,6 +293,9 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error)
 }
 
 func (t *Table) Delete(u *SWARMDBUser, key interface{}) (ok bool, err error) {
+	if _, ok := t.columns[t.primaryColumnName]; !ok {
+		return false, &SWARMDBError{message: fmt.Sprintf("[table:Get] columns array missing %s ", t.primaryColumnName), ErrorCode: 479, ErrorMessage: fmt.Sprintf("Table Definition Missing Selected Column [%s]", t.primaryColumnName)}
+	}
 	k, err := convertJSONValueToKey(t.columns[t.primaryColumnName].columnType, key)
 	if err != nil {
 		return ok, GenerateSWARMDBError(err, fmt.Sprintf("[table:Delete] convertJSONValueToKey %s", err.Error()))
@@ -393,6 +401,7 @@ func (t *Table) DescribeTable() (tblInfo map[string]Column, err error) {
 		tblInfo[cname] = cinfo
 	}
 	log.Debug(fmt.Sprintf("Returning from DescribeTable with table [%+v] \n", tblInfo))
+	//TODO: Handle "EMPTY" tables
 	return tblInfo, nil
 }
 
@@ -468,7 +477,6 @@ func (t *Table) Scan(u *SWARMDBUser, columnName string, ascending int) (rows []R
 }
 
 func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
-
 	rawvalue, err := json.Marshal(row)
 	if err != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[table:Put] Marshal %s", err.Error()), ErrorCode: 435, ErrorMessage: "Invalid Row Data"}
@@ -479,7 +487,6 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 	for _, c := range t.columns {
 		//fmt.Printf("\nProcessing a column %s and primary is %d", c.columnName, c.primary)
 		if c.primary > 0 {
-
 			pvalue, ok := row[t.primaryColumnName]
 			if !ok {
 				return &SWARMDBError{message: fmt.Sprintf("[table:Put] Primary key %s not specified in input", t.primaryColumnName), ErrorCode: 428, ErrorMessage: "Row missing primary key"}
@@ -488,29 +495,36 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] convertJSONValueToKey %s", err.Error()))
 			}
-
-			//t.swarmdb.kaddb.Open([]byte(t.Owner), []byte(t.tableName), []byte(t.primaryColumnName), t.encrypted)
-			/*
-				khash, err := t.swarmdb.kaddb.Put(u, k, []byte(rawvalue)) // TODO: use u (sk) in kaddb
+			rawChunkBytes, err := t.swarmdb.dbchunkstore.RetrieveRawChunk(k)
+			if err != nil {
+				return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] RetrieveRawChunk - Error Retrieving Data checking if [%s] exists %s", k, err.Error()))
+			}
+			var birthts int
+			var version int
+			if len(bytes.Trim(rawChunkBytes, "\x00")) == 0 {
+				birthts = int(time.Now().Unix())
+				version = 0
+			} else {
+				//TODO: retrieve birthdt and version from chunk
+				chunkHeader, err := ParseChunkHeader(rawChunkBytes)
 				if err != nil {
-					return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] kaddb.Put %s", err.Error()))
+					return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] Unable to parse Chunk Header"))
 				}
-			*/
+				birthts = chunkHeader.Birthts
+				version = chunkHeader.Version + 1
+			}
 			v := []byte(rawvalue)
-			sdata, errS := t.buildSdata(u, k, v)
+			sdata, errS := t.buildSdata(u, k, v, birthts, version)
 			if errS != nil {
 				return GenerateSWARMDBError(err, `[kademliadb:Put] buildSdata `+errS.Error())
 			}
 
-			hashVal := sdata[KNODE_START_CHUNKKEY:KNODE_END_CHUNKKEY] // 32 bytes
-			log.Debug(fmt.Sprintf("Kademlia Encrypted Bit: %d", t.encrypted))
+			hashVal := sdata[CHUNK_START_KEY:CHUNK_END_KEY] // 32 bytes
 			errStore := t.swarmdb.dbchunkstore.StoreKChunk(u, hashVal, sdata, t.encrypted)
 			if errStore != nil {
 				return GenerateSWARMDBError(err, `[table:Put] StoreKChunk `+errStore.Error())
 			}
-
-			// fmt.Printf(" - primary  %s | %x\n", c.columnName, k)
-			_, err = t.columns[c.columnName].dbaccess.Put(u, k, hashVal)
+			_, err = c.dbaccess.Put(u, k, hashVal)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] dbaccess.Put %s", err.Error()))
 			}
@@ -527,12 +541,10 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 				return GenerateSWARMDBError(errPvalue, fmt.Sprintf("[table:Put] convertJSONValueToKey %s", errPvalue.Error()))
 			}
 
-			// fmt.Printf(" - secondary %s %x | %x\n", c.columnName, k2, k)
-			_, err = t.columns[c.columnName].dbaccess.Put(u, k2, k)
+			_, err = c.dbaccess.Put(u, k2, k)
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[table:Put] dbaccess.Put %s", err.Error()))
 			}
-			//t.columns[c.columnName].dbaccess.Print()
 		}
 	}
 
@@ -618,6 +630,9 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (outRows []Row, err error
 			//TODO: confirm we're not letting columns in the WHERE clause that don't exist in the table get this far
 			//return outRows, &SWARMDBError{message:"Where clause col %s doesn't exist in table", ErrorCode:, ErrorMessage:""}
 		}
+		if _, ok := t.columns[where.Left]; !ok {
+			return outRows, &SWARMDBError{message: fmt.Sprintf("[table:applyWhere] Invalid column %s", where.Left), ErrorCode: 404, ErrorMessage: fmt.Sprintf("Column Does Not Exist in table definition: [%s]", where.Left)}
+		}
 		colType := t.columns[where.Left].columnType
 		right, err := stringToColumnType(where.Right, colType)
 		//TODO: Should we be checking that the type of where.Right matches the colType?
@@ -675,19 +690,14 @@ func (t *Table) applyWhere(rawRows []Row, where Where) (outRows []Row, err error
 		case ">":
 			switch colType {
 			case CT_INTEGER:
-				log.Debug("FOUND INTEGER")
 				if row[where.Left].(int) > right.(int) {
 					fRow = row
-				} else {
-					log.Debug("[]BAD NEWS!")
 				}
 			case CT_FLOAT:
-				log.Debug("FOUND FLOAT")
 				if row[where.Left].(float64) > right.(float64) {
 					fRow = row
 				}
 			case CT_STRING:
-				log.Debug("FOUND STRING")
 				if row[where.Left].(string) > right.(string) {
 					fRow = row
 				}
