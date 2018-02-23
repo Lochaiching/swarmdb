@@ -29,6 +29,13 @@ https://www.docker.com/community-edition#/download
 
 # Getting SwarmDB Docker
 
+### Before downloading the docker image, please install Python27 or higher on your system:
+  - https://www.python.org/downloads/release/python-latest
+
+### Once installed, verify the python version:
+      $ python -V
+      Python 2.7.10
+
 ### Download the docker image:
 
       $ sudo docker pull wolkinc/swarmdb
@@ -139,5 +146,5 @@ You can add new items in the `users` array and make sure to restart swarmDB afte
       
 
 #  Interfaces
-See our [Wiki](https://github.com/wolktoken/swarm.wolk.com/wiki) & [DOCS](https://docs.wolk.com/) for [Node.js](https://docs.wolk.com/?javascript#), [Go](https://docs.wolk.com/?go#), [Http](https://docs.wolk.com/?plaintext#), and [Command Line Interface](https://docs.wolk.com/?javascript#),
+See our [Wiki](https://github.com/wolkdb/swarmdb/wiki) & [DOCS](https://docs.wolk.com/) for [Node.js](https://docs.wolk.com/?javascript#), [Go](https://docs.wolk.com/?go#), [Http](https://docs.wolk.com/?plaintext#), and [Command Line Interface](https://docs.wolk.com/?javascript#),
 
