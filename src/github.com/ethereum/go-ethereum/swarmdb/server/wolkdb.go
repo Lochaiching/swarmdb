@@ -97,6 +97,7 @@ func buildErrorResp(err error) string {
 		//fmt.Printf("Error: [%s] [%+v]", jErr.Error(), respObj)
 		return `{ "errorcode":-1, "errormessage":"UNKNOWN ERROR"}` //TODO: Make Default Error Handling
 	}
+	log.Debug(fmt.Sprintf("Internal Error Message: %s", wolkErr.Error()))
 	jstr := string(jbyte)
 	return jstr
 }
@@ -549,7 +550,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				dataReq.RequestType = reqType.(string)
 				log.Debug(fmt.Sprintf("Table (%s) [%+v]", dataReq.Table, dataReq))
 				if dataReq.Table == "" {
-					log.Debug("Table not included in URL.  Checking RequestBody")
+					log.Debug("Table not included in URL. Checking RequestBody")
 					if tblBody, ok := bodyMap["table"]; ok {
 						dataReq.Table = tblBody.(string)
 					}
