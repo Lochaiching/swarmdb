@@ -198,7 +198,6 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 		if err != nil {
 			return key, err
 		}
-
 		err = self.ldb.Put(ekey, ashdata, nil)
 		if err != nil {
 			return key, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Exec %s | encrypted:%s", err.Error(), encrypted), ErrorCode: 439, ErrorMessage: "Unable to Store Chunk"}
