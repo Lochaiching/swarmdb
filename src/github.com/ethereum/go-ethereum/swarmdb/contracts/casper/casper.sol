@@ -1,29 +1,29 @@
-// Translation in progress of https://github.com/ethereum/casper/blob/master/casper/contracts/simple_casper.v.py
-// Major TODOs: RLP, bitmap, decimal, test patterns, sig checks
-pragma solidity ^0.4.16;
+pragma solidity ^0.4.18;
 
-//import 'RLP.sol';
+// Translation in progress of https://github.com/ethereum/casper/blob/master/casper/contracts/simple_casper.v.py
+// Skipped: sig checks
+
+import "github.com/wolkdb/swarm.wolk.com/src/github.com/ethereum/go-ethereum/swarmdb/contracts/plasma/RLP.sol";
 
 contract Casper {
-
- struct RLPItem {
-     uint _unsafe_memPtr;    // Pointer to the RLP-encoded bytes.
-     uint _unsafe_length;    // Number of bytes. This is the full length of the string.
- }
  
-  // Information about validators
-  struct Validator {
-    // Used to determine the amount of wei the validator holds. To get the actual amount of wei, multiply this by the deposit_scale_factor.
-    uint256 deposit;
-    // The dynasty the validator is joining
-    uint256 start_dynasty;
-    // The dynasty the validator is leaving
-    uint256 end_dynasty;
-    // The address which the validator's signatures must verify to (to be later replaced with validation code)
-    address addr;
-    // Address to withdraw to
-    address withdrawal_addr;
-  }
+    using RLP for bytes;
+    using RLP for RLP.RLPItem;
+    using RLP for RLP.Iterator;
+    
+    // Information about validators
+    struct Validator {
+        // Used to determine the amount of wei the validator holds. To get the actual amount of wei, multiply this by the deposit_scale_factor.
+        uint256 deposit;
+        // The dynasty the validator is joining
+        uint256 start_dynasty;
+        // The dynasty the validator is leaving
+        uint256 end_dynasty;
+        // The address which the validator's signatures must verify to (to be later replaced with validation code)
+        address addr;
+        // Address to withdraw to
+        address withdrawal_addr;
+    }
 
     mapping (uint => Validator) validators; 
     
@@ -59,16 +59,16 @@ contract Casper {
       
     // Information for use in processing cryptoeconomic commitments
     struct Vote {
-      // How many votes are there for this source epoch from the current dynasty
-      mapping (uint => uint256) cur_dyn_votes;
-      // From the previous dynasty
-      mapping (uint => uint256) prev_dyn_votes;
-      // Bitmap of which validator IDs have already voted
-      mapping (uint => mapping (bytes32 => uint256)) vote_bitmap;
-      // Is a vote referencing the given epoch justified?
-      bool is_justified;
-      // Is a vote referencing the given epoch finalized?
-      bool is_finalized;
+        // How many votes are there for this source epoch from the current dynasty
+        mapping (uint => uint256) cur_dyn_votes;
+        // From the previous dynasty
+        mapping (uint => uint256) prev_dyn_votes;
+        // Bitmap of which validator IDs have already voted
+        mapping (uint => mapping (bytes32 => uint256)) vote_bitmap;
+        // Is a vote referencing the given epoch justified?
+        bool is_justified;
+        // Is a vote referencing the given epoch finalized?
+        bool is_finalized;
     }
     mapping (uint => Vote) public votes; 
     // index: target epoch
@@ -169,7 +169,7 @@ contract Casper {
       min_deposit_size = _min_deposit_size;
     }
     
-    function min(uint x, uint y) private returns(uint) {
+    function min(uint x, uint y) pure private returns(uint) {
             if (x<y) {
                 return(x);
             }
@@ -207,148 +207,142 @@ contract Casper {
     }
     
     // ***** Private *****
-    // Temporary backdoor for testing purposes (to allow recovering destroyed deposits)
-    function owner_withdraw() public  {
-        // send(owner, total_destroyed)
-        // total_destroyed = 0
-   }
-    
     // Increment dynasty when checkpoint is finalized. Might want to split out the cases separately.
     function increment_dynasty() private {
-      uint epoch = current_epoch;
-      // Increment the dynasty if finalized
-      if ( votes[epoch-2].is_finalized ) {
-        dynasty += 1;
-        total_prevdyn_deposits = total_curdyn_deposits;
-        total_curdyn_deposits += next_dynasty_wei_delta;
-        next_dynasty_wei_delta = second_next_dynasty_wei_delta;
-        second_next_dynasty_wei_delta = 0;
-        dynasty_start_epoch[dynasty] = epoch;
-      }
-      dynasty_in_epoch[epoch] = dynasty;
-      if ( main_hash_justified ) {
-        expected_source_epoch = epoch - 1;
-      }
-      main_hash_justified = false;
+        uint epoch = current_epoch;
+        // Increment the dynasty if finalized
+        if ( votes[epoch-2].is_finalized ) {
+            dynasty += 1;
+            total_prevdyn_deposits = total_curdyn_deposits;
+            total_curdyn_deposits += next_dynasty_wei_delta;
+            next_dynasty_wei_delta = second_next_dynasty_wei_delta;
+            second_next_dynasty_wei_delta = 0;
+            dynasty_start_epoch[dynasty] = epoch;
+        }
+        dynasty_in_epoch[epoch] = dynasty;
+        if ( main_hash_justified ) {
+            expected_source_epoch = epoch - 1;
+        }
+        main_hash_justified = false;
     }
 
     // Returns number of epochs since finalization.
-    function get_esf() private returns (uint) {
-      uint epoch = current_epoch;
-      return(epoch - last_finalized_epoch);
+    function get_esf() private view returns (uint) {
+        uint epoch = current_epoch;
+        return(epoch - last_finalized_epoch);
     }
       
     // Returns the current collective reward factor, which rewards the dynasty for high-voting levels.
-    function get_collective_reward() private returns (uint256) {
-      uint epoch = current_epoch;
-      bool live = ( get_esf() <= 2 );
-      if ( ! deposit_exists() || ! live ) {
-        return(0);
-      }
-      // TODO: Fraction that voted
-      uint256 cur_vote_frac = votes[epoch - 1].cur_dyn_votes[expected_source_epoch] / total_curdyn_deposits;
-      uint256 prev_vote_frac = votes[epoch - 1].prev_dyn_votes[expected_source_epoch] / total_prevdyn_deposits;
-      uint256 vote_frac = min(cur_vote_frac, prev_vote_frac);
-      return(vote_frac * reward_factor / 2);
+    function get_collective_reward() private view returns (uint256) {
+        uint epoch = current_epoch;
+        bool live = ( get_esf() <= 2 );
+        if ( ! deposit_exists() || ! live ) {
+            return(0);
+        }
+        // TODO: Fraction that voted
+        uint256 cur_vote_frac = votes[epoch - 1].cur_dyn_votes[expected_source_epoch] / total_curdyn_deposits;
+        uint256 prev_vote_frac = votes[epoch - 1].prev_dyn_votes[expected_source_epoch] / total_prevdyn_deposits;
+        uint256 vote_frac = min(cur_vote_frac, prev_vote_frac);
+        return(vote_frac * reward_factor / 2);
     }
 
     function insta_finalize() private {
-      uint epoch = current_epoch;
-      main_hash_justified = true;
-      votes[epoch - 1].is_justified = true;
-      votes[epoch - 1].is_finalized = true;
-      last_justified_epoch = epoch - 1;
-      last_finalized_epoch = epoch - 1;
+        uint epoch = current_epoch;
+        main_hash_justified = true;
+        votes[epoch - 1].is_justified = true;
+        votes[epoch - 1].is_finalized = true;
+        last_justified_epoch = epoch - 1;
+        last_finalized_epoch = epoch - 1;
     }
 
-    function get_sqrt_of_total_deposits() private returns (uint256) {
-      uint epoch = current_epoch;
-      uint256 ether_deposited_as_number =  1; // TODO: (max(total_prevdyn_deposits, total_curdyn_deposits) * deposit_scale_factor[epoch - 1] / as_wei_value(1, "ether")) + 1;
-      uint256 sqrt = ether_deposited_as_number / 2.0;
-      for (uint i = 0; i<20; i++) {
-        sqrt = (sqrt + (ether_deposited_as_number / sqrt)) / 2;
-      }
-      return sqrt;
+    function get_sqrt_of_total_deposits() private pure returns (uint256) {
+        // uint epoch = current_epoch;
+        uint256 ether_deposited_as_number =  1; // TODO: (max(total_prevdyn_deposits, total_curdyn_deposits) * deposit_scale_factor[epoch - 1] / as_wei_value(1, "ether")) + 1;
+        uint256 sqrt = ether_deposited_as_number / 2.0;
+        for (uint i = 0; i<20; i++) {
+            sqrt = (sqrt + (ether_deposited_as_number / sqrt)) / 2;
+        }
+        return sqrt;
     }
 
     // Called at the start of any epoch
     function initialize_epoch(uint epoch) private {
-      // Check that the epoch actually has started
-      uint computed_current_epoch = block.number / epoch_length;
-      assert(epoch <= computed_current_epoch && epoch == current_epoch + 1);
+        // Check that the epoch actually has started
+        uint computed_current_epoch = block.number / epoch_length;
+        assert(epoch <= computed_current_epoch && epoch == current_epoch + 1);
       
-      // Setup
-      current_epoch = epoch;
+        // Setup
+        current_epoch = epoch;
       
-      // Reward if finalized at least in the last two epochs
-      last_nonvoter_rescale = (1 + get_collective_reward() - reward_factor);
-      last_voter_rescale = last_nonvoter_rescale * (1 + reward_factor);
-      deposit_scale_factor[epoch] = deposit_scale_factor[epoch - 1] * last_nonvoter_rescale;
+        // Reward if finalized at least in the last two epochs
+        last_nonvoter_rescale = (1 + get_collective_reward() - reward_factor);
+        last_voter_rescale = last_nonvoter_rescale * (1 + reward_factor);
+        deposit_scale_factor[epoch] = deposit_scale_factor[epoch - 1] * last_nonvoter_rescale;
       
-      if ( deposit_exists() ) {
-          // Set the reward factor for the next epoch.
-          uint256 adj_interest_base = base_interest_factor / get_sqrt_of_total_deposits();
-          // TODO: sqrt is based on previous epoch starting deposit
-          reward_factor = adj_interest_base + base_penalty_factor * get_esf();  // might not be bpf. clarify is positive?
-          // ESF is only thing that is changing and reward_factor is being used above.
-          assert(reward_factor > 0);
-      } else {
-        insta_finalize();  // comment on why.
-        reward_factor = 0;
-      }
+        if ( deposit_exists() ) {
+            // Set the reward factor for the next epoch.
+            uint256 adj_interest_base = base_interest_factor / get_sqrt_of_total_deposits();
+            // sqrt is based on previous epoch starting deposit
+            reward_factor = adj_interest_base + base_penalty_factor * get_esf();  // might not be bpf. clarify is positive?
+            // ESF is only thing that is changing and reward_factor is being used above.
+            assert(reward_factor > 0);
+        } else {
+            insta_finalize();  // comment on why.
+            reward_factor = 0;
+        }
       
-      // Increment the dynasty if finalized
-      increment_dynasty();
+        // Increment the dynasty if finalized
+        increment_dynasty();
       
-      // Store checkpoint hash for easy access
-      checkpoint_hashes[epoch] = get_recommended_target_hash();
+        // Store checkpoint hash for easy access
+        checkpoint_hashes[epoch] = get_recommended_target_hash();
     }
 
     // Send a deposit to join the validator set
     function deposit(address validation_addr, address withdrawal_addr) public payable {
-      assert(current_epoch == block.number / epoch_length);
-      // TODO: assert(extract32(raw_call(purity_checker, concat('\xa1\x90>\xab', as_bytes32(validation_addr)), gas=500000, outsize=32), 0) != as_bytes32(0));
-      // TODO: assert(! validator_indexes[withdrawal_addr]);
-      assert(msg.value >= min_deposit_size);
-      validators[nextValidatorIndex] = Validator({deposit: msg.value / deposit_scale_factor[current_epoch], 
+        assert(current_epoch == block.number / epoch_length);
+        // TODO: assert(extract32(raw_call(purity_checker, concat('\xa1\x90>\xab', as_bytes32(validation_addr)), gas=500000, outsize=32), 0) != as_bytes32(0));
+        // assert(! validator_indexes[withdrawal_addr]);
+        assert(msg.value >= min_deposit_size);
+        validators[nextValidatorIndex] = Validator({deposit: msg.value / deposit_scale_factor[current_epoch], 
                              start_dynasty: dynasty + 2, 
                              end_dynasty: 1000000000000000000000000000000,
                              addr: validation_addr,
                              withdrawal_addr: withdrawal_addr});
       
-      validator_indexes[withdrawal_addr] = nextValidatorIndex;
-      nextValidatorIndex += 1;
-      second_next_dynasty_wei_delta += msg.value / deposit_scale_factor[current_epoch];
+        validator_indexes[withdrawal_addr] = nextValidatorIndex;
+        nextValidatorIndex += 1;
+        second_next_dynasty_wei_delta += msg.value / deposit_scale_factor[current_epoch];
     }
 
     // Log in or log out from the validator set. A logged out validator can log back in later, 
     // if they do not log in for an entire withdrawal period, they can get their money out
     function logout(bytes logout_msg) public {
-      assert( current_epoch == block.number / epoch_length);
-      // Get hash for signature, and implicitly assert that it is an RLP list consisting solely of RLP elements
-      bytes32 sighash; // TODO: extract32(raw_call(sighasher, logout_msg, gas=200000, outsize=32), 0);
-      // Extract parameters
-      RLPItem[] storage values = logout_msg.toRLPItem().toList(); // [num, num, bytes]
-      uint validator_index = values[0];
-      uint epoch = values[1];
-      bytes storage sig = values[2]; // 1024
-      assert( current_epoch >= epoch);
-      // Signature check
-      // TODO: assert( extract32(raw_call(validators[validator_index].addr, concat(sighash, sig), gas=500000, outsize=32), 0) == as_bytes32(1) );
-      // Check that we haven't already withdrawn
-      assert(validators[validator_index].end_dynasty > dynasty + 2);
-      // Set the end dynasty
-      validators[validator_index].end_dynasty = dynasty + 2;
-      second_next_dynasty_wei_delta -= validators[validator_index].deposit;
+        assert( current_epoch == block.number / epoch_length);
+        // Get hash for signature, and implicitly assert that it is an RLP list consisting solely of RLP elements
+        // bytes32 sighash; // TODO: extract32(raw_call(sighasher, logout_msg, gas=200000, outsize=32), 0);
+        // Extract parameters
+        var values = logout_msg.toRLPItem().toList(); // [num, num, bytes]
+        uint validator_index = values[0].toUint();
+        uint epoch = values[1].toUint();
+        // bytes memory sig = values[2].toBytes();
+        assert( current_epoch >= epoch);
+        // Signature check
+        // TODO: assert( extract32(raw_call(validators[validator_index].addr, concat(sighash, sig), gas=500000, outsize=32), 0) == as_bytes32(1) );
+        // Check that we haven't already withdrawn
+        assert(validators[validator_index].end_dynasty > dynasty + 2);
+        // Set the end dynasty
+        validators[validator_index].end_dynasty = dynasty + 2;
+        second_next_dynasty_wei_delta -= validators[validator_index].deposit;
     }
 
     // Removes a validator from the validator pool
     function delete_validator(uint validator_index) public {
-      if ( validators[validator_index].end_dynasty > dynasty + 2 ) {
-        next_dynasty_wei_delta -= validators[validator_index].deposit;
-      }
-      validator_indexes[validators[validator_index].withdrawal_addr] = 0;
-      validators[validator_index] = Validator( {deposit: 0, start_dynasty: 0, end_dynasty: 0, addr: 0x0, withdrawal_addr: 0x0});
+        if ( validators[validator_index].end_dynasty > dynasty + 2 ) {
+            next_dynasty_wei_delta -= validators[validator_index].deposit;
+        }
+        validator_indexes[validators[validator_index].withdrawal_addr] = 0;
+        validators[validator_index] = Validator( {deposit: 0, start_dynasty: 0, end_dynasty: 0, addr: 0x0, withdrawal_addr: 0x0});
     }
 
     // Withdraw deposited ether
@@ -365,7 +359,7 @@ contract Casper {
 
     // Reward the given validator & miner, and reflect this in total deposit figured
     function proc_reward(uint validator_index, uint256 reward) private {
-      uint start_epoch = dynasty_start_epoch[validators[validator_index].start_dynasty];
+      // uint start_epoch = dynasty_start_epoch[validators[validator_index].start_dynasty];
       validators[validator_index].deposit += reward;
       uint start_dynasty = validators[validator_index].start_dynasty;
       uint end_dynasty = validators[validator_index].end_dynasty;
@@ -388,100 +382,107 @@ contract Casper {
 
     // Process a vote message
     function vote(bytes vote_msg) public {
-      // Get hash for signature, and implicitly assert that it is an RLP list consisting solely of RLP elements
-      bytes32 sighash; // TODO: extract32(raw_call(sighasher, vote_msg, gas=200000, outsize=32), 0);
-      // Extract parameters
-      RLPItem[] storage values = vote_msg.toRLPItem().toList(); // [num, bytes32, num, num, bytes]
-      uint validator_index = values[0];
-      bytes32 target_hash = values[1];
-      uint target_epoch = values[2];
-      uint source_epoch = values[3];
-      bytes storage sig = values[4]; // 1024
+        // Get hash for signature, and implicitly assert that it is an RLP list consisting solely of RLP elements
+        //bytes32 sighash; // TODO: extract32(raw_call(sighasher, vote_msg, gas=200000, outsize=32), 0);
+        // Extract parameters
+        var values = vote_msg.toRLPItem().toList(); // [num, bytes32, num, num, bytes]
+        uint validator_index = values[0].toUint();
+        bytes32 target_hash = values[1].toBytes32();
+        uint target_epoch = values[2].toUint();
+        uint source_epoch = values[3].toUint();
+        // bytes memory sig = values[4].toBytes();
 
-      // Check the signature
-      // TODO: assert(extract32(raw_call(validators[validator_index].addr, concat(sighash, sig), gas=500000, outsize=32), 0) == as_bytes32(1));
+        // Check the signature
+        // TODO: assert(extract32(raw_call(validators[validator_index].addr, concat(sighash, sig), gas=500000, outsize=32), 0) == as_bytes32(1));
 
-      // Check that this vote has not yet been made
-      // TODO: assert(! bitwise_and(votes[target_epoch].vote_bitmap[target_hash][validator_index / 256], shift(as_num256(1), validator_index % 256)));
-      // Check that the vote's target hash is correct
-      assert(target_hash == get_recommended_target_hash());
-      // Check that the vote source points to a justified epoch
-      assert(votes[source_epoch].is_justified);
-      // Check that we are at least (epoch length / 4) blocks into the epoch assert block.number % epoch_length >= epoch_length / 4
-      // Original starting dynasty of the validator; fail if before 
-      uint start_dynasty = validators[validator_index].start_dynasty;
-      // Ending dynasty of the current login period
-      uint end_dynasty = validators[validator_index].end_dynasty;
-      // Dynasty of the vote
-      uint current_dynasty = dynasty_in_epoch[target_epoch];
-      uint past_dynasty = current_dynasty - 1;
-      bool in_current_dynasty = ((start_dynasty <= current_dynasty) && (current_dynasty < end_dynasty));
-      bool in_prev_dynasty = ((start_dynasty <= past_dynasty) && (past_dynasty < end_dynasty));
-      assert( in_current_dynasty || in_prev_dynasty);
-      // Record that the validator voted for this target epoch so they can't again
-      // TODO: votes[target_epoch].vote_bitmap[target_hash][validator_index / 256] =  (votes[target_epoch].vote_bitmap[target_hash][validator_index / 256] | shift(as_num256(1), validator_index % 256));
+        // Check that this vote has not yet been made
+        assert( ( votes[target_epoch].vote_bitmap[validator_index / 256][target_hash] & ( ( validator_index % 256) << 1 ) ) == 0 );
+        // Check that the vote's target hash is correct
+        assert(target_hash == get_recommended_target_hash());
+        // Check that the vote source points to a justified epoch
+        assert(votes[source_epoch].is_justified);
+        vote0(validator_index, target_hash, target_epoch, source_epoch);
+    }
 
-      // Record that this vote took place
-      uint256 current_dynasty_votes = votes[target_epoch].cur_dyn_votes[source_epoch];
-      uint256 previous_dynasty_votes = votes[target_epoch].prev_dyn_votes[source_epoch];
-      if ( in_current_dynasty ) {
-          current_dynasty_votes += validators[validator_index].deposit;
-          votes[target_epoch].cur_dyn_votes[source_epoch] = current_dynasty_votes;
-      } 
-      if ( in_prev_dynasty ) {
-        previous_dynasty_votes += validators[validator_index].deposit;
-        votes[target_epoch].prev_dyn_votes[source_epoch] = previous_dynasty_votes;
-      }
-
-      // Process rewards. Check that we have not yet voted for this target_epoch
-      // Pay the reward if the vote was submitted in time and the vote is voting the correct data
-      if ( current_epoch == target_epoch && expected_source_epoch == source_epoch ) {
-        uint256 reward = (validators[validator_index].deposit * reward_factor);
-        proc_reward(validator_index, reward);
-      }
-
-    // If enough votes with the same source_epoch and hash are made,
-    // then the hash value is justified
-      if ( ( current_dynasty_votes >= total_curdyn_deposits * 2 / 3 ) && ( previous_dynasty_votes >= total_prevdyn_deposits * 2 / 3 ) && ( ! votes[target_epoch].is_justified ) ) {
-        votes[target_epoch].is_justified = true;
-        last_justified_epoch = target_epoch;
-        if ( target_epoch == current_epoch ) {
-          main_hash_justified = true;
+    function record_vote(uint validator_index, bytes32 target_hash, uint target_epoch) private {
+        votes[target_epoch].vote_bitmap[validator_index / 256][target_hash] = (votes[target_epoch].vote_bitmap[validator_index / 256][target_hash] | ( validator_index % 256 << 1 ) );
+    }
+    
+    function vote0(uint validator_index, bytes32 target_hash, uint target_epoch, uint source_epoch) private {
+        // Check that we are at least (epoch length / 4) blocks into the epoch assert block.number % epoch_length >= epoch_length / 4
+        // Original starting dynasty of the validator; fail if before 
+        uint start_dynasty = validators[validator_index].start_dynasty;
+        // Ending dynasty of the current login period
+        uint end_dynasty = validators[validator_index].end_dynasty;
+        // Dynasty of the vote
+        uint current_dynasty = dynasty_in_epoch[target_epoch];
+        uint past_dynasty = current_dynasty - 1;
+        bool in_current_dynasty = ((start_dynasty <= current_dynasty) && (current_dynasty < end_dynasty));
+        bool in_prev_dynasty = ((start_dynasty <= past_dynasty) && (past_dynasty < end_dynasty));
+        assert( in_current_dynasty || in_prev_dynasty);
+        // Record that the validator voted for this target epoch so they can't again
+        record_vote(validator_index, target_hash, target_epoch);
+      
+        // Record that this vote took place
+        uint256 current_dynasty_votes = votes[target_epoch].cur_dyn_votes[source_epoch];
+        uint256 previous_dynasty_votes = votes[target_epoch].prev_dyn_votes[source_epoch];
+        if ( in_current_dynasty ) {
+            current_dynasty_votes += validators[validator_index].deposit;
+            votes[target_epoch].cur_dyn_votes[source_epoch] = current_dynasty_votes;
+        } 
+        if ( in_prev_dynasty ) {
+            previous_dynasty_votes += validators[validator_index].deposit;
+            votes[target_epoch].prev_dyn_votes[source_epoch] = previous_dynasty_votes;
         }
-        // If two epochs are justified consecutively,
-        // then the source_epoch finalized
-        if ( target_epoch == source_epoch + 1 ) {
-          votes[source_epoch].is_finalized = true;
-          last_finalized_epoch = source_epoch;
+
+        // Process rewards. Check that we have not yet voted for this target_epoch
+        // Pay the reward if the vote was submitted in time and the vote is voting the correct data
+        if ( current_epoch == target_epoch && expected_source_epoch == source_epoch ) {
+            uint256 reward = (validators[validator_index].deposit * reward_factor);
+            proc_reward(validator_index, reward);
         }
-        // raw_log([vote_log_topic], vote_msg);
-      }
+
+        // If enough votes with the same source_epoch and hash are made, then the hash value is justified
+        if ( ( current_dynasty_votes >= total_curdyn_deposits * 2 / 3 ) && ( previous_dynasty_votes >= total_prevdyn_deposits * 2 / 3 ) && ( ! votes[target_epoch].is_justified ) ) {
+            votes[target_epoch].is_justified = true;
+            last_justified_epoch = target_epoch;
+            if ( target_epoch == current_epoch ) {
+                main_hash_justified = true;
+            }
+            // If two epochs are justified consecutively,
+            // then the source_epoch finalized
+            if ( target_epoch == source_epoch + 1 ) {
+                votes[source_epoch].is_finalized = true;
+                last_finalized_epoch = source_epoch;
+            }
+            // raw_log([vote_log_topic], vote_msg);
+        }
     }
 
     // Cannot make two prepares in the same epoch; no surround vote.
     function slash(bytes vote_msg_1, bytes vote_msg_2) public {
-      // Message 1: Extract parameters
-      bytes32 sighash_1; // TODO: extract32(raw_call(sighasher, vote_msg_1, gas=200000, outsize=32), 0);
-      RLPItem[] storage values_1 = vote_msg_1.toRLPItem().toList(); // [num, bytes32, num, num, bytes]);
-      uint validator_index_1 = values_1[0];
-      uint target_epoch_1 = values_1[2];
-      uint source_epoch_1 = values_1[3];
-      bytes storage sig_1 = values_1[4];
+      // Message 1: Extract parameters [num, bytes32, num, num, bytes]
+      var values_1 = vote_msg_1.toRLPItem().toList(); 
+      uint validator_index_1 = values_1[0].toUint();
+      uint target_epoch_1 = values_1[2].toUint();
+      uint source_epoch_1 = values_1[3].toUint();
+      // bytes memory sig_1 = values_1[4].toBytes();
+      // bytes32 sighash_1 = internalhash(vote_msg_1, 128); 
       // Check the signature for vote message 1
       // TODO: assert(extract32(raw_call(validators[validator_index_1].addr, concat(sighash_1, sig_1), gas=500000, outsize=32), 0) == as_bytes32(1));
-      // Message 2: Extract parameters
-      bytes storage sighash_2; // TODO: extract32(raw_call(sighasher, vote_msg_2, gas=200000, outsize=32), 0);
-      RLPItem[] storage values_2 = vote_msg_2.toRLPItem().toList(); // [num, bytes32, num, num, bytes]);
-      uint validator_index_2 = values_2[0];
-      uint target_epoch_2 = values_2[2];
-      uint source_epoch_2 = values_2[3];
-      bytes storage sig_2 = values_2[4];
+      // Message 2: Extract parameters (Same as Message 1)
+      // bytes memory sighash_2; // TODO: extract32(raw_call(sighasher, vote_msg_2, gas=200000, outsize=32), 0);
+      var values_2 = vote_msg_2.toRLPItem().toList(); // [num, bytes32, num, num, bytes]);
+      uint validator_index_2 = values_2[0].toUint();
+      uint target_epoch_2 = values_2[2].toUint();
+      uint source_epoch_2 = values_2[3].toUint();
+      // bytes memory sig_2 = values_2[4].toBytes();
       // Check the signature for vote message 2
       // assert(extract32(raw_call(validators[validator_index_2].addr, concat(sighash_2, sig_2), gas=500000, outsize=32), 0) == as_bytes32(1));
       // Check the messages are from the same validator
       assert(validator_index_1 == validator_index_2);
       // Check the messages are not the same
-      assert(sighash_1 != sighash_2);
+      // TODO: assert(sighash_1 != sighash_2);
       // Detect slashing
       bool slashing_condition_detected = false;
       if ( target_epoch_1 == target_epoch_2 ) { // NO DBL VOTE
@@ -497,6 +498,6 @@ contract Casper {
       uint256 slashing_bounty = validator_deposit / 25;
       total_destroyed += validator_deposit * 24 / 25;
       delete_validator(validator_index_1);
-      msg.send(msg.sender, slashing_bounty);
+      msg.sender.transfer(slashing_bounty);
     }
 }
