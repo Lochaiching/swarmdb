@@ -16,6 +16,7 @@
 package swarmdb
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
@@ -98,7 +99,7 @@ func ParseChunkHeader(chunk []byte) (ch ChunkHeader, err error) {
 			return ch, &SWARMDBError{ message: fmt.Sprintf("[types:ParseChunkHeader]"), ErrorCode: 480, ErrorMessage: fmt.Sprintf("Chunk of invalid size.  Expecting %d bytes, chunk is %d bytes", CHUNK_SIZE, len(chunk)) }
 		}
 	*/
-	fmt.Printf("Chunk is of size: %d and looking at %d to %d\n%+v", len(chunk), CHUNK_START_MINREP, CHUNK_END_MINREP, chunk)
+	//fmt.Printf("Chunk is of size: %d and looking at %d to %d\n", len(chunk), CHUNK_START_MINREP, CHUNK_END_MINREP)
 	log.Debug(fmt.Sprintf("Chunk is of size: %d and looking at %d to %d", CHUNK_SIZE, CHUNK_START_MINREP, CHUNK_END_MINREP))
 	ch.MsgHash = chunk[CHUNK_START_MSGHASH:CHUNK_END_MSGHASH]
 	ch.Sig = chunk[CHUNK_START_SIG:CHUNK_END_SIG]
@@ -361,11 +362,17 @@ func BytesToFloat(b []byte) (f float64) {
 }
 
 func BytesToInt64(b []byte) (i int64) {
+	if len(bytes.Trim(b, "\x00")) == 0 {
+		return 0
+	}
 	i = int64(binary.BigEndian.Uint64(b))
 	return i
 }
 
 func BytesToInt(b []byte) (i int) {
+	if len(bytes.Trim(b, "\x00")) == 0 {
+		return 0
+	}
 	i = int(binary.BigEndian.Uint64(b))
 	return i
 }
