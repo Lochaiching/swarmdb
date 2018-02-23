@@ -1146,6 +1146,7 @@ func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, ta
 		}
 
 		// check for the database entry
+		foundTable := false
 		for i := 64; i < CHUNK_SIZE; i += 64 {
 			if bytes.Compare(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], dbName) == 0 {
 				// found it - read the encryption level
@@ -1167,7 +1168,8 @@ func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, ta
 				// nuke the table name in bufDB and write the updated bufDB
 				for j := 64; j < CHUNK_SIZE; j += 64 {
 					if bytes.Compare(bufDB[j:(j+TABLE_NAME_LENGTH_MAX)], dropTableName) == 0 {
-						log.Debug(fmt.Sprintf("Found Table in DB Chunk"))
+						foundTable = true
+						log.Debug(fmt.Sprintf("Found Table: %s - Attempting to delete from DB Chunk"))
 						blankN := make([]byte, TABLE_NAME_LENGTH_MAX)
 						copy(bufDB[j:(j+TABLE_NAME_LENGTH_MAX)], blankN[0:TABLE_NAME_LENGTH_MAX])
 						databaseHash, err := self.StoreDBChunk(u, bufDB, encrypted)
@@ -1193,7 +1195,9 @@ func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, ta
 				}
 			}
 		}
-
+		if !foundTable {
+			return false, nil
+		}
 		//Drop Table from ENS hash as well as db columns
 		tblKey := self.GetTableKey(owner, database, tableName)
 		emptyRootHash := make([]byte, 64)
