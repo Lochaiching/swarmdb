@@ -248,8 +248,10 @@ const (
 	CHUNK_END_DB             = 254
 	CHUNK_START_TABLE        = 254
 	CHUNK_END_TABLE          = 286
-	CHUNK_START_ITERATOR     = 286
-	CHUNK_END_ITERATOR       = 382
+	//CHUNK_START_EPOCHTS      = 254
+	//CHUNK_END_EPOCHTS        = 286
+	CHUNK_START_ITERATOR     = 416
+	CHUNK_END_ITERATOR       = 512
 	CHUNK_START_CHUNKVAL     = 512
 	CHUNK_END_CHUNKVAL       = 4096
 )
@@ -574,10 +576,9 @@ func (self *SwarmDB) GetTable(u *SWARMDBUser, owner string, database string, tab
 		return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetTable] tablename missing "), ErrorCode: 426, ErrorMessage: "Table Name Missing"}
 	}
 	tblKey := self.GetTableKey(owner, database, tableName)
-	// fmt.Printf("\nGetting Table [%s] with the Owner [%s] from TABLES [%v]", tableName, owner, self.tables)
+	log.Debug(fmt.Sprintf("Getting Table [%s] with the Owner [%s] from TABLES [%v]", tableName, owner, self.tables))
 	if tbl, ok := self.tables[tblKey]; ok {
 		log.Debug(fmt.Sprintf("Table[%v] with Owner [%s] Database %s found in tables, it is: %+v\n", tblKey, owner, database, tbl))
-		// fmt.Printf("\nprimary column name GetTable: %+v -> columns: %+v\n", tbl.columns, tbl.primaryColumnName)
 		return tbl, nil
 	} else {
 		tbl = self.NewTable(owner, database, tableName)
@@ -671,6 +672,9 @@ func (self *SwarmDB) SelectHandler(u *SWARMDBUser, data string) (resp SWARMDBRes
 		tblcols, err := tbl.DescribeTable()
 		if err != nil {
 			return resp, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:SelectHandler] DescribeTable %s", err.Error()))
+		}
+		if len(tblcols) == 0 {
+			return resp, &SWARMDBError{message: fmt.Sprintf("[swarmdb:SelectHandler] Table [%s] not found", d.Table), ErrorCode: 482, ErrorMessage: fmt.Sprintf("Cannot Describe Table [%s] as it was not found", d.Table)}
 		}
 		for _, colInfo := range tblcols {
 			r := NewRow()
@@ -927,6 +931,12 @@ func (self *SwarmDB) RegisterTable(owner string, database string, tableName stri
 	self.tables[tblKey] = t
 }
 
+func (self *SwarmDB) UnregisterTable(owner string, database string, tableName string) {
+	// register the Table in SwarmDB
+	tblKey := self.GetTableKey(owner, database, tableName)
+	delete(self.tables, tblKey)
+}
+
 // creating a database results in a new entry, e.g. "videos" in the owners ENS e.g. "wolktoken.eth" stored in a single chunk
 // e.g.  key 1: wolktoken.eth (up to 64 chars)
 //       key 2: videos     => 32 byte hash, pointing to tables of "video'
@@ -1069,7 +1079,7 @@ func (self *SwarmDB) DropDatabase(u *SWARMDBUser, owner string, database string)
 
 	buf := make([]byte, CHUNK_SIZE)
 	if EmptyBytes(ownerDatabaseChunkID) {
-		return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] No database %s", err)}
+		return false, nil // No error returned.  Just 'nil' it.  &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] No database %s", err)}
 	} else {
 		buf, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
 		if err != nil {
@@ -1102,6 +1112,7 @@ func (self *SwarmDB) DropDatabase(u *SWARMDBUser, owner string, database string)
 }
 
 func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, tableName string) (ok bool, err error) {
+	log.Debug(fmt.Sprintf("Attempting to Drop table [%s]", tableName))
 	if len(tableName) > TABLE_NAME_LENGTH_MAX {
 		return false, &SWARMDBError{message: "[swarmdb:DropTable] Tablename length", ErrorCode: 500, ErrorMessage: "Table Name too long (max is 32 chars)"}
 	}
@@ -1156,33 +1167,45 @@ func (self *SwarmDB) DropTable(u *SWARMDBUser, owner string, database string, ta
 				// nuke the table name in bufDB and write the updated bufDB
 				for j := 64; j < CHUNK_SIZE; j += 64 {
 					if bytes.Compare(bufDB[j:(j+TABLE_NAME_LENGTH_MAX)], dropTableName) == 0 {
+						log.Debug(fmt.Sprintf("Found Table in DB Chunk"))
 						blankN := make([]byte, TABLE_NAME_LENGTH_MAX)
 						copy(bufDB[j:(j+TABLE_NAME_LENGTH_MAX)], blankN[0:TABLE_NAME_LENGTH_MAX])
 						databaseHash, err := self.StoreDBChunk(u, bufDB, encrypted)
+						log.Debug(fmt.Sprintf("Update DB Chunk after blanking out [%s]", dropTableName))
 						if err != nil {
 							return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] StoreDBChunk %s", err)}
 						}
 						// update the database hash in the owner's databases
 						copy(buf[(i+32):(i+64)], databaseHash[0:32])
 						ownerDatabaseChunkID, err = self.StoreDBChunk(u, buf, 0) // TODO: review
+						log.Debug(fmt.Sprintf("Updating Owner Chunk with new DB hash of [%s]", buf[(i+32):(i+64)]))
 						if err != nil {
 							return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropTable] StoreDBChunk %s", err)}
 						}
 
+						log.Debug(fmt.Sprintf("Storing new OwnerDatabaseChunkID of [%s]", ownerDatabaseChunkID))
 						err = self.StoreRootHash(u, ownerHash, ownerDatabaseChunkID)
 						if err != nil {
 							return false, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:DropTable] StoreRootHash %s", err.Error()))
 						}
-						return true, nil
+						break
 					}
 				}
-				return false, nil
-
 			}
 		}
+
+		//Drop Table from ENS hash as well as db columns
+		tblKey := self.GetTableKey(owner, database, tableName)
+		emptyRootHash := make([]byte, 64)
+		err = self.StoreRootHash(u, []byte(tblKey), emptyRootHash)
+		//TODO: Empty out column info?
+		if err != nil {
+			return false, GenerateSWARMDBError(err, fmt.Sprintf("[table:OpenTable] GetRootHash for table [%s]: %v", tblKey, err))
+		}
+		self.UnregisterTable(owner, database, tableName)
+		return true, nil
 	}
 	return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] Database could not be found")}
-
 }
 
 func (self *SwarmDB) ListTables(u *SWARMDBUser, owner string, database string) (tableNames []Row, err error) {
@@ -1333,7 +1356,6 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 		}
 		if !found {
 			return tbl, &SWARMDBError{message: fmt.Sprintf("[swarmdb:GetDatabase] Database could not be found"), ErrorCode: 443, ErrorMessage: "Database Specified Not Found"}
-			//TODO: ErrorCode/Msg
 		}
 	}
 
@@ -1365,8 +1387,6 @@ func (self *SwarmDB) CreateTable(u *SWARMDBUser, owner string, database string, 
 				if err != nil {
 					return tbl, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateTable] StoreRootHash %s", err.Error()))
 				}
-				debugbufDB, _ := self.RetrieveDBChunk(u, newdatabaseHash)
-				log.Debug(fmt.Sprintf("debugbufDB[%d:%d] => [%s] using [%x]", i, i+32, debugbufDB[i:(i+32)], newdatabaseHash))
 				found = true
 				break //TODO: This ok?
 			}

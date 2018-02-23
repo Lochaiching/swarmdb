@@ -111,7 +111,7 @@ func GenerateSampleSWARMDBConfig(privateKey string, address string, passphrase s
 
 func SaveSWARMDBConfig(c SWARMDBConfig, filename string) (err error) {
 	// save file
-	cout, err1 := json.Marshal(c)
+	cout, err1 := json.MarshalIndent(c, "", "\t")
 	if err1 != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[config:SaveSWARMDBConfig] Marshal %s", err1.Error()), ErrorCode: 457, ErrorMessage: "Unable to Save Config File"}
 	} else {
