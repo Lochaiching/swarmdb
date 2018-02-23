@@ -242,7 +242,7 @@ func (self *ENSSimple) GotRootHashFromLDB(indexName []byte)(value []byte, status
 	elog.Debug(fmt.Sprintf("in ENSSimple GotRootHashFromLDB %v", indexName))
         var d EnsData
         res, err := self.ldb.Get(indexName, nil)
-	if err != nil {
+	if err != nil && err != leveldb.ErrNotFound  {
 		res, err = self.GetRootHash(indexName)
 		return res, 0, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GotRootHashFromLDB `+err.Error())
 	}
@@ -264,7 +264,7 @@ func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
 
 	var d EnsData
 	res, err := self.ldb.Get(indexName, nil)
-	if err != nil{
+	if err != nil && err != leveldb.ErrNotFound {
 		return res, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GotRootHash `+err.Error())
 	}
 	err = json.Unmarshal(res, &d)
