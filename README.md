@@ -29,6 +29,13 @@ https://www.docker.com/community-edition#/download
 
 # Getting SwarmDB Docker
 
+### Before downloading the docker image, please install Python27 or higher on your system:
+  - https://www.python.org/downloads/release/python-latest
+
+### Once installed, verify the python version:
+      $ python -V
+      Python 2.7.10
+
 ### Download the docker image:
 
       $ sudo docker pull wolkinc/swarmdb
