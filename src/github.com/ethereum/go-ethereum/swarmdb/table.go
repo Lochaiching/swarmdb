@@ -278,7 +278,8 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error)
 		return out, false, nil
 	}
 	chunkKey := t.GenerateKChunkKey(key)
-	log.Debug(fmt.Sprintf("[table:Get] ChunkKey generated is: %s", chunkKey))
+	log.Debug(fmt.Sprintf("[table:Get] ChunkKey generated is: %x", chunkKey))
+
 	contentReader, err := t.swarmdb.dbchunkstore.RetrieveKChunk(u, chunkKey)
 	if bytes.Trim(contentReader, "\x00") == nil {
 		log.Debug(fmt.Sprintf("RETURNING NIL CHUNK [%s]", out))
@@ -520,6 +521,8 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 			}
 
 			hashVal := sdata[CHUNK_START_KEY:CHUNK_END_KEY] // 32 bytes
+			log.Debug(fmt.Sprintf("Storing data with hashValue of %x %v", hashVal, hashVal))
+
 			errStore := t.swarmdb.dbchunkstore.StoreKChunk(u, hashVal, sdata, t.encrypted)
 			if errStore != nil {
 				return GenerateSWARMDBError(err, `[table:Put] StoreKChunk `+errStore.Error())
