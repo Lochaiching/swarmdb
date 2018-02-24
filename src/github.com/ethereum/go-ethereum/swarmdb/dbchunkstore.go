@@ -128,6 +128,7 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	if len(val) < CHUNK_SIZE {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Chunk too small (< %s)| %x", CHUNK_SIZE, val), ErrorCode: 439, ErrorMessage: "Unable to Store Chunk"}
 	}
+
 	var chunk DBChunk
 	var finalSdata []byte
 	finalSdata = make([]byte, CHUNK_SIZE)
