@@ -16,11 +16,9 @@
 package swarmdb
 
 import (
-	// "database/sql"
 	"context"
 	"fmt"
     	"io/ioutil"
-	_ "github.com/mattn/go-sqlite3"
 	"strings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -38,12 +36,13 @@ type ENSSimple struct {
 	auth *bind.TransactOpts
 	sens *Simplestens
 	conn *ethclient.Client
-	ldb      *leveldb.DB
+	ldb  *leveldb.DB
 }
 
 type EnsData struct{
 	Root []byte	 `json:"root"`
 	Status	uint	 `json:"status"`
+	PrevRoot []byte  `json:"prevroot,omitempty"`
 }
 
 type ENSSimpleConfig struct{
@@ -136,31 +135,6 @@ func NewENSSimple(path string, config *SWARMDBConfig) (ens ENSSimple, err error)
 	ldb, err := leveldb.OpenFile(p, nil)
 	ens.ldb = ldb
 
-	// -------------------
-	/*
-		db, err := sql.Open("sqlite3", path)
-		if err != nil {
-			return ens, err
-		}
-		if db == nil {
-			return ens, err
-		}
-		ens.db = db
-		ens.filepath = path
-
-		sql_table := `
-		CREATE TABLE IF NOT EXISTS ens (
-		indexName TEXT NOT NULL PRIMARY KEY,
-		roothash BLOB,
-		storeDT DATETIME
-		);
-		`
-
-		_, err = db.Exec(sql_table)
-		if err != nil {
-			return ens, err
-		}
-	*/
 	return ens, nil
 }
 
@@ -190,9 +164,10 @@ func (self *ENSSimple) StoreRootHash(indexName []byte, roothash []byte) (err err
 	tx, err := self.sens.SetContent(self.auth, i32, r32)
 	if err != nil{
         	elog.Debug(fmt.Sprintf("SimpleENS StoreRootHash SetContent err = %v",err))
-		self.StoreRootHashToLDB(indexName, roothash, 1)
+		self.StoreRootHashToLDB(indexName, roothash, 1, nil)
 	}else{
 //TODO: only for debugging
+		self.StoreRootHashToLDB(indexName, roothash, 2, nil)
 		elog.Debug(fmt.Sprintf("return store %x %v %x\n", tx.Hash(), err, tx))
 /*
         	h, err = self.conn.HeaderByNumber(ctx, nil)
@@ -210,8 +185,8 @@ func (self *ENSSimple) StoreRootHash(indexName []byte, roothash []byte) (err err
 	return nil
 }
 
-func (self *ENSSimple) StoreRootHashToLDB(indexName, roothash []byte, status uint)(err error){
-	j, err := json.Marshal(EnsData{roothash, status})
+func (self *ENSSimple) StoreRootHashToLDB(indexName, roothash []byte, status uint, prevhash []byte)(err error){
+	j, err := json.Marshal(EnsData{roothash, status, prevhash})
 	elog.Debug(fmt.Sprintf("in ENSSimple StoreRootHashToLDB %v json = %v", indexName, j))
 	if err != nil {
 		return  GenerateSWARMDBError(err, `[swarmdb:ENSSimple] StoreRootHashToLDB `+err.Error())
@@ -221,57 +196,63 @@ func (self *ENSSimple) StoreRootHashToLDB(indexName, roothash []byte, status uin
 		return  GenerateSWARMDBError(err, `[swarmdb:ENSSimple] StoreRootHashToLDB `+err.Error())
 	}
 	return nil
-
 }
 
 func (self *ENSSimple) StoreRootHashWithStatus(indexName, roothash []byte, status uint)(err error){
 	if status == 2{
 		s := status
                 err = self.StoreRootHash(indexName, roothash)
-		if err != nil{
+		var prevhash []byte
+		if err == nil{
 			s = 1
+		}else{
+			prevhash, _ = self.GetRootHash(indexName)
 		}
-                err = self.StoreRootHashToLDB(indexName, roothash, s)
+                err = self.StoreRootHashToLDB(indexName, roothash, s, prevhash)
 		return  GenerateSWARMDBError(err, `[swarmdb:ENSSimple] StoreRootHashWithStatus `+err.Error())
 	}
-        return self.StoreRootHashToLDB(indexName, roothash, status)
+        return self.StoreRootHashToLDB(indexName, roothash, status, nil)
 }
 
-
-func (self *ENSSimple) GotRootHashFromLDB(indexName []byte)(value []byte, status uint, err error){
-	elog.Debug(fmt.Sprintf("in ENSSimple GotRootHashFromLDB %v", indexName))
+func (self *ENSSimple) GetRootHashFromLDB(indexName []byte)(value []byte, status uint, err error){
+	elog.Debug(fmt.Sprintf("in ENSSimple GetRootHashFromLDB %v", indexName))
         var d EnsData
         res, err := self.ldb.Get(indexName, nil)
 	if err != nil && err != leveldb.ErrNotFound  {
 		res, err = self.GetRootHash(indexName)
-		return res, 0, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GotRootHashFromLDB `+err.Error())
+		return res, 0, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GetRootHashFromLDB `+err.Error())
 	}
-        err = json.Unmarshal(res, &d)
-	elog.Debug(fmt.Sprintf("in ENSSimple GotRootHashFromLDB res = %v d = %v", res, d))
-	if err != nil{
-		return res, 0, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GotRootHashFromLDB `+err.Error())
+	if err == nil{
+        	err = json.Unmarshal(res, &d)
+		elog.Debug(fmt.Sprintf("in ENSSimple GetRootHashFromLDB res = %v d = %v", res, d))
+		if err != nil{
+			return res, 0, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GetRootHashFromLDB `+err.Error())
+		}
 	}
 	return d.Root, d.Status, err
 }
 
-
-
+// status 
+//   0: got data by GetRootHash (will be "need update")
+//   1: updated by SetRootHash  (will be "just updated")
+//   2: got error at SetRootHash(will be "got error at SetRootHash")
 
 func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
-	elog.Debug(fmt.Sprintf("in ENSSimple GotRootHash %v", indexName))
+	elog.Debug(fmt.Sprintf("in ENSSimple GetRootHash %v", indexName))
 	//status, err :=	self.sens.Content(self.auth, indexName)
-	//elog.Debug(fmt.Sprintf("ENSSimple GetRootHash status %v err = %v", status, err))
-
+	//elog.Debug(fmt.Sprintf("ENSSimple GetRootHash status %v err = %v", status, err)
 	var d EnsData
 	res, err := self.ldb.Get(indexName, nil)
 	if err != nil && err != leveldb.ErrNotFound {
-		return res, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GotRootHash `+err.Error())
+		return res, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GetRootHash `+err.Error())
 	}
-	err = json.Unmarshal(res, &d)
-	if err != nil{
-		return res, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GotRootHash `+err.Error())
+	if err == nil{
+		err = json.Unmarshal(res, &d)
+		if err != nil{
+			return res, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GetRootHash `+err.Error())
+		}
 	}
-	if d.Status == 1{
+	if d.Status == 1 {
 		return d.Root, nil
 	} 
 	
@@ -306,8 +287,8 @@ func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
 	//s, err := sens.Content(b)
 	s, err := self.sens.Content(nil, b2)
 	if err != nil {
-		elog.Debug(fmt.Sprintf("ENSSimple GotRootHash err %v %v", indexName, err))
-		return val, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GotRootHash `+err.Error())
+		elog.Debug(fmt.Sprintf("ENSSimple GetRootHash err %v %v", indexName, err))
+		return val, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GetRootHash `+err.Error())
 	}
 	val = make([]byte, 32)
 	for i := range s {
@@ -318,6 +299,6 @@ func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
 	}
 	//copy(val[0:], s[0:32])
 	fmt.Printf("indexName: [%x] => s: [%x] val: [%x]\n", indexName, s, val)
-	elog.Debug(fmt.Sprintf("out ENSSimple GotRootHash %x s %x val %x", indexName, s, val))
+	elog.Debug(fmt.Sprintf("out ENSSimple GetRootHash %x s %x val %x", indexName, s, val))
 	return val, nil
 }

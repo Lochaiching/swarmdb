@@ -300,7 +300,7 @@ func (self *SwarmDB) GetRootHash(tblKey []byte /* GetTableKeyValue */) (roothash
 	log.Debug(fmt.Sprintf("[swarmdb GetRootHash] Getting Root Hash for (%s)[%x] ", tblKey, tblKey))
 	hashc := hashcolumn(tblKey)
 	s := hashc[:]
-	res, status, err := self.ens.GotRootHashFromLDB(s)
+	res, status, err := self.ens.GetRootHashFromLDB(s)
 	if err != nil{
 		res, err = self.ens.GetRootHash(s)
 	}
@@ -312,7 +312,7 @@ func (self *SwarmDB) GetRootHashFromLDB(tblKey []byte /* GetTableKeyValue */) (r
         log.Debug(fmt.Sprintf("[swarmdb GetRootHashFromLDB] Getting Root Hash for (%s)[%x] ", tblKey, tblKey))
         hashc := hashcolumn(tblKey)
         s := hashc[:]
-        res, status, err := self.ens.GotRootHashFromLDB(s)
+        res, status, err := self.ens.GetRootHashFromLDB(s)
         log.Debug(fmt.Sprintf("swarmdb GetRootHashFromLDB index = %x hashed index = %x status = %d", tblKey, s, status))
         return res, status, err
 }
@@ -321,7 +321,7 @@ func (self *SwarmDB) StoreRootHash(fullTableName []byte /* GetTableKey Value */,
 	hashc := hashcolumn(fullTableName)
 	s := hashc[:]
 	log.Debug(fmt.Sprintf("swarmdb StoreRootHash index = %x value = %x hashed index = %x", fullTableName, roothash, s)) 
-	return self.ens.StoreRootHashToLDB(s, roothash, 1)
+	return self.ens.StoreRootHashToLDB(s, roothash, 1, nil)
 }
 
 func (self *SwarmDB) StoreRootHashWithStatus(fullTableName []byte /* GetTableKey Value */, roothash []byte, status uint) (err error) {
@@ -329,14 +329,14 @@ func (self *SwarmDB) StoreRootHashWithStatus(fullTableName []byte /* GetTableKey
         s := hashc[:]
         log.Debug(fmt.Sprintf("swarmdb StoreRootHash index = %x value = %x hashed index = %x", fullTableName, roothash, s))
 	if status == 3{
-        	self.ens.StoreRootHashToLDB(s, roothash, 0)
+        	self.ens.StoreRootHashToLDB(s, roothash, 0, nil)
 		return self.ens.StoreRootHash(s, roothash)
 	}
 	if status == 2{
-        	self.ens.StoreRootHashToLDB(s, roothash, status)
+        	self.ens.StoreRootHashToLDB(s, roothash, status, nil)
 		return self.ens.StoreRootHash(s, roothash)
 	}
-        return self.ens.StoreRootHashToLDB(s, roothash, status)
+        return self.ens.StoreRootHashToLDB(s, roothash, status, nil)
 }
 
 // parse sql and return rows in bulk (order by, group by, etc.)
