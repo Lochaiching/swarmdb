@@ -1,1 +1,0 @@
-cmd_/var/www/vhost/sgx/linux-sgx-driver/isgx.ko := ld -r -m elf_x86_64 -T ./scripts/module-common.lds --build-id  -o /var/www/vhost/sgx/linux-sgx-driver/isgx.ko /var/www/vhost/sgx/linux-sgx-driver/isgx.o /var/www/vhost/sgx/linux-sgx-driver/isgx.mod.o
