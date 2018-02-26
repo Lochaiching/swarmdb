@@ -33,13 +33,19 @@ type Netstatslog struct {
 }
 
 func NewNetstats(config *SWARMDBConfig) (self *Netstats) {
-	nodeID := fmt.Sprintf("%s:%d", config.ListenAddrTCP, config.PortTCP)
+	//nodeID := fmt.Sprintf("%s:%d", config.ListenAddrTCP, config.PortTCP)
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "swarmdb"
+	}
+	ts := time.Now()
 	var ns = &Netstats{
-		NodeID:        nodeID,
+		NodeID:        hostname,
 		Path:          "/tmp/",
 		WalletAddress: config.Address,
 		SStat:         make(map[string]*big.Int),
+		LaunchDT:      &ts,
 	}
 	ns.SStat["SwapI"] = big.NewInt(0)   // # of check issued
 	ns.SStat["SwapIA"] = big.NewInt(0)  // amount of check issue
@@ -77,6 +83,8 @@ func NewNetstats(config *SWARMDBConfig) (self *Netstats) {
 }
 
 func (self *Netstats) AddIssue(amount int) (err error) {
+	ts := time.Now()
+	self.LReadDT = &ts
 	self.SStat["SwapI"].Add(self.SStat["SwapI"], big.NewInt(1))
 	self.SStat["SwapIA"].Add(self.SStat["SwapIA"], big.NewInt(int64(amount)))
 	self.SStat["SwapIL"].Add(self.SStat["SwapIL"], big.NewInt(1))
@@ -85,6 +93,8 @@ func (self *Netstats) AddIssue(amount int) (err error) {
 }
 
 func (self *Netstats) AddReceive(amount int) (err error) {
+	ts := time.Now()
+	self.LWriteDT = &ts	
 	self.SStat["SwapR"].Add(self.SStat["SwapR"], big.NewInt(1))
 	self.SStat["SwapRA"].Add(self.SStat["SwapRA"], big.NewInt(int64(amount)))
 	self.SStat["SwapRL"].Add(self.SStat["SwapRL"], big.NewInt(1))
@@ -164,11 +174,8 @@ func (self *Netstats) Save() (err error) {
 }
 
 func (self *Netstats) Flush() (err error) {
-	self.SStat["SwapI"] = big.NewInt(0)
-	self.SStat["SwapIA"] = big.NewInt(0)	
-
-	self.SStat["SwapR"] = big.NewInt(0)
-	self.SStat["SwapRA"] = big.NewInt(0)	
+	ts := time.Now()
+	self.LogDT = &ts
 	
 	data, err := json.Marshal(self)
 	if err != nil {
@@ -180,6 +187,13 @@ func (self *Netstats) Flush() (err error) {
 	}
 	defer netstatlog.Close()
 	fmt.Fprintf(netstatlog, "%s\n", data)
+	
+	self.SStat["SwapI"] = big.NewInt(0)
+	self.SStat["SwapIA"] = big.NewInt(0)	
+
+	self.SStat["SwapR"] = big.NewInt(0)
+	self.SStat["SwapRA"] = big.NewInt(0)	
+	
 	return nil
 }
 
