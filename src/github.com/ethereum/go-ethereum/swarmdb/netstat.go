@@ -16,20 +16,20 @@ type Netstats struct {
 	WalletAddress string
 	Path          string
 	SStat         map[string]*big.Int
-	LaunchDT      *time.Time
-	LReadDT       *time.Time
-	LWriteDT      *time.Time
-	LogDT         *time.Time
+	LaunchDT      time.Time
+	LReadDT       time.Time
+	LWriteDT      time.Time
+	LogDT         time.Time
 }
 
 type Netstatslog struct {
 	NodeID        string
 	WalletAddress string
-	SStat          map[string]string
-	LaunchDT      *time.Time
-	LReadDT       *time.Time
-	LWriteDT      *time.Time
-	LogDT         *time.Time
+	SStat         map[string]string
+	LaunchDT      time.Time
+	LReadDT       time.Time
+	LWriteDT      time.Time
+	LogDT         time.Time
 }
 
 func NewNetstats(config *SWARMDBConfig) (self *Netstats) {
@@ -45,7 +45,7 @@ func NewNetstats(config *SWARMDBConfig) (self *Netstats) {
 		Path:          "/tmp/",
 		WalletAddress: config.Address,
 		SStat:         make(map[string]*big.Int),
-		LaunchDT:      &ts,
+		LaunchDT:      ts,
 	}
 	ns.SStat["SwapI"] = big.NewInt(0)   // # of check issued
 	ns.SStat["SwapIA"] = big.NewInt(0)  // amount of check issue
@@ -84,7 +84,7 @@ func NewNetstats(config *SWARMDBConfig) (self *Netstats) {
 
 func (self *Netstats) AddIssue(amount int) (err error) {
 	ts := time.Now()
-	self.LReadDT = &ts
+	self.LWriteDT = ts
 	self.SStat["SwapI"].Add(self.SStat["SwapI"], big.NewInt(1))
 	self.SStat["SwapIA"].Add(self.SStat["SwapIA"], big.NewInt(int64(amount)))
 	self.SStat["SwapIL"].Add(self.SStat["SwapIL"], big.NewInt(1))
@@ -94,7 +94,7 @@ func (self *Netstats) AddIssue(amount int) (err error) {
 
 func (self *Netstats) AddReceive(amount int) (err error) {
 	ts := time.Now()
-	self.LWriteDT = &ts	
+	self.LReadDT = ts	
 	self.SStat["SwapR"].Add(self.SStat["SwapR"], big.NewInt(1))
 	self.SStat["SwapRA"].Add(self.SStat["SwapRA"], big.NewInt(int64(amount)))
 	self.SStat["SwapRL"].Add(self.SStat["SwapRL"], big.NewInt(1))
@@ -106,6 +106,10 @@ func (self *Netstats) MarshalJSON() (data []byte, err error) {
 	var l Netstatslog
 	l.NodeID = self.NodeID
 	l.WalletAddress = self.WalletAddress
+	l.LaunchDT = self.LaunchDT
+	l.LReadDT = self.LReadDT
+	l.LWriteDT = self.LWriteDT
+	l.LogDT = self.LogDT
 	l.SStat = make(map[string]string)
 	for sk, sv := range self.SStat {
 		l.SStat[sk] = sv.String()
@@ -135,6 +139,10 @@ func (self *Netstats) UnmarshalJSON(data []byte) (err error) {
 		}
 		self.NodeID = l.NodeID
 		self.WalletAddress = l.WalletAddress
+		self.LaunchDT = l.LaunchDT
+		self.LReadDT = l.LReadDT
+		self.LWriteDT = l.LWriteDT
+		self.LogDT = l.LogDT
 	}
 	return nil
 }
@@ -175,7 +183,7 @@ func (self *Netstats) Save() (err error) {
 
 func (self *Netstats) Flush() (err error) {
 	ts := time.Now()
-	self.LogDT = &ts
+	self.LogDT = ts
 	
 	data, err := json.Marshal(self)
 	if err != nil {
