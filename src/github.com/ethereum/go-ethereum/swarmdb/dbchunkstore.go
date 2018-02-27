@@ -158,6 +158,7 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	}
 
 	chunk.Val = val
+	//log.Debug(fmt.Sprintf("Storing the following data: %v", val))
 	data, err := rlp.EncodeToBytes(chunk)
 	if err != nil {
 		return key, err
@@ -240,7 +241,7 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 	}
 	val = c.Val
 	if string(c.Val[CHUNK_START_CHUNKTYPE:CHUNK_END_CHUNKTYPE]) == "k" {
-		//log.Debug(fmt.Sprintf("Retrieved a K Node => %+v\n", val))
+		//log.Debug(fmt.Sprintf("Retrieving the following data: %v", c.Val))
 		val = val[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL]
 	}
 	if c.Enc > 0 {
