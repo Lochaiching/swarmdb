@@ -94,7 +94,7 @@ type SwarmDB struct {
 	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
-	swapdb       *SwapDB
+	swapdb       *SwapDBStore
 	Netstats     *Netstats
 }
 
@@ -277,7 +277,7 @@ func NewSwarmDB(config *SWARMDBConfig) (swdb *SwarmDB, err error) {
 
 	swapDBFileName := "swap.db"
 	swapDBFullPath := filepath.Join(config.ChunkDBPath, swapDBFileName)
-	swapdbObj, errSwapDB := NewSwapDB(swapDBFullPath)
+	swapdbObj, errSwapDB := NewSwapDBStore(config, sd.Netstats)
 	if errSwapDB != nil {
 		return swdb, GenerateSWARMDBError(errSwapDB, `[swarmdb:NewSwarmDB] NewSwapDB `+swapDBFullPath+`|`+errSwapDB.Error())
 	}

@@ -53,7 +53,8 @@ func TestMain(m *testing.M) {
 	var err error
 	swarmdb, err = sdb.NewSwarmDB(config)
 	if err != nil {
-		os.Exit(0) // m.Fatal("could not create SWARMDB", err)
+		fmt.Printf("could not create SWARMDB %s", err)
+		os.Exit(0)
 	}
 	sdb.NewKeyManager(config)
 	u = config.GetSWARMDBUser()
