@@ -253,12 +253,12 @@ func PrepareSegment(chunk []byte, secret []byte) (segments []Content) {
 
 //GenerateAsh returns a merkle root based on given seed
 func GenerateAsh(seed []byte, rawchunk []byte) (rootHash []byte, err error) {
-    segments := PrepareSegment(rawchunk, seed)
-    tree, err := NewTree(segments)
-    if err != nil {
-        return rootHash, err
-    }
-    return tree.Roothash, nil
+	segments := PrepareSegment(rawchunk, seed)
+	tree, err := NewTree(segments)
+	if err != nil {
+		return rootHash, err
+	}
+	return tree.Roothash, nil
 }
 
 //ComputeAsh answers to an AshRequest
@@ -286,9 +286,9 @@ func VerifyAsh(response AshResponse, expectedMash []byte) (isValid bool, givenRo
 	if response.Proof != nil {
 		merkleproof := response.Proof
 		ok, merkleroot, err := CheckProof(merkleproof.Root, merkleproof.Path, merkleproof.Index)
-        if err != nil {
-            return false, givenRoot, err
-        }
+		if err != nil {
+			return false, givenRoot, err
+		}
 		if !ok || bytes.Compare(response.root, merkleroot) != 0 {
 			return false, merkleroot, nil
 		}
