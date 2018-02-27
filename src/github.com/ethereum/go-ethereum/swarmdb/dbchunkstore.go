@@ -122,7 +122,7 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 }
 
 func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
-	self.netstats.StoreChunk()
+	//self.netstats.StoreChunk() -- TODO: Review with Michael and Sourabh
 	return self.storeChunkInDB(u, val, encrypted, key)
 }
 
@@ -160,6 +160,7 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	}
 
 	chunk.Val = val
+	//log.Debug(fmt.Sprintf("Storing the following data: %v", val))
 	data, err := rlp.EncodeToBytes(chunk)
 	if err != nil {
 		return key, err
@@ -243,7 +244,7 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 	}
 	val = c.Val
 	if string(c.Val[CHUNK_START_CHUNKTYPE:CHUNK_END_CHUNKTYPE]) == "k" {
-		//log.Debug(fmt.Sprintf("Retrieved a K Node => %+v\n", val))
+		//log.Debug(fmt.Sprintf("Retrieving the following data: %v", c.Val))
 		val = val[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL]
 	}
 	if c.Enc > 0 {

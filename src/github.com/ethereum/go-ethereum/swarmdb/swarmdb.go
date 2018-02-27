@@ -94,6 +94,7 @@ type SwarmDB struct {
 	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
+	swapdb       *SwapDB
 	swapdb       *SwapDBStore
 	Netstats     *Netstats
 }
@@ -1075,27 +1076,27 @@ func (self *SwarmDB) ListDatabases(u *SWARMDBUser, owner string) (ret []Row, err
 		return ret, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:ListDatabases] GetRootHash %s", err))
 	}
 
-	buf := make([]byte, CHUNK_SIZE)
+	ownerChunk := make([]byte, CHUNK_SIZE)
 	if EmptyBytes(ownerDatabaseChunkID) {
 
 	} else {
-		buf, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
+		ownerChunk, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
 		if err != nil {
 			return ret, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:ListDatabases] RetrieveDBChunk %s", err))
 		}
 
-		// the first 32 bytes of the buf should match
-		if bytes.Compare(buf[0:32], ownerHash[0:32]) != 0 {
-			return ret, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListDatabases] Invalid owner %x != %x", ownerHash, buf[0:32]), ErrorCode: 450, ErrorMessage: "Invalid Owner Specified"}
+		// the first 32 bytes of the ownerChunk should match
+		if bytes.Compare(ownerChunk[0:32], ownerHash[0:32]) != 0 {
+			return ret, &SWARMDBError{message: fmt.Sprintf("[swarmdb:ListDatabases] Invalid owner %x != %x", ownerHash, ownerChunk[0:CHUNK_HASH_SIZE]), ErrorCode: 450, ErrorMessage: "Invalid Owner Specified"}
 		}
 
 		// check if there is already a database entry
-		for i := 64; i < CHUNK_SIZE; i += 64 {
-			if EmptyBytes(buf[i:(i + DATABASE_NAME_LENGTH_MAX)]) {
+		for i := CHUNK_START_CHUNKVAL + 64; i < CHUNK_SIZE; i += 64 {
+			if EmptyBytes(ownerChunk[i:(i + DATABASE_NAME_LENGTH_MAX)]) {
 			} else {
 				r := NewRow()
-				db := string(bytes.Trim(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], "\x00"))
-				log.Debug(fmt.Sprintf("DB: %s | %v BUF %s | %v ", db, db, buf[i:(i+32)], buf[i:(i+32)]))
+				db := string(bytes.Trim(ownerChunk[i:(i+DATABASE_NAME_LENGTH_MAX)], "\x00"))
+				log.Debug(fmt.Sprintf("DB: %s | %v BUF %s | %v ", db, db, ownerChunk[i:(i+32)], ownerChunk[i:(i+32)]))
 				//rowstring := fmt.Sprintf("{\"database\":\"%s\"}", db)
 				r["database"] = db
 				ret = append(ret, r)
@@ -1123,26 +1124,26 @@ func (self *SwarmDB) DropDatabase(u *SWARMDBUser, owner string, database string)
 		return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] GetRootHash %s", err)}
 	}
 
-	buf := make([]byte, CHUNK_SIZE)
+	ownerChunk := make([]byte, CHUNK_SIZE)
 	if EmptyBytes(ownerDatabaseChunkID) {
 		return false, nil // No error returned.  Just 'nil' it.  &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] No database %s", err)}
 	} else {
-		buf, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
+		ownerChunk, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
 		if err != nil {
 			return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] RetrieveDBChunk %s", err)}
 		}
 
-		// the first 32 bytes of the buf should match
-		if bytes.Compare(buf[0:32], ownerHash[0:32]) != 0 {
-			return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] Invalid owner %x != %x", ownerHash, buf[0:32])}
+		// the first 32 bytes of the ownerChunk should match
+		if bytes.Compare(ownerChunk[0:CHUNK_HASH_SIZE], ownerHash[0:CHUNK_HASH_SIZE]) != 0 {
+			return false, &SWARMDBError{message: fmt.Sprintf("[swarmdb:DropDatabase] Invalid owner %x != %x", ownerHash, ownerChunk[0:CHUNK_HASH_SIZE])}
 		}
 
 		// check for the database entry
-		for i := 64; i < CHUNK_SIZE; i += 64 {
-			if bytes.Compare(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], dropDBName) == 0 {
+		for i := CHUNK_START_CHUNKVAL + 64; i < CHUNK_SIZE; i += 64 {
+			if bytes.Compare(ownerChunk[i:(i+DATABASE_NAME_LENGTH_MAX)], dropDBName) == 0 {
 				// found it, zero out the database
-				copy(buf[i:(i+64)], make([]byte, 64))
-				ownerDatabaseChunkID, err = self.StoreDBChunk(u, buf, 0) // TODO: .eth disc
+				copy(ownerChunk[i:(i+64)], make([]byte, 64))
+				ownerDatabaseChunkID, err = self.StoreDBChunk(u, ownerChunk, 0) // TODO: .eth disc
 				if err != nil {
 					return false, GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:DropDatabase] StoreDBChunk %s", err.Error()))
 				}

@@ -70,10 +70,12 @@ func make_name(prefix string) (nm string) {
 
 func TestCoreTables(t *testing.T) {
 
-	owner := make_name("owner")
-	owner2 := make_name("altowner")
+	owner := make_name("owner.eth")
+	owner2 := make_name("altowner.eth")
 	database := make_name("db")
 	database2 := make_name("altdb")
+	encrypted := int(1)
+	encrypted2 := int(1)
 
 	// create database
 	var tReq *sdb.RequestOption
@@ -81,6 +83,8 @@ func TestCoreTables(t *testing.T) {
 	tReq.RequestType = sdb.RT_CREATE_DATABASE
 	tReq.Owner = owner
 	tReq.Database = database
+	tReq.Encrypted = encrypted
+
 	mReq, _ := json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
 	res, err := swarmdb.SelectHandler(u, string(mReq))
@@ -105,6 +109,8 @@ func TestCoreTables(t *testing.T) {
 	tReq.RequestType = sdb.RT_CREATE_DATABASE
 	tReq.Owner = owner
 	tReq.Database = database2
+	tReq.Encrypted = encrypted2
+
 	mReq, _ = json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
 	res, err = swarmdb.SelectHandler(u, string(mReq))
@@ -118,6 +124,8 @@ func TestCoreTables(t *testing.T) {
 	tReq.RequestType = sdb.RT_LIST_DATABASES
 	tReq.Owner = owner
 	tReq.Database = database
+	//tReq.Encrypted = encrypted
+
 	mReq, _ = json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
 	res, err = swarmdb.SelectHandler(u, string(mReq))
@@ -353,7 +361,6 @@ func TestCoreTables(t *testing.T) {
 		} else {
 			t.Fatalf("Missing row!")
 		}
-
 		// GET(samplevalue2) should return ok = false, but not error
 		tReq = new(sdb.RequestOption)
 		tReq.RequestType = sdb.RT_GET
@@ -757,8 +764,9 @@ func checktype(columnType sdb.ColumnType, v interface{}) (ok bool) {
 
 func TestTypeCoercion(t *testing.T) {
 
-	owner := make_name("owner")
-	database := make_name("db")
+	owner := make_name("owner.eth")
+	database := make_name("dbTestTypeCoercion")
+	encrypted := int(1)
 
 	// create database
 	var tReq *sdb.RequestOption
@@ -766,11 +774,13 @@ func TestTypeCoercion(t *testing.T) {
 	tReq.RequestType = sdb.RT_CREATE_DATABASE
 	tReq.Owner = owner
 	tReq.Database = database
+	tReq.Encrypted = encrypted
+
 	mReq, _ := json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
 	res, err := swarmdb.SelectHandler(u, string(mReq))
 	if err != nil {
-		t.Fatalf("[swarmdb_test:TestTypeCoercion] CREATE DATABASE: %s", err)
+		t.Fatalf("[swarmdb_test:TestTypeCoercion] CREATE DATABASE: %s |  %s", tReq.Database, err)
 	}
 	fmt.Printf("Output: %s\n\n", res.Stringify())
 
@@ -1074,8 +1084,9 @@ func TestTypeCoercion(t *testing.T) {
 }
 
 func TestSmallOps(t *testing.T) {
-	owner := make_name("smallops")
+	owner := make_name("smallops.eth")
 	database := make_name("smalldb")
+	encrypted := int(1)
 
 	// create database
 	var tReq *sdb.RequestOption
@@ -1083,6 +1094,8 @@ func TestSmallOps(t *testing.T) {
 	tReq.RequestType = sdb.RT_CREATE_DATABASE
 	tReq.Owner = owner
 	tReq.Database = database
+	tReq.Encrypted = encrypted
+
 	mReq, _ := json.Marshal(tReq)
 	fmt.Printf("Input: %s\n", mReq)
 	res, err := swarmdb.SelectHandler(u, string(mReq))
