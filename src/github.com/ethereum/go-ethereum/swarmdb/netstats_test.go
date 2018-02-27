@@ -53,7 +53,7 @@ func TestNetstatsBasic(t *testing.T) {
 			enc := rand.Intn(2)
 			simh, err := store.StoreChunk(u, simdata, enc)
 			if err != nil {
-				t.Fatal("[FAILURE] writting record #%v [%x] => %v\n", j, simh, string(simdata[:]))
+				t.Fatalf("[FAILURE] writting record #%v [%x] => %v\n", j, simh, string(simdata[:]))
 			} else if j%5 == 0 {
 				fmt.Printf("Generating record [%x] => %v ... ", simh, string(simdata[:]))
 				fmt.Printf("[SUCCESS] writing #%v chunk | Encryption: %v\n", j, enc)
@@ -65,7 +65,7 @@ func TestNetstatsBasic(t *testing.T) {
 
 			response, err := store.RetrieveAsh(simh, secret, proofRequired, int8(auditIndex))
 			if err != nil {
-				t.Fatal("[FAILURE] Generating record [%x] %s\n", simh, err.Error())
+				t.Fatalf("[FAILURE] Generating record [%x] %s\n", simh, err.Error())
 			} else if j%5 == 0 {
 				if proofRequired {
 					ok, mr, err := ash.CheckProof(response.Proof.Root, response.Proof.Path, response.Proof.Index)

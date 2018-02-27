@@ -136,7 +136,7 @@ func TestCheckProof(t *testing.T) {
 		if isValid == testset[i].isValidProof {
 			fmt.Printf("Success: checkProof Verified [%x]\n", testset[i].expectedHash)
 		} else {
-			t.Error("ERROR: CheckProof Exptected [%x]| Actual [%x]\n", testset[i].expectedHash, mroot)
+			t.Errorf("ERROR: CheckProof Exptected [%x]| Actual [%x]\n", testset[i].expectedHash, mroot)
 		}
 	}
 }
@@ -151,7 +151,7 @@ func TestGetProof(t *testing.T) {
 		for j, segment := range testset[i].segments {
 			ok, merkleroot, mkproof, index := tree.GetProof(segment.B)
 			if ok != testset[i].isValidProof {
-				t.Error("ERROR: Invalid MerkleRoot [%x] | Proof [%x] | Index [%d]\n", testset[i].merkleproof, index)
+				t.Errorf("ERROR: Invalid MerkleRoot [%x] | Proof [%x] | Index [%d]\n", merkleroot, testset[i].merkleproof, index)
 			} else if int8(j) == testset[i].index {
 				fmt.Printf("Success: MerkleRoot [%x] | Proof [%s] | Index [%d]\n", merkleroot, bsplit(mkproof), index)
 			}
@@ -172,7 +172,7 @@ func TestGetProofAndCheckProof(t *testing.T) {
 			chash := Computehash(content)
 			ok, merkleroot, mkproof, ind := tree.GetProof(content)
 			if !ok {
-				t.Error("ERROR: Invalid MerkleRoot [%x] | Proof [%x]\n", merkleroot, testset[i].merkleproof)
+				t.Errorf("ERROR: Invalid MerkleRoot [%x] | Proof [%x]\n", merkleroot, testset[i].merkleproof)
 			} else {
 				testproof = append(testproof, TestProof{expectedHash: merkleroot, contentHash: chash, merkleproof: mkproof, index: ind})
 				fmt.Printf("Success: MerkleRoot [%x] | Content [%x]| Proof [%x]\n", merkleroot, chash, mkproof)
@@ -188,7 +188,7 @@ func TestGetProofAndCheckProof(t *testing.T) {
 				}
 			}
 			if !isValid {
-				t.Error("ERROR: CheckProof Exptected [%x]| Actual [%x]", proof.expectedHash, mroot)
+				t.Errorf("ERROR: CheckProof Exptected [%x]| Actual [%x]", proof.expectedHash, mroot)
 			} else if k%32 == 0 {
 				fmt.Printf("Success: checkProof Verified [%x]\n", mroot)
 			}
