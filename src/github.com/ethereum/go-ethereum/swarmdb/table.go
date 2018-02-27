@@ -194,7 +194,7 @@ func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 
 func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte, birthts int, version int) (mergedBodycontent []byte, err error) {
 	contentPrefix := BuildSwarmdbPrefix([]byte(self.Owner), []byte(self.Database), []byte(self.tableName), key)
-	log.Debug(fmt.Sprintf("[table:buildSdata] contentPrefix is: %s", contentPrefix))
+	log.Debug(fmt.Sprintf("[table:buildSdata] contentPrefix is: %x", contentPrefix))
 
 	var metadataBody []byte
 	metadataBody = make([]byte, CHUNK_START_CHUNKVAL)
@@ -229,13 +229,13 @@ func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte, birthts 
 
 	//TODO: Sig -- document this
 	copy(metadataBody[CHUNK_START_SIG:CHUNK_END_SIG], sdataSig)
-	log.Debug(fmt.Sprintf("Metadata is [%+v]", metadataBody))
+	//log.Debug(fmt.Sprintf("Metadata is [%+v]", metadataBody))
 
 	mergedBodycontent = make([]byte, CHUNK_SIZE)
 	copy(mergedBodycontent[:], metadataBody)
 	copy(mergedBodycontent[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL], value) // expected to be the encrypted body content
 
-	log.Debug(fmt.Sprintf("Merged Body Content: [%v]", mergedBodycontent))
+	//log.Debug(fmt.Sprintf("Merged Body Content: [%v]", mergedBodycontent))
 	return mergedBodycontent, err
 }
 
@@ -259,7 +259,7 @@ func BuildSwarmdbPrefix(owner []byte, database []byte, table []byte, id []byte) 
 	copy(prepBytes[len(owner)+len(database)+len(table):], id)
 	prefix := crypto.Keccak256([]byte(prepBytes))
 
-	log.Debug(fmt.Sprintf("In BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]", prepBytes, prefix, []byte(prefix), len([]byte(prefix))))
+	log.Debug(fmt.Sprintf("In BuildSwarmdbPrefix prepstring[%s] and prefix[%x] in Bytes [%v] with size [%d]", prepBytes, prefix, []byte(prefix), len([]byte(prefix))))
 	return (prefix)
 }
 
