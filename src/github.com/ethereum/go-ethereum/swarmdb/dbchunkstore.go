@@ -120,7 +120,7 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 }
 
 func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
-	self.netstats.StoreChunk()
+	//self.netstats.StoreChunk() -- TODO: Review with Michael and Sourabh
 	return self.storeChunkInDB(u, val, encrypted, key)
 }
 
@@ -239,7 +239,7 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 		return val, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveChunk] Prepare %s", err.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
 	}
 	val = c.Val
-	if string(c.Val[CHUNK_START_NODETYPE:CHUNK_END_NODETYPE]) == "K" {
+	if string(c.Val[CHUNK_START_CHUNKTYPE:CHUNK_END_CHUNKTYPE]) == "k" {
 		//log.Debug(fmt.Sprintf("Retrieved a K Node => %+v\n", val))
 		val = val[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL]
 	}
@@ -251,7 +251,7 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 	}
 	var fullVal []byte
 	fullVal = make([]byte, CHUNK_SIZE)
-	if string(c.Val[CHUNK_START_NODETYPE:CHUNK_END_NODETYPE]) == "K" {
+	if string(c.Val[CHUNK_START_CHUNKTYPE:CHUNK_END_CHUNKTYPE]) == "k" {
 		copy(fullVal[0:CHUNK_START_CHUNKVAL], c.Val[0:CHUNK_START_CHUNKVAL])
 		copy(fullVal[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL], val)
 		val = fullVal
