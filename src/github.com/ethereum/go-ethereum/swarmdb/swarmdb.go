@@ -24,10 +24,7 @@ import (
 	"path/filepath"
 	"strings"
 	"swarmdb/ash"
-)
-
-const (
-	OK_RESPONSE = "ok"
+	"time"
 )
 
 //for passing request data from client to server if the request needs Table data
@@ -98,7 +95,7 @@ type SwarmDB struct {
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
 	swapdb       *SwapDB
-	netstats     *Netstats
+	Netstats     *Netstats
 }
 
 //for sql parsing
@@ -218,14 +215,15 @@ const (
 	DATABASES_PER_USER_MAX   = 30
 	COLUMNS_PER_TABLE_MAX    = 30
 
+	CHUNK_HASH_SIZE          = 32
 	CHUNK_START_SIG          = 0
 	CHUNK_END_SIG            = 65
 	CHUNK_START_MSGHASH      = 65
 	CHUNK_END_MSGHASH        = 97
 	CHUNK_START_PAYER        = 97
 	CHUNK_END_PAYER          = 129
-	CHUNK_START_NODETYPE     = 129
-	CHUNK_END_NODETYPE       = 130
+	CHUNK_START_CHUNKTYPE    = 129
+	CHUNK_END_CHUNKTYPE      = 130
 	CHUNK_START_MINREP       = 130
 	CHUNK_END_MINREP         = 131
 	CHUNK_START_MAXREP       = 131
@@ -260,10 +258,8 @@ func NewSwarmDB(config *SWARMDBConfig) (swdb *SwarmDB, err error) {
 	sd := new(SwarmDB)
 	sd.tables = make(map[string]*Table)
 
-	netstats := NewNetstats(config)
-	sd.netstats = netstats
-
-	dbchunkstore, err := NewDBChunkStore(config, netstats)
+	sd.Netstats = NewNetstats(config)
+	dbchunkstore, err := NewDBChunkStore(config, sd.Netstats)
 	if err != nil {
 		return swdb, GenerateSWARMDBError(err, `[swarmdb:NewSwarmDB] NewDBChunkStore `+err.Error())
 	} else {
@@ -937,6 +933,53 @@ func (self *SwarmDB) UnregisterTable(owner string, database string, tableName st
 	delete(self.tables, tblKey)
 }
 
+func (self *SwarmDB) BuildChunkHeader(u *SWARMDBUser, owner []byte, database []byte, tableName []byte, key []byte, value []byte, birthts int, version int, nodeType []byte, encrypted int) (ch []byte, err error) {
+	ch = make([]byte, CHUNK_START_CHUNKVAL)
+	copy(ch[CHUNK_START_OWNER:CHUNK_END_OWNER], owner)
+	copy(ch[CHUNK_START_DB:CHUNK_END_DB], database)
+	copy(ch[CHUNK_START_TABLE:CHUNK_END_TABLE], tableName)
+	copy(ch[CHUNK_START_KEY:CHUNK_END_KEY], key)
+	copy(ch[CHUNK_START_PAYER:CHUNK_END_PAYER], u.Address)
+	copy(ch[CHUNK_START_CHUNKTYPE:CHUNK_END_CHUNKTYPE], nodeType) // O = OWNER | D = Database | T = Table | x,h,d,k = various data nodes
+	copy(ch[CHUNK_START_RENEW:CHUNK_END_RENEW], IntToByte(u.AutoRenew))
+	copy(ch[CHUNK_START_MINREP:CHUNK_END_MINREP], IntToByte(u.MinReplication))
+	copy(ch[CHUNK_START_MAXREP:CHUNK_END_MAXREP], IntToByte(u.MaxReplication))
+	copy(ch[CHUNK_START_ENCRYPTED:CHUNK_END_ENCRYPTED], IntToByte(encrypted))
+	copy(ch[CHUNK_START_BIRTHTS:CHUNK_END_BIRTHTS], IntToByte(birthts))
+
+	lastupdatets := int(time.Now().Unix())
+	copy(ch[CHUNK_START_LASTUPDATETS:CHUNK_END_LASTUPDATETS], IntToByte(lastupdatets))
+
+	copy(ch[CHUNK_START_VERSION:CHUNK_END_VERSION], IntToByte(version))
+
+	rawMetadata := ch[CHUNK_END_MSGHASH:CHUNK_START_CHUNKVAL]
+	msg_hash := SignHash(rawMetadata)
+
+	//TODO: msg_hash --
+	copy(ch[CHUNK_START_MSGHASH:CHUNK_END_MSGHASH], msg_hash)
+
+	km := self.dbchunkstore.GetKeyManager()
+	sdataSig, errSign := km.SignMessage(msg_hash)
+	if errSign != nil {
+		return ch, &SWARMDBError{message: `[kademliadb:buildSdata] SignMessage ` + errSign.Error(), ErrorCode: 455, ErrorMessage: "Keymanager Unable to Sign Message"}
+	}
+
+	//TODO: Sig -- document this
+	copy(ch[CHUNK_START_SIG:CHUNK_END_SIG], sdataSig)
+	//log.Debug(fmt.Sprintf("Metadata is [%+v]", ch))
+
+	return ch, err
+
+	/*
+	   mergedBodycontent = make([]byte, CHUNK_SIZE)
+	   copy(mergedBodycontent[:], metadataBody)
+	   copy(mergedBodycontent[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL], value) // expected to be the encrypted body content
+
+	   log.Debug(fmt.Sprintf("Merged Body Content: [%v]", mergedBodycontent))
+	   return mergedBodycontent, err
+	*/
+}
+
 // creating a database results in a new entry, e.g. "videos" in the owners ENS e.g. "wolktoken.eth" stored in a single chunk
 // e.g.  key 1: wolktoken.eth (up to 64 chars)
 //       key 2: videos     => 32 byte hash, pointing to tables of "video'
@@ -956,36 +999,39 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 		return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateDatabase] GetRootHash %s", err))
 	}
 
-	buf := make([]byte, CHUNK_SIZE)
+	ownerChunk := make([]byte, CHUNK_SIZE)
 	log.Debug(fmt.Sprintf("[swarmdb:CreateDatabase] Getting Root Hash using ownerHash [%x] and got [%x]", ownerHash, ownerDatabaseChunkID))
 
 	if EmptyBytes(ownerDatabaseChunkID) {
 		// put the 32-byte ownerHash in the first 32 bytes
 		log.Debug(fmt.Sprintf("Creating new %s - %x\n", owner, ownerHash))
-		copy(buf[0:32], []byte(ownerHash))
+		//Create New Owner Chunk
+		copy(ownerChunk[0:CHUNK_HASH_SIZE], []byte(ownerHash))
 	} else {
-		buf, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
+		//Retrieve Owner Chunk "O" Chunk
+		ownerChunk, err = self.RetrieveDBChunk(u, ownerDatabaseChunkID)
 		if err != nil {
 			return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateDatabase] RetrieveDBChunk %s", err))
 		}
 
-		// the first 32 bytes of the buf should match
-		if bytes.Compare(buf[0:32], ownerHash[0:32]) != 0 {
-			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateDatabase] Invalid owner %x != %x", ownerHash, buf[0:32]), ErrorCode: 450, ErrorMessage: fmt.Sprintf("Owner [%s] is invalid", owner)}
+		// the first 32 bytes of the ownerChunk should match
+		if bytes.Compare(ownerChunk[0:CHUNK_HASH_SIZE], ownerHash[0:CHUNK_HASH_SIZE]) != 0 {
+			return &SWARMDBError{message: fmt.Sprintf("[swarmdb:CreateDatabase] Invalid owner %x != %x", ownerHash, ownerChunk[0:32]), ErrorCode: 450, ErrorMessage: fmt.Sprintf("Owner [%s] is invalid", owner)}
 			//TODO: understand how/when this would occur
 		}
 
 		// check if there is already a database entry
-		for i := 64; i < CHUNK_SIZE; i += 64 {
-			if bytes.Equal(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], newDBName) {
+		for i := CHUNK_START_CHUNKVAL + 64; i < CHUNK_SIZE; i += 64 {
+			if bytes.Equal(ownerChunk[i:(i+DATABASE_NAME_LENGTH_MAX)], newDBName) {
 				return &SWARMDBError{message: "[swarmdb:CreateDatabase] Database exists already", ErrorCode: 500, ErrorMessage: "Database Exists Already"}
 			}
 		}
 	}
 
-	for i := 64; i < CHUNK_SIZE; i += 64 {
+	//ownerChunkHeader :=
+	for i := CHUNK_START_CHUNKVAL + 64; i < CHUNK_SIZE; i += 64 {
 		// find the first 000 byte entry
-		if EmptyBytes(buf[i:(i + 64)]) {
+		if EmptyBytes(ownerChunk[i:(i + 64)]) {
 			// make a new database chunk, with the first 32 bytes of the chunk being the database name (the next keys will be the tables)
 			bufDB := make([]byte, CHUNK_SIZE)
 			copy(bufDB[0:DATABASE_NAME_LENGTH_MAX], newDBName[0:DATABASE_NAME_LENGTH_MAX])
@@ -996,17 +1042,17 @@ func (self *SwarmDB) CreateDatabase(u *SWARMDBUser, owner string, database strin
 			}
 
 			// save the owner chunk, with the name + new DB hash
-			copy(buf[i:(i+DATABASE_NAME_LENGTH_MAX)], newDBName[0:DATABASE_NAME_LENGTH_MAX])
+			copy(ownerChunk[i:(i+DATABASE_NAME_LENGTH_MAX)], newDBName[0:DATABASE_NAME_LENGTH_MAX])
 			log.Debug(fmt.Sprintf("Saving Database with encrypted bit of %d at possition: %d", encrypted, i+DATABASE_NAME_LENGTH_MAX))
 			if encrypted > 0 {
-				buf[i+DATABASE_NAME_LENGTH_MAX] = 1
+				ownerChunk[i+DATABASE_NAME_LENGTH_MAX] = 1
 			} else {
-				buf[i+DATABASE_NAME_LENGTH_MAX] = 0
+				ownerChunk[i+DATABASE_NAME_LENGTH_MAX] = 0
 			}
-			copy(buf[(i+32):(i+64)], newDBHash[0:32])
-			log.Debug(fmt.Sprintf("Buffer has encrypted bit of %d ", buf[i+DATABASE_NAME_LENGTH_MAX]))
+			copy(ownerChunk[(i+CHUNK_HASH_SIZE):(i+CHUNK_HASH_SIZE+32)], newDBHash[0:CHUNK_HASH_SIZE])
+			log.Debug(fmt.Sprintf("Buffer has encrypted bit of %d ", ownerChunk[i+DATABASE_NAME_LENGTH_MAX]))
 
-			ownerDatabaseChunkID, err = self.StoreDBChunk(u, buf, 0) // this could be a function of the top level domain .pri/.eth
+			ownerDatabaseChunkID, err = self.StoreDBChunk(u, ownerChunk, 0) // this could be a function of the top level domain .pri/.eth
 			if err != nil {
 				return GenerateSWARMDBError(err, fmt.Sprintf("[swarmdb:CreateDatabase] StoreDBChunk %s", err.Error()))
 			}
