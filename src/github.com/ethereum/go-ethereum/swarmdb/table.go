@@ -198,13 +198,12 @@ func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte, birthts 
 
 	var metadataBody []byte
 	metadataBody = make([]byte, CHUNK_START_CHUNKVAL)
-	//TODO: Use Constants
 	copy(metadataBody[CHUNK_START_OWNER:CHUNK_END_OWNER], []byte(self.Owner))
 	copy(metadataBody[CHUNK_START_DB:CHUNK_END_DB], []byte(self.Database))
 	copy(metadataBody[CHUNK_START_TABLE:CHUNK_END_TABLE], []byte(self.tableName))
 	copy(metadataBody[CHUNK_START_KEY:CHUNK_END_KEY], contentPrefix)
 	copy(metadataBody[CHUNK_START_PAYER:CHUNK_END_PAYER], u.Address)
-	copy(metadataBody[CHUNK_START_NODETYPE:CHUNK_END_NODETYPE], []byte("K")) //TODO: Define nodeType representation -- self.nodeType)
+	copy(metadataBody[CHUNK_START_CHUNKTYPE:CHUNK_END_CHUNKTYPE], []byte("k")) //TODO: Define nodeType representation -- self.nodeType)
 	copy(metadataBody[CHUNK_START_RENEW:CHUNK_END_RENEW], IntToByte(u.AutoRenew))
 	copy(metadataBody[CHUNK_START_MINREP:CHUNK_END_MINREP], IntToByte(u.MinReplication))
 	copy(metadataBody[CHUNK_START_MAXREP:CHUNK_END_MAXREP], IntToByte(u.MaxReplication))

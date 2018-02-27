@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -14,59 +15,106 @@ type Netstats struct {
 	NodeID        string
 	WalletAddress string
 	Path          string
-	CStat         map[string]*big.Int
-	LaunchDT      *time.Time
-	LReadDT       *time.Time
-	LWriteDT      *time.Time
-	LogDT         *time.Time
+	SStat         map[string]*big.Int
+	LaunchDT      time.Time
+	LReadDT       time.Time
+	LWriteDT      time.Time
+	LogDT         time.Time
 }
 
 type Netstatslog struct {
 	NodeID        string
 	WalletAddress string
-	Stat          map[string]string
-	LaunchDT      *time.Time
-	LReadDT       *time.Time
-	LWriteDT      *time.Time
-	LogDT         *time.Time
+	SStat         map[string]string
+	LaunchDT      time.Time
+	LReadDT       time.Time
+	LWriteDT      time.Time
+	LogDT         time.Time
 }
 
 func NewNetstats(config *SWARMDBConfig) (self *Netstats) {
-	nodeID := fmt.Sprintf("%s:%d", config.ListenAddrTCP, config.PortTCP)
+	//nodeID := fmt.Sprintf("%s:%d", config.ListenAddrTCP, config.PortTCP)
 
-	var ns = &Netstats{
-		NodeID:        nodeID,
-		Path:          config.ChunkDBPath,
-		WalletAddress: config.Address,
-		CStat:         make(map[string]*big.Int),
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "swarmdb"
 	}
-	ns.CStat["ChunkW"] = big.NewInt(0)
-	ns.CStat["ChunkR"] = big.NewInt(0)
-	ns.CStat["ChunkWL"] = big.NewInt(0)
-	ns.CStat["ChunkRL"] = big.NewInt(0)
-	fmt.Printf("Q: %s\n", ns.CStat)
+	ts := time.Now()
+	var ns = &Netstats{
+		NodeID:        hostname,
+		Path:          "/tmp/",
+		WalletAddress: config.Address,
+		SStat:         make(map[string]*big.Int),
+		LaunchDT:      ts,
+	}
+	ns.SStat["SwapI"] = big.NewInt(0)   // # of check issued
+	ns.SStat["SwapIA"] = big.NewInt(0)  // amount of check issue
+	ns.SStat["SwapIL"] = big.NewInt(0)  // # of check issued long-term
+	ns.SStat["SwapIAL"] = big.NewInt(0) // amount of checks issued long-term
+
+	ns.SStat["SwapR"] = big.NewInt(0)   // # of checks received
+	ns.SStat["SwapRA"] = big.NewInt(0)  // amount of checks received
+	ns.SStat["SwapRL"] = big.NewInt(0)  // # of checks received long-term
+	ns.SStat["SwapRAL"] = big.NewInt(0) // amount of checks received long-term
+
+	fmt.Printf("Q: %s\n", ns.SStat)
+
+	t := time.NewTicker(20 * time.Second)
+	go func(ns *Netstats) {
+		for {
+			ns.Flush()
+			//time.Sleep(5*time.Second)
+			<-t.C
+		}
+	}(ns)
+
+	/*
+		// this is working ... same as the ticker above
+		go func(ns *Netstats) {
+			for {
+			   ns.Flush()
+			   time.Sleep(5*time.Second)
+			}
+		}(ns)
+	*/
+
 	return ns
 }
 
-func (self *Netstats) StoreChunk() {
-	//ts := time.Now()
-	//self.LWriteDT = &ts
-	self.CStat["ChunkW"].Add(self.CStat["ChunkW"], big.NewInt(1))
+func (self *Netstats) AddIssue(amount int) (err error) {
+	ts := time.Now()
+	self.LWriteDT = ts
+	self.SStat["SwapI"].Add(self.SStat["SwapI"], big.NewInt(1))
+	self.SStat["SwapIA"].Add(self.SStat["SwapIA"], big.NewInt(int64(amount)))
+	self.SStat["SwapIL"].Add(self.SStat["SwapIL"], big.NewInt(1))
+	self.SStat["SwapIAL"].Add(self.SStat["SwapIAL"], big.NewInt(int64(amount)))
+	return nil
 }
 
-func (self *Netstats) ReadChunk() {
-	// ts := time.Now()
-	// self.LReadDT = &ts
-	self.CStat["ChunkR"].Add(self.CStat["ChunkR"], big.NewInt(1))
+func (self *Netstats) AddReceive(amount int) (err error) {
+	ts := time.Now()
+	self.LReadDT = ts
+	self.SStat["SwapR"].Add(self.SStat["SwapR"], big.NewInt(1))
+	self.SStat["SwapRA"].Add(self.SStat["SwapRA"], big.NewInt(int64(amount)))
+	self.SStat["SwapRL"].Add(self.SStat["SwapRL"], big.NewInt(1))
+	self.SStat["SwapRAL"].Add(self.SStat["SwapRAL"], big.NewInt(int64(amount)))
+	return nil
 }
 
 func (self *Netstats) MarshalJSON() (data []byte, err error) {
 	var l Netstatslog
 	l.NodeID = self.NodeID
 	l.WalletAddress = self.WalletAddress
-	l.Stat = make(map[string]string)
-	for cc, cv := range self.CStat {
-		l.Stat[cc] = cv.String()
+	l.LaunchDT = self.LaunchDT
+	l.LReadDT = self.LReadDT
+	l.LWriteDT = self.LWriteDT
+	l.LogDT = self.LogDT
+	l.SStat = make(map[string]string)
+	for sk, sv := range self.SStat {
+		l.SStat[sk] = sv.String()
+		if sk == "SwapI" || sk == "SwapIA" || sk == "SwapR" || sk == "SwapRA" {
+			self.SStat[sk] = big.NewInt(0)
+		}
 	}
 	data, err = json.Marshal(l)
 	if err != nil {
@@ -77,38 +125,41 @@ func (self *Netstats) MarshalJSON() (data []byte, err error) {
 }
 
 func (self *Netstats) UnmarshalJSON(data []byte) (err error) {
-	var ns Netstats
-	ns.CStat = make(map[string]*big.Int)
-	err = json.Unmarshal(data, &ns)
+	var l Netstatslog
+	l.SStat = make(map[string]string)
+	err = json.Unmarshal(data, &l)
 	if err != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[netstats:UnmarshalJSON]%s", err.Error()), ErrorCode: 460, ErrorMessage: fmt.Sprintf("Unable to unmarshal [%s]", data)}
+	} else {
+		self.SStat = make(map[string]*big.Int)
+		for sk, sv := range l.SStat {
+			i, _ := strconv.ParseInt(sv, 10, 64)
+			self.SStat[sk] = big.NewInt(int64(i))
+		}
+		self.NodeID = l.NodeID
+		self.WalletAddress = l.WalletAddress
+		self.LaunchDT = l.LaunchDT
+		self.LReadDT = l.LReadDT
+		self.LWriteDT = l.LWriteDT
+		self.LogDT = l.LogDT
 	}
-	// self.farmer = common.HexToAddress(file.WalletAddress)
-	/*
-		for cc, cv := range self.CStat {
-			if cc == "ChunkR" || cc == "ChunkW" || cc == "ChunkS" || cc == "LogW" {
-				self.CStat[cc] = big.NewInt(0)
-			} else {
-				ok := false
-				self.CStat[cc], ok = new(big.Int).SetString(cv, 10)
-				if !ok {
-					return &SWARMDBError{message: fmt.Sprintf("[netstats:UnmarshalJSON] %v loading failure: unable to convert string to big integer: %v", cc, cv), ErrorCode: 460, ErrorMessage: fmt.Sprintf("Unable to unmarshal [%s]", data)}
-				}
-			}
-		}*/
 	return nil
 }
 
-func LoadNetstats(path string) (self *Netstats, err error) {
+func LoadNetstats() (self *Netstats, err error) {
+	netstatsFileName := "netstats.json"
+	netstatsFullPath := filepath.Join("/tmp/", netstatsFileName)
 	var data []byte
-	data, errLoad := ioutil.ReadFile(path)
+	data, errLoad := ioutil.ReadFile(netstatsFullPath)
 	if errLoad != nil {
-		return self, GenerateSWARMDBError(err, fmt.Sprintf("[netstats:LoadNetstats] %s", err.Error()))
+		//return self, GenerateSWARMDBError(err, fmt.Sprintf("[netstats:LoadNetstats] %s", err.Error()))
+		return self, &SWARMDBError{message: fmt.Sprintf("[netstats:LoadNetstats] %s", err.Error()), ErrorCode: 461, ErrorMessage: "LoadNetstats"}
 	}
 
 	errParse := json.Unmarshal(data, &self)
 	if errParse != nil {
-		return self, GenerateSWARMDBError(err, fmt.Sprintf("[netstats:LoadNetstats] %s", err.Error()))
+		//return self, GenerateSWARMDBError(err, fmt.Sprintf("[netstats:LoadNetstats] %s", err.Error()))
+		return self, &SWARMDBError{message: fmt.Sprintf("[netstats:LoadNetstats] %s", err.Error()), ErrorCode: 461, ErrorMessage: "LoadNetstats"}
 	}
 	return self, nil
 }
@@ -130,21 +181,25 @@ func (self *Netstats) Save() (err error) {
 }
 
 func (self *Netstats) Flush() (err error) {
-	self.CStat["ChunkRL"].Add(self.CStat["ChunkR"], self.CStat["ChunkRL"])
-	self.CStat["ChunkWL"].Add(self.CStat["ChunkW"], self.CStat["ChunkWL"])
-	self.CStat["ChunkR"] = big.NewInt(0)
-	self.CStat["ChunkW"] = big.NewInt(0)
-	//self.CStat["LogWL"].Add(self.CStat["LogW"], self.CStat["LogWL"])
+	ts := time.Now()
+	self.LogDT = ts
 
 	data, err := json.Marshal(self)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[netstats:Flush] Marshal %s", err.Error()), ErrorCode: 462, ErrorMessage: "Unable to Flush Netstats"}
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:Flush] Marshal %s", err.Error()), ErrorCode: 462, ErrorMessage: "Unable to Flush DBChunkstore"}
 	}
-	netstatlog, err := os.OpenFile("netstat.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	netstatlog, err := os.OpenFile("/tmp/netstats.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[netstats:Flush] OpenFile %s", err.Error()), ErrorCode: 462, ErrorMessage: "Unable to Flush Netstats"}
+		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:Flush] OpenFile %s", err.Error()), ErrorCode: 462, ErrorMessage: "Unable to Flush DBChunkstore"}
 	}
 	defer netstatlog.Close()
 	fmt.Fprintf(netstatlog, "%s\n", data)
+
+	self.SStat["SwapI"] = big.NewInt(0)
+	self.SStat["SwapIA"] = big.NewInt(0)
+
+	self.SStat["SwapR"] = big.NewInt(0)
+	self.SStat["SwapRA"] = big.NewInt(0)
+
 	return nil
 }
