@@ -27,7 +27,7 @@ func TestConfig(t *testing.T) {
 	config := swarmdb.GenerateSampleSWARMDBConfig("4b0d79af51456172dfcc064c1b4b8f45f363a80a434664366045165ba5217d53", "9982ad7bfbe62567287dafec879d20687e4b76f5", "wolkwolkwolk")
 	err := swarmdb.SaveSWARMDBConfig(config, swarmdb.SWARMDBCONF_FILE)
 	if err != nil {
-
+		t.Fatal("Did not save config", err)
 	}
 
 	config2, err1 := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)

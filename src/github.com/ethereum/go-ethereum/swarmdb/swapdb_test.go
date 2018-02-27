@@ -22,25 +22,41 @@ import (
 	"testing"
 )
 
-func TestSwapDB(t *testing.T) {
+func TestIssueReceive(t *testing.T) {
 	config, _ := swarmdb.LoadSWARMDBConfig(swarmdb.SWARMDBCONF_FILE)
-	km, _ := swarmdb.NewKeyManager(config)
-	u := config.GetSWARMDBUser()
-
-	swapdb, err := swarmdb.NewSwapDB("swap.db")
+	ns := swarmdb.NewNetstats(config)
+	swapdbstore, err := swarmdb.NewSwapDBStore(config, ns)
 	if err != nil {
-		t.Fatal("Failure to open NewSwapDB")
+		t.Fatal("Failure to open NewSwapDBStore")
 	}
+
+	localAddress := common.HexToAddress("9982ad7bfbe62567287dafec879d20687e4b76f5")
+	peerAddress := common.HexToAddress("0082ad7bfbe62567287dafec879d20687e4b76aa")
+	amount := 17
 
 	// Test Issue
-	var beneficiary common.Address
-	var amount int
-
-	ch, err := swapdb.Issue(&km, u, beneficiary, amount)
+	ch, err := swapdbstore.Issue(amount, localAddress, peerAddress)
 	if err != nil {
-		t.Fatalf("[swapdb_test:TestSwapDB] Issue %s", err.Error())
-	} else {
-		fmt.Printf("Issued check %v\n", ch)
+		t.Fatalf("[swapdb_test:TestIssueReceive] Issue %s", err.Error())
 	}
+	fmt.Printf("Issued check %v\n", ch)
 
+	// TODO: make a check signed by peer to test this correctly
+	// Test Receive
+	err = swapdbstore.Receive(-amount, ch)
+	if err != nil {
+		t.Fatalf("[swapdb_test:TestIssueReceive] Receive %s", err.Error())
+	}
+	fmt.Printf("Received check %v\n", ch)
+	// TODO: test Receive with an *incorrect* signature
+
+	// Test GenerateSwapLog
+	startts := int64(0)
+	endts := int64(1)
+	log, err := swapdbstore.GenerateSwapLog(startts, endts)
+	if err != nil {
+		t.Fatalf("[swapdb_test:TestIssueReceive] GenerateSwapLog %s", err.Error())
+	}
+	fmt.Printf("Log: %s\n", log)
+	// TODO: test that GenerateSwapLog has the above issue and receive
 }
