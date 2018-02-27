@@ -464,7 +464,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	default:
 	}
-	log.Debug("Logdata", logData)
+	log.Debug(fmt.Sprintf("Logdata", logData))
 	swReq, err := parsePath(r.URL.Path)
 	if err != nil {
 		retJson := buildErrorResp(err)
