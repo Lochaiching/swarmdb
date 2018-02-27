@@ -47,7 +47,7 @@ func NewNetstats(config *SWARMDBConfig) (self *Netstats) {
 	ts := time.Now()
 	var ns = &Netstats{
 		NodeID:        hostname,
-		Path:          "/tmp/",
+		Path:          config.ChunkDBPath,
 		WalletAddress: config.Address,
 		SStat:         make(map[string]*big.Int),
 		LaunchDT:      ts,
@@ -143,7 +143,6 @@ func (self *Netstats) MarshalJSON() (data []byte, err error) {
 	l.LogDT = self.LogDT
 	l.SStat = make(map[string]string)
 	l.Version = SWARMDBVersion
-
 	for sk, sv := range self.SStat {
 		l.SStat[sk] = sv.String()
 		if sk == "SwapI" || sk == "SwapIA" || sk == "SwapR" || sk == "SwapRA" {
@@ -177,7 +176,6 @@ func (self *Netstats) MarshalJSON() (data []byte, err error) {
 func (self *Netstats) UnmarshalJSON(data []byte) (err error) {
 	var l Netstatslog
 	l.SStat = make(map[string]string)
-
 	l.CStat = make(map[string]string)
 	l.LStat = make(map[string]string)
 	err = json.Unmarshal(data, &l)
@@ -211,8 +209,7 @@ func (self *Netstats) UnmarshalJSON(data []byte) (err error) {
 
 func LoadNetstats() (self *Netstats, err error) {
 	netstatsFileName := "netstats.json"
-
-	netstatsFullPath := filepath.Join("/tmp/", netstatsFileName)
+	netstatsFullPath := filepath.Join(self.Path, netstatsFileName)
 	var data []byte
 	data, errLoad := ioutil.ReadFile(netstatsFullPath)
 	if errLoad != nil {
@@ -254,7 +251,7 @@ func (self *Netstats) Flush() (err error) {
 
 	netstatsFileName := "netstats.log"
 	netstatsFullPath := filepath.Join(self.Path, netstatsFileName)
-  netstatlog, err := os.OpenFile("/tmp/netstats.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	netstatlog, err := os.OpenFile(netstatsFullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:Flush] OpenFile %s", err.Error()), ErrorCode: 462, ErrorMessage: "Unable to Flush DBChunkstore"}
 	}

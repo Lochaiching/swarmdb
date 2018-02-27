@@ -94,7 +94,6 @@ type SwarmDB struct {
 	tables       map[string]*Table
 	dbchunkstore *DBChunkstore // Sqlite3 based
 	ens          ENSSimulation
-	swapdb       *SwapDB
 	swapdb       *SwapDBStore
 	Netstats     *Netstats
 }
