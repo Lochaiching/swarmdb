@@ -24,6 +24,7 @@ type Netstats struct {
 
 type Netstatslog struct {
 	NodeID        string
+	Version       string
 	WalletAddress string
 	SStat         map[string]string
 	LaunchDT      time.Time
@@ -110,6 +111,7 @@ func (self *Netstats) MarshalJSON() (data []byte, err error) {
 	l.LWriteDT = self.LWriteDT
 	l.LogDT = self.LogDT
 	l.SStat = make(map[string]string)
+	l.Version = SWARMDBVersion
 	for sk, sv := range self.SStat {
 		l.SStat[sk] = sv.String()
 		if sk == "SwapI" || sk == "SwapIA" || sk == "SwapR" || sk == "SwapRA" {
