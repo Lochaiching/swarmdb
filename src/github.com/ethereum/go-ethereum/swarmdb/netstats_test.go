@@ -39,6 +39,7 @@ func TestNetstatsBasic(t *testing.T) {
 
 	store, err := swarmdb.NewDBChunkStore(config, netstats)
 	if err != nil {
+		fmt.Printf("%s", err)
 		t.Fatal("[FAILURE] to open DBChunkStore\n")
 	} else {
 		fmt.Printf("[SUCCESS] open DBChunkStore\n")

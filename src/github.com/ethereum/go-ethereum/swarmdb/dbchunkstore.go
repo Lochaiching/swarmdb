@@ -19,13 +19,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"swarmdb/ash"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
-	"math/rand"
-	"swarmdb/ash"
 )
 
 const (
@@ -115,12 +116,13 @@ func (self *DBChunkstore) GetKeyManager() (km *KeyManager) {
 }
 
 func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, encrypted int) (err error) {
+	self.netstats.StoreChunk()
 	_, err = self.storeChunkInDB(u, val, encrypted, key)
 	return err
 }
 
 func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
-	//self.netstats.StoreChunk() -- TODO: Review with Michael and Sourabh
+	self.netstats.StoreChunk()
 	return self.storeChunkInDB(u, val, encrypted, key)
 }
 
@@ -220,6 +222,7 @@ func (self *DBChunkstore) RetrieveRawChunk(key []byte) (val []byte, err error) {
 	if err != nil {
 		return val, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveRawChunk] Prepare %s", err.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
 	}
+	self.netstats.RetrieveChunk()
 	return c.Val, nil
 }
 
@@ -277,6 +280,7 @@ func epochBytesFromTimestamp(ts int64) (out []byte) {
 }
 
 func (self *DBChunkstore) GenerateFarmerLog(startTS int64, endTS int64) (log []string, err error) {
+	self.netstats.GenerateFarmerLog()
 	return self.GenerateBuyerLog(startTS, endTS)
 }
 
@@ -307,6 +311,7 @@ func (self *DBChunkstore) GenerateBuyerLog(startTS int64, endTS int64) (log []st
 		iter.Release()
 		err = iter.Error()
 	}
+	self.netstats.GenerateBuyerLog()
 	return log, nil
 }
 
@@ -322,5 +327,6 @@ func (self *DBChunkstore) RetrieveAsh(key []byte, secret []byte, proofRequired b
 	if err != nil {
 		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] %s", err.Error()), ErrorCode: 471, ErrorMessage: "RetrieveAsh Error"}
 	}
+	self.netstats.RetrieveAsh()
 	return res, nil
 }
