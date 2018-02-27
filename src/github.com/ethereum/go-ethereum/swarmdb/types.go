@@ -104,7 +104,7 @@ func ParseChunkHeader(chunk []byte) (ch ChunkHeader, err error) {
 	ch.MsgHash = chunk[CHUNK_START_MSGHASH:CHUNK_END_MSGHASH]
 	ch.Sig = chunk[CHUNK_START_SIG:CHUNK_END_SIG]
 	ch.Payer = chunk[CHUNK_START_PAYER:CHUNK_END_PAYER]
-	ch.NodeType = chunk[CHUNK_START_NODETYPE:CHUNK_END_NODETYPE]
+	ch.NodeType = chunk[CHUNK_START_CHUNKTYPE:CHUNK_END_CHUNKTYPE]
 	ch.MinReplication = int(BytesToInt(chunk[CHUNK_START_MINREP:CHUNK_END_MINREP]))
 	ch.MaxReplication = int(BytesToInt(chunk[CHUNK_START_MAXREP:CHUNK_END_MAXREP]))
 	ch.Birthts = int(BytesToInt(chunk[CHUNK_START_BIRTHTS:CHUNK_END_BIRTHTS]))
