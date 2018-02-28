@@ -1,0 +1,5 @@
+src/github.com/ethereum/go-ethereum/build
+.*~
+*~
+src/github.com/ethereum/go-ethereum/swarmdb/experimental/sgx/hello-enclave/.DS_Store
+src/github.com/ethereum/go-ethereum/swarmdb/experimental/sgx/hello-enclave/App/.DS_Store
