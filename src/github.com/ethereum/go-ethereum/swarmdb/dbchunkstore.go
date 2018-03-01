@@ -474,8 +474,9 @@ func (self *DBChunkstore) RetrieveKChunk(u *SWARMDBUser, key []byte) (val []byte
 				log.Debug(fmt.Sprintf("ERROR when Decrypting Data : %s", err.Error()))
 				return val, GenerateSWARMDBError(err, fmt.Sprintf("[dbchunkstore:RetrieveKChunk] DecryptData %s", err.Error()))
 			}
-
 			val = bytes.TrimRight(retVal, "\x00")
+		}else{
+			val = retVal
 		}
 		self.netstat.LReadDT = &ts
 		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
@@ -669,8 +670,19 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 		}
 		self.netstat.LReadDT = &ts
 		self.netstat.CStat["ChunkR"].Add(self.netstat.CStat["ChunkR"], big.NewInt(1))
-		return retVal, nil
+		val = retVal
+		//return retVal, nil
 	}
+// TODO : the data what I have is latest or not?
+        if val == nil{
+//                chunk, err := self.cloud.RetrieveDB(key)
+                var chunk *storage.Chunk
+                log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.RetrieveKChunk vall CloudGet :%v", key))
+                chunk, err = self.CloudGet(key)
+                if chunk.SData != nil{
+                        val = chunk.SData
+                }
+        }
 	return val, nil
 }
 

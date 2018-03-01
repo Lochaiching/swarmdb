@@ -1,0 +1,26 @@
+{
+  "NodeID": "abcd",
+  "WalletAddress": "0x56ad284968f2c2edb44c1380411c2c3b12b26c3f",
+  "ChunkStat": {
+    "ChunkR": "0",
+    "ChunkRL": "0",
+    "ChunkS": "2000",
+    "ChunkSL": "2000",
+    "ChunkW": "2000",
+    "ChunkWL": "2000"
+  },
+  "LaunchDT": "2017-12-13T15:43:35.160652163-08:00",
+  "LReadDT": null,
+  "LWriteDT": "2017-12-13T15:43:50.871347867-08:00",
+  "LogDT": "2017-12-13T15:43:50.882373206-08:00",
+  "SStat": {
+    "SwapI": "1",
+    "SwapIA": "1",
+    "SwapIAL": "1000",
+    "SwapIL": "1000",
+    "SwapR": "2",
+    "SwapRA": "3",
+    "SwapRAL": "4",
+    "SwapRL": "5"
+  }
+}
