@@ -431,6 +431,7 @@ func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, en
 	chunk := storage.NewChunk(key[:32], nil)
 	chunk.SData = finalSdata[0:]
 	chunk.Options = jopt
+	chunk.Size = int64(len(chunk.SData))
         self.cloud.Put(chunk)
 	return nil
 }
@@ -563,6 +564,7 @@ func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) 
 	chunk := storage.NewChunk(key, nil)
 	chunk.SData = chunkVal
 	chunk.Options = jopt
+	chunk.Size = int64(len(chunk.SData))
         log.Debug(fmt.Sprintf("[wolk-cloudstore]dbchunkstore.cloud  : %v", self.cloud))
 	self.cloud.Put(chunk)
 	return key, nil
