@@ -194,17 +194,16 @@ func (t *Table) byteArrayToRow(byteData []byte) (out Row, err error) {
 
 func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte, birthts int, version int) (mergedBodycontent []byte, err error) {
 	contentPrefix := BuildSwarmdbPrefix([]byte(self.Owner), []byte(self.Database), []byte(self.tableName), key)
-	log.Debug(fmt.Sprintf("[table:buildSdata] contentPrefix is: %s", contentPrefix))
+	log.Debug(fmt.Sprintf("[table:buildSdata] contentPrefix is: %x", contentPrefix))
 
 	var metadataBody []byte
 	metadataBody = make([]byte, CHUNK_START_CHUNKVAL)
-	//TODO: Use Constants
 	copy(metadataBody[CHUNK_START_OWNER:CHUNK_END_OWNER], []byte(self.Owner))
 	copy(metadataBody[CHUNK_START_DB:CHUNK_END_DB], []byte(self.Database))
 	copy(metadataBody[CHUNK_START_TABLE:CHUNK_END_TABLE], []byte(self.tableName))
 	copy(metadataBody[CHUNK_START_KEY:CHUNK_END_KEY], contentPrefix)
 	copy(metadataBody[CHUNK_START_PAYER:CHUNK_END_PAYER], u.Address)
-	copy(metadataBody[CHUNK_START_NODETYPE:CHUNK_END_NODETYPE], []byte("K")) //TODO: Define nodeType representation -- self.nodeType)
+	copy(metadataBody[CHUNK_START_CHUNKTYPE:CHUNK_END_CHUNKTYPE], []byte("k")) //TODO: Define nodeType representation -- self.nodeType)
 	copy(metadataBody[CHUNK_START_RENEW:CHUNK_END_RENEW], IntToByte(u.AutoRenew))
 	copy(metadataBody[CHUNK_START_MINREP:CHUNK_END_MINREP], IntToByte(u.MinReplication))
 	copy(metadataBody[CHUNK_START_MAXREP:CHUNK_END_MAXREP], IntToByte(u.MaxReplication))
@@ -230,13 +229,13 @@ func (self *Table) buildSdata(u *SWARMDBUser, key []byte, value []byte, birthts 
 
 	//TODO: Sig -- document this
 	copy(metadataBody[CHUNK_START_SIG:CHUNK_END_SIG], sdataSig)
-	log.Debug(fmt.Sprintf("Metadata is [%+v]", metadataBody))
+	//log.Debug(fmt.Sprintf("Metadata is [%+v]", metadataBody))
 
 	mergedBodycontent = make([]byte, CHUNK_SIZE)
 	copy(mergedBodycontent[:], metadataBody)
 	copy(mergedBodycontent[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL], value) // expected to be the encrypted body content
 
-	log.Debug(fmt.Sprintf("Merged Body Content: [%v]", mergedBodycontent))
+	//log.Debug(fmt.Sprintf("Merged Body Content: [%v]", mergedBodycontent))
 	return mergedBodycontent, err
 }
 
@@ -260,7 +259,7 @@ func BuildSwarmdbPrefix(owner []byte, database []byte, table []byte, id []byte) 
 	copy(prepBytes[len(owner)+len(database)+len(table):], id)
 	prefix := crypto.Keccak256([]byte(prepBytes))
 
-	log.Debug(fmt.Sprintf("In BuildSwarmdbPrefix prepstring[%s] and prefix[%s] in Bytes [%v] with size [%v]", prepBytes, prefix, []byte(prefix), len([]byte(prefix))))
+	log.Debug(fmt.Sprintf("In BuildSwarmdbPrefix prepstring[%s] and prefix[%x] in Bytes [%v] with size [%d]", prepBytes, prefix, []byte(prefix), len([]byte(prefix))))
 	return (prefix)
 }
 
@@ -279,7 +278,6 @@ func (t *Table) Get(u *SWARMDBUser, key []byte) (out []byte, ok bool, err error)
 	}
 	chunkKey := t.GenerateKChunkKey(key)
 	log.Debug(fmt.Sprintf("[table:Get] ChunkKey generated is: %x", chunkKey))
-
 	contentReader, err := t.swarmdb.dbchunkstore.RetrieveKChunk(u, chunkKey)
 	if bytes.Trim(contentReader, "\x00") == nil {
 		log.Debug(fmt.Sprintf("RETURNING NIL CHUNK [%s]", out))
@@ -522,7 +520,6 @@ func (t *Table) Put(u *SWARMDBUser, row map[string]interface{}) (err error) {
 
 			hashVal := sdata[CHUNK_START_KEY:CHUNK_END_KEY] // 32 bytes
 			log.Debug(fmt.Sprintf("Storing data with hashValue of %x %v", hashVal, hashVal))
-
 			errStore := t.swarmdb.dbchunkstore.StoreKChunk(u, hashVal, sdata, t.encrypted)
 			if errStore != nil {
 				return GenerateSWARMDBError(err, `[table:Put] StoreKChunk `+errStore.Error())
