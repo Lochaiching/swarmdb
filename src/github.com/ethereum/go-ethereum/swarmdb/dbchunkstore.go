@@ -19,13 +19,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"swarmdb/ash"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/util"
-	"math/rand"
-	"swarmdb/ash"
 )
 
 const (
@@ -115,12 +116,13 @@ func (self *DBChunkstore) GetKeyManager() (km *KeyManager) {
 }
 
 func (self *DBChunkstore) StoreKChunk(u *SWARMDBUser, key []byte, val []byte, encrypted int) (err error) {
+	self.netstats.StoreChunk()
 	_, err = self.storeChunkInDB(u, val, encrypted, key)
 	return err
 }
 
 func (self *DBChunkstore) StoreChunk(u *SWARMDBUser, val []byte, encrypted int) (key []byte, err error) {
-	self.netstats.StoreChunk()
+	//self.netstats.StoreChunk() -- TODO: Review with Michael and Sourabh
 	return self.storeChunkInDB(u, val, encrypted, key)
 }
 
@@ -128,7 +130,6 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	if len(val) < CHUNK_SIZE {
 		return nil, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:StoreChunk] Chunk too small (< %s)| %x", CHUNK_SIZE, val), ErrorCode: 439, ErrorMessage: "Unable to Store Chunk"}
 	}
-
 	var chunk DBChunk
 	var finalSdata []byte
 	finalSdata = make([]byte, CHUNK_SIZE)
@@ -159,6 +160,7 @@ func (self *DBChunkstore) storeChunkInDB(u *SWARMDBUser, val []byte, encrypted i
 	}
 
 	chunk.Val = val
+	//log.Debug(fmt.Sprintf("Storing the following data: %v", val))
 	data, err := rlp.EncodeToBytes(chunk)
 	if err != nil {
 		return key, err
@@ -221,6 +223,7 @@ func (self *DBChunkstore) RetrieveRawChunk(key []byte) (val []byte, err error) {
 	if err != nil {
 		return val, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveRawChunk] Prepare %s", err.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
 	}
+	self.netstats.RetrieveChunk()
 	return c.Val, nil
 }
 
@@ -240,8 +243,8 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 		return val, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveChunk] Prepare %s", err.Error()), ErrorCode: 440, ErrorMessage: "Unable to Retrieve Chunk"}
 	}
 	val = c.Val
-	if string(c.Val[CHUNK_START_NODETYPE:CHUNK_END_NODETYPE]) == "K" {
-		//log.Debug(fmt.Sprintf("Retrieved a K Node => %+v\n", val))
+	if string(c.Val[CHUNK_START_CHUNKTYPE:CHUNK_END_CHUNKTYPE]) == "k" {
+		//log.Debug(fmt.Sprintf("Retrieving the following data: %v", c.Val))
 		val = val[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL]
 	}
 	if c.Enc > 0 {
@@ -252,7 +255,7 @@ func (self *DBChunkstore) RetrieveChunk(u *SWARMDBUser, key []byte) (val []byte,
 	}
 	var fullVal []byte
 	fullVal = make([]byte, CHUNK_SIZE)
-	if string(c.Val[CHUNK_START_NODETYPE:CHUNK_END_NODETYPE]) == "K" {
+	if string(c.Val[CHUNK_START_CHUNKTYPE:CHUNK_END_CHUNKTYPE]) == "k" {
 		copy(fullVal[0:CHUNK_START_CHUNKVAL], c.Val[0:CHUNK_START_CHUNKVAL])
 		copy(fullVal[CHUNK_START_CHUNKVAL:CHUNK_END_CHUNKVAL], val)
 		val = fullVal
@@ -278,6 +281,7 @@ func epochBytesFromTimestamp(ts int64) (out []byte) {
 }
 
 func (self *DBChunkstore) GenerateFarmerLog(startTS int64, endTS int64) (log []string, err error) {
+	self.netstats.GenerateFarmerLog()
 	return self.GenerateBuyerLog(startTS, endTS)
 }
 
@@ -308,6 +312,7 @@ func (self *DBChunkstore) GenerateBuyerLog(startTS int64, endTS int64) (log []st
 		iter.Release()
 		err = iter.Error()
 	}
+	self.netstats.GenerateBuyerLog()
 	return log, nil
 }
 
@@ -323,5 +328,6 @@ func (self *DBChunkstore) RetrieveAsh(key []byte, secret []byte, proofRequired b
 	if err != nil {
 		return res, &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:RetrieveAsh] %s", err.Error()), ErrorCode: 471, ErrorMessage: "RetrieveAsh Error"}
 	}
+	self.netstats.RetrieveAsh()
 	return res, nil
 }
