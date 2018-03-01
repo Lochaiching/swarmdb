@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	TEST_ENCRYPTED = 0
+	TEST_ENCRYPTED = 1
 )
 
 var config *wolkdb.SWARMDBConfig

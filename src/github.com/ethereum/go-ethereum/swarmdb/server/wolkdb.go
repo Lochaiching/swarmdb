@@ -187,7 +187,11 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 
 	u, err := svr.keymanager.VerifyMessage(challenge_bytes, response_bytes)
 	if err != nil {
-		log.Debug("\nERROR: %s", err.Error())
+		log.Debug(fmt.Sprintf("ERROR: %s", err.Error()))
+		swErr.SetError(fmt.Sprintf("Unable to verify challenge response. Please check your PRIVATE_KEY: [%s]", err.Error()))
+		swErr.ErrorCode = 484
+		swErr.ErrorMessage = "Challenge Response Failed.  Please check your PRIVATE_KEY"
+		log.Error(swErr.Error())
 		tcpJson := buildErrorResp(err)
 		writer.WriteString(tcpJson)
 		writer.Flush()
@@ -460,7 +464,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	default:
 	}
-	log.Debug("Logdata", logData)
+	log.Debug(fmt.Sprintf("Logdata", logData))
 	swReq, err := parsePath(r.URL.Path)
 	if err != nil {
 		retJson := buildErrorResp(err)
