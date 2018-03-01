@@ -193,6 +193,7 @@ func (self *Depo) HandleSdbStoreRequestMsg(req *sDBStoreRequestMsgData, p *peer)
 	chunk.SData = req.SData
 	chunk.Options = []byte(req.option)
 	chunk.Source = p
+	chunk.Size = 0
         log.Debug(fmt.Sprintf("[wolk-cloudstore] depo.HandleSdbStoreRequestMsg :storing to sdbStore %v from %v with %v", req.Key, p, chunk))
 	self.sdbStore.Put(chunk)
         //self.swarmdb.SwarmStore.StoreDB([]byte(req.Key), req.SData, jopt)

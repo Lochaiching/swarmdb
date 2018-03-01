@@ -106,17 +106,19 @@ func (self *SdbStore) Put(entry *Chunk) {
 	chunk, _ := self.localStore.memStore.Get(entry.Key)
 	log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] SdbStore.Put: memstore %v %v %v", entry.Key, chunk, &chunk))
 	
-	if chunk != nil && chunk.Req != nil && chunk.SData == nil{
+//if entry.Size == 0, it's from storeRequest
+	if chunk != nil && chunk.Req != nil && chunk.SData == nil && entry.Size == 0{
 //TODO: need to check version information to store the latest version  
 //	if chunk != nil && chunk.Req != nil {
 		chunk.SData = entry.SData
 		chunk.Options = entry.Options
+		close(chunk.Req.C)
 		chunk.Req = nil
 		self.localStore.memStore.Put(chunk)
 //TODO :if version check here, don't need this line or add some process for finding result.
-		close(chunk.Req.C)
 		log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] SdbStore.Put in if statement: memstore %v %v %v", entry.Key, chunk, &chunk))
-		log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Put: closing Req.C", chunk.Req.C))
+		log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Put: closing Req.C"))
+		entry.Size = int64(len(entry.SData))
 	}
 //TODO: add delivery method. need to modify it once it gets the version info.
 	self.cloud.StoreDB(entry)
