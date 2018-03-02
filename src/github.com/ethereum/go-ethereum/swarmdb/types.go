@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"github.com/cznic/mathutil"
 	//"github.com/ethereum/go-ethereum/log"
+	sdbc "github.com/ethereum/go-ethereum/swarmdb/swarmdbcommon"
 	"math"
 	"reflect"
 	"strconv"
@@ -46,7 +47,7 @@ var SWARMDBVersion = func() string {
 
 //for comparing rows in two different sets of data
 //only 1 cell in the row has to be different in order for the rows to be different
-func isDuplicateRow(row1 Row, row2 Row) bool {
+func isDuplicateRow(row1 sdbc.Row, row2 sdbc.Row) bool {
 
 	//if row1.primaryKeyValue == row2.primaryKeyValue {
 	//	return true
@@ -96,7 +97,7 @@ type ChunkHeader struct {
 func ParseChunkHeader(chunk []byte) (ch ChunkHeader, err error) {
 	/*
 		if len(bytes.Trim(chunk, "\x00")) != CHUNK_SIZE {
-			return ch, &SWARMDBError{ message: fmt.Sprintf("[types:ParseChunkHeader]"), ErrorCode: 480, ErrorMessage: fmt.Sprintf("Chunk of invalid size.  Expecting %d bytes, chunk is %d bytes", CHUNK_SIZE, len(chunk)) }
+			return ch, &sdbc.SWARMDBError{ Message: fmt.Sprintf("[types:ParseChunkHeader]"), ErrorCode: 480, ErrorMessage: fmt.Sprintf("Chunk of invalid size.  Expecting %d bytes, chunk is %d bytes", CHUNK_SIZE, len(chunk)) }
 		}
 	*/
 	//fmt.Printf("Chunk is of size: %d and looking at %d to %d\n", len(chunk), CHUNK_START_MINREP, CHUNK_END_MINREP)
@@ -121,7 +122,7 @@ func ParseChunkHeader(chunk []byte) (ch ChunkHeader, err error) {
 }
 
 //gets data (Row) out of a slice of Rows, and rtns as one json.
-func rowDataToJson(rows []Row) (string, error) {
+func rowDataToJson(rows []sdbc.Row) (string, error) {
 	var resRows []map[string]interface{}
 	for _, row := range rows {
 		resRows = append(resRows, row)
@@ -134,38 +135,38 @@ func rowDataToJson(rows []Row) (string, error) {
 }
 
 //json input string should be []map[string]interface{} format
-func JsonDataToRow(in string) (rows []Row, err error) {
+func JsonDataToRow(in string) (rows []sdbc.Row, err error) {
 
 	var jsonRows []map[string]interface{}
 	if err = json.Unmarshal([]byte(in), &jsonRows); err != nil {
 		return rows, err
 	}
 	for _, jRow := range jsonRows {
-		row := NewRow()
+		row := sdbc.NewRow()
 		row = jRow
 		rows = append(rows, row)
 	}
 	return rows, nil
 }
 
-func stringToColumnType(in string, columnType ColumnType) (out interface{}, err error) {
+func stringToColumnType(in string, columnType sdbc.ColumnType) (out interface{}, err error) {
 	switch columnType {
-	case CT_INTEGER:
+	case sdbc.CT_INTEGER:
 		out, err = strconv.Atoi(in)
-	case CT_STRING:
+	case sdbc.CT_STRING:
 		out = in
-	case CT_FLOAT:
+	case sdbc.CT_FLOAT:
 		out, err = strconv.ParseFloat(in, 64)
-	//case: CT_BLOB:
+	//case: sdbc.CT_BLOB:
 	//?
 	default:
-		err = &SWARMDBError{message: "[types|stringToColumnType] columnType not found", ErrorCode: 434, ErrorMessage: fmt.Sprintf("ColumnType [%s] not SUPPORTED. Value [%s] rejected", columnType, in)}
+		err = &sdbc.SWARMDBError{Message: "[types|stringToColumnType] columnType not found", ErrorCode: 434, ErrorMessage: fmt.Sprintf("ColumnType [%s] not SUPPORTED. Value [%s] rejected", columnType, in)}
 	}
 	return out, err
 }
 
 //gets only the specified Columns (column name and value) out of a single Row, returns as a Row with only the relevant data
-func filterRowByColumns(row Row, columns []Column) (filteredRow Row) {
+func filterRowByColumns(row sdbc.Row, columns []sdbc.Column) (filteredRow sdbc.Row) {
 	filteredRow = make(map[string]interface{})
 	for _, col := range columns {
 		if _, ok := row[col.ColumnName]; ok {
@@ -175,7 +176,7 @@ func filterRowByColumns(row Row, columns []Column) (filteredRow Row) {
 	return filteredRow
 }
 
-func CheckColumnType(colType ColumnType) bool {
+func CheckColumnType(colType sdbc.ColumnType) bool {
 	/*
 		var ct uint8
 		switch colType.(type) {
@@ -196,50 +197,50 @@ func CheckColumnType(colType ColumnType) bool {
 		}
 	*/
 	ct := colType
-	if ct == CT_INTEGER || ct == CT_STRING || ct == CT_FLOAT { //|| ct == CT_BLOB {
+	if ct == sdbc.CT_INTEGER || ct == sdbc.CT_STRING || ct == sdbc.CT_FLOAT { //|| ct == sdbc.CT_BLOB {
 		return true
 	}
 	return false
 }
 
-func CheckIndexType(it IndexType) bool {
-	if it == IT_HASHTREE || it == IT_BPLUSTREE { //|| it == IT_FULLTEXT || it == IT_FRACTALTREE || it == IT_NONE {
+func CheckIndexType(it sdbc.IndexType) bool {
+	if it == sdbc.IT_HASHTREE || it == sdbc.IT_BPLUSTREE { //|| it == sdbc.IT_FULLTEXT || it == sdbc.IT_FRACTALTREE || it == sdbc.IT_NONE {
 		return true
 	}
 	return false
 }
 
-func StringToKey(columnType ColumnType, key string) (k []byte) {
+func StringToKey(columnType sdbc.ColumnType, key string) (k []byte) {
 	k = make([]byte, 32)
 	switch columnType {
-	case CT_INTEGER:
+	case sdbc.CT_INTEGER:
 		// convert using atoi to int
 		i, _ := strconv.Atoi(key)
 		k8 := IntToByte(i) // 8 byte
 		copy(k, k8)        // 32 byte
-	case CT_STRING:
+	case sdbc.CT_STRING:
 		copy(k, []byte(key))
-	case CT_FLOAT:
+	case sdbc.CT_FLOAT:
 		f, _ := strconv.ParseFloat(key, 64)
 		k8 := FloatToByte(f) // 8 byte
 		copy(k, k8)          // 32 byte
-	case CT_BLOB:
+	case sdbc.CT_BLOB:
 		// TODO: do this correctly with JSON treatment of binary
 		copy(k, []byte(key))
 	}
 	return k
 }
 
-func KeyToString(columnType ColumnType, k []byte) (out string) {
+func KeyToString(columnType sdbc.ColumnType, k []byte) (out string) {
 	switch columnType {
-	case CT_BLOB:
+	case sdbc.CT_BLOB:
 		return fmt.Sprintf("%v", k)
-	case CT_STRING:
+	case sdbc.CT_STRING:
 		return fmt.Sprintf("%s", string(k))
-	case CT_INTEGER:
+	case sdbc.CT_INTEGER:
 		a := binary.BigEndian.Uint64(k)
 		return fmt.Sprintf("%d [%x]", a, k)
-	case CT_FLOAT:
+	case sdbc.CT_FLOAT:
 		bits := binary.BigEndian.Uint64(k)
 		f := math.Float64frombits(bits)
 		return fmt.Sprintf("%f", f)
@@ -280,62 +281,62 @@ func IsHash(hashid []byte) (valid bool) {
 	}
 }
 
-func ByteToColumnType(b byte) (ct ColumnType, err error) {
+func ByteToColumnType(b byte) (ct sdbc.ColumnType, err error) {
 	switch b {
 	case 1:
-		return CT_INTEGER, err
+		return sdbc.CT_INTEGER, err
 	case 2:
-		return CT_STRING, err
+		return sdbc.CT_STRING, err
 	case 3:
-		return CT_FLOAT, err
+		return sdbc.CT_FLOAT, err
 	case 4:
-		return CT_BLOB, err
+		return sdbc.CT_BLOB, err
 	default:
-		return CT_INTEGER, &SWARMDBError{message: "Invalid Column Type", ErrorCode: 407, ErrorMessage: "Invalid Column Type"}
+		return sdbc.CT_INTEGER, &sdbc.SWARMDBError{Message: "Invalid Column Type", ErrorCode: 407, ErrorMessage: "Invalid Column Type"}
 	}
 }
 
-func ByteToIndexType(b byte) (it IndexType) {
+func ByteToIndexType(b byte) (it sdbc.IndexType) {
 	switch b {
 	case 1:
-		return IT_HASHTREE
+		return sdbc.IT_HASHTREE
 	case 2:
-		return IT_BPLUSTREE
+		return sdbc.IT_BPLUSTREE
 	case 3:
-		return IT_FULLTEXT
+		return sdbc.IT_FULLTEXT
 	default:
-		return IT_NONE
+		return sdbc.IT_NONE
 	}
 }
 
-func ColumnTypeToInt(ct ColumnType) (v int, err error) {
+func ColumnTypeToInt(ct sdbc.ColumnType) (v int, err error) {
 	switch ct {
-	case CT_INTEGER:
+	case sdbc.CT_INTEGER:
 		return 1, err
-	case CT_STRING:
+	case sdbc.CT_STRING:
 		return 2, err
-	case CT_FLOAT:
+	case sdbc.CT_FLOAT:
 		return 3, err
-	case CT_BLOB:
+	case sdbc.CT_BLOB:
 		return 4, err
 	default:
-		return -1, &SWARMDBError{message: "[types|ColumnTypeToInt] columnType not found", ErrorCode: 434, ErrorMessage: fmt.Sprintf("ColumnType [%s] not SUPPORTED. Value [%s] rejected", ct, v)}
+		return -1, &sdbc.SWARMDBError{Message: "[types|ColumnTypeToInt] columnType not found", ErrorCode: 434, ErrorMessage: fmt.Sprintf("ColumnType [%s] not SUPPORTED. Value [%s] rejected", ct, v)}
 	}
 }
 
-func IndexTypeToInt(it IndexType) (v int) {
+func IndexTypeToInt(it sdbc.IndexType) (v int) {
 	switch it {
-	case IT_HASHTREE:
+	case sdbc.IT_HASHTREE:
 		return 1
-	case IT_BPLUSTREE:
+	case sdbc.IT_BPLUSTREE:
 		return 2
-	case IT_FULLTEXT:
+	case sdbc.IT_FULLTEXT:
 		return 3
 	/*
 		case "FRACTAL":
-			//return IT_FRACTALTREE
+			//return sdbc.IT_FRACTALTREE
 	*/
-	case IT_NONE:
+	case sdbc.IT_NONE:
 		return 0
 	default:
 		return 0
@@ -384,7 +385,7 @@ func SHA256(inp string) (k []byte) {
 	return k
 }
 
-func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte, err error) {
+func convertJSONValueToKey(columnType sdbc.ColumnType, pvalue interface{}) (k []byte, err error) {
 	// fmt.Printf(" *** convertJSONValueToKey: CONVERT %v (columnType %v)\n", pvalue, columnType)
 	switch svalue := pvalue.(type) {
 	case (int):
@@ -393,18 +394,18 @@ func convertJSONValueToKey(columnType ColumnType, pvalue interface{}) (k []byte,
 	case (float64):
 		f := ""
 		switch columnType {
-		case CT_INTEGER:
+		case sdbc.CT_INTEGER:
 			f = fmt.Sprintf("%d", int(svalue))
-		case CT_FLOAT:
+		case sdbc.CT_FLOAT:
 			f = fmt.Sprintf("%f", svalue)
-		case CT_STRING:
+		case sdbc.CT_STRING:
 			f = fmt.Sprintf("%f", svalue)
 		}
 		k = StringToKey(columnType, f)
 	case (string):
 		k = StringToKey(columnType, svalue)
 	default:
-		return k, &SWARMDBError{message: fmt.Sprintf("[swarmdb:convertJSONValueToKey] Unknown Type: %v", reflect.TypeOf(svalue)), ErrorCode: 429, ErrorMessage: fmt.Sprintf("Column Value is an unsupported type of [%s]", svalue)}
+		return k, &sdbc.SWARMDBError{Message: fmt.Sprintf("[swarmdb:convertJSONValueToKey] Unknown Type: %v", reflect.TypeOf(svalue)), ErrorCode: 429, ErrorMessage: fmt.Sprintf("Column Value is an unsupported type of [%s]", svalue)}
 	}
 	return k, nil
 }

@@ -18,6 +18,7 @@ package swarmdb_test
 import (
 	"bytes"
 	"fmt"
+	sdbc "github.com/ethereum/go-ethereum/swarmdb/swarmdbcommon"
 	"math/rand"
 	"os"
 	wolkdb "swarmdb"
@@ -50,7 +51,7 @@ func TestPutInteger(t *testing.T) {
 
 	fmt.Printf("---- TestPutInteger: generate 20 ints and enumerate them\n")
 	hashid := make([]byte, 32)
-	r, errB := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_INTEGER, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+	r, errB := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_INTEGER, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 	if errB != nil {
 		t.Fatal("could not create BplusTree", errB)
 	}
@@ -75,7 +76,7 @@ func TestPutInteger(t *testing.T) {
 	}
 
 	hashid = r.GetRootHash()
-	s, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_INTEGER, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+	s, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_INTEGER, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 
 	g, ok, err := s.Get(u, wolkdb.IntToByte(8))
 	if !ok || err != nil {
@@ -120,7 +121,7 @@ func TestPutInteger(t *testing.T) {
 		res, _ := s.SeekFirst(u)
 		records := 0
 		for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
-			fmt.Printf(" *int*> %d: K: %s V: %v\n", records, wolkdb.KeyToString(wolkdb.CT_INTEGER, k), string(v))
+			fmt.Printf(" *int*> %d: K: %s V: %v\n", records, wolkdb.KeyToString(sdbc.CT_INTEGER, k), string(v))
 			records++
 		}
 		fmt.Printf("---- TestPutInteger Next (%d records)\n", records)
@@ -131,7 +132,7 @@ func TestPutInteger(t *testing.T) {
 		res, _ := s.SeekLast(u)
 		records := 0
 		for k, v, err := res.Prev(u); err == nil; k, v, err = res.Prev(u) {
-			fmt.Printf(" *int*> %d: K: %s V: %v\n", records, wolkdb.KeyToString(wolkdb.CT_INTEGER, k), string(v))
+			fmt.Printf(" *int*> %d: K: %s V: %v\n", records, wolkdb.KeyToString(sdbc.CT_INTEGER, k), string(v))
 			records++
 		}
 		fmt.Printf("---- TestPutInteger Prev (%d records)\n", records)
@@ -143,7 +144,7 @@ func TestPutString(t *testing.T) {
 	u := config.GetSWARMDBUser()
 
 	hashid := make([]byte, 32)
-	r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_STRING, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+	r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_STRING, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 
 	r.StartBuffer(u)
 	vals := rand.Perm(20)
@@ -159,7 +160,7 @@ func TestPutString(t *testing.T) {
 	// r.Print()
 
 	hashid = r.GetRootHash()
-	s, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_STRING, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+	s, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_STRING, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 	g, _, _ := s.Get(u, []byte("000008"))
 	fmt.Printf("Get(000008): %v\n", string(g))
 
@@ -171,7 +172,7 @@ func TestPutString(t *testing.T) {
 	res, _, _ := r.Seek(u, []byte("000004"))
 	records := 0
 	for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
-		fmt.Printf(" *string*> %d K: %s V: %v\n", records, wolkdb.KeyToString(wolkdb.CT_STRING, k), string(v))
+		fmt.Printf(" *string*> %d K: %s V: %v\n", records, wolkdb.KeyToString(sdbc.CT_STRING, k), string(v))
 		records++
 	}
 	fmt.Printf("---- TestPutString DONE (%d records)\n", records)
@@ -182,7 +183,7 @@ func TestPutFloat(t *testing.T) {
 	u := config.GetSWARMDBUser()
 
 	hashid := make([]byte, 32)
-	r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_FLOAT, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+	r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_FLOAT, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 
 	r.StartBuffer(u)
 	vals := rand.Perm(20)
@@ -190,7 +191,7 @@ func TestPutFloat(t *testing.T) {
 	for _, i := range vals {
 		k := wolkdb.FloatToByte(float64(i) + .314159)
 		v := []byte(fmt.Sprintf("valueof%06x", i))
-		// fmt.Printf("Insert %d %v %v\n", i, wolkdb.KeyToString(wolkdb.CT_FLOAT, k), string(v))
+		// fmt.Printf("Insert %d %v %v\n", i, wolkdb.KeyToString(sdbc.CT_FLOAT, k), string(v))
 		r.Put(u, k, v)
 	}
 	// this writes B+tree to SWARM
@@ -198,13 +199,13 @@ func TestPutFloat(t *testing.T) {
 	// r.Print()
 
 	hashid = r.GetRootHash()
-	s, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_FLOAT, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+	s, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_FLOAT, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 
 	// ENUMERATOR
 	res, _, _ := s.Seek(u, wolkdb.FloatToByte(3.14159))
 	records := 0
 	for k, v, err := res.Next(u); err == nil; k, v, err = res.Next(u) {
-		fmt.Printf(" *float*> %d: K: %s V: %v\n", records, wolkdb.KeyToString(wolkdb.CT_FLOAT, k), string(v))
+		fmt.Printf(" *float*> %d: K: %s V: %v\n", records, wolkdb.KeyToString(sdbc.CT_FLOAT, k), string(v))
 		records++
 	}
 }
@@ -213,7 +214,7 @@ func TestSetGetString(t *testing.T) {
 	u := config.GetSWARMDBUser()
 
 	hashid := make([]byte, 32)
-	r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_STRING, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+	r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_STRING, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 
 	// put
 	key := []byte("42")
@@ -232,7 +233,7 @@ func TestSetGetString(t *testing.T) {
 	hashid = r.GetRootHash()
 
 	// r2 put
-	r2, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_STRING, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+	r2, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_STRING, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 	val2 := wolkdb.SHA256("278")
 	r2.Put(u, key, val2)
 	//r2.Print()
@@ -248,7 +249,7 @@ func TestSetGetString(t *testing.T) {
 	hashid = r2.GetRootHash()
 
 	// r3 put
-	r3, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_STRING, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+	r3, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_STRING, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 	key2 := []byte("420")
 	val3 := wolkdb.SHA256("bbb")
 	r3.Put(u, key2, val3)
@@ -272,7 +273,7 @@ func TestSetGetInt(t *testing.T) {
 	const N = 4
 	hashid := make([]byte, 32)
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_INTEGER, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+		r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_INTEGER, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 
 		a := make([]int, N)
 		for i := range a {
@@ -335,7 +336,7 @@ func TestDelete0(t *testing.T) {
 	u := config.GetSWARMDBUser()
 
 	hashid := make([]byte, 32)
-	r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_INTEGER, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+	r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_INTEGER, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 
 	key0 := wolkdb.IntToByte(0)
 	key1 := wolkdb.IntToByte(1)
@@ -406,7 +407,7 @@ func TestDelete1(t *testing.T) {
 	hashid := make([]byte, 32)
 	const N = 130
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_INTEGER, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+		r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_INTEGER, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 		a := make([]int, N)
 		for i := range a {
 			a[i] = (i ^ x) << 1
@@ -433,7 +434,7 @@ func TestDelete2(t *testing.T) {
 	const N = 100
 	hashid := make([]byte, 32)
 	for _, x := range []int{0, -1, 0x555555, 0xaaaaaa, 0x333333, 0xcccccc, 0x314159} {
-		r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, wolkdb.CT_INTEGER, false, wolkdb.CT_STRING, TEST_ENCRYPTED)
+		r, _ := wolkdb.NewBPlusTreeDB(u, swarmdb, hashid, sdbc.CT_INTEGER, false, sdbc.CT_STRING, TEST_ENCRYPTED)
 		a := make([]int, N)
 		rng := wolkdb.Rng()
 		for i := range a {

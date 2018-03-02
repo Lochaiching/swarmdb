@@ -17,6 +17,7 @@ package swarmdb_test
 
 import (
 	"fmt"
+	sdbc "github.com/ethereum/go-ethereum/swarmdb/swarmdbcommon"
 	"reflect"
 	"strings"
 	"swarmdb"
@@ -45,8 +46,8 @@ func TestParseQuery(t *testing.T) {
 	expected[`get1`] = swarmdb.QueryOption{
 		Type:  "Select",
 		Table: "contacts",
-		RequestColumns: []swarmdb.Column{
-			swarmdb.Column{ColumnName: "name"},
+		RequestColumns: []sdbc.Column{
+			sdbc.Column{ColumnName: "name"},
 		},
 		Where:     swarmdb.Where{Left: "age", Right: "35", Operator: ">="},
 		Ascending: 1,
@@ -54,9 +55,9 @@ func TestParseQuery(t *testing.T) {
 	expected[`get2`] = swarmdb.QueryOption{
 		Type:  "Select",
 		Table: "contacts",
-		RequestColumns: []swarmdb.Column{
-			swarmdb.Column{ColumnName: "name"},
-			swarmdb.Column{ColumnName: "age"},
+		RequestColumns: []sdbc.Column{
+			sdbc.Column{ColumnName: "name"},
+			sdbc.Column{ColumnName: "age"},
 		},
 		Where:     swarmdb.Where{Left: "email", Right: "rodney@wolk.com", Operator: "="},
 		Ascending: 1,
@@ -64,9 +65,9 @@ func TestParseQuery(t *testing.T) {
 	expected[`doublequotes`] = swarmdb.QueryOption{
 		Type:  "Select",
 		Table: "contacts",
-		RequestColumns: []swarmdb.Column{
-			swarmdb.Column{ColumnName: "name"},
-			swarmdb.Column{ColumnName: "age"},
+		RequestColumns: []sdbc.Column{
+			sdbc.Column{ColumnName: "name"},
+			sdbc.Column{ColumnName: "age"},
 		},
 		Where:     swarmdb.Where{Left: "email", Right: "rodney@wolk.com", Operator: "="},
 		Ascending: 1,
@@ -74,9 +75,9 @@ func TestParseQuery(t *testing.T) {
 	expected[`not`] = swarmdb.QueryOption{
 		Type:  "Select",
 		Table: "contacts",
-		RequestColumns: []swarmdb.Column{
-			swarmdb.Column{ColumnName: "name"},
-			swarmdb.Column{ColumnName: "age"},
+		RequestColumns: []sdbc.Column{
+			sdbc.Column{ColumnName: "name"},
+			sdbc.Column{ColumnName: "age"},
 		},
 		Where:     swarmdb.Where{Left: "email", Right: "rodney@wolk.com", Operator: "!="},
 		Ascending: 1,
@@ -84,8 +85,8 @@ func TestParseQuery(t *testing.T) {
 	expected[`insert`] = swarmdb.QueryOption{
 		Type:  "Insert",
 		Table: "contacts",
-		Inserts: []swarmdb.Row{
-			swarmdb.Row{
+		Inserts: []sdbc.Row{
+			sdbc.Row{
 				"name":  "Bertie Basset",
 				"age":   float64(7),
 				"email": "bertie@gmail.com"},
