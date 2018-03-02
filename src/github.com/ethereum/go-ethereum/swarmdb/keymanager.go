@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	sdbc "github.com/ethereum/go-ethereum/swarmdb/swarmdbcommon"
 	"golang.org/x/crypto/nacl/box"
 	// "os"
 )
@@ -62,7 +63,7 @@ func NewKeyManager(c *SWARMDBConfig) (keymgr KeyManager, err error) {
 						// TODO: what if people supply a secretkey instead of a passphrase?
 						_, k, err := keymgr.keystore.WgetDecryptedKey(a, u.Passphrase)
 						if err != nil {
-							return keymgr, &SWARMDBError{message: fmt.Sprintf("[keymanager:NewKeyManager] WgetDecryptedKey - Error Decrypting Account: %s", err.Error()), ErrorCode: 452, ErrorMessage: "Error Decrypting Account"}
+							return keymgr, &sdbc.SWARMDBError{Message: fmt.Sprintf("[keymanager:NewKeyManager] WgetDecryptedKey - Error Decrypting Account: %s", err.Error()), ErrorCode: 452, ErrorMessage: "Error Decrypting Account"}
 						} else {
 							u.sk = crypto.FromECDSA(k.PrivateKey)
 							u.pk = crypto.FromECDSAPub(&k.PrivateKey.PublicKey)
@@ -87,7 +88,7 @@ func NewKeyManagerWithoutConfig(filename string, passphrase string) (keymgr KeyM
 	// create new account with passphrase using keystore
 	account, err := keymgr.keystore.NewAccount(passphrase)
 	if err != nil {
-		return keymgr, &SWARMDBError{message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] NewAccount %s", err.Error()), ErrorCode: 453, ErrorMessage: "Error creating new account"}
+		return keymgr, &sdbc.SWARMDBError{Message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] NewAccount %s", err.Error()), ErrorCode: 453, ErrorMessage: "Error creating new account"}
 	}
 	fmt.Printf("Account: %v\n", account)
 
@@ -99,14 +100,14 @@ func NewKeyManagerWithoutConfig(filename string, passphrase string) (keymgr KeyM
 	// unlocking the account using the passphrase
 	err = keymgr.keystore.Unlock(account, passphrase)
 	if err != nil {
-		return keymgr, &SWARMDBError{message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] Unlock %s", err.Error()), ErrorCode: 454, ErrorMessage: "Error Unlocking Account"}
+		return keymgr, &sdbc.SWARMDBError{Message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] Unlock %s", err.Error()), ErrorCode: 454, ErrorMessage: "Error Unlocking Account"}
 	}
 	fmt.Printf("Unlocked account with passphras %s\n", passphrase)
 
 	// get the Key of the new account account from the keystore
 	_, k, err := keymgr.keystore.WgetDecryptedKey(account, passphrase)
 	if err != nil {
-		return keymgr, &SWARMDBError{message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] WgetDecryptedKey %s", err.Error()), ErrorCode: 452, ErrorMessage: "Error Decrypting Account"}
+		return keymgr, &sdbc.SWARMDBError{Message: fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] WgetDecryptedKey %s", err.Error()), ErrorCode: 452, ErrorMessage: "Error Decrypting Account"}
 	}
 	fmt.Printf("Key: %v\n", k)
 
@@ -119,21 +120,21 @@ func NewKeyManagerWithoutConfig(filename string, passphrase string) (keymgr KeyM
 	// save it!
 	err = SaveSWARMDBConfig(config, filename)
 	if err != nil {
-		return keymgr, GenerateSWARMDBError(err, fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] SaveSWARMDBConfig %s", err.Error()))
+		return keymgr, sdbc.GenerateSWARMDBError(err, fmt.Sprintf("[keymanager:NewKeyManagerWithoutConfig] SaveSWARMDBConfig %s", err.Error()))
 	}
 	fmt.Printf("Saved config in %s:\n", filename)
 	return keymgr, nil
 }
 
-// client libraries call this to sign messages (hashed to 32 bytes) with the config's secret
+// client libraries call this to sign Messages (hashed to 32 bytes) with the config's secret
 func (self *KeyManager) SignMessage(msg_hash []byte) (sig []byte, err error) {
 	secretKey, err := crypto.HexToECDSA(self.config.PrivateKey)
 	if err != nil {
-		return sig, &SWARMDBError{message: fmt.Sprintf("[keymanager:SignMessage] HexToECDSA  %s", err.Error()), ErrorCode: 455, ErrorMessage: "Keymanager Unable to Sign Message"}
+		return sig, &sdbc.SWARMDBError{Message: fmt.Sprintf("[keymanager:SignMessage] HexToECDSA  %s", err.Error()), ErrorCode: 455, ErrorMessage: "Keymanager Unable to Sign Message"}
 	} else {
 		sig, err2 := crypto.Sign(msg_hash, secretKey)
 		if err2 != nil {
-			return sig, &SWARMDBError{message: fmt.Sprintf("[keymanager:SignMessage] Sign %s", err.Error()), ErrorCode: 455, ErrorMessage: "Keymanager Unable to Sign Message"}
+			return sig, &sdbc.SWARMDBError{Message: fmt.Sprintf("[keymanager:SignMessage] Sign %s", err.Error()), ErrorCode: 455, ErrorMessage: "Keymanager Unable to Sign Message"}
 		}
 		return sig, nil
 	}
@@ -150,11 +151,11 @@ func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUs
 			sig[64] -= 27
 		}
 	} else {
-		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature length %d [%x]", len(sig), sig), ErrorCode: 419, ErrorMessage: "Invalid Signature Length: Must be 65 characters"}
+		return u, &sdbc.SWARMDBError{Message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature length %d [%x]", len(sig), sig), ErrorCode: 419, ErrorMessage: "Invalid Signature Length: Must be 65 characters"}
 	}
 	pubKey, err := crypto.SigToPub(msg_hash, sig)
 	if err != nil {
-		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature - Cannot get public key"), ErrorCode: 420, ErrorMessage: "Invalid Signature: Unable to Retrieve Public Key"}
+		return u, &sdbc.SWARMDBError{Message: fmt.Sprintf("[keymanager:VerifyMessage] Invalid signature - Cannot get public key"), ErrorCode: 420, ErrorMessage: "Invalid Signature: Unable to Retrieve Public Key"}
 	} else {
 		address := crypto.PubkeyToAddress(*pubKey)
 		for _, u0 := range self.config.Users {
@@ -163,7 +164,7 @@ func (self *KeyManager) VerifyMessage(msg_hash []byte, sig []byte) (u *SWARMDBUs
 				return &u0, nil
 			}
 		}
-		return u, &SWARMDBError{message: fmt.Sprintf("[keymanager:VerifyMessage] Address not found: %x", address.Bytes()), ErrorCode: 421, ErrorMessage: "User Address not configured on connected node."}
+		return u, &sdbc.SWARMDBError{Message: fmt.Sprintf("[keymanager:VerifyMessage] Address not found: %x", address.Bytes()), ErrorCode: 421, ErrorMessage: "User Address not configured on connected node."}
 	}
 
 }
@@ -175,7 +176,7 @@ func (self *KeyManager) DecryptData(u *SWARMDBUser, data []byte) (b []byte, err 
 
 	decrypted, ok := box.Open(nil, data[24:], &decryptNonce, &u.publicK, &u.secretK)
 	if !ok {
-		return b, &SWARMDBError{message: fmt.Sprintf("[keymanager:DecryptData] box.Open"), ErrorCode: 456, ErrorMessage: "Failure Decrypting Data"}
+		return b, &sdbc.SWARMDBError{Message: fmt.Sprintf("[keymanager:DecryptData] box.Open"), ErrorCode: 456, ErrorMessage: "Failure Decrypting Data"}
 	}
 	return decrypted, nil
 }
