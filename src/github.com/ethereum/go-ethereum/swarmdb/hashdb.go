@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/swarm/storage"
 	"io"
 	//"reflect"
+	sdbc "github.com/ethereum/go-ethereum/swarmdb/swarmdbcommon"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,7 +40,7 @@ type HashDB struct {
 	swarmdb    *SwarmDB
 	buffered   bool
 	encrypted  int
-	columnType ColumnType
+	columnType sdbc.ColumnType
 	mutex      sync.Mutex
 }
 
@@ -55,7 +56,7 @@ type Node struct {
 	NodeHash   []byte //for disk/(net?)DB. Currently, it's bin data but it will be the hash
 	Loaded     bool
 	Stored     bool
-	columnType ColumnType
+	columnType sdbc.ColumnType
 	counter    int
 }
 
@@ -73,7 +74,7 @@ func (self *HashDB) GetRootHash() []byte {
 	return self.rootnode.NodeHash
 }
 
-func NewHashDB(u *SWARMDBUser, rootnode []byte, swarmdb *SwarmDB, columntype ColumnType, encrypted int) (*HashDB, error) {
+func NewHashDB(u *SWARMDBUser, rootnode []byte, swarmdb *SwarmDB, columntype sdbc.ColumnType, encrypted int) (*HashDB, error) {
 	hd := new(HashDB)
 	n := NewNode(nil, nil)
 	n.Root = true
@@ -181,7 +182,7 @@ func (self *HashDB) GetRootNode() []byte {
 	return self.rootnode.NodeHash
 }
 
-func (self *Node) Add(u *SWARMDBUser, k []byte, v Val, swarmdb *SwarmDB, columntype ColumnType, encrypted int) error {
+func (self *Node) Add(u *SWARMDBUser, k []byte, v Val, swarmdb *SwarmDB, columntype sdbc.ColumnType, encrypted int) error {
 	log.Debug(fmt.Sprintf("HashDB Add ", self))
 	self.Version++
 	self.NodeKey = []byte("0")
@@ -190,7 +191,7 @@ func (self *Node) Add(u *SWARMDBUser, k []byte, v Val, swarmdb *SwarmDB, columnt
 	return err
 }
 
-func (self *Node) add(u *SWARMDBUser, addnode *Node, version int, nodekey []byte, swarmdb *SwarmDB, columntype ColumnType, encrypted int) (newnode *Node, err error) {
+func (self *Node) add(u *SWARMDBUser, addnode *Node, version int, nodekey []byte, swarmdb *SwarmDB, columntype sdbc.ColumnType, encrypted int) (newnode *Node, err error) {
 	kh := keyhash(addnode.Key)
 	bin := hashbin(kh, self.Level)
 	self.NodeKey = nodekey
@@ -247,7 +248,7 @@ func (self *Node) add(u *SWARMDBUser, addnode *Node, version int, nodekey []byte
 			copy(sdata[96:], addnode.Key)
 			dhash, err := swarmdb.StoreDBChunk(u, sdata, encrypted)
 			if err != nil {
-				return self, &SWARMDBError{message: `[hashdb:add] StoreDBChunk ` + err.Error()}
+				return self, &sdbc.SWARMDBError{Message: `[hashdb:add] StoreDBChunk ` + err.Error()}
 			}
 			addnode.NodeHash = dhash
 			self.Value = addnode.Value
@@ -296,11 +297,11 @@ func compareVal(a, b Val) int {
 	return 100
 }
 
-func compareValType(a, b Val, columntype ColumnType) int {
+func compareValType(a, b Val, columntype sdbc.ColumnType) int {
 	if va, ok := a.([]byte); ok {
 		if vb, ok := b.([]byte); ok {
 			switch columntype {
-			case CT_INTEGER, CT_FLOAT:
+			case sdbc.CT_INTEGER, sdbc.CT_FLOAT:
 				for i := 0; i < 8; i++ {
 					if va[i] > vb[i] {
 						return 1
@@ -348,7 +349,7 @@ func (self *Node) storeBinToNetwork(u *SWARMDBUser, swarmdb *SwarmDB, encrypted 
 	//wg := &sync.WaitGroup{}
 	adhash, err := swarmdb.StoreDBChunk(u, storedata, encrypted)
 	if err != nil {
-		return adhash, GenerateSWARMDBError(err, fmt.Sprintf("[hashdb:storeBinToNetwork] StoreDBChunk ", err.Error()))
+		return adhash, sdbc.GenerateSWARMDBError(err, fmt.Sprintf("[hashdb:storeBinToNetwork] StoreDBChunk ", err.Error()))
 	}
 	//wg.Wait()
 	return adhash, err
@@ -360,18 +361,18 @@ func (self *HashDB) Get(u *SWARMDBUser, k []byte) ([]byte, bool, error) {
 	ret, err := self.rootnode.Get(u, k, self.swarmdb, self.columnType, stack)
 	if err != nil {
 		switch err.(type) {
-		case *KeyNotFoundError:
+		case *sdbc.KeyNotFoundError:
 
 			return nil, false, nil
 		default:
 			log.Debug(fmt.Sprintf("***** ERROR retrieving key [%s] ****** [%s]\n", k, err))
-			return nil, false, GenerateSWARMDBError(err, fmt.Sprintf("Error Retrieving key [%s]", k))
+			return nil, false, sdbc.GenerateSWARMDBError(err, fmt.Sprintf("Error Retrieving key [%s]", k))
 		}
 	}
 	value := bytes.Trim(convertToByte(ret), "\x00")
 	b := true
 	if ret == nil {
-		//var err KeyNotFoundError
+		//var err sdbc.KeyNotFoundError
 		//return nil, false, &err
 		log.Debug("KEY NOT FOUND")
 		return nil, false, nil
@@ -388,13 +389,13 @@ func (self *HashDB) getStack(u *SWARMDBUser, k []byte) ([]byte, *stack_t, error)
 	}
 	value := bytes.Trim(convertToByte(ret), "\x00")
 	if ret == nil {
-		var err KeyNotFoundError
+		var err sdbc.KeyNotFoundError
 		return nil, nil, &err
 	}
 	return value, stack, nil
 }
 
-func (self *Node) Get(u *SWARMDBUser, k []byte, swarmdb *SwarmDB, columntype ColumnType, stack *stack_t) (Val, error) {
+func (self *Node) Get(u *SWARMDBUser, k []byte, swarmdb *SwarmDB, columntype sdbc.ColumnType, stack *stack_t) (Val, error) {
 	kh := keyhash(k)
 	bin := hashbin(kh, self.Level)
 
@@ -407,7 +408,7 @@ func (self *Node) Get(u *SWARMDBUser, k []byte, swarmdb *SwarmDB, columntype Col
 	}
 
 	if self.Bin[bin] == nil {
-		var err KeyNotFoundError
+		var err sdbc.KeyNotFoundError
 		return nil, &err
 	}
 	if self.Bin[bin].Loaded == false {
@@ -433,10 +434,10 @@ func (self *Node) Get(u *SWARMDBUser, k []byte, swarmdb *SwarmDB, columntype Col
 	return nil, nil
 }
 
-func (self *Node) load(u *SWARMDBUser, swarmdb *SwarmDB, columnType ColumnType) error {
+func (self *Node) load(u *SWARMDBUser, swarmdb *SwarmDB, columnType sdbc.ColumnType) error {
 	buf, err := swarmdb.RetrieveDBChunk(u, self.NodeHash)
 	if err != nil {
-		return &SWARMDBError{message: `[hashdb:load] RetrieveDBChunk ` + err.Error()}
+		return &sdbc.SWARMDBError{Message: `[hashdb:load] RetrieveDBChunk ` + err.Error()}
 	}
 
 	lf := int64(binary.LittleEndian.Uint64(buf[0:8]))
@@ -472,7 +473,7 @@ func (self *Node) load(u *SWARMDBUser, swarmdb *SwarmDB, columnType ColumnType) 
 		if pos == 96 && bytes.Compare(buf[96:96+32], emptybyte) != 0 {
 			pos = 96 + 32
 		}
-		if columnType == CT_INTEGER {
+		if columnType == sdbc.CT_INTEGER {
 			pos = 96 + 8
 		}
 		self.Key = buf[96:pos]
@@ -493,7 +494,7 @@ func (self *Node) load(u *SWARMDBUser, swarmdb *SwarmDB, columnType ColumnType) 
 func (self *HashDB) Insert(u *SWARMDBUser, k []byte, v []byte) (bool, error) {
 	res, b, _ := self.Get(u, k)
 	if res != nil || b {
-		return false, &SWARMDBError{message: fmt.Sprintf(`[hashdb:Insert] Get - Key exists: %s`, string(k))}
+		return false, &sdbc.SWARMDBError{Message: fmt.Sprintf(`[hashdb:Insert] Get - Key exists: %s`, string(k))}
 	}
 	_, err := self.Put(u, k, v)
 	return true, err
@@ -503,7 +504,7 @@ func (self *HashDB) Delete(u *SWARMDBUser, k []byte) (bool, error) {
 	_, b, err := self.rootnode.Delete(u, k, self.swarmdb, self.columnType)
 	if err != nil {
 		switch err.(type) {
-		case *KeyNotFoundError:
+		case *sdbc.KeyNotFoundError:
 			return false, nil
 		default:
 			return false, err
@@ -512,7 +513,7 @@ func (self *HashDB) Delete(u *SWARMDBUser, k []byte) (bool, error) {
 	return b, nil
 }
 
-func (self *Node) Delete(u *SWARMDBUser, k []byte, swarmdb *SwarmDB, columntype ColumnType) (newnode *Node, found bool, err error) {
+func (self *Node) Delete(u *SWARMDBUser, k []byte, swarmdb *SwarmDB, columntype sdbc.ColumnType) (newnode *Node, found bool, err error) {
 	found = false
 	if self.Loaded == false {
 		err = self.load(u, swarmdb, columntype)
@@ -592,7 +593,7 @@ func (self *Node) Update(updatekey []byte, updatevalue []byte) (newnode *Node, e
 	bin := hashbin(kh, self.Level)
 
 	if self.Bin[bin] == nil {
-		return self, &SWARMDBError{message: fmt.Sprintf("[hashdb:Update] No Key Error %x", updatekey)}
+		return self, &sdbc.SWARMDBError{Message: fmt.Sprintf("[hashdb:Update] No Key Error %x", updatekey)}
 	}
 
 	if self.Bin[bin].Next {
@@ -601,7 +602,7 @@ func (self *Node) Update(updatekey []byte, updatevalue []byte) (newnode *Node, e
 		self.Bin[bin].Value = updatevalue
 		return self, nil
 	}
-	return self, &SWARMDBError{message: fmt.Sprintf("[hashdb:Update] No Key Error %x", updatekey)}
+	return self, &sdbc.SWARMDBError{Message: fmt.Sprintf("[hashdb:Update] No Key Error %x", updatekey)}
 }
 
 func (self *HashDB) Close(u *SWARMDBUser) (bool, error) {
@@ -640,7 +641,7 @@ func (self *Node) flushBuffer(u *SWARMDBUser, swarmdb *SwarmDB, encrypted int) (
 				copy(sdata[96:], bin.Key)
 				dhash, err := swarmdb.StoreDBChunk(u, sdata, encrypted)
 				if err != nil {
-					return nil, &SWARMDBError{message: `[hashdb:flushBuffer] StoreDBChunk ` + err.Error()}
+					return nil, &sdbc.SWARMDBError{Message: `[hashdb:flushBuffer] StoreDBChunk ` + err.Error()}
 				}
 				bin.NodeHash = dhash
 				bin.Stored = true
@@ -657,7 +658,7 @@ func (self *HashDB) Print(u *SWARMDBUser) {
 	return
 }
 
-func (self *Node) print(u *SWARMDBUser, swarmdb *SwarmDB, columnType ColumnType) {
+func (self *Node) print(u *SWARMDBUser, swarmdb *SwarmDB, columnType sdbc.ColumnType) {
 	for binnum, bin := range self.Bin {
 		if bin != nil {
 			if bin.Loaded == false {
@@ -680,7 +681,7 @@ func (self *HashDB) Seek(u *SWARMDBUser, k []byte) (OrderedDatabaseCursor, bool,
 		return nil, false, err
 	}
 	if ret == nil {
-		return nil, false, &SWARMDBError{message: fmt.Sprintf("[hashdb:Seek] getStack - No Data")}
+		return nil, false, &sdbc.SWARMDBError{Message: fmt.Sprintf("[hashdb:Seek] getStack - No Data")}
 	}
 	cursor, err := newHashdbCursor(self)
 	if err != nil {
@@ -858,7 +859,7 @@ func (self *HashdbCursor) seeknext(u *SWARMDBUser) error {
 	self.node = self.hashdb.rootnode
 	for i := 0; i < self.bin.Size()-1; i++ {
 		if self.bin.GetPos(i) == -1 {
-			return &SWARMDBError{message: fmt.Sprintf("[hashdb:seeknext] No Data")}
+			return &sdbc.SWARMDBError{Message: fmt.Sprintf("[hashdb:seeknext] No Data")}
 		}
 		if self.node.Bin[self.bin.GetPos(i)] == nil {
 		} else {
@@ -934,7 +935,7 @@ func (self *HashdbCursor) seekprev(u *SWARMDBUser) error {
 	self.node = self.hashdb.rootnode
 	for i := 0; i < self.bin.Size()-1; i++ {
 		if self.bin.GetPos(i) == -1 {
-			return &SWARMDBError{message: fmt.Sprintf("[hashdb:seekprev] No data")}
+			return &sdbc.SWARMDBError{Message: fmt.Sprintf("[hashdb:seekprev] No data")}
 		}
 		if self.node.Bin[self.bin.GetPos(i)] == nil {
 		} else {
@@ -970,7 +971,7 @@ func newStack() *stack_t {
 
 func (self *stack_t) Push(add int) error {
 	if self.size+1 > STACK_SIZE {
-		return &SWARMDBError{message: fmt.Sprintf("[hashdb:Push] over max stack")}
+		return &sdbc.SWARMDBError{Message: fmt.Sprintf("[hashdb:Push] over max stack")}
 	}
 	self.data[self.size] = add
 	self.size = self.size + 1
@@ -979,7 +980,7 @@ func (self *stack_t) Push(add int) error {
 
 func (self *stack_t) Pop() (int, error) {
 	if self.size == 0 {
-		return -1, &SWARMDBError{message: fmt.Sprintf("[hashdb:Pop] nothing in stack")}
+		return -1, &sdbc.SWARMDBError{Message: fmt.Sprintf("[hashdb:Pop] nothing in stack")}
 	}
 	pos := self.data[self.size-1]
 	self.data[self.size-1] = -1
