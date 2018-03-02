@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	swarmdb "github.com/ethereum/go-ethereum/swarmdb"
+	sdbc "github.com/ethereum/go-ethereum/swarmdb/swarmdbcommon"
 	"github.com/rs/cors"
 	"io"
 	"io/ioutil"
@@ -79,8 +80,8 @@ func (rvp *ChallengeVersionPair) validClientVersion(cvp ResponseVersionPair) (ok
 }
 
 func buildErrorResp(err error) string {
-	var respObj swarmdb.SWARMDBResponse
-	wolkErr, ok := err.(*swarmdb.SWARMDBError)
+	var respObj sdbc.SWARMDBResponse
+	wolkErr, ok := err.(*sdbc.SWARMDBError)
 	if !ok {
 		return (`{ "errorcode":-1, "errormessage":"UNKNOWN ERROR"}`) //TODO: Make Default Error Handling
 	}
@@ -130,7 +131,7 @@ func handleTcpipRequest(conn net.Conn, svr *TCPIPServer) {
 	msg := fmt.Sprintf("\x19Ethereum Signed Message:\n%d%s", len(cvp.Challenge), cvp.Challenge)
 	challenge_bytes := crypto.Keccak256([]byte(msg))
 
-	var swErr swarmdb.SWARMDBError
+	var swErr sdbc.SWARMDBError
 	rvp, err := reader.ReadString('\n')
 	if err != nil {
 		swErr.SetError(fmt.Sprintf("Problem reading RAW TCPIP input (%s).  ERROR:[%s]", rvp, err.Error()))
@@ -263,7 +264,7 @@ func StartTcpipServer(sdb *swarmdb.SwarmDB, conf *swarmdb.SWARMDBConfig) (err er
 	host_port := fmt.Sprintf("%s:%d", host, port)
 	l, err := net.Listen("tcp", host_port)
 
-	var swErr swarmdb.SWARMDBError
+	var swErr sdbc.SWARMDBError
 	if err != nil {
 		swErr.SetError(fmt.Sprintf("Error trying to listen (tcp) on host/port [%s].  ERROR:[%s]", host_port, err))
 		log.Error(swErr.Error())
@@ -292,10 +293,10 @@ func StartTcpipServer(sdb *swarmdb.SwarmDB, conf *swarmdb.SWARMDBConfig) (err er
 }
 
 func parsePath(path string) (swdbReq SwarmDBReq, err error) {
-	var swErr swarmdb.SWARMDBError
+	var swErr sdbc.SWARMDBError
 	pathParts := strings.Split(path, "/")
 	if len(pathParts) < 2 {
-		swErr = swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Request URL invalid"}
+		swErr = sdbc.SWARMDBError{ErrorCode: -1, ErrorMessage: "Request URL invalid"}
 		swErr.SetError("Invalid Path in Request URL")
 		return swdbReq, &swErr
 	} else {
@@ -304,7 +305,7 @@ func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 			case 1:
 				swdbReq.owner, swdbReq.database, err = parseOwnerDB(v)
 				if err != nil {
-					return swdbReq, swarmdb.GenerateSWARMDBError(err, fmt.Sprintf("Invalid Owner/ENS path passed in [%s]", v))
+					return swdbReq, sdbc.GenerateSWARMDBError(err, fmt.Sprintf("Invalid Owner/ENS path passed in [%s]", v))
 				}
 			case 2:
 				swdbReq.table = v
@@ -321,7 +322,7 @@ func parsePath(path string) (swdbReq SwarmDBReq, err error) {
 func parseOwnerDB(v string) (owner string, db string, err error) {
 	vParts := strings.Split(v, ".")
 	if len(vParts) < 3 {
-		//return db, owner, &swarmdb.SWARMDBError{ErrorCode: -1, ErrorMessage: "Owner portion of request invalid"}
+		//return db, owner, &sdbc.SWARMDBError{ErrorCode: -1, ErrorMessage: "Owner portion of request invalid"}
 		//TODO: robust error!
 	}
 	owner = fmt.Sprintf("%s.%s", vParts[len(vParts)-2], vParts[len(vParts)-1])
@@ -377,7 +378,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var swErr swarmdb.SWARMDBError
+	var swErr sdbc.SWARMDBError
 	encAuthString := r.Header["Authorization"]
 	var vUser *swarmdb.SWARMDBUser
 	var errVerified error
@@ -525,7 +526,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	verifiedUser := vUser
-	var dataReq swarmdb.RequestOption
+	var dataReq sdbc.RequestOption
 	dataReq.Owner = swReq.owner
 	dataReq.Database = swReq.database
 	dataReq.Table = swReq.table
@@ -589,7 +590,7 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 				} else if dataReq.RequestType == "Put" {
 					if row, ok := bodyMap["row"]; ok {
-						newRow := swarmdb.NewRow()
+						newRow := sdbc.NewRow()
 						newRow = row.(map[string]interface{})
 						dataReq.Rows = append(dataReq.Rows, newRow)
 					}
@@ -610,13 +611,13 @@ func (s *HTTPServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					reqJson, err = json.Marshal(bodyMap)
 				}
 			} else {
-				swErr = swarmdb.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body -- Missing requesttype"}
+				swErr = sdbc.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body -- Missing requesttype"}
 				swErr.SetError(fmt.Sprintf("POST operations require a requestType, (%+v), (%s)", bodyMap, bodyMap["requesttype"]))
 				retJson := buildErrorResp(&swErr)
 				fmt.Fprint(w, retJson)
 			}
 		} else {
-			swErr = swarmdb.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body"}
+			swErr = sdbc.SWARMDBError{ErrorCode: 438, ErrorMessage: "Invalid Request Body"}
 			swErr.SetError(fmt.Sprintf("Input Data Invalid [%v]", bodyMapInt))
 			log.Debug(swErr.Error())
 			retJson := buildErrorResp(&swErr)
