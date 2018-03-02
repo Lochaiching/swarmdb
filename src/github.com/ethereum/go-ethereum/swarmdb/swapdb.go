@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+	sdbc "github.com/ethereum/go-ethereum/swarmdb/swarmdbcommon"
 	_ "github.com/mattn/go-sqlite3"
 	"math/big"
 	"path/filepath"
@@ -78,7 +79,7 @@ func NewSwapDBStore(config *SWARMDBConfig, netstats *Netstats) (self *SwapDBStor
 	path := filepath.Join(config.ChunkDBPath, "swap.db")
 	db, err := sql.Open("sqlite3", path)
 	if err != nil || db == nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDBStore] Open %s", err.Error())}
+		return nil, &sdbc.SWARMDBError{Message: fmt.Sprintf("[swapdb:NewSwapDBStore] Open %s", err.Error())}
 	}
 
 	//Local Chunk table
@@ -94,7 +95,7 @@ func NewSwapDBStore(config *SWARMDBConfig, netstats *Netstats) (self *SwapDBStor
     `
 	_, err = db.Exec(sql_table)
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[swapdb:NewSwapDBStore] Exec - SQLite Chunk Table Creation %s", err.Error())}
+		return nil, &sdbc.SWARMDBError{Message: fmt.Sprintf("[swapdb:NewSwapDBStore] Exec - SQLite Chunk Table Creation %s", err.Error())}
 	}
 
 	self = &SwapDBStore{
@@ -125,7 +126,7 @@ func (self *SwapDBStore) Issue(amount int, localAddress common.Address, peerAddr
 	// TODO: use keymanager to sign message
 	// sig, err = km.SignMessage(swapID)
 	// if err != nil {
-	//	return ch, &SWARMDBError{message: fmt.Sprintf("[swapdb:Issue] SignMessage %s", err.Error())}
+	//	return ch, &sdbc.SWARMDBError{message: fmt.Sprintf("[swapdb:Issue] SignMessage %s", err.Error())}
 	// } else {
 	var sig []byte
 	sig = []byte{49, 50, 51}
@@ -134,7 +135,7 @@ func (self *SwapDBStore) Issue(amount int, localAddress common.Address, peerAddr
 	sql_add := `INSERT OR REPLACE INTO swap ( swapID, sender, beneficiary, amount, sig, checkBirthDT) values(?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
-		return ch, &SWARMDBError{message: fmt.Sprintf("[swapdb:Issue] Prepare %s", err.Error())}
+		return ch, &sdbc.SWARMDBError{Message: fmt.Sprintf("[swapdb:Issue] Prepare %s", err.Error())}
 	}
 	defer stmt.Close()
 
@@ -146,7 +147,7 @@ func (self *SwapDBStore) Issue(amount int, localAddress common.Address, peerAddr
 
 	_, err = stmt.Exec(swapID_str, sender_str, beneficiary_str, amount_int, sig_str)
 	if err != nil {
-		return ch, &SWARMDBError{message: fmt.Sprintf("[swapdb:Issue] Exec %s", err.Error())}
+		return ch, &sdbc.SWARMDBError{Message: fmt.Sprintf("[swapdb:Issue] Exec %s", err.Error())}
 	}
 	stmt.Close()
 
@@ -184,7 +185,7 @@ func (self *SwapDBStore) Receive(units int, ch *SwapCheck) (err error) {
 
 	price := big.NewInt(int64(units))
 	if price.Cmp(amountB) != 0 {
-		return &SWARMDBError{message: fmt.Sprintf("[swapdb:Receive] units != amount")}
+		return &sdbc.SWARMDBError{Message: fmt.Sprintf("[swapdb:Receive] units != amount")}
 	} else {
 		// TODO: check signature instead of hash
 		if bytes.Equal(swapIDIssue, swapIDReceive) {
@@ -193,7 +194,7 @@ func (self *SwapDBStore) Receive(units int, ch *SwapCheck) (err error) {
 			sql_add := `INSERT OR REPLACE INTO swap ( swapID, sender, beneficiary, amount, sig, checkBirthDT) values(?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`
 			stmt, err := self.db.Prepare(sql_add)
 			if err != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[swapdb:Receive] Prepare %s", err.Error())}
+				return &sdbc.SWARMDBError{Message: fmt.Sprintf("[swapdb:Receive] Prepare %s", err.Error())}
 			}
 			defer stmt.Close()
 
@@ -205,14 +206,14 @@ func (self *SwapDBStore) Receive(units int, ch *SwapCheck) (err error) {
 
 			_, err = stmt.Exec(swapID_str, sender_str, beneficiary_str, amount_int, sig_str)
 			if err != nil {
-				return &SWARMDBError{message: fmt.Sprintf("[swapdb:Receive] Exec %s", err.Error())}
+				return &sdbc.SWARMDBError{Message: fmt.Sprintf("[swapdb:Receive] Exec %s", err.Error())}
 			}
 			stmt.Close()
 
 			self.netstats.AddReceive(units)
 
 		} else {
-			return &SWARMDBError{message: fmt.Sprintf("[swapdb:Receive] sig != sig")}
+			return &sdbc.SWARMDBError{Message: fmt.Sprintf("[swapdb:Receive] sig != sig")}
 		}
 	}
 	return nil
@@ -221,7 +222,7 @@ func (self *SwapDBStore) Receive(units int, ch *SwapCheck) (err error) {
 func (self *SwapDBStore) GenerateSwapLog(startts int64, endts int64) (log []string, err error) {
 	rows, err := self.db.Query("SELECT swapID, sender, beneficiary, amount, sig FROM swap")
 	if err != nil {
-		return log, &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Query %s", err.Error())}
+		return log, &sdbc.SWARMDBError{Message: fmt.Sprintf("[swapdb:GenerateSwapLog] Query %s", err.Error())}
 	}
 
 	defer rows.Close()
@@ -230,12 +231,12 @@ func (self *SwapDBStore) GenerateSwapLog(startts int64, endts int64) (log []stri
 		c := SwapLog{}
 		err = rows.Scan(&c.SwapID, &c.Sender, &c.Beneficiary, &c.Amount, &c.Sig)
 		if err != nil {
-			return log, &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Scan %s", err.Error())}
+			return log, &sdbc.SWARMDBError{Message: fmt.Sprintf("[swapdb:GenerateSwapLog] Scan %s", err.Error())}
 		}
 
 		l, err2 := json.Marshal(c)
 		if err2 != nil {
-			return log, &SWARMDBError{message: fmt.Sprintf("[swapdb:GenerateSwapLog] Marshal %s", err2.Error())}
+			return log, &sdbc.SWARMDBError{Message: fmt.Sprintf("[swapdb:GenerateSwapLog] Marshal %s", err2.Error())}
 
 		}
 
@@ -289,7 +290,7 @@ func (self *SwapDB) Issue() (err error) {
 	//	defer self.lock.Unlock()
 	//	self.lock.Lock()
 	//		if amount < 0 {
-	//		return ch, &SWARMDBError{message: fmt.Sprintf("[swapdb:Issue] Check Amount must be positive %d", amount)}
+	//		return ch, &sdbc.SWARMDBError{Message: fmt.Sprintf("[swapdb:Issue] Check Amount must be positive %d", amount)}
 	//		}
 	ch, err := self.swapdbstore.Issue(self.balance, self.localAddress, self.peerAddress)
 	if err != nil {

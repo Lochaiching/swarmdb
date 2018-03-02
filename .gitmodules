@@ -1,0 +1,3 @@
+[submodule "src/github.com/ethereum/go-ethereum/swarmdb/swarmdbcommon"]
+	path = src/github.com/ethereum/go-ethereum/swarmdb/swarmdbcommon
+	url = https://github.com/wolkdb/swarmdbcommon

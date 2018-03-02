@@ -19,6 +19,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/ethereum/go-ethereum/log"
+	sdbc "github.com/ethereum/go-ethereum/swarmdb/swarmdbcommon"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -59,14 +60,14 @@ func (self *ENSSimulation) StoreRootHash(u *SWARMDBUser, indexName []byte, rooth
 	stmt, err := self.db.Prepare(sql_add)
 	if err != nil {
 		log.Debug("Error storing RootHash")
-		return &SWARMDBError{message: fmt.Sprintf("[enssimulation:StoreRootHash] sql.db.Prepare [%s]", err.Error()), ErrorCode: 441, ErrorMessage: "Error Storing RootHash"}
+		return &sdbc.SWARMDBError{Message: fmt.Sprintf("[enssimulation:StoreRootHash] sql.db.Prepare [%s]", err.Error()), ErrorCode: 441, ErrorMessage: "Error Storing RootHash"}
 	}
 	defer stmt.Close()
 
 	_, err2 := stmt.Exec(indexName, roothash)
 	if err2 != nil {
 		log.Debug("Error storing RootHash")
-		return &SWARMDBError{message: fmt.Sprintf("[enssimulation:StoreRootHash] stmt.Exec [%s]", err2.Error()), ErrorCode: 441, ErrorMessage: "Error Storing RootHash"}
+		return &sdbc.SWARMDBError{Message: fmt.Sprintf("[enssimulation:StoreRootHash] stmt.Exec [%s]", err2.Error()), ErrorCode: 441, ErrorMessage: "Error Storing RootHash"}
 	}
 	return nil
 }
@@ -77,13 +78,13 @@ func (self *ENSSimulation) GetRootHash(u *SWARMDBUser, indexName []byte) (val []
 	sql := `SELECT roothash FROM ens WHERE indexName = $1`
 	stmt, err := self.db.Prepare(sql)
 	if err != nil {
-		return val, &SWARMDBError{message: fmt.Sprintf("[enssimulation:GetRootHash] sql.db.Prepare [%s]", err.Error()), ErrorCode: 442, ErrorMessage: "Error Retrieving RootHash"}
+		return val, &sdbc.SWARMDBError{Message: fmt.Sprintf("[enssimulation:GetRootHash] sql.db.Prepare [%s]", err.Error()), ErrorCode: 442, ErrorMessage: "Error Retrieving RootHash"}
 	}
 	defer stmt.Close()
 
 	rows, err := stmt.Query(indexName)
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[enssimulation:GetRootHash] sql.db.Prepare [%s]", err.Error()), ErrorCode: 442, ErrorMessage: "Error Retrieving RootHash"}
+		return nil, &sdbc.SWARMDBError{Message: fmt.Sprintf("[enssimulation:GetRootHash] sql.db.Prepare [%s]", err.Error()), ErrorCode: 442, ErrorMessage: "Error Retrieving RootHash"}
 	}
 	defer rows.Close()
 

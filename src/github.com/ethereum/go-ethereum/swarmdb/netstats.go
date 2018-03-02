@@ -3,6 +3,7 @@ package swarmdb
 import (
 	"encoding/json"
 	"fmt"
+	sdbc "github.com/ethereum/go-ethereum/swarmdb/swarmdbcommon"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -167,7 +168,7 @@ func (self *Netstats) MarshalJSON() (data []byte, err error) {
 
 	data, err = json.Marshal(l)
 	if err != nil {
-		return nil, &SWARMDBError{message: fmt.Sprintf("[netstats:MarshalJSON] Marshal %s", err.Error()), ErrorCode: 459, ErrorMessage: fmt.Sprintf("Unable to marshal")}
+		return nil, &sdbc.SWARMDBError{Message: fmt.Sprintf("[netstats:MarshalJSON] Marshal %s", err.Error()), ErrorCode: 459, ErrorMessage: fmt.Sprintf("Unable to marshal")}
 	} else {
 		return data, nil
 	}
@@ -180,7 +181,7 @@ func (self *Netstats) UnmarshalJSON(data []byte) (err error) {
 	l.LStat = make(map[string]string)
 	err = json.Unmarshal(data, &l)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[netstats:UnmarshalJSON]%s", err.Error()), ErrorCode: 460, ErrorMessage: fmt.Sprintf("Unable to unmarshal [%s]", data)}
+		return &sdbc.SWARMDBError{Message: fmt.Sprintf("[netstats:UnmarshalJSON]%s", err.Error()), ErrorCode: 460, ErrorMessage: fmt.Sprintf("Unable to unmarshal [%s]", data)}
 	} else {
 		self.SStat = make(map[string]*big.Int)
 		for sk, sv := range l.SStat {
@@ -214,12 +215,12 @@ func LoadNetstats() (self *Netstats, err error) {
 	data, errLoad := ioutil.ReadFile(netstatsFullPath)
 	if errLoad != nil {
 		//return self, GenerateSWARMDBError(err, fmt.Sprintf("[netstats:LoadNetstats] %s", err.Error()))
-		return self, &SWARMDBError{message: fmt.Sprintf("[netstats:LoadNetstats] %s", err.Error()), ErrorCode: 461, ErrorMessage: "LoadNetstats"}
+		return self, &sdbc.SWARMDBError{Message: fmt.Sprintf("[netstats:LoadNetstats] %s", err.Error()), ErrorCode: 461, ErrorMessage: "LoadNetstats"}
 	}
 
 	errParse := json.Unmarshal(data, &self)
 	if errParse != nil {
-		return self, &SWARMDBError{message: fmt.Sprintf("[netstats:LoadNetstats] %s", err.Error()), ErrorCode: 461, ErrorMessage: "LoadNetstats"}
+		return self, &sdbc.SWARMDBError{Message: fmt.Sprintf("[netstats:LoadNetstats] %s", err.Error()), ErrorCode: 461, ErrorMessage: "LoadNetstats"}
 	}
 	return self, nil
 }
@@ -227,13 +228,13 @@ func LoadNetstats() (self *Netstats, err error) {
 func (self *Netstats) Save() (err error) {
 	data, err := json.MarshalIndent(self, "", " ")
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[netstats:Save] MarshalIndent %s", err.Error()), ErrorCode: 461, ErrorMessage: "Unable to Save Netstats"}
+		return &sdbc.SWARMDBError{Message: fmt.Sprintf("[netstats:Save] MarshalIndent %s", err.Error()), ErrorCode: 461, ErrorMessage: "Unable to Save Netstats"}
 	}
 	netstatsFileName := "netstats.json"
 	netstatsFullPath := filepath.Join(self.Path, netstatsFileName)
 	err = ioutil.WriteFile(netstatsFullPath, data, os.ModePerm)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[netstats:Save] WriteFile %s", err.Error()), ErrorCode: 461, ErrorMessage: "Unable to Save Netstats"}
+		return &sdbc.SWARMDBError{Message: fmt.Sprintf("[netstats:Save] WriteFile %s", err.Error()), ErrorCode: 461, ErrorMessage: "Unable to Save Netstats"}
 	} else {
 		fmt.Printf("netstats file written: [%s]\n", netstatsFullPath)
 		return nil
@@ -246,14 +247,14 @@ func (self *Netstats) Flush() (err error) {
 
 	data, err := json.Marshal(self)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:Flush] Marshal %s", err.Error()), ErrorCode: 462, ErrorMessage: "Unable to Flush DBChunkstore"}
+		return &sdbc.SWARMDBError{Message: fmt.Sprintf("[dbchunkstore:Flush] Marshal %s", err.Error()), ErrorCode: 462, ErrorMessage: "Unable to Flush DBChunkstore"}
 	}
 
 	netstatsFileName := "netstats.log"
 	netstatsFullPath := filepath.Join(self.Path, netstatsFileName)
 	netstatlog, err := os.OpenFile(netstatsFullPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
-		return &SWARMDBError{message: fmt.Sprintf("[dbchunkstore:Flush] OpenFile %s", err.Error()), ErrorCode: 462, ErrorMessage: "Unable to Flush DBChunkstore"}
+		return &sdbc.SWARMDBError{Message: fmt.Sprintf("[dbchunkstore:Flush] OpenFile %s", err.Error()), ErrorCode: 462, ErrorMessage: "Unable to Flush DBChunkstore"}
 	}
 	defer netstatlog.Close()
 	fmt.Fprintf(netstatlog, "%s\n", data)
