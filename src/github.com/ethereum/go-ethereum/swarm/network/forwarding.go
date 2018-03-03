@@ -151,13 +151,13 @@ func (self *forwarder) Store(chunk *storage.Chunk) {
 
 //TODO: will be separated from forwarder. 
 func (self *forwarder) StoreDB(chunk *storage.Chunk) {
-        log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.StoreDB :request peers to store swarmdb :%v", chunk.Key))
+        log.Debug(fmt.Sprintf("[wolk-cloudstore] forwarder.StoreDB :request peers to store swarmdb :%v %s", chunk.Key, string(chunk.Options)))
         var n int
         msg := &sDBStoreRequestMsgData{
                 Key:   chunk.Key,
                 SData: chunk.SData,
-		rtype : 2,
-		option : string(chunk.Options),
+		Rtype : 2,
+		Option : string(chunk.Options),
         }
 
         var source *peer

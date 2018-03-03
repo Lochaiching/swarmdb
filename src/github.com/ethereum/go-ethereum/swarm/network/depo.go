@@ -168,37 +168,29 @@ func (self *Depo) HandleSdbStoreRequestMsg(req *sDBStoreRequestMsgData, p *peer)
         log.Trace(fmt.Sprintf("Depo.HandleSdbStoreRequest: %v %v", req.Key, p))
         req.from = p
         ret, opt, err := self.swarmdb.RetrieveDB(req.Key)
-        log.Debug(fmt.Sprintf("depo.HandleSdbStoreRequestMsg :option %v from %v", req.option, p))
+        log.Debug(fmt.Sprintf("depo.HandleSdbStoreRequestMsg :option %v from %v", req.Option, p))
 	var ropt storage.CloudOption
-/* debug */
-	jerr := json.Unmarshal([]byte(req.option), &ropt)
-	if jerr != nil{
-        	log.Debug(fmt.Sprintf("depo.HandleSdbStoreRequestMsg :json error option %v  %v", req.option, jerr))
-		return
+	err = json.Unmarshal([]byte(req.Option), &ropt)	
+	if err != nil{
+        	log.Debug(fmt.Sprintf("[wolk-cloudstore] depo.HandleSdbStoreRequestMsg :json unmarshal error %s", req.Option))
+		//TODO
 	}
-/* */
 	ropt.Source = p
-	if ropt.Version <= opt.Version{
+	
+	if ret != nil && ropt.Version <= opt.Version{
 	///////debug commented out
 		//return
 		return
 	}
-	if err != nil{
-        	self.swarmdb.StoreDB([]byte(req.Key), req.SData, &ropt)
-	}
-///// Mayumi :need to change args. 
-	//jopt, err := json.Marshal(ropt)
+        self.swarmdb.StoreDB(req.Key, req.SData, &ropt)
 /// TODO: review options
 	chunk := storage.NewChunk(req.Key, nil)
 	chunk.SData = req.SData
-	chunk.Options = []byte(req.option)
+	chunk.Options = []byte(req.Option)
 	chunk.Source = p
 	chunk.Size = 0
         log.Debug(fmt.Sprintf("[wolk-cloudstore] depo.HandleSdbStoreRequestMsg :storing to sdbStore %v from %v with %v", req.Key, p, chunk))
 	self.sdbStore.Put(chunk)
-        //self.swarmdb.SwarmStore.StoreDB([]byte(req.Key), req.SData, jopt)
-	//self.localStore.memStore.Get(k)
-        //self.netStore.PutDB([]byte(req.Key), req.SData, &ropt)
 		
         switch {
         case err != nil:
@@ -288,8 +280,8 @@ func (self *Depo) HandleSdbRetrieveRequestMsg(req *retrieveRequestMsgData, p *pe
 			Id:             req.Id,
 			Key:            req.Key,
 			SData:          ret,
-			option:         string(jopt),
-			rtype:          2,
+			Option:         string(jopt),
+			Rtype:          2,
 			requestTimeout: req.timeout, //
 		}
                 log.Debug(fmt.Sprintf("Depo.HandleSdbRetrieveRequest: %v - sreq", req.Key.Log(), sreq))
