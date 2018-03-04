@@ -301,7 +301,7 @@ func (self *SwarmDB) GetRootHash(tblKey []byte /* GetTableKeyValue */) (roothash
 	hashc := hashcolumn(tblKey)
 	s := hashc[:]
 	res, status, err := self.ens.GetRootHashFromLDB(s)
-	if err != nil{
+	if err != nil || status != 2{
 		res, err = self.ens.GetRootHash(s)
 	}
 	log.Debug(fmt.Sprintf("swarmdb GetRootHash index = %x hashed index = %x status = %d", tblKey, s, status)) 

@@ -835,10 +835,12 @@ func (self *syncer) newSdbStoreRequestMsgData(req interface{}) (*sDBStoreRequest
                         Id:    id,
                         Key:   key,
                         SData: chunk,
-			rtype: 2,
-			option:string(jopt),
+			Rtype: 2,
+			Option:string(jopt),
+			Version: 1,
                 }
         }
+	log.Debug(fmt.Sprintf("syncer[%v]: newSdbStoreRequestMsgData  %v %s", self.key.Log(), sreq, sreq.Option))
 
         return sreq, nil
 }

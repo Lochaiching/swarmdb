@@ -326,15 +326,15 @@ func (self *paymentMsgData) String() string {
 type sDBStoreRequestMsgData struct{
         Key   storage.Key // hash of datasize | data
         SData []byte      // the actual chunk Data
+        Rtype          uint64
+        Option         string
         Id             uint64     // request ID. if delivery, the ID is retrieve request ID
         requestTimeout *time.Time // expiry for forwarding - [not serialised][not currently used]
         storageTimeout *time.Time // expiry of content - [not serialised][not currently used]
         from           *peer      // [not serialised] protocol registers the requester
-        rtype          int
 	//BirthDT		int
         //option         *storage.CloudOption
-        option         string
-	version		int
+	Version		uint64
 }
 
 func (self sDBStoreRequestMsgData) String() string {
@@ -348,7 +348,7 @@ func (self sDBStoreRequestMsgData) String() string {
         if len(self.SData) > 10 {
                 end = 10
         }
-        return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x, rtype %d option %v", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end], self.rtype, self.option)
+        return fmt.Sprintf("from: %v, Key: %v; ID: %v, requestTimeout: %v, storageTimeout: %v, SData %x, Rtype %d Option %v Version %d", from, self.Key, self.Id, self.requestTimeout, self.storageTimeout, self.SData[:end], self.Rtype, self.Option, self.Version)
 }
 
 /*

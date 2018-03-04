@@ -131,7 +131,10 @@ func NewSwarm(ctx *node.ServiceContext, backend chequebook.Backend, ensClient *e
 	// setup cloud storage internal access layer
 
 	self.storage = storage.NewNetStore(hash, self.lstore, cloud, config.StoreParams)
-	self.sdbstorage = storage.NewSdbStore(self.lstore, cloud)
+	sdbmstore := storage.NewMemStore(nil, config.StoreParams.CacheCapacity)	
+	sdbmstore.SetMode(1)
+	//self.sdbstorage = storage.NewSdbStore(self.lstore, cloud)
+	self.sdbstorage = storage.NewSdbStore(sdbmstore, cloud)
 	log.Debug(fmt.Sprintf("-> swarm net store shared access layer to Swarm Chunk Store"))
 
 	// setup swarmdb
