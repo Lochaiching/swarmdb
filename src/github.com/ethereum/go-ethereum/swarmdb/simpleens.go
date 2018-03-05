@@ -59,22 +59,6 @@ func NewENSSimple(path string, config *SWARMDBConfig) (ens ENSSimple, err error)
 	if len(config.EnsIP) > 0 {
 		ipaddress = config.EnsIP
 	}
-/*
-	confdir, err := ioutil.ReadDir("/var/www/vhosts/data/swarmdb")
-	if err == nil{
-		var conffilename string
-		for _, cf := range confdir{
-        		if strings.HasPrefix(cf.Name(), "ens") {
-                		conffilename =  cf.Name()
-        		}
-		}
-		fullconf := filepath.Join("/var/www/vhosts/data/swarmdb", conffilename)
-		dat, _ := ioutil.ReadFile(fullconf)
-		var conf ENSSimpleConfig
-		err = json.Unmarshal(dat, &conf)
-		ipaddress = conf.Ipaddress
-	}
-*/
 	elog.Debug(fmt.Sprintf("SimpleENS ipaddress = %s", ipaddress))	
 	
 	// Create an IPC based RPC connection to a remote node
@@ -132,6 +116,9 @@ func NewENSSimple(path string, config *SWARMDBConfig) (ens ENSSimple, err error)
 
 // TODO: get leveldb dir from config
 	p := "/tmp/ensdb"
+	if len(config.ChunkDBPath) > 0{
+		p = filepath.Join(config.ChunkDBPath, "ensdb")
+	}
 	ldb, err := leveldb.OpenFile(p, nil)
 	ens.ldb = ldb
 
@@ -164,10 +151,10 @@ func (self *ENSSimple) StoreRootHash(indexName []byte, roothash []byte) (err err
 	tx, err := self.sens.SetContent(self.auth, i32, r32)
 	if err != nil{
         	elog.Debug(fmt.Sprintf("SimpleENS StoreRootHash SetContent err = %v",err))
-		self.StoreRootHashToLDB(indexName, roothash, 1, nil)
+		self.StoreRootHashToLDB(indexName, roothash, 2, nil)
 	}else{
 //TODO: only for debugging
-		self.StoreRootHashToLDB(indexName, roothash, 2, nil)
+		self.StoreRootHashToLDB(indexName, roothash, 1, nil)
 		elog.Debug(fmt.Sprintf("return store %x %v %x\n", tx.Hash(), err, tx))
 /*
         	h, err = self.conn.HeaderByNumber(ctx, nil)
@@ -252,9 +239,15 @@ func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
 			return res, GenerateSWARMDBError(err, `[swarmdb:ENSSimple] GetRootHash `+err.Error())
 		}
 	}
+/*
 	if d.Status == 1 {
 		return d.Root, nil
 	} 
+*/
+// TODO: check old value and decide to call store root hash
+	if d.Status == 2{
+		self.StoreRootHash(indexName, d.Root)
+	}
 	
 	/*
 		sql := `SELECT roothash FROM ens WHERE indexName = $1`
@@ -298,7 +291,6 @@ func (self *ENSSimple) GetRootHash(indexName []byte) (val []byte, err error) {
 		}
 	}
 	//copy(val[0:], s[0:32])
-	fmt.Printf("indexName: [%x] => s: [%x] val: [%x]\n", indexName, s, val)
 	elog.Debug(fmt.Sprintf("out ENSSimple GetRootHash %x s %x val %x", indexName, s, val))
 	return val, nil
 }

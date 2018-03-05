@@ -39,6 +39,7 @@ type MemStore struct {
 	dbAccessCnt        uint64
 	dbStore            *DbStore
 	lock               sync.Mutex
+	mode               uint64
 }
 
 /*
@@ -59,6 +60,7 @@ func NewMemStore(d *DbStore, capacity uint) (m *MemStore) {
 	m.memtree = newMemTree(memTreeFLW, nil, 0)
 	m.dbStore = d
 	m.setCapacity(capacity)
+	m.mode = 0
 	return
 }
 
@@ -168,14 +170,16 @@ func (s *MemStore) Put(entry *Chunk) {
 
 		if node.entry.Key.isEqual(entry.Key) {
 			node.updateAccess(s.accessCnt)
-			if entry.SData == nil {
-				entry.Size = node.entry.Size
-				entry.SData = node.entry.SData
+			if s.mode == 0{
+				if entry.SData == nil {
+					entry.Size = node.entry.Size
+					entry.SData = node.entry.SData
+				}
+				if entry.Req == nil {
+					entry.Req = node.entry.Req
+				}
+				entry.C = node.entry.C
 			}
-			if entry.Req == nil {
-				entry.Req = node.entry.Req
-			}
-			entry.C = node.entry.C
 			node.entry = entry
 			return
 		}
@@ -325,4 +329,8 @@ func (s *MemStore) removeOldest() {
 // Close memstore
 func (s *MemStore) Close() {
 	return
+}
+
+func (s *MemStore) SetMode(mode uint64){
+	s.mode = mode
 }

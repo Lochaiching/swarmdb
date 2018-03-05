@@ -42,7 +42,8 @@ SdbStore falls back to a backend (CloudStorage interface)
 implemented by bzz/network/forwarder. forwarder or IPFS or IPΞS
 */
 type SdbStore struct {
-	localStore *LocalStore
+	//localStore *LocalStore
+	localStore *MemStore
 	cloud      CloudStore
 	//swarmdb	   *swarmdb.SwarmDB
 	lock       sync.Mutex
@@ -81,7 +82,7 @@ func NewStoreParams(path string) (self *StoreParams) {
 // the persistent (disk) storage component of LocalStore
 // the second argument is the hive, the connection/logistics manager for the node
 //func NewSdbStore(lstore *LocalStore, cloud CloudStore, swarmdb *swarmdb.SwarmDB) *SdbStore {
-func NewSdbStore(lstore *LocalStore, cloud CloudStore) *SdbStore {
+func NewSdbStore(lstore *MemStore, cloud CloudStore) *SdbStore {
 	return &SdbStore{
 		localStore: lstore,
 		cloud:      cloud,
@@ -103,7 +104,8 @@ var (
 
 func (self *SdbStore) Put(entry *Chunk) {
 	log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Put: entry %v %v", entry, entry.Key))
-	chunk, _ := self.localStore.memStore.Get(entry.Key)
+	//chunk, _ := self.localStore.memStore.Get(entry.Key)
+	chunk, _ := self.localStore.Get(entry.Key)
 	log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] SdbStore.Put: memstore %v %v %v", entry.Key, chunk, &chunk))
 	
 //if entry.Size == 0, it's from storeRequest
@@ -114,7 +116,8 @@ func (self *SdbStore) Put(entry *Chunk) {
 		chunk.Options = entry.Options
 		close(chunk.Req.C)
 		chunk.Req = nil
-		self.localStore.memStore.Put(chunk)
+//		self.localStore.memStore.Put(chunk)
+		self.localStore.Put(chunk)
 //TODO :if version check here, don't need this line or add some process for finding result.
 		log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] SdbStore.Put in if statement: memstore %v %v %v", entry.Key, chunk, &chunk))
 		log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Put: closing Req.C"))
@@ -129,7 +132,8 @@ func (self *SdbStore) Get(key Key) (*Chunk, error) {
 	// no data and no request status
 	log.Debug(fmt.Sprintf("[wolk-cloudstore] SdbStore.Get: key %v", key))
 	chunk := NewChunk(key, newRequestStatus(key))
-	self.localStore.memStore.Put(chunk)
+	//self.localStore.memStore.Put(chunk)
+	self.localStore.Put(chunk)
 	go self.cloud.RetrieveDB(chunk)
 	log.Debug(fmt.Sprintf("memcheck [wolk-cloudstore] SdbStore.Get: key %v val %d address %v %v", key, len(chunk.SData), chunk, &chunk))
 	return chunk, nil
