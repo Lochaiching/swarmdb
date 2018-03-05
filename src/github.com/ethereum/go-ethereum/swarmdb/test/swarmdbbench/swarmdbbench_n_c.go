@@ -1,5 +1,10 @@
 package main
 
+//[root@yaron-swarm-01 swarmdbbench]# go run swarmdbbench_n_c.go -n 1 -c 1
+//[root@yaron-swarm-01 swarmdbbench]# go run swarmdbbench_n_c.go -n 2 -c 2
+//[root@yaron-swarm-01 swarmdbbench]# go run swarmdbbench_n_c.go -n 5 -c 5
+//[root@yaron-swarm-01 swarmdbbench]# go run swarmdbbench_n_c.go -n 10 -c 10
+
 import (
 	"github.com/wolkdb/swarmdblib"
 	"fmt"
@@ -231,7 +236,8 @@ func testGet(c int) {
 	m :=new(sync.Mutex)
 	semaphore := make(chan int, c)
 
-	start := makeTimestamp()	
+	start := makeTimestamp()
+	failure := 0	
 	for k, info := range contacts.info {
 		semaphore<-1
 		wg.Add(1)
@@ -248,13 +254,23 @@ func testGet(c int) {
 				os.Exit(0)
 			}
 			fmt.Println("Get: ", retrievedRow)
+			
+			//fmt.Println("info.email: ", primaryKey)
+			retrievedRowPrimaryKey := retrievedRow[0]["email"]
+			//fmt.Println("retrievedRow[0]['email']: ", retrievedRowPrimaryKey)
+			
+			if(primaryKey != retrievedRowPrimaryKey) {
+				failure = failure + 1
+			}
+			
+			
 			fmt.Println("chan out:   ", f)
 			<-semaphore	
 		}(k, info.email)
 	}
 	wg.Wait()
 	end := makeTimestamp()
-	fmt.Printf("TestGet start: %d end: %d total: %d Millisecond\n", start, end, end-start)
+	fmt.Printf("TestGet start: %d end: %d total: %d Millisecond    Failure: %d\n", start, end, end-start, failure)
 	fmt.Println("testGet---")	 
 }
 
